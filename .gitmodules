@@ -1,0 +1,3 @@
+[submodule "models/modules/pytorch-fid"]
+	path = models/modules/fid
+	url = https://github.com/jolibrain/pytorch-fid

@@ -8,7 +8,7 @@ from torchviz import make_dot
 
 #for FID
 from data.base_dataset import get_transform
-from pytorch_fid.fid_score import _compute_statistics_of_path,calculate_frechet_distance
+from .modules.fid.pytorch_fid.fid_score import _compute_statistics_of_path,calculate_frechet_distance
 from util.util import save_image,tensor2im
 
 class BaseModel(ABC):
