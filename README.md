@@ -11,8 +11,8 @@
 
 - Clone this repo:
 ```bash
-git clone https://github.com/jolibrain/pytorch-CycleGAN-and-pix2pix
-cd pytorch-CycleGAN-and-pix2pix
+git clone https://github.com/jolibrain/joliGAN.git
+cd joliGAN
 ```
 
 - Install [PyTorch](http://pytorch.org) and other dependencies (torchvision, [visdom](https://github.com/facebookresearch/visdom) and [dominate](https://github.com/Knio/dominate), [FID](https://github.com/jolibrain/pytorch-fid)).  
