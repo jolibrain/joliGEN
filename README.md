@@ -1,6 +1,11 @@
 ![Logo](imgs/joligan.svg)
 
 
+JoliGAN is an implementation of an unpaired image to image translation. It uses cycle consistency such as CycleGAN but it allows the use of :
+- more generator architectures such as styleGAN2 decoder / mobile resnet
+- semanctic consistency 
+- new losses : out mask loss, w loss (for sty2 decoder)
+ 
 ## Prerequisites
 - Linux or macOS
 - Python 3
