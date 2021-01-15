@@ -18,7 +18,7 @@ from .modules.UNet_classification import UNet
 from .modules.classifiers import Classifier_w
 from .modules.stylegan2.decoder_stylegan2 import Generator as GeneratorStyleGAN2
 from .modules.stylegan2.decoder_stylegan2 import Discriminator as DiscriminatorStyleGAN2
-from pytorch_fid.inception import InceptionV3
+from .modules.fid.pytorch_fid.inception import InceptionV3
 
 class BaseNetwork(nn.Module):
     def __init__(self):

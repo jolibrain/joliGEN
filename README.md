@@ -16,7 +16,7 @@ JoliGAN is an implementation of an unpaired image to image translation. It uses 
 
 - Clone this repo:
 ```bash
-git clone https://github.com/jolibrain/joliGAN.git
+git clone --recursive https://github.com/jolibrain/joliGAN.git
 cd joliGAN
 ```
 
