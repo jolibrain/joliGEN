@@ -265,21 +265,40 @@ class CycleGANSty2Model(BaseModel):
         if self.isTrain:
             #self.netDecoderG_B.eval()
             if self.rec_noise > 0.0:
-                self.fake_B_noisy1 = gaussian(self.fake_B, self.rec_noise)
-                self.z_rec_A, self.n_rec_A = self.netG_B(self.fake_B_noisy1)
+                self.fake_B_noisy1 = self.gaussian(self.fake_B, self.rec_noise)
+                if self.opt.crop_size != self.opt.decoder_size:
+                    self.fake_B_resized=F.interpolate(self.fake_B_noisy1, size=(self.opt.crop_size))
+                    self.z_rec_A, self.n_rec_A = self.netG_B(self.fake_B_resized)
+                else:
+                    self.z_rec_A, self.n_rec_A = self.netG_B(self.fake_B_noisy1)
             else:
-                self.z_rec_A, self.n_rec_A = self.netG_B(self.fake_B)
+                if self.opt.crop_size != self.opt.decoder_size:
+                    self.fake_B_resized=F.interpolate(self.fake_B, size=(self.opt.crop_size))
+                    self.z_rec_A, self.n_rec_A = self.netG_B(self.fake_B_resized)
+                else:
+                    self.z_rec_A, self.n_rec_A = self.netG_B(self.fake_B)
+                    
             self.rec_A = self.netDecoderG_B(self.z_rec_A,input_is_latent=True,truncation=self.truncation,truncation_latent=self.mean_latent_B, randomize_noise=False, noise=self.n_rec_A)[0]
                 
             self.z_fake_A, self.n_fake_A = self.netG_B(self.real_B)
             self.fake_A,self.latent_fake_A = self.netDecoderG_B(self.z_fake_A,input_is_latent=True,truncation=self.truncation,truncation_latent=self.mean_latent_B,randomize_noise=False,return_latents=True,noise=self.n_fake_A)
-            
+
             if self.rec_noise > 0.0:
-                self.fake_A_noisy1 = gaussian(self.fake_A, self.rec_noise)
-                self.z_rec_B, self.n_rec_B = self.netG_A(self.fake_A_noisy1)
+                self.fake_A_noisy1 = self.gaussian(self.fake_A, self.rec_noise)
+
+                if self.opt.crop_size != self.opt.decoder_size:
+                    self.fake_A_resized=F.interpolate(self.fake_A_noisy1, size=(self.opt.crop_size))
+                    self.z_rec_B, self.n_rec_B = self.netG_A(self.fake_A_resized)
+                else:
+                    self.z_rec_B, self.n_rec_B = self.netG_A(self.fake_A_noisy1)
             else:
-                self.z_rec_B, self.n_rec_B = self.netG_A(self.fake_A)
+                if self.opt.crop_size != self.opt.decoder_size:
+                    self.fake_A_resized=F.interpolate(self.fake_A, size=(self.opt.crop_size))
+                    self.z_rec_B, self.n_rec_B = self.netG_A(self.fake_A_resized)
+                else:
+                    self.z_rec_B, self.n_rec_B = self.netG_B(self.fake_A)
             self.rec_B = self.netDecoderG_A(self.z_rec_B,input_is_latent=True,truncation=self.truncation,truncation_latent=self.mean_latent_A, randomize_noise=False, noise=self.n_rec_B)[0]
+            
             
     def backward_G(self):
         #print('BACKWARD G')
@@ -293,27 +312,53 @@ class CycleGANSty2Model(BaseModel):
             self.z_idt_A, self.n_idt_A = self.netG_A(self.real_B)
             self.idt_A = self.netDecoderG_A(self.z_idt_A,input_is_latent=True,truncation=self.truncation,truncation_latent=self.mean_latent_A,randomize_noise=False,noise=self.n_idt_A)[0]
             
-            self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
+            if self.opt.crop_size != self.opt.decoder_size:
+                self.loss_idt_A = self.criterionIdt(F.interpolate(self.idt_A, size=(self.opt.crop_size)), self.real_B) * lambda_B * lambda_idt
+            else:
+                self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             if self.percept_loss:
-                self.loss_idt_A += self.criterionIdt2(self.idt_A, self.real_B) * lambda_B * lambda_idt
+                if self.opt.crop_size != self.opt.decoder_size:
+                    self.loss_idt_A += self.criterionIdt2(F.interpolate(self.idt_A, size=(self.opt.crop_size)), self.real_B) * lambda_B * lambda_idt
+                else:
+                    self.loss_idt_A += self.criterionIdt2(self.idt_A, self.real_B) * lambda_B * lambda_idt
             # G_B should be identity if real_A is fed.
             self.z_idt_B, self.n_idt_B = self.netG_B(self.real_A)
             self.idt_B = self.netDecoderG_B(self.z_idt_B,input_is_latent=True,truncation=self.truncation,truncation_latent=self.mean_latent_B,randomize_noise=False,noise=self.n_idt_B)[0]
-            self.loss_idt_B = self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
+            if self.opt.crop_size != self.opt.decoder_size:
+                self.loss_idt_B = self.criterionIdt(F.interpolate(self.idt_B, size=(self.opt.crop_size)), self.real_A) * lambda_A * lambda_idt
+            else:
+                self.loss_idt_B = self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
             if self.percept_loss:
-                self.loss_idt_B += self.criterionIdt2(self.idt_B, self.real_A) * lambda_A * lambda_idt
+                if self.opt.crop_size != self.opt.decoder_size:
+                    self.loss_idt_B += self.criterionIdt2(F.interpolate(self.idt_B, size=(self.opt.crop_size)), self.real_A) * lambda_A * lambda_idt
+                else:
+                    self.loss_idt_B += self.criterionIdt2(self.idt_B, self.real_A) * lambda_A * lambda_idt
         else:
             self.loss_idt_A = 0
             self.loss_idt_B = 0
 
         # Forward cycle loss
-        self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
+        if self.opt.crop_size != self.opt.decoder_size:
+            self.loss_cycle_A = self.criterionCycle(F.interpolate(self.rec_A, size=(self.opt.crop_size)), self.real_A) * lambda_A
+        else:
+            self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
         if self.percept_loss:
-            self.loss_cycle_A += self.criterionCycle2(self.rec_A, self.real_A) * lambda_A
+            if self.opt.crop_size != self.opt.decoder_size:
+                self.loss_cycle_A += self.criterionCycle2(F.interpolate(self.rec_A, size=(self.opt.crop_size)), self.real_A) * lambda_A
+            else:
+                self.loss_cycle_A += self.criterionCycle2(self.rec_A, self.real_A) * lambda_A
+        
         # Backward cycle loss
-        self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+        if self.opt.crop_size != self.opt.decoder_size:
+            self.loss_cycle_B = self.criterionCycle(F.interpolate(self.rec_B, size=(self.opt.crop_size)), self.real_B) * lambda_B
+        else:
+            self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         if self.percept_loss:
-            self.loss_cycle_B += self.criterionCycle2(self.rec_B, self.real_B) * lambda_B
+            if self.opt.crop_size != self.opt.decoder_size:
+                self.loss_cycle_B += self.criterionCycle2(F.interpolate(self.rec_B, size=(self.opt.crop_size)), self.real_B) * lambda_B
+            else:
+                self.loss_cycle_B += self.criterionCycle2(self.rec_B, self.real_B) * lambda_B
+        
         # combined loss standard cyclegan
         self.loss_G = self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
 
@@ -324,7 +369,11 @@ class CycleGANSty2Model(BaseModel):
             compute_g_regularize = False
         
         #A
-        self.fake_pred_g_loss_A = self.netDiscriminatorDecoderG_A(self.fake_A)
+        if self.opt.crop_size != self.opt.decoder_size:
+            self.fake_pred_g_loss_A = self.netDiscriminatorDecoderG_A(F.interpolate(self.fake_A, size=(self.opt.crop_size)))
+        else:
+            self.fake_pred_g_loss_A = self.netDiscriminatorDecoderG_A(self.fake_A)
+
         self.loss_g_nonsaturating_A = self.g_nonsaturating_loss(self.fake_pred_g_loss_A)
         
         if compute_g_regularize:
@@ -344,7 +393,11 @@ class CycleGANSty2Model(BaseModel):
             self.loss_weighted_path_A = 0#*self.loss_weighted_path_A
 
         #B
-        self.fake_pred_g_loss_B = self.netDiscriminatorDecoderG_B(self.fake_B)
+        if self.opt.crop_size != self.opt.decoder_size:
+            self.fake_pred_g_loss_B = self.netDiscriminatorDecoderG_B(F.interpolate(self.fake_B, size=(self.opt.crop_size)))
+        else:
+            self.fake_pred_g_loss_B = self.netDiscriminatorDecoderG_B(self.fake_B)
+
         self.loss_g_nonsaturating_B = self.g_nonsaturating_loss(self.fake_pred_g_loss_B)
         
         if compute_g_regularize:
@@ -419,11 +472,19 @@ class CycleGANSty2Model(BaseModel):
 
     def backward_discriminator_decoder(self):
         real_pred_A = self.netDiscriminatorDecoderG_A(self.real_A)
-        fake_pred_A = self.netDiscriminatorDecoderG_A(self.fake_A_pool.query(self.fake_A))
+        if self.opt.crop_size != self.opt.decoder_size:
+            fake_pred_A = self.netDiscriminatorDecoderG_A(F.interpolate(self.fake_A_pool.query(self.fake_A), size=(self.opt.crop_size)))
+        else:
+            fake_pred_A = self.netDiscriminatorDecoderG_A(self.fake_A_pool.query(self.fake_A))
+
         self.loss_d_dec_A = self.d_logistic_loss(real_pred_A,fake_pred_A).unsqueeze(0)
 
         real_pred_B = self.netDiscriminatorDecoderG_B(self.real_B)
-        fake_pred_B = self.netDiscriminatorDecoderG_B(self.fake_B_pool.query(self.fake_B))
+        if self.opt.crop_size != self.opt.decoder_size:
+            fake_pred_B = self.netDiscriminatorDecoderG_B(F.interpolate(self.fake_B_pool.query(self.fake_B), size=(self.opt.crop_size)))
+        else:
+            fake_pred_B = self.netDiscriminatorDecoderG_B(self.fake_B_pool.query(self.fake_B))
+
         self.loss_d_dec_B = self.d_logistic_loss(real_pred_B,fake_pred_B).unsqueeze(0)
         self.loss_d_dec = self.loss_d_dec_A + self.loss_d_dec_B
         

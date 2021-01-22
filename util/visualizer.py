@@ -12,6 +12,7 @@ if sys.version_info[0] == 2:
 else:
     VisdomExceptionBase = ConnectionError
 
+import torch.nn.functional as nnf
 
 def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
     """Save images to the disk.
@@ -84,6 +85,8 @@ class Visualizer():
             now = time.strftime("%c")
             log_file.write('================ Training Loss (%s) ================\n' % now)
 
+        self.crop_size=opt.crop_size
+            
     def reset(self):
         """Reset the self.saved status"""
         self.saved = False
@@ -127,7 +130,10 @@ class Visualizer():
                     param_html_row = ''
                 
                 for label, image in visuals.items():
-                    image_numpy = util.tensor2im(image)
+                    if image.shape[-1]!=self.crop_size:
+                        image_numpy = util.tensor2im(nnf.interpolate(image, size=(self.crop_size)))
+                    else:
+                        image_numpy = util.tensor2im(image)
                     label_html_row += '<td>%s</td>' % label
                     images.append(image_numpy.transpose([2, 0, 1]))
                     idx += 1
