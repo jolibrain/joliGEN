@@ -1,9 +1,23 @@
-gpu='0'
+#!/bin/bash
+
+current_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+gpu=0
+
 ########
 # Data #
 ########
-src='/data1/cycada/datasets/svhn2mnist_jpg/'
-checkpoints_dir='/data1/pnsuau/train/train_semantic/'
+
+if [ $# -ne 1 ]
+then
+    echo "Usage: $0 [dataroot]"
+    exit
+fi
+
+src=$1
+echo "Data root = ${src}"
+checkpoints_dir='./checkpoint_semantic'
+echo "Checkpoint dir = ${checkpoints_dir}"
 name='train_1'
 dataset_mode='unaligned_labeled'
 
@@ -41,8 +55,8 @@ nclasses='10'
 
 # Run python script #
 
-python3 /home/pnsuau/pytorch-CycleGAN-and-pix2pix/train.py\
-	--dataroot ${src} --checkpoints_dir ${checkpoints_dir} --name $name\
+python3 "${current_dir}/../train.py"\
+	--dataroot "${src}" --checkpoints_dir "${checkpoints_dir}" --name $name\
 	--display_env $display_env  --display_freq ${display_freq} --print_freq ${print_freq}\
 	--gpu ${gpu}\
 	--lambda_A ${lambda_A} --lambda_B ${lambda_B} --lambda_identity ${lambda_identity}\

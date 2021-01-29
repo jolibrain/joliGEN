@@ -32,12 +32,13 @@ cd joliGAN
 |CycleGAN, CycleGAN_semantic, CycleGAN_semantic_mask|resnet, Unet, mobile_resnet|Vanilla, Sty2|
 
 <br>
+With a dataset located in directory `dataroot`:
 
 - Train a [cycleGAN](docs/cyclegan.md) :
  
 You can tune the hyperparameters in `./scripts/train_cyclegan.sh` and then use the following line command.
 ```
-bash ./scripts/train_cyclegan.sh
+bash ./scripts/train_cyclegan.sh dataroot
 ```
 <br>
 
@@ -45,7 +46,7 @@ bash ./scripts/train_cyclegan.sh
  
 You can tune the hyperparameters in `./scripts/train_cyclegan_semantic.sh` and then use the following line command.
 ```
-bash ./scripts/train_cyclegan_semantic.sh
+bash ./scripts/train_cyclegan_semantic.sh dataroot
 ```
 <br>
 
@@ -53,7 +54,7 @@ bash ./scripts/train_cyclegan_semantic.sh
  
 You can tune the hyperparameters in `./scripts/train_cyclegan_semantic_mask.sh` and then use the following line command.
 ```
-bash ./scripts/train_cyclegan_semantic_mask.sh
+bash ./scripts/train_cyclegan_semantic_mask.sh dataroot
 ```
 ## [Datasets](docs/datasets.md)
 - Unaligned : apple2orange, horse2zebra
