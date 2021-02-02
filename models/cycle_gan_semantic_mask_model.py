@@ -59,7 +59,17 @@ class CycleGANSemanticMaskModel(BaseModel):
     
     def __init__(self, opt):
         BaseModel.__init__(self, opt)
-        
+        if not hasattr(opt, 'disc_in_mask'):
+            opt.disc_in_mask = False
+        if not hasattr(opt, 'out_mask'):
+            opt.out_mask = False
+        if not hasattr(opt, 'nb_attn'):
+            opt.nb_attn = 10
+        if not hasattr(opt, 'nb_mask_input'):
+            opt.nb_mask_input = 1
+        if not hasattr(opt, 'fs_light'):
+            opt.fs_light = False
+            
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         losses = ['G_A','G_B']
         if opt.disc_in_mask:
@@ -111,7 +121,7 @@ class CycleGANSemanticMaskModel(BaseModel):
                 self.model_names += ['D_A_mask', 'D_B_mask']
             self.model_names += ['D_A', 'D_B']
         else:  # during test time, only load Gs
-            self.model_names = ['G_A', 'f_s']
+            self.model_names = ['G_A']
 
         # load/define networks
         # The naming conversion is different from those used in the paper

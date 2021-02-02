@@ -71,12 +71,12 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     elif netG == 'mobile_resnet_9blocks':
         if decoder :
             net = MobileResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
-                                        dropout_rate=0, n_blocks=9, wplus=wplus,
+                                        dropout_rate=0.0, n_blocks=9, wplus=wplus,
                                         init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
                                         img_size=img_size, img_size_dec=img_size_dec)
         else:
             net = MobileResnetEncoderSty2(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
-                                        dropout_rate=0, n_blocks=9, wplus=wplus,
+                                        dropout_rate=0.0, n_blocks=9, wplus=wplus,
                                         init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
                                         img_size=img_size, img_size_dec=img_size_dec)
     elif netG == 'unet_128':

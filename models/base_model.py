@@ -40,6 +40,8 @@ class BaseModel(ABC):
         self.isTrain = opt.isTrain
         if hasattr(opt, 'disc_in_mask'):
             self.disc_in_mask = opt.disc_in_mask
+        else:
+            self.disc_in_mask = False
         if hasattr(opt,'fs_light'):
             self.fs_light = opt.fs_light
         self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')  # get device name: CPU or GPU
