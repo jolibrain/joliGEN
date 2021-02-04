@@ -8,7 +8,6 @@ from .modules.utils import spectral_norm,init_net,init_weights,get_norm_layer
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator
 from .modules.resnet_architecture.mobile_resnet_generator import MobileResnetGenerator
 from .modules.unet_architecture.unet_generator import UnetGenerator
-from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn2
 from .modules.discriminators import NLayerDiscriminator
 from .modules.discriminators import PixelDiscriminator
@@ -78,8 +77,6 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    elif netG == 'resnet_attn':
-        net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral)
     elif netG == 'resnet_attn_jb':
         net = ResnetGenerator_attn2(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
     else:
