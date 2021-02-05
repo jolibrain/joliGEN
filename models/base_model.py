@@ -10,6 +10,7 @@ from torchviz import make_dot
 from data.base_dataset import get_transform
 from .modules.fid.pytorch_fid.fid_score import _compute_statistics_of_path,calculate_frechet_distance
 from util.util import save_image,tensor2im
+import numpy as np
 
 class BaseModel(ABC):
     """This class is an abstract base class (ABC) for models.
@@ -64,10 +65,21 @@ class BaseModel(ABC):
             batch=1
             self.netFid=networks.define_inception(self.gpu_ids[0],dims)
             pathA=opt.dataroot + '/trainA'
-            self.realmA,self.realsA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+            if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_A.npz'):
+                self.realmA,self.realsA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+                np.savez(opt.checkpoints_dir+'fid_mu_sigma_A.npz', mu=self.realmA, sigma=self.realsA)
+            else:
+                print('Mu and sigma loaded for domain A')
+                self.realmA,self.realsA=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_A.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+                
             pathB=opt.dataroot + '/trainB'
-            self.realmB,self.realsB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform)
-
+            if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_B.npz'):
+                self.realmB,self.realsB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+                np.savez(opt.checkpoints_dir+'fid_mu_sigma_B.npz', mu=self.realmB, sigma=self.realsB)
+            else:
+                print('Mu and sigma loaded for domain B')
+                self.realmB,self.realsB=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+                
             pathA=self.save_dir + '/fakeA/'
             if not os.path.exists(pathA):
                 os.mkdir(pathA)
