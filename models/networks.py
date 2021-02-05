@@ -6,7 +6,7 @@ import math
 from .modules.utils import spectral_norm,init_net,init_weights,get_norm_layer
 
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator
-from .modules.resnet_architecture.mobile_resnet_generator import MobileResnetGenerator
+from .modules.resnet_architecture.mobile_resnet_generator import MobileResnetGenerator,MobileResnetEncoderSty2
 from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn2
@@ -70,10 +70,16 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     elif netG == 'resnet_12blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=12, decoder=decoder, wplus=wplus, wskip=wskip, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, img_size=img_size,img_size_dec=img_size_dec)
     elif netG == 'mobile_resnet_9blocks':
-        net = MobileResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
-                                    dropout_rate=0, n_blocks=9, decoder=decoder, wplus=wplus,
-                                    init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
-                                    img_size=img_size, img_size_dec=img_size_dec)
+        if decoder :
+            net = MobileResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
+                                        dropout_rate=0, n_blocks=9, wplus=wplus,
+                                        init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
+                                        img_size=img_size, img_size_dec=img_size_dec)
+        else:
+            net = MobileResnetEncoderSty2(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
+                                        dropout_rate=0, n_blocks=9, wplus=wplus,
+                                        init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
+                                        img_size=img_size, img_size_dec=img_size_dec)
     elif netG == 'unet_128':
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
