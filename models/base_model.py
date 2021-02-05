@@ -66,19 +66,21 @@ class BaseModel(ABC):
             self.netFid=networks.define_inception(self.gpu_ids[0],dims)
             pathA=opt.dataroot + '/trainA'
             if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_A.npz'):
-                self.realmA,self.realsA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+                self.realmA,self.realsA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.nb_img_max_fid)
                 np.savez(opt.checkpoints_dir+'fid_mu_sigma_A.npz', mu=self.realmA, sigma=self.realsA)
             else:
+
                 print('Mu and sigma loaded for domain A')
-                self.realmA,self.realsA=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_A.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+                self.realmA,self.realsA=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_A.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.nb_img_max_fid)
                 
             pathB=opt.dataroot + '/trainB'
             if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_B.npz'):
-                self.realmB,self.realsB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+                self.realmB,self.realsB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.nb_img_max_fid)
                 np.savez(opt.checkpoints_dir+'fid_mu_sigma_B.npz', mu=self.realmB, sigma=self.realsB)
             else:
+
                 print('Mu and sigma loaded for domain B')
-                self.realmB,self.realsB=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform)
+                self.realmB,self.realsB=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.nb_img_max_fid)
                 
             pathA=self.save_dir + '/fakeA/'
             if not os.path.exists(pathA):
@@ -319,7 +321,7 @@ class BaseModel(ABC):
             os.mkdir(pathA)
         for i,temp_fake_A in enumerate(self.fake_A_pool.get_all()):
             save_image(tensor2im(temp_fake_A), pathA+'/'+str(i)+'.png', aspect_ratio=1.0)
-        self.fakemA,self.fakesA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0])
+        self.fakemA,self.fakesA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.nb_img_max_fid)
             
         pathB=self.save_dir + '/fakeB/'+str(n_iter)+'_' +str(n_epoch)
         if not os.path.exists(pathB):
@@ -327,7 +329,7 @@ class BaseModel(ABC):
             
         for j,temp_fake_B in enumerate(self.fake_B_pool.get_all()):
             save_image(tensor2im(temp_fake_B), pathB+'/'+str(j)+'.png', aspect_ratio=1.0)
-        self.fakemB,self.fakesB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0])
+        self.fakemB,self.fakesB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.nb_img_max_fid)
 
         self.fidA=calculate_frechet_distance(self.realmA, self.realsA,self.fakemA,self.fakesA)
         self.fidB=calculate_frechet_distance(self.realmB, self.realsB,self.fakemB,self.fakesB)
