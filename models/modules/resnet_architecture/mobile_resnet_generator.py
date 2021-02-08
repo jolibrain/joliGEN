@@ -60,13 +60,81 @@ class MobileResnetBlock(nn.Module):
 
 class MobileResnetGenerator(nn.Module):
     def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
-                 dropout_rate=0, n_blocks=9, padding_type='reflect', decoder=True,
+                 dropout_rate=0, n_blocks=9, padding_type='reflect',
                  wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
                  img_size=128, img_size_dec=128):
         assert (n_blocks >= 0)
-        self.decoder = decoder
-        self.wplus = wplus
         super(MobileResnetGenerator, self).__init__()
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+        
+        self.encoder=MobileResnetEncoder(input_nc, output_nc, ngf, norm_layer,
+                 dropout_rate, n_blocks, padding_type,
+                 wplus, init_type, init_gain, gpu_ids,
+                 img_size, img_size_dec)
+
+        self.decoder=MobileResnetDecoder(input_nc, output_nc, ngf, norm_layer,
+                 dropout_rate, n_blocks, padding_type,
+                 wplus, init_type, init_gain, gpu_ids,
+                 img_size, img_size_dec)
+                
+    def forward(self, input):
+        """Standard forward"""
+        output = self.encoder(input)
+        output = self.decoder(output)
+        return output
+    
+class MobileResnetEncoderSty2(nn.Module):
+    def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
+                 dropout_rate=0, n_blocks=9, padding_type='reflect',
+                 wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
+                 img_size=128, img_size_dec=128):
+        assert (n_blocks >= 0)
+        super(MobileResnetEncoderSty2, self).__init__()
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        self.encoder=MobileResnetEncoder(input_nc, output_nc, ngf, norm_layer,
+                 dropout_rate, n_blocks, padding_type,
+                 wplus, init_type, init_gain, gpu_ids,
+                 img_size, img_size_dec)
+        
+        n_feat = 2**(2*int(math.log(img_size,2)-2))
+        self.n_wplus = (2*int(math.log(img_size_dec,2)-1))
+        self.wblocks = nn.ModuleList()
+        n_downsampling = 2
+        mult = 2 ** n_downsampling
+        for n in range(0,self.n_wplus):
+            self.wblocks += [WBlock(ngf*mult,n_feat,init_type,init_gain,gpu_ids)]
+        self.nblocks = nn.ModuleList()
+        noise_map = [4,8,8,16,16,32,32,64,64,128,128,256,256,512,512,1024,1024]
+        for n in range(0,self.n_wplus-1):
+            self.nblocks += [NBlock(ngf*mult,n_feat,noise_map[n],init_type,init_gain,gpu_ids)]
+                
+    def forward(self, input):
+        """Standard forward"""
+        output = self.encoder(input)
+        outputs = []
+        noutputs = []
+        for wc in self.wblocks:
+            outputs.append(wc(output))
+        outputs=torch.stack(outputs).unsqueeze(0)
+        for nc in self.nblocks:
+            noutputs.append(nc(output))
+        return outputs, noutputs
+
+class MobileResnetEncoder(nn.Module):
+    def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
+                 dropout_rate=0, n_blocks=9, padding_type='reflect',
+                 wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
+                 img_size=128, img_size_dec=128):
+        assert (n_blocks >= 0)
+        self.wplus = wplus
+        super(MobileResnetEncoder, self).__init__()
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
@@ -104,67 +172,44 @@ class MobileResnetGenerator(nn.Module):
             model += [MobileResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer,
                                         dropout_rate=dropout_rate,
                                         use_bias=use_bias)]
-
-        if self.decoder:
-            for i in range(n_downsampling):  # add upsampling layers
-                mult = 2 ** (n_downsampling - i)
-                model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
-                                             kernel_size=3, stride=2,
-                                             padding=1, output_padding=1,
-                                             bias=use_bias),
-                          norm_layer(int(ngf * mult / 2)),
-                          nn.ReLU(True)]
-            model += [nn.ReflectionPad2d(3)]
-            model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
-            model += [nn.Tanh()]
-            self.model = nn.Sequential(*model)
-        else:
-            if wplus == False:
-                n_feat = 4096 #1024 # 256
-                to_w = [nn.Linear(n_feat,img_size_dec)] # sty2 image output size
-                self.to_w = nn.Sequential(*to_w)
-                self.conv = nn.Conv2d(ngf*mult,1, kernel_size=1)
-            else:
-                n_feat = 2**(2*int(math.log(img_size,2)-2))
-                self.n_wplus = (2*int(math.log(img_size_dec,2)-1))
-                self.wblocks = nn.ModuleList()
-                for n in range(0,self.n_wplus):
-                    self.wblocks += [WBlock(ngf*mult,n_feat,init_type,init_gain,gpu_ids)]
-                self.nblocks = nn.ModuleList()
-                noise_map = [4,8,8,16,16,32,32,64,64,128,128,256,256,512,512,1024,1024]
-                for n in range(0,self.n_wplus-1):
-                    self.nblocks += [NBlock(ngf*mult,n_feat,noise_map[n],init_type,init_gain,gpu_ids)]
-            self.model = nn.Sequential(*model)
-
+        self.model = nn.Sequential(*model)
                 
     def forward(self, input):
         """Standard forward"""
-        # input = input.clamp(-1, 1)
-        # for i, module in enumerate(self.model):
-        #     print(i, input.size())
-        #     print(module)
-        #     if isinstance(module, nn.Conv2d):
-        #         print(module.stride)
-        #     input = module(input)
-        # return input
-        if self.decoder:
-            return self.model(input)
+        output = self.model(input)
+        return output
+
+class MobileResnetDecoder(nn.Module):
+    def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
+                 dropout_rate=0, n_blocks=9, padding_type='reflect', decoder=True,
+                 wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
+                 img_size=128, img_size_dec=128):
+        assert (n_blocks >= 0)
+        super(MobileResnetDecoder, self).__init__()
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
-            output = self.model(input)
-            if not self.wplus:
-                output = self.conv(output).squeeze(dim=1)
-                output = torch.flatten(output,1)
-                output = self.to_w(output).unsqueeze(dim=0)
-                return output
-            else:
-                outputs = []
-                noutputs = []
-                for wc in self.wblocks:
-                    outputs.append(wc(output))
-                outputs=torch.stack(outputs).unsqueeze(0)
-                for nc in self.nblocks:
-                    noutputs.append(nc(output))
-                return outputs, noutputs
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        model = []
+
+        n_downsampling = 2
+
+        for i in range(n_downsampling):  # add upsampling layers
+            mult = 2 ** (n_downsampling - i)
+            model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+                                         kernel_size=3, stride=2,
+                                         padding=1, output_padding=1,
+                                         bias=use_bias),
+                      norm_layer(int(ngf * mult / 2)),
+                      nn.ReLU(True)]
+        model += [nn.ReflectionPad2d(3)]
+        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+        model += [nn.Tanh()]
+        self.model = nn.Sequential(*model)
+                
+    def forward(self, input):
+        return self.model(input)
 
 class WBlock(nn.Module):
     """Define a linear block for W"""
