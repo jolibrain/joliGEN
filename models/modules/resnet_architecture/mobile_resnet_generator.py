@@ -60,7 +60,7 @@ class MobileResnetBlock(nn.Module):
 
 class MobileResnetGenerator(nn.Module):
     def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
-                 dropout_rate=0, n_blocks=9, padding_type='reflect',
+                 dropout_rate=0.0, n_blocks=9, padding_type='reflect',
                  wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
                  img_size=128, img_size_dec=128):
         assert (n_blocks >= 0)
