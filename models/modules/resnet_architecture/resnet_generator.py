@@ -66,13 +66,12 @@ class ResnetBlock(nn.Module):
         out = x + self.conv_block(x)  # add skip connections
         return out
 
-
 class ResnetGenerator(nn.Module):
     """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
 
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False, decoder=True, wplus=True, wskip=False, init_type='normal', init_gain=0.02, gpu_ids=[],img_size=128,img_size_dec=128):
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
         """Construct a Resnet-based generator
 
         Parameters:
@@ -86,23 +85,93 @@ class ResnetGenerator(nn.Module):
         """
         assert(n_blocks >= 0)
         super(ResnetGenerator, self).__init__()
-        self.bpoints = []
-        self.head = []
-        self.decoder = decoder
-        self.wplus = wplus
-        self.wskip = wskip
-        head = []
+
+        self.encoder=ResnetEncoder(input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks, padding_type, use_spectral, init_type, init_gain, gpu_ids)
+        self.decoder=ResnetDecoder(input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks, padding_type, use_spectral, init_type, init_gain, gpu_ids)
+        
+    def forward(self, input):
+        """Standard forward"""
+        output=self.encoder(input)
+        output=self.decoder(output)
+        return output
+
+class ResnetEncoderSty2(nn.Module):
+    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
+
+    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
+    """
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[],img_size=128,img_size_dec=128):
+        """Construct a Resnet-based generator
+
+        Parameters:
+            input_nc (int)      -- the number of channels in input images
+            output_nc (int)     -- the number of channels in output images
+            ngf (int)           -- the number of filters in the last conv layer
+            norm_layer          -- normalization layer
+            use_dropout (bool)  -- if use dropout layers
+            n_blocks (int)      -- the number of ResNet blocks
+            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
+        """
+        assert(n_blocks >= 0)
+        super(ResnetEncoderSty2, self).__init__()
+
+        self.encoder=ResnetEncoder(input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks, padding_type, use_spectral, init_type, init_gain, gpu_ids)
+
+        n_feat = 2**(2*int(math.log(img_size,2)-2))
+        self.n_wplus = (2*int(math.log(img_size_dec,2)-1))
+        n_downsampling = 2
+        mult = 2 ** n_downsampling
+        self.wblocks = nn.ModuleList()
+        for n in range(0,self.n_wplus):
+            self.wblocks += [WBlock(ngf*mult,n_feat,init_type,init_gain,gpu_ids)]
+        self.nblocks = nn.ModuleList()
+        noise_map = [4,8,8,16,16,32,32,64,64,128,128,256,256,512,512,1024,1024]
+        for n in range(0,self.n_wplus-1):
+            self.nblocks += [NBlock(ngf*mult,n_feat,noise_map[n],init_type,init_gain,gpu_ids)]
+        
+    def forward(self, input):
+        """Standard forward"""
+        features=self.encoder(input)
+        outputs = []
+        noutputs = []
+        for wc in self.wblocks:
+            outputs.append(wc(features))
+        outputs=torch.stack(outputs).unsqueeze(0)
+        for nc in self.nblocks:
+            noutputs.append(nc(features))            
+        return outputs, noutputs
+
+
+class ResnetEncoder(nn.Module):
+    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
+
+    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
+    """
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
+        """Construct a Resnet-based encoder
+
+        Parameters:
+            input_nc (int)      -- the number of channels in input images
+            output_nc (int)     -- the number of channels in output images
+            ngf (int)           -- the number of filters in the last conv layer
+            norm_layer          -- normalization layer
+            use_dropout (bool)  -- if use dropout layers
+            n_blocks (int)      -- the number of ResNet blocks
+            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
+        """
+        assert(n_blocks >= 0)
+        super(ResnetEncoder, self).__init__()
+
         model = []
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
-
+        
         fl = [nn.ReflectionPad2d(3),
                  spectral_norm(nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),use_spectral),
                  norm_layer(ngf),
                  nn.ReLU(True)]
-        head += fl
         model += fl
         
         n_downsampling = 2
@@ -112,88 +181,64 @@ class ResnetGenerator(nn.Module):
                       norm_layer(ngf * mult * 2),
                       nn.ReLU(True)]
             model += dsp
-            head += dsp
 
         mult = 2 ** n_downsampling
         for i in range(n_blocks):       # add ResNet blocks
-
             resblockl = [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
             model += resblockl
-            self.bpoints += resblockl
 
-        if self.decoder:
-            for i in range(n_downsampling):  # add upsampling layers
-                mult = 2 ** (n_downsampling - i)
-                model += [spectral_norm(nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
-                                                           kernel_size=3, stride=2,
-                                                           padding=1, output_padding=1,
-                                                           bias=use_bias),use_spectral),
-                          norm_layer(int(ngf * mult / 2)),
-                          nn.ReLU(True)]
-            model += [nn.ReflectionPad2d(3)]
-            model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
-            model += [nn.Tanh()]
-            self.model = nn.Sequential(*model)
-        else:
-            if wplus == False:
-                n_feat = 1024 # 256
-                to_w = [nn.Linear(n_feat,img_size_dec)] # sty2 image output size
-                self.to_w = nn.Sequential(*to_w)
-                self.conv = nn.Conv2d(ngf*mult,1, kernel_size=1)
-            else:
-                n_feat = 2**(2*int(math.log(img_size,2)-2))
-                self.n_wplus = (2*int(math.log(img_size_dec,2)-1))
-                self.wblocks = nn.ModuleList()
-                for n in range(0,self.n_wplus):
-                    self.wblocks += [WBlock(ngf*mult,n_feat,init_type,init_gain,gpu_ids)]
-                self.nblocks = nn.ModuleList()
-                noise_map = [4,8,8,16,16,32,32,64,64,128,128,256,256,512,512,1024,1024]
-                for n in range(0,self.n_wplus-1):
-                    self.nblocks += [NBlock(ngf*mult,n_feat,noise_map[n],init_type,init_gain,gpu_ids)]
-            self.model = nn.Sequential(*model)
-            self.head = nn.Sequential(*head)
+        self.model = nn.Sequential(*model)
         
     def forward(self, input):
         """Standard forward"""
-        if self.decoder:
-            output = self.model(input)
-        else:
-            res_outputs = []
-            output = self.head(input)
-            for bp in self.bpoints:
-                output = (bp(output))
-                res_outputs.append(output)
-            
-        if hasattr(self,'to_w'):
-            print('----------------------------------------------------------------------')
-            output = self.conv(output).squeeze(dim=1)
-            output = torch.flatten(output,1)
-            output = self.to_w(output).unsqueeze(dim=0)
-            return output
-        elif hasattr(self,'wblocks'):
-            outputs = []
-            noutputs = []
-            if not self.wskip:
-                for wc in self.wblocks:
-                    outputs.append(wc(output))
-                for nc in self.nblocks:
-                    noutputs.append(nc(output))
-            else:
-                nou = 0
-                for o in res_outputs: # skip connections to latent heads
-                    outputs.append(self.wblocks[nou](o))
-                    noutputs.append(self.nblocks[nou](o))
-                    nou += 1
-                for k in range(0,self.n_wplus-nou): # remaining latent heads
-                    outputs.append(self.wblocks[nou+k](output))
-                outputs=torch.stack(outputs).unsqueeze(0)
-                for k in range(0,self.n_wplus-nou-1):
-                    noutputs.append(self.nblocks[nou+k](output))
-                    
-            return outputs, noutputs
-        else:
-            return output
+        output = self.model(input)
+        return output
 
+class ResnetDecoder(nn.Module):
+    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
+
+    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
+    """
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
+        """Construct a Resnet-based generator
+
+        Parameters:
+            input_nc (int)      -- the number of channels in input images
+            output_nc (int)     -- the number of channels in output images
+            ngf (int)           -- the number of filters in the last conv layer
+            norm_layer          -- normalization layer
+            use_dropout (bool)  -- if use dropout layers
+            n_blocks (int)      -- the number of ResNet blocks
+            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
+        """
+        assert(n_blocks >= 0)
+        super(ResnetDecoder, self).__init__()
+
+        model = []
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+        
+        n_downsampling = 2
+
+        for i in range(n_downsampling):  # add upsampling layers
+            mult = 2 ** (n_downsampling - i)
+            model += [spectral_norm(nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+                                                       kernel_size=3, stride=2,
+                                                       padding=1, output_padding=1,
+                                                       bias=use_bias),use_spectral),
+                      norm_layer(int(ngf * mult / 2)),
+                      nn.ReLU(True)]
+        model += [nn.ReflectionPad2d(3)]
+        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+        model += [nn.Tanh()]
+        self.model = nn.Sequential(*model)
+        
+    def forward(self, input):
+        """Standard forward"""
+        output = self.model(input)
+        return output
 
 class resnet_block_attn(nn.Module):
     def __init__(self, channel, kernel, stride, padding):

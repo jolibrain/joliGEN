@@ -5,7 +5,7 @@ import math
 
 from .modules.utils import spectral_norm,init_net,init_weights,get_norm_layer
 
-from .modules.resnet_architecture.resnet_generator import ResnetGenerator
+from .modules.resnet_architecture.resnet_generator import ResnetGenerator,ResnetEncoderSty2
 from .modules.resnet_architecture.mobile_resnet_generator import MobileResnetGenerator,MobileResnetEncoderSty2
 from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn2
@@ -63,7 +63,14 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     norm_layer = get_norm_layer(norm_type=norm)
     
     if netG == 'resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, decoder=decoder, wplus=wplus, wskip=wskip, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, img_size=img_size,img_size_dec=img_size_dec)
+        if decoder:
+            net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
+        else:
+            net = ResnetEncoderSty2(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
+                                        n_blocks=9,
+                                        init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
+                                        img_size=img_size, img_size_dec=img_size_dec)
+    
     elif netG == 'resnet_6blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=6, decoder=decoder, wplus=wplus, wskip=wskip, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, img_size=img_size,img_size_dec=img_size_dec)
     elif netG == 'resnet_12blocks':
