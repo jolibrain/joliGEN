@@ -80,11 +80,21 @@ class MobileResnetGenerator(nn.Module):
                  wplus, init_type, init_gain, gpu_ids,
                  img_size, img_size_dec)
                 
-    def forward(self, input):
-        """Standard forward"""
-        output = self.encoder(input)
-        output = self.decoder(output)
-        return output
+    def forward(self, input, layers=[], encode_only=False):
+        if -1 in layers:
+            layers.append(len(self.encoder))
+        if len(layers) > 0:
+            feat,feats=self.encoder(input,layers=layers, encode_only=encode_only)
+            if encode_only:
+                return feats
+            else:
+                output=self.decoder(feat)
+                return output, feats  # return both output and intermediate features
+        else:
+            """Standard forward"""
+            output = self.encoder(input)
+            output = self.decoder(output)
+            return output
     
 class MobileResnetEncoderSty2(nn.Module):
     def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
@@ -174,10 +184,30 @@ class MobileResnetEncoder(nn.Module):
                                         use_bias=use_bias)]
         self.model = nn.Sequential(*model)
                 
-    def forward(self, input):
-        """Standard forward"""
-        output = self.model(input)
-        return output
+    def forward(self, input, layers=[],encode_only=False):
+        if -1 in layers:
+            layers.append(len(self.encoder))
+        if len(layers) > 0:
+            feat = input
+            feats = []
+            for layer_id, layer in enumerate(self.model):
+                # print(layer_id, layer)
+                feat = layer(feat)
+                if layer_id in layers:
+                    # print("%d: adding the output of %s %d" % (layer_id, layer.__class__.__name__, feat.size(1)))
+                    feats.append(feat)
+                else:
+                    # print("%d: skipping %s %d" % (layer_id, layer.__class__.__name__, feat.size(1)))
+                    pass
+                if layer_id == layers[-1] and encode_only:
+                    # print('encoder only return features')
+                    return None,feats  # return intermediate features alone; stop in the last layers
+
+            return feat, feats  # return both output and intermediate features
+        else:
+            """Standard forward"""
+            output = self.model(input)
+            return output
 
 class MobileResnetDecoder(nn.Module):
     def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
