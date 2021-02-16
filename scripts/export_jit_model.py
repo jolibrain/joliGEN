@@ -10,6 +10,7 @@ parser.add_argument('--model-in-file',help='file path to generator model to expo
 parser.add_argument('--model-out-file',help='file path to exported model (.pt file)')
 parser.add_argument('--model-type',default='mobile_resnet_9blocks',help='model type, e.g. mobile_resnet_9blocks')
 parser.add_argument('--img-size',default=256,type=int,help='square image size')
+parser.add_argument('--cpu',action='store_true',help='whether to export for CPU')
 args = parser.parse_args()
 
 if not args.model_out_file:
@@ -27,8 +28,16 @@ model = networks.define_G(input_nc,output_nc,ngf,args.model_type,'instance',use_
                           decoder=decoder,
                           img_size=args.img_size,
                           img_size_dec=args.img_size)
+if not args.cpu:
+    model = model.cuda()
+    
 model.eval()
 model.load_state_dict(torch.load(args.model_in_file))
 
-jit_model = torch.jit.script(model)
+if args.cpu:
+    device = 'cpu'
+else:
+    device = 'cuda'
+dummy_input = torch.randn(1, 3, args.img_size, args.img_size, device=device)
+jit_model = torch.jit.trace(model, dummy_input)
 jit_model.save(model_out_file)
