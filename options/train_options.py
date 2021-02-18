@@ -39,5 +39,9 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--nb_img_max_fid', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used.')
         
 
+        # cut options
+        parser.add_argument('--beta2', type=float, default=0.999, help='momentum term of adam')
+        
+
         self.isTrain = True
         return parser

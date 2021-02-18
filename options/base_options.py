@@ -63,6 +63,13 @@ class BaseOptions():
         parser.add_argument('--compute_fid', action='store_true')
         parser.add_argument('--fid_every', type=int, default=1000)
 
+        #CUT options
+        parser.add_argument('--normG', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for G')
+        parser.add_argument('--normD', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for D')
+        parser.add_argument('--no_antialias', action='store_true', help='if specified, use stride=2 convs instead of antialiased-downsampling (sad)')
+        parser.add_argument('--no_antialias_up', action='store_true', help='if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv]')
+        
+
         self.initialized = True
         return parser
 
