@@ -50,6 +50,12 @@ if __name__ == '__main__':
 
         for i, data in enumerate(dataset):  # inner loop within one epoch
             iter_start_time = time.time()  # timer for computation per iteration
+            if epoch == opt.epoch_count and i == 0:
+                try:
+                    model.data_dependent_initialize(data)
+                except AttributeError:
+                    pass
+                
             if total_iters % opt.print_freq == 0:
                 t_data = iter_start_time - iter_data_time
 

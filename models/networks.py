@@ -19,6 +19,8 @@ from .modules.stylegan2.decoder_stylegan2 import Generator as GeneratorStyleGAN2
 from .modules.stylegan2.decoder_stylegan2 import Discriminator as DiscriminatorStyleGAN2
 from .modules.fid.pytorch_fid.inception import InceptionV3
 
+from .modules.cut_networks import PatchSampleF
+
 class BaseNetwork(nn.Module):
     def __init__(self):
         super(BaseNetwork, self).__init__()
@@ -168,3 +170,19 @@ def define_inception(device,dims):
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
     model = InceptionV3([block_idx]).to(device)
     return model
+
+def define_F(input_nc, netF, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, no_antialias=False, gpu_ids=[], opt=None):
+    if netF == 'global_pool':
+        net = PoolingF()
+    elif netF == 'reshape':
+        net = ReshapeF()
+    elif netF == 'sample':
+        net = PatchSampleF(use_mlp=False, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.netF_nc)
+    elif netF == 'mlp_sample':
+        net = PatchSampleF(use_mlp=True, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.netF_nc)
+    elif netF == 'strided_conv':
+        net = StridedConvF(init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
+    else:
+        raise NotImplementedError('projection model name [%s] is not recognized' % netF)
+    return init_net(net, init_type, init_gain, gpu_ids)
+
