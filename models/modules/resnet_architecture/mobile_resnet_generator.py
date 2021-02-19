@@ -80,11 +80,11 @@ class MobileResnetGenerator(nn.Module):
                  wplus, init_type, init_gain, gpu_ids,
                  img_size, img_size_dec)
                 
-    def forward(self, input, layers=[], encode_only=False):
-        if -1 in layers:
-            layers.append(len(self.encoder))
-        if len(layers) > 0:
-            feat,feats=self.encoder(input,layers=layers, encode_only=encode_only)
+    def forward(self, input, extract_layer_ids=[], encode_only=False):
+        if -1 in extract_layer_ids: #if -1 is in extract_layer_ids, the output of the encoder will be returned (features just after the last layer) 
+            extract_layer_ids.append(len(self.encoder))
+        if len(extract_layer_ids) > 0:
+            feat,feats=self.encoder(input,extract_layer_ids=extract_layer_ids, encode_only=encode_only)
             if encode_only:
                 return feats
             else:
@@ -184,22 +184,22 @@ class MobileResnetEncoder(nn.Module):
                                         use_bias=use_bias)]
         self.model = nn.Sequential(*model)
                 
-    def forward(self, input, layers=[],encode_only=False):
-        if -1 in layers:
-            layers.append(len(self.encoder))
-        if len(layers) > 0:
+    def forward(self, input, extract_layer_ids=[],encode_only=False):
+        if -1 in extract_layer_ids:
+            extract_layer_ids.append(len(self.encoder))
+        if len(extract_layer_ids) > 0:
             feat = input
             feats = []
             for layer_id, layer in enumerate(self.model):
                 # print(layer_id, layer)
                 feat = layer(feat)
-                if layer_id in layers:
+                if layer_id in extract_layer_ids:
                     # print("%d: adding the output of %s %d" % (layer_id, layer.__class__.__name__, feat.size(1)))
                     feats.append(feat)
                 else:
                     # print("%d: skipping %s %d" % (layer_id, layer.__class__.__name__, feat.size(1)))
                     pass
-                if layer_id == layers[-1] and encode_only:
+                if layer_id == extract_layer_ids[-1] and encode_only:
                     # print('encoder only return features')
                     return None,feats  # return intermediate features alone; stop in the last layers
 
