@@ -374,7 +374,7 @@ class CycleGANSemanticMaskSty2Model(BaseModel):
             if hasattr(self,'criterionMask'):
                 label_A = self.input_A_label
                 label_A_in = label_A.unsqueeze(1)
-                label_A_inv = torch.tensor(np.ones(label_A.size())).to(self.device) - label_A
+                label_A_inv = torch.tensor(np.ones(label_A.size())).to(self.device) - label_A>0
                 label_A_inv = label_A_inv.unsqueeze(1)
                 #label_A_inv = torch.cat ([label_A_inv,label_A_inv,label_A_inv],1)
                 
@@ -393,7 +393,7 @@ class CycleGANSemanticMaskSty2Model(BaseModel):
                 
                     label_B = self.input_B_label
                     label_B_in = label_B.unsqueeze(1)
-                    label_B_inv = torch.tensor(np.ones(label_B.size())).to(self.device) - label_B
+                    label_B_inv = torch.tensor(np.ones(label_B.size())).to(self.device) - label_B>0
                     label_B_inv = label_B_inv.unsqueeze(1)
                     #label_B_inv = torch.cat ([label_B_inv,label_B_inv,label_B_inv],1)
                     
