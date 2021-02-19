@@ -27,8 +27,7 @@ parameters_input = {
 }
 parameters_mllib = {'gpu': args.gpu}
 parameters_output = {}
-try:
-    
+try:    
     jout = dd.put_service('testggan',model,'gan generator inference test',
                           'torch',
                           parameters_input,
