@@ -6,6 +6,7 @@ from .patchnce import PatchNCELoss
 import util.util as util
 from .modules import loss
 import torch.nn.functional as F
+from util.util import gaussian
 
 class CUTSemanticMaskModel(BaseModel):
     """ This class implements CUT and FastCUT model, described in the paper
@@ -40,7 +41,8 @@ class CUTSemanticMaskModel(BaseModel):
         parser.add_argument('--train_f_s_B', action='store_true', help='if true f_s will be trained not only on domain A but also on domain B')
         parser.add_argument('--fs_light',action='store_true', help='whether to use a light (unet) network for f_s')
         parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
-
+        parser.add_argument('--D_noise', type=float, default=0.0, help='whether to add instance noise to discriminator inputs')
+        
         parser.add_argument('--out_mask', action='store_true', help='use loss out mask')
         parser.add_argument('--lambda_out_mask', type=float, default=10.0, help='weight for loss out mask')
         parser.add_argument('--loss_out_mask', type=str, default='L1', help='loss mask')
@@ -217,14 +219,25 @@ class CUTSemanticMaskModel(BaseModel):
                 self.real_A_out_mask = self.real_A *label_A_inv
                 self.fake_B_out_mask = self.fake_B *label_A_inv            
 
+                if self.opt.D_noise > 0.0:
+                    self.fake_B_noisy = gaussian(self.fake_B, self.opt.D_noise)
+                    self.real_B_noisy = gaussian(self.real_B, self.opt.D_noise)
+                
     def compute_D_loss(self):
         """Calculate GAN loss for the discriminator"""
-        fake = self.fake_B.detach()
+        if self.opt.D_noise:
+            fake = self.fake_B_noisy.detach()
+        else:
+            fake = self.fake_B.detach()
         # Fake; stop backprop to the generator by detaching fake_B
         pred_fake = self.netD(fake)
         self.loss_D_fake = self.criterionGAN(pred_fake, False).mean()
         # Real
-        self.pred_real = self.netD(self.real_B)
+        if self.opt.D_noise:
+            real_B = self.real_B_noisy
+        else:
+            real_B = self.real_B
+        self.pred_real = self.netD(real_B)
         loss_D_real = self.criterionGAN(self.pred_real, True)
         self.loss_D_real = loss_D_real.mean()
 
