@@ -189,7 +189,7 @@ class CUTSemanticMaskModel(BaseModel):
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
         if 'A_label' in input :
             self.input_A_label = input['A_label'].to(self.device).squeeze(1)
-        if 'B_label' in input:
+        if self.opt.train_f_s_B and 'B_label' in input:
             self.input_B_label = input['B_label'].to(self.device).squeeze(1)
 
         
