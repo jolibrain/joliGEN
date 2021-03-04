@@ -48,7 +48,7 @@ class CUTSemanticMaskModel(BaseModel):
         parser.add_argument('--loss_out_mask', type=str, default='L1', help='loss mask')
 
         parser.add_argument('--contrastive_noise', type=float, default=0.0, help='noise on constrastive classifier')
-        
+        parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')        
         parser.set_defaults(pool_size=0)  # no image pooling
 
         opt, _ = parser.parse_known_args()
@@ -268,7 +268,7 @@ class CUTSemanticMaskModel(BaseModel):
             loss_NCE_both = (self.loss_NCE + self.loss_NCE_Y) * 0.5
         else:
             loss_NCE_both = self.loss_NCE
-        self.loss_sem = self.criterionf_s(self.pfB, self.input_A_label)
+        self.loss_sem = self.opt.lambda_sem*self.criterionf_s(self.pfB, self.input_A_label)
         if self.loss_f_s.detach().item() > 1.0:
             self.loss_sem = 0 * self.loss_sem
         self.loss_G = self.loss_G_GAN + loss_NCE_both + self.loss_sem
