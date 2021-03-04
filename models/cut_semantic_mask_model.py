@@ -158,11 +158,6 @@ class CUTSemanticMaskModel(BaseModel):
         self.loss_D = self.compute_D_loss()
         self.loss_D.backward()
         self.optimizer_D.step()
-
-        self.set_requires_grad(self.netf_s, True)
-        self.backward_f_s()
-        self.optimizer_f_s.step()
-        self.set_requires_grad(self.netf_s, False)
         
         # update G
         self.set_requires_grad(self.netD, False)
@@ -174,6 +169,12 @@ class CUTSemanticMaskModel(BaseModel):
         self.optimizer_G.step()
         if self.opt.netF == 'mlp_sample':
             self.optimizer_F.step()
+
+        # update f_s
+        self.set_requires_grad(self.netf_s, True)
+        self.backward_f_s()
+        self.optimizer_f_s.step()
+        self.set_requires_grad(self.netf_s, False)
 
 
     def set_input(self, input):
