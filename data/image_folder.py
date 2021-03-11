@@ -74,6 +74,8 @@ def make_labeled_mask_dataset(dir,paths, max_dataset_size=float("inf")):
         if len(line_split)==2:
             images.append(line_split[0])
             labels.append(line_split[1])
+        elif len(line_split)==1 and len(line_split[0]) > 0: # we allow B not having a label
+            images.append(line_split[0])
     
     return images,labels
 

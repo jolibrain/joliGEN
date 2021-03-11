@@ -48,7 +48,8 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             self.B_size = len(self.B_img_paths)  # get the size of dataset B
 
         self.transform=get_transform_seg(self.opt)
-                
+        self.transform_noseg=get_transform(self.opt)
+        
     def __getitem__(self, index):
         """Return a data point and its metadata information.
 
@@ -78,11 +79,19 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 index_B = random.randint(0, self.B_size - 1)
             
             B_img_path = self.B_img_paths[index_B]
-            B_label_path = self.B_label_paths[index_B]# % self.B_size]
-            B_label = Image.open(B_label_path)
-            B_img = Image.open(B_img_path).convert('RGB')
+            try:
+                B_img = Image.open(B_img_path).convert('RGB')
+            except:
+                print("failed to read image ", B_img_path, " at index_B=", index_B)
+                raise
             
-            B,B_label = self.transform(B_img,B_label)
+            if len(self.B_label_paths) > 0: # B label is optional
+                B_label_path = self.B_label_paths[index_B]
+                B_label = Image.open(B_label_path)
+                B,B_label = self.transform(B_img,B_label)
+            else:
+                B = self.transform_noseg(B_img)
+                B_label = []
         
             return {'A': A, 'B': B, 'A_paths': A_img_path, 'B_paths': B_img_path, 'A_label': A_label, 'B_label': B_label}
         else:

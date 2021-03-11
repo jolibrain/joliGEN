@@ -54,6 +54,7 @@ class CycleGANSemanticMaskModel(BaseModel):
             parser.add_argument('--nb_attn', type=int, default=10, help='number of attention masks')
             parser.add_argument('--nb_mask_input', type=int, default=1, help='number of attention masks which will be applied on the input image')
             parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
+            
 
         return parser
     
@@ -92,15 +93,20 @@ class CycleGANSemanticMaskModel(BaseModel):
 
         if self.isTrain and self.opt.lambda_identity > 0.0:
            visual_names_A.append('idt_B')
-           visual_names_B.append('idt_A') # beniz: inverted for original
+           visual_names_B.append('idt_A') # inverted for original
 
         visual_names_seg_A = ['input_A_label','gt_pred_A','pfB_max']
 
         
-        visual_names_seg_B = ['input_B_label','gt_pred_B','pfA_max']
+        visual_names_seg_B = ['gt_pred_B','pfA_max']
         
-        visual_names_out_mask = ['real_A_out_mask','fake_B_out_mask','real_B_out_mask','fake_A_out_mask']
+        visual_names_out_mask = ['real_A_out_mask','fake_B_out_mask']
 
+        if hasattr(self, 'input_B_label') and len(self.input_B_label) > 0: # XXX: model is created after dataset is populated so this check stands
+            visual_names_seg_B.append('input_B_label')
+            visual_names_out_mask.append('real_B_out_mask')
+            visual_names_out_mask.append('fake_A_out_mask')
+        
         visual_names_mask = ['fake_B_mask','fake_A_mask']
 
         visual_names_mask_in = ['real_B_mask','fake_B_mask','real_A_mask','fake_A_mask',
@@ -211,7 +217,7 @@ class CycleGANSemanticMaskModel(BaseModel):
             #self.input_A_label = input['A_label' if AtoB else 'B_label'].to(self.device)
             self.input_A_label = input['A_label'].to(self.device).squeeze(1)
             #self.input_A_label_dis = display_mask(self.input_A_label)  
-        if 'B_label' in input:
+        if 'B_label' in input and len(input['B_label']) > 0:
             self.input_B_label = input['B_label'].to(self.device).squeeze(1) # beniz: unused
             #self.image_paths = input['B_paths'] # Hack!! forcing the labels to corresopnd to B domain
 
@@ -266,7 +272,7 @@ class CycleGANSemanticMaskModel(BaseModel):
                     self.fake_B_noisy = gaussian(self.fake_B, self.D_noise)
                     self.real_A_noisy = gaussian(self.real_A, self.D_noise)
                         
-                if hasattr(self, 'input_B_label'):
+                if hasattr(self, 'input_B_label') and len(self.input_B_label) > 0:
                 
                     label_B = self.input_B_label
                     label_B_in = label_B.unsqueeze(1)
@@ -350,7 +356,7 @@ class CycleGANSemanticMaskModel(BaseModel):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
-        lambda_sem=self.opt.lambda_sem
+        lambda_sem = self.opt.lambda_sem
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed.
@@ -403,7 +409,10 @@ class CycleGANSemanticMaskModel(BaseModel):
 
         if hasattr(self,'criterionMask'):
             self.loss_out_mask_AB = self.criterionMask( self.real_A_out_mask, self.fake_B_out_mask) * lambda_out_mask
-            self.loss_out_mask_BA = self.criterionMask( self.real_B_out_mask, self.fake_A_out_mask) * lambda_out_mask
+            if hasattr(self, 'input_B_label') and len(self.input_B_label) > 0:
+                self.loss_out_mask_BA = self.criterionMask( self.real_B_out_mask, self.fake_A_out_mask) * lambda_out_mask
+            else:
+                self.loss_out_mask_BA = 0
             self.loss_G += self.loss_out_mask_AB + self.loss_out_mask_BA
 
         self.loss_G.backward()
