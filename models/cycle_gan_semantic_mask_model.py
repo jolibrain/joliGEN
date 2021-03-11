@@ -53,7 +53,7 @@ class CycleGANSemanticMaskModel(BaseModel):
             parser.add_argument('--rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
             parser.add_argument('--nb_attn', type=int, default=10, help='number of attention masks')
             parser.add_argument('--nb_mask_input', type=int, default=1, help='number of attention masks which will be applied on the input image')
-
+            parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
 
         return parser
     
@@ -350,6 +350,7 @@ class CycleGANSemanticMaskModel(BaseModel):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
+        lambda_sem=self.opt.lambda_sem
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed.
@@ -383,13 +384,13 @@ class CycleGANSemanticMaskModel(BaseModel):
             self.loss_G += self.loss_G_A_mask + self.loss_G_B_mask
 
         # semantic loss AB
-        self.loss_sem_AB = self.criterionf_s(self.pfB, self.input_A_label)
+        self.loss_sem_AB = lambda_sem*self.criterionf_s(self.pfB, self.input_A_label)
 
         # semantic loss BA
         if hasattr(self, 'input_B_label'):
-            self.loss_sem_BA = self.criterionf_s(self.pfA, self.input_B_label)#.squeeze(1))
+            self.loss_sem_BA = lambda_sem*self.criterionf_s(self.pfA, self.input_B_label)#.squeeze(1))
         else:
-            self.loss_sem_BA = self.criterionf_s(self.pfA, self.gt_pred_B)#.squeeze(1))
+            self.loss_sem_BA = lambda_sem*self.criterionf_s(self.pfA, self.gt_pred_B)#.squeeze(1))
         
         # only use semantic loss when classifier has reasonably low loss
         #if True:
