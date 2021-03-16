@@ -39,10 +39,10 @@ class AttentionGANModel(BaseModel):
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, 'resnet_attn_jb', opt.norm,
+        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, 'resnet_attn', opt.norm,
                                         opt.G_spectral,not opt.no_dropout, opt.init_type, opt.init_gain,
                                         self.gpu_ids,nb_attn = opt.nb_attn,nb_mask_input=opt.nb_mask_input)
-        self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, 'resnet_attn_jb', opt.norm,
+        self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, 'resnet_attn', opt.norm,
                                         opt.G_spectral,not opt.no_dropout, opt.init_type, opt.init_gain,
                                         self.gpu_ids,nb_attn = opt.nb_attn,nb_mask_input=opt.nb_mask_input)
 
