@@ -10,6 +10,7 @@ import torchvision.transforms as transforms
 from abc import ABC, abstractmethod
 import torchvision.transforms.functional as F
 import torch
+from torchvision.transforms import InterpolationMode
 
 class BaseDataset(data.Dataset, ABC):
     """This class is an abstract base class (ABC) for datasets.
@@ -79,13 +80,13 @@ def get_params(opt, size):
     return {'crop_pos': (x, y), 'flip': flip}
 
 
-def get_transform(opt, params=None, grayscale=False, method=Image.BICUBIC, convert=True,crop=True):
+def get_transform(opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC, convert=True,crop=True):
     transform_list = []
     if grayscale:
         transform_list.append(transforms.Grayscale(1))
     if 'resize' in opt.preprocess:
         osize = [opt.load_size, opt.load_size]
-        transform_list.append(transforms.Resize(osize, method))
+        transform_list.append(transforms.Resize(osize, interpolation=method))
     elif 'scale_width' in opt.preprocess:
         transform_list.append(transforms.Lambda(lambda img: __scale_width(img, opt.load_size, method)))
 
@@ -113,7 +114,7 @@ def get_transform(opt, params=None, grayscale=False, method=Image.BICUBIC, conve
     return transforms.Compose(transform_list)
 
 
-def __make_power_2(img, base, method=Image.BICUBIC):
+def __make_power_2(img, base, method=InterpolationMode.BICUBIC):
     ow, oh = img.size
     h = int(round(oh / base) * base)
     w = int(round(ow / base) * base)
@@ -121,16 +122,16 @@ def __make_power_2(img, base, method=Image.BICUBIC):
         return img
 
     __print_size_warning(ow, oh, w, h)
-    return img.resize((w, h), method)
+    return img.resize((w, h), interpolation=method)
 
 
-def __scale_width(img, target_width, method=Image.BICUBIC):
+def __scale_width(img, target_width, method=InterpolationMode.BICUBIC):
     ow, oh = img.size
     if (ow == target_width):
         return img
     w = target_width
     h = int(target_width * oh / ow)
-    return img.resize((w, h), method)
+    return img.resize((w, h), interpolation=method)
 
 
 def __crop(img, pos, size):
@@ -159,16 +160,17 @@ def __print_size_warning(ow, oh, w, h):
 
 
 
-def get_transform_seg(opt, params=None, grayscale=False, method=Image.BICUBIC):
+def get_transform_seg(opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC):
     
     transform_list = []
-
+    print('method seg',method)
+    
     if grayscale:
         transform_list.append(transforms.GrayscaleMask(1))
 
     if 'resize' in opt.preprocess:
         osize = [opt.load_size, opt.load_size]
-        transform_list.append(ResizeMask(osize, method))
+        transform_list.append(ResizeMask(osize, interpolation=method))
         
     if 'crop' in opt.preprocess:
         transform_list.append(RandomCropMask(opt.crop_size))
@@ -258,7 +260,7 @@ class ResizeMask(transforms.Resize):
         Returns:
             PIL Image: Rescaled image.
         """
-        return F.resize(img, self.size, self.interpolation),F.resize(mask, self.size, Image.NEAREST)
+        return F.resize(img, self.size, interpolation=self.interpolation),F.resize(mask, self.size, interpolation=InterpolationMode.NEAREST)
 
 
 class RandomCropMask(transforms.RandomCrop):
