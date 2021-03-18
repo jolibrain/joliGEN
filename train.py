@@ -32,10 +32,16 @@ if __name__ == '__main__':
     print('The number of training images = %d' % dataset_size)
 
     model = create_model(opt)      # create a model given opt.model and other options
+
+    if hasattr(model,'data_dependent_initialize'):
+        data=next(iter(dataset))
+        model.data_dependent_initialize(data)                
+    model.parallelize()
+    
     model.setup(opt)               # regular setup: load and print networks; create schedulers
     visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     total_iters = 0                # the total number of training iterations
-
+        
     if opt.display_networks:
         data=next(iter(dataset))
         for path in model.save_networks_img(data):
@@ -49,12 +55,7 @@ if __name__ == '__main__':
         
 
         for i, data in enumerate(dataset):  # inner loop within one epoch
-            iter_start_time = time.time()  # timer for computation per iteration
-            if epoch == opt.epoch_count and i == 0:
-                if hasattr(model,'data_dependent_initialize'):
-                    model.data_dependent_initialize(data)                
-                model.parallelize()
-                
+            iter_start_time = time.time()  # timer for computation per iteration    
             if total_iters % opt.print_freq == 0:
                 t_data = iter_start_time - iter_data_time
 
