@@ -6,7 +6,7 @@ import math
 from .modules.utils import spectral_norm,init_net,init_weights,get_norm_layer
 
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator,ResnetEncoderSty2
-from .modules.resnet_architecture.mobile_resnet_generator import MobileResnetGenerator,MobileResnetEncoderSty2
+from .modules.resnet_architecture.mobile_resnet_generator import MobileResnetGenerator,MobileResnetEncoderSty2,MobileResnetGenerator_attn
 from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.discriminators import NLayerDiscriminator
@@ -93,7 +93,10 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'resnet_attn':
-        net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
+        net = ResnetGenerator_attn2(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
+    elif netG == 'mobile_resnet_attn':
+        net = MobileResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
+
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight)
