@@ -139,6 +139,10 @@ class CUTSemanticMaskModel(BaseModel):
         bs_per_gpu = self.real_A.size(0) // max(len(self.opt.gpu_ids), 1)
         self.real_A = self.real_A[:bs_per_gpu]
         self.real_B = self.real_B[:bs_per_gpu]
+        self.input_A_label=self.input_A_label[:bs_per_gpu]
+        if hasattr(self,'input_B_label'):
+            self.input_B_label=self.input_B_label[:bs_per_gpu]
+        
         self.forward()                     # compute fake images: G(A)
         if self.opt.isTrain:
             self.compute_D_loss().backward()                  # calculate gradients for D
