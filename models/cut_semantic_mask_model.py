@@ -143,7 +143,7 @@ class CUTSemanticMaskModel(BaseModel):
         if self.opt.isTrain:
             self.compute_D_loss().backward()                  # calculate gradients for D
             self.backward_f_s()
-            self.compute_G_loss().backward()                   # calculate graidents for G
+            self.compute_G_loss().backward()                   # calculate gradients for G
             if self.opt.lambda_NCE > 0.0:
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
                 self.optimizers.append(self.optimizer_F)
