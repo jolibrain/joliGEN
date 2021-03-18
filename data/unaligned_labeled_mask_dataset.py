@@ -63,12 +63,17 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             B_paths (str)    -- image paths
             A_label (tensor) -- mask label of image A
         """
-    
+
         A_img_path = self.A_img_paths[index % self.A_size]  # make sure index is within then range
         A_label_path = self.A_label_paths[index % self.A_size]
 
-        A_img = Image.open(A_img_path).convert('RGB')
-        A_label = Image.open(A_label_path)
+        try:
+            A_img = Image.open(A_img_path).convert('RGB')
+            A_label = Image.open(A_label_path)
+        except Exception as e:
+            print('failure with reading A domain image ', A_img_path, ' or label ', A_label_path)
+            print(e)
+            return None
        
         A,A_label = self.transform(A_img,A_label)
 
@@ -82,8 +87,8 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             try:
                 B_img = Image.open(B_img_path).convert('RGB')
             except:
-                print("failed to read image ", B_img_path, " at index_B=", index_B)
-                raise
+                print("failed to read B domain image ", B_img_path, " at index_B=", index_B)
+                return None
             
             if len(self.B_label_paths) > 0: # B label is optional
                 B_label_path = self.B_label_paths[index_B]
