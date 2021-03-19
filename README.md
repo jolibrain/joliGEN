@@ -2,12 +2,14 @@
 
 
 JoliGAN is an implementation of an unpaired image to image translation. It uses cycle consistency such as CycleGAN but it allows the use of :
-- more generator architectures such as styleGAN2 decoder / mobile resnet
+- more generator architectures such as styleGAN2 decoder / mobile resnet, attention resnet (and a mobile version)
 - semanctic consistency 
 - new losses : out mask loss, w loss (for sty2 decoder)
  
+JoliGAN also includes an implementation of contrastive unpaired translation (CUT) enhanced with our achitectures and losses.
+
 ## Prerequisites
-- Linux or macOS
+- Linux
 - Python 3
 - CPU or NVIDIA GPU + CUDA CuDNN
 
@@ -29,7 +31,7 @@ cd joliGAN
 
 |Model|Network|Decoder|
 |-|-|-|
-|CycleGAN, CycleGAN_semantic, CycleGAN_semantic_mask|resnet, Unet, mobile_resnet|Vanilla, Sty2|
+|CycleGAN, CycleGAN_semantic, CycleGAN_semantic_mask, CUT, CUT_semantic|resnet, Unet, mobile_resnet|Vanilla, Sty2, Attention resnet|
 
 <br>
 With a dataset located in directory `dataroot`:
@@ -71,4 +73,4 @@ There are three dataloaders for different dataset architectures :
 - Unaligned with mask labels (`unaligned_labeled_mask`)
 
 ## Acknowledgments
-Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix).
+Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/pnsuau/contrastive-unpaired-translation) and [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN).
