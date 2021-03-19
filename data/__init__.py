@@ -59,6 +59,10 @@ def create_dataset(opt):
     return dataset
 
 
+def collate_fn(batch):
+    batch = list(filter(lambda x: x is not None, batch))
+    return torch.utils.data.dataloader.default_collate(batch)
+
 class CustomDatasetDataLoader():
     """Wrapper class of Dataset class that performs multi-threaded data loading"""
 
@@ -76,7 +80,8 @@ class CustomDatasetDataLoader():
             self.dataset,
             batch_size=opt.batch_size,
             shuffle=not opt.serial_batches,
-            num_workers=int(opt.num_threads))
+            num_workers=int(opt.num_threads),
+            collate_fn=collate_fn)
 
     def load_data(self):
         return self
@@ -88,6 +93,8 @@ class CustomDatasetDataLoader():
     def __iter__(self):
         """Return a batch of data"""
         for i, data in enumerate(self.dataloader):
+            if data is None:
+                continue
             if i * self.opt.batch_size >= self.opt.max_dataset_size:
                 break
             yield data
