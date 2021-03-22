@@ -309,12 +309,28 @@ class ResnetGenerator_attn(nn.Module):
             normal_init(self._modules[m], mean, std)
 
     # forward method
-    def forward(self, input):
+    def forward(self, input, extract_layer_ids=[], encode_only=False):
         x = F.pad(input, (3, 3, 3, 3), 'reflect')
         x = F.relu(self.conv1_norm(self.conv1(x)))
         x = F.relu(self.conv2_norm(self.conv2(x)))
         x = F.relu(self.conv3_norm(self.conv3(x)))
-        x = self.resnet_blocks(x)
+        
+        if -1 in extract_layer_ids: #if -1 is in extract_layer_ids, the output of the encoder will be returned (features just after the last layer) 
+            extract_layer_ids.append(len(self.resnet_blocks))
+        if len(extract_layer_ids) > 0:
+            feat=x
+            feats=[]
+            for layer_id, layer in enumerate(self.resnet_blocks):
+                feat = layer(feat)
+                if layer_id in extract_layer_ids:
+                    feats.append(feat)
+            if encode_only:
+                return feats
+            else:
+                x=feat
+        else:
+            x = self.resnet_blocks(x)
+        
         x_content = F.relu(self.deconv1_norm_content(self.deconv1_content(x)))
         x_content = F.relu(self.deconv2_norm_content(self.deconv2_content(x_content)))
         x_content = F.pad(x_content, (3, 3, 3, 3), 'reflect')
