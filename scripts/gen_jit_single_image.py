@@ -11,6 +11,7 @@ parser.add_argument('--model-in-file',help='file path to generator model to expo
 parser.add_argument('--img-in',help='image to transform',required=True)
 parser.add_argument('--img-out',help='transformed image',required=True)
 parser.add_argument('--cpu',action='store_true',help='whether to export for CPU')
+parser.add_argument('--img-size',default=256,type=int,help='square image size')
 args = parser.parse_args()
 
 model = torch.jit.load(args.model_in_file)
@@ -20,6 +21,7 @@ if not args.cpu:
 # reading image
 img = cv2.imread(args.img_in)
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+img = cv2.resize(img, (args.img_size,args.img_size))
 
 # preprocessing
 tranlist = [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
