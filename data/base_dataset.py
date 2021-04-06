@@ -166,7 +166,7 @@ def get_transform_seg(opt, params=None, grayscale=False, method=InterpolationMod
     print('method seg',method)
     
     if grayscale:
-        transform_list.append(transforms.GrayscaleMask(1))
+        transform_list.append(GrayscaleMask(1))
 
     if 'resize' in opt.preprocess:
         osize = [opt.load_size, opt.load_size]

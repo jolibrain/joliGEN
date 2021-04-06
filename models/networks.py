@@ -154,7 +154,7 @@ def define_f(input_nc, nclasses, init_type='normal', init_gain=0.02, gpu_ids=[],
     if not fs_light:
         net = VGG16_FCN8s(nclasses,pretrained = False, weights_init =None,output_last_ft=False)
     else:
-        net = UNet(classes=nclasses)
+        net = UNet(classes=nclasses,input_nc=input_nc)
     return init_net(net, init_type, init_gain, gpu_ids)
 
 def define_classifier_w(pretrained=False, weights_init='', init_type='normal', init_gain=0.02, gpu_ids=[],init_weight=True,img_size_dec=256):
