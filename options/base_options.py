@@ -52,6 +52,11 @@ class BaseOptions():
         parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
         parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data augmentation')
         parser.add_argument('--no_rotate', action='store_true', help='if specified, do not rotate the images for data augmentation')
+        parser.add_argument('--affine', type=float, default=0.0, help='if specified, apply random affine transforms to the images for data augmentation')
+        parser.add_argument('--affine_translate', type=float, default=0.2, help='if random affine specified, translation range (-value*img_size,+value*img_size) value')
+        parser.add_argument('--affine_scale_min', type=float, default=0.8, help='if random affine specified, min scale range value')
+        parser.add_argument('--affine_scale_max', type=float, default=1.2, help='if random affine specified, max scale range value')
+        parser.add_argument('--affine_shear', type=int, default=45, help='if random affine specified, shear range (0,value)')
         parser.add_argument('--display_winsize', type=int, default=256, help='display window size for both visdom and HTML')
         # additional parameters
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')

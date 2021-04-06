@@ -105,6 +105,14 @@ def get_transform(opt, params=None, grayscale=False, method=InterpolationMode.BI
         elif params['flip']:
             transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
 
+    if not opt.no_rotate:
+        transform_list.append(transforms.RandomRotation([-90,180]))
+
+    if opt.affine:
+        transform_list.append(transforms.RandomAffine(0,(opt.affine_translate, opt.affine_translate),
+                                                      (opt.affine_scale_min, opt.affine_scale_max),
+                                                      (-opt.affine_shear, opt.affine_shear)))
+        
     if convert:
         transform_list += [transforms.ToTensor()]
         if grayscale:
@@ -180,6 +188,13 @@ def get_transform_seg(opt, params=None, grayscale=False, method=InterpolationMod
 
     if not opt.no_rotate:
         transform_list.append(RandomRotationMask(degrees=0))
+
+    if opt.affine:
+        raff = RandomAffineMask(degrees=0)
+        raff.set_params(opt.affine,opt.affine_translate,
+                        opt.affine_scale_min,opt.affine_scale_max,
+                        opt.affine_shear)
+        transform_list.append(raff)
         
     transform_list += [ToTensorMask()]
 
@@ -436,3 +451,25 @@ class NormalizeMask(transforms.Normalize):
 
     def __repr__(self):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+
+
+class RandomAffineMask(transforms.RandomAffine):
+    """Apply random affine transform
+    """
+
+    def set_params(self,p,translate,scale_min,scale_max,shear):
+        self.p = p
+        self.translate = translate
+        self.scale_min = scale_min
+        self.scale_max = scale_max
+        self.shear = shear
+    
+    def __call__(self, img, mask):
+
+        if random.random() > 1.0-self.p:
+            affine_params = self.get_params((0, 0), (self.translate, self.translate),
+                                            (self.scale_min, self.scale_max), (-self.shear, self.shear),
+                                            img.size)
+            return F.affine(img, *affine_params), F.affine(mask, *affine_params)
+        else:
+            return img, mask
