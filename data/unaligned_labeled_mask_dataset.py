@@ -31,7 +31,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         BaseDataset.__init__(self, opt)
 
         btoA = self.opt.direction == 'BtoA'
-        input_nc = self.opt.output_nc if btoA else self.opt.input_nc       # get the number of channels of input image
+        self.input_nc = self.opt.output_nc if btoA else self.opt.input_nc       # get the number of channels of input image
         output_nc = self.opt.input_nc if btoA else self.opt.output_nc      # get the number of channels of output image
 
         
@@ -47,8 +47,8 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             self.B_img_paths, self.B_label_paths = make_labeled_mask_dataset(self.dir_B,'/paths.txt', opt.max_dataset_size)    # load images from '/path/to/data/trainB'
             self.B_size = len(self.B_img_paths)  # get the size of dataset B
 
-        self.transform=get_transform_seg(self.opt)
-        self.transform_noseg=get_transform(self.opt)
+        self.transform=get_transform_seg(self.opt, grayscale=(self.input_nc == 1))
+        self.transform_noseg=get_transform(self.opt, grayscale=(self.input_nc == 1))
         
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -69,6 +69,8 @@ class UnalignedLabeledMaskDataset(BaseDataset):
 
         try:
             A_img = Image.open(A_img_path).convert('RGB')
+            #if self.input_nc == 1:
+            #    A_img = A_img.convert('L')
             A_label = Image.open(A_label_path)
         except Exception as e:
             print('failure with reading A domain image ', A_img_path, ' or label ', A_label_path)

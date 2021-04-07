@@ -8,8 +8,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 #from torchsummary import summary
 
-
-
 __all__ = ["UNet"]
 
 
@@ -98,9 +96,9 @@ class outconv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, classes):
+    def __init__(self, classes, input_nc):
         super(UNet, self).__init__()
-        self.inc = inconv(3, 32)
+        self.inc = inconv(input_nc, 32)
         self.down1 = down(32, 64)
         self.down2 = down(64, 128)
         self.down3 = down(128, 256)

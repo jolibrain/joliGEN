@@ -293,7 +293,7 @@ class ResnetGenerator_attn(nn.Module):
         self.deconv1_norm_content = nn.InstanceNorm2d(ngf * 2)
         self.deconv2_content = spectral_norm(nn.ConvTranspose2d(ngf * 2, ngf, 3, 2, 1, 1),use_spectral)
         self.deconv2_norm_content = nn.InstanceNorm2d(ngf)        
-        self.deconv3_content = spectral_norm(nn.Conv2d(ngf, 3 * (self.nb_attn-nb_mask_input), 7, 1, 0),use_spectral)#self.nb_attn-nb_mask_input: nombre d'images générées ou les masques d'attention vont etre appliqués
+        self.deconv3_content = spectral_norm(nn.Conv2d(ngf, self.input_nc * (self.nb_attn-nb_mask_input), 7, 1, 0),use_spectral)#self.nb_attn-nb_mask_input: nombre d'images générées ou les masques d'attention vont etre appliqués
 
         self.deconv1_attention = spectral_norm(nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, 2, 1, 1),use_spectral)
         self.deconv1_norm_attention = nn.InstanceNorm2d(ngf * 2)
@@ -340,7 +340,7 @@ class ResnetGenerator_attn(nn.Module):
         images = []
 
         for i in range(self.nb_attn - self.nb_mask_input):
-            images.append(image[:, 3*i:3*(i+1), :, :])
+            images.append(image[:, self.input_nc*i:self.input_nc*(i+1), :, :])
 
         x_attention = F.relu(self.deconv1_norm_attention(self.deconv1_attention(x)))
         x_attention = F.relu(self.deconv2_norm_attention(self.deconv2_attention(x_attention)))
@@ -352,7 +352,7 @@ class ResnetGenerator_attn(nn.Module):
         attentions =[]
         
         for i in range(self.nb_attn):
-            attentions.append(attention[:, i:i+1, :, :].repeat(1, 3, 1, 1))
+            attentions.append(attention[:, i:i+1, :, :].repeat(1, self.input_nc, 1, 1))
 
         outputs = []
         
