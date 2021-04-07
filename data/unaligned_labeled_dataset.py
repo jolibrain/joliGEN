@@ -36,7 +36,11 @@ class UnalignedLabeledDataset(BaseDataset):
         self.A_label = np.array(self.A_label)
         
         #print('A_label',self.A_label)
-        self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
+        if opt.use_label_B:
+            self.B_paths, self.B_label = make_labeled_dataset(self.dir_B, opt.max_dataset_size)
+        else:
+            self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
+            
         self.A_size = len(self.A_paths)  # get the size of dataset A
         self.B_size = len(self.B_paths)  # get the size of dataset B
         btoA = self.opt.direction == 'BtoA'
@@ -69,7 +73,10 @@ class UnalignedLabeledDataset(BaseDataset):
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)
         # get labels
-        A_label = self.A_label[index]
+        A_label = self.A_label[index % self.A_size]
+        if hasattr(self,'B_label'):
+            B_label = self.B_label[index_B]
+            return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path, 'A_label': A_label, 'B_label': B_label}
 
         return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path, 'A_label': A_label}
 

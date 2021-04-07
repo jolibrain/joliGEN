@@ -39,6 +39,8 @@ class CycleGANSemanticModel(BaseModel):
             parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
             parser.add_argument('--rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
+            parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
+            parser.add_argument('--train_cls_B', action='store_true', help='if true cls will be trained not only on domain A but also on domain B, if true use_label_B needs to be True')
 
         return parser
     
@@ -116,11 +118,13 @@ class CycleGANSemanticModel(BaseModel):
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
         #print(input['B'])
-        if 'A_label' in input:# and 'B_label' in input:
+        if 'A_label' in input:
             #self.input_A_label = input['A_label' if AtoB else 'B_label'].to(self.device)
             self.input_A_label = input['A_label'].to(self.device)
             #self.input_B_label = input['B_label' if AtoB else 'A_label'].to(self.device) # beniz: unused
             #self.image_paths = input['B_paths'] # Hack!! forcing the labels to corresopnd to B domain
+        if 'B_label' in input:
+            self.input_B_label = input['B_label'].to(self.device)
 
 
     def forward(self):
@@ -173,6 +177,11 @@ class CycleGANSemanticModel(BaseModel):
         # forward only real source image through semantic classifier
         pred_A = self.netCLS(self.real_A) 
         self.loss_CLS = self.criterionCLS(pred_A, label_A)
+        if self.opt.train_cls_B:
+            label_B = self.input_B_label
+            pred_B = self.netCLS(self.real_B) 
+            self.loss_CLS += self.criterionCLS(pred_B, label_B)
+        
         self.loss_CLS.backward()
 
     def backward_D_A(self):
@@ -218,7 +227,10 @@ class CycleGANSemanticModel(BaseModel):
         self.loss_sem_AB = self.criterionCLS(self.pred_fake_B, self.input_A_label)
         #self.loss_sem_AB = self.criterionCLS(self.pred_fake_B, self.gt_pred_A)
         # semantic loss BA
-        self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.gt_pred_B)
+        if hasattr(self,'input_B_label'):
+            self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.input_B_label)
+        else:
+            self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.gt_pred_B)
         #self.loss_sem_BA = 0
         #self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.pfB) # beniz
         
