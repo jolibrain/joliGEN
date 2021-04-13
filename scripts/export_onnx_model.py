@@ -11,6 +11,7 @@ parser.add_argument('--model-out-file',help='file path to exported model (.onnx 
 parser.add_argument('--model-type',default='mobile_resnet_9blocks',help='model type, e.g. mobile_resnet_9blocks')
 parser.add_argument('--img-size',default=256,type=int,help='square image size')
 parser.add_argument('--cpu',action='store_true',help='whether to export for CPU')
+parser.add_argument('--bw',action='store_true',help='whether input/output is bw')
 args = parser.parse_args()
 
 if not args.model_out_file:
@@ -18,8 +19,11 @@ if not args.model_out_file:
 else:
     model_out_file = args.model_out_file
 
-input_nc = 3
-output_nc = 3
+if args.bw:
+    input_nc = output_nc = 1
+else:
+    input_nc = output_nc = 3
+
 ngf = 64
 use_dropout = False
 decoder = True
@@ -39,5 +43,5 @@ if args.cpu:
     device = 'cpu'
 else:
     device = 'cuda'
-dummy_input = torch.randn(1, 3, args.img_size, args.img_size, device=device)
+dummy_input = torch.randn(1, input_nc, args.img_size, args.img_size, device=device)
 torch.onnx.export(model, dummy_input, model_out_file, verbose=True)
