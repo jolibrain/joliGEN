@@ -41,6 +41,7 @@ class CycleGANSemanticModel(BaseModel):
             parser.add_argument('--rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
             parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
             parser.add_argument('--train_cls_B', action='store_true', help='if true cls will be trained not only on domain A but also on domain B, if true use_label_B needs to be True')
+            parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
 
         return parser
     
@@ -104,7 +105,7 @@ class CycleGANSemanticModel(BaseModel):
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_CLS = torch.optim.Adam(self.netCLS.parameters(), lr=1e-3, betas=(opt.beta1, 0.999))
+            self.optimizer_CLS = torch.optim.Adam(self.netCLS.parameters(), lr=opt.lr_f_s, betas=(opt.beta1, 0.999))
             self.optimizers = []
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
