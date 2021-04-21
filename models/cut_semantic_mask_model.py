@@ -176,6 +176,7 @@ class CUTSemanticMaskModel(BaseModel):
 
         # update f_s
         self.set_requires_grad(self.netf_s, True)
+        self.optimizer_f_s.zero_grad()
         self.backward_f_s()
         self.optimizer_f_s.step()
         self.set_requires_grad(self.netf_s, False)
