@@ -21,15 +21,24 @@ class Classifier(nn.Module):
         nf_mult = 1
         nf_mult_prev = 1
         log_size=int(math.log(img_size,2))
-        for n in range(log_size-2):
+        last_layer_id = log_size - 3
+        for n in range(log_size - 2):
             nf_mult_prev = nf_mult
             nf_mult = min(2**n, 8)
-            sequence += [
-                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
-                          kernel_size=kw, stride=2),
-                norm_layer(ndf * nf_mult, affine=True), #beniz: pb with dimensions with batch_size = 1
-                nn.LeakyReLU(0.2, True)
-            ]
+            if n != last_layer_id:
+                sequence += [
+                    nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
+                              kernel_size=kw, stride=2),
+                    norm_layer(ndf * nf_mult, affine=True),
+                    nn.LeakyReLU(0.2, True)
+                ]
+            else:
+                sequence += [
+                    nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
+                              kernel_size=kw, stride=2),
+                    nn.LeakyReLU(0.2, True)
+                ]
+                
         self.before_linear = nn.Sequential(*sequence)
         
         sequence = [
