@@ -348,3 +348,18 @@ class BaseModel(ABC):
             if isinstance(name, str):
                 fids[name] = float(getattr(self, name))  # float(...) works for both scalar tensor and float number
         return fids
+
+    def compute_step(self,optimizer,loss_names):
+        if self.niter % self.opt.iter_size ==0:
+            optimizer.step()
+            optimizer.zero_grad()
+            if self.opt.iter_size > 1:
+                self.iter_calculator.compute_last_step(loss_names)
+                for loss_name in loss_names:
+                    setattr(self, "loss_" + loss_name , getattr(self.iter_calculator, "loss_" + loss_name ))               
+        elif self.opt.iter_size > 1:
+            for loss_name in loss_names:
+                value=getattr(self, "loss_" + loss_name[:-4])/self.opt.iter_size
+                if torch.is_tensor(value):
+                    value = value.detach()                    
+                self.iter_calculator.compute_step(loss_name,value)

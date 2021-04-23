@@ -128,6 +128,9 @@ class CUTSemanticMaskModel(BaseModel):
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
+            self.niter=0
+            
+
     def data_dependent_initialize(self, data):
         """
         The feature network netF is defined in terms of the shape of the intermediate, extracted
@@ -158,29 +161,38 @@ class CUTSemanticMaskModel(BaseModel):
         
         # update D
         self.set_requires_grad(self.netD, True)
-        self.optimizer_D.zero_grad()
+        self.set_requires_grad(self.netG, False)
+        self.set_requires_grad(self.netf_s, False)
         self.loss_D = self.compute_D_loss()
-        self.loss_D.backward()
-        self.optimizer_D.step()
+        (self.loss_D/self.opt.iter_size).backward()
+        if self.niter % self.opt.iter_size ==0:
+            self.optimizer_D.step()
+            self.optimizer_D.zero_grad()
         
         # update G
         self.set_requires_grad(self.netD, False)
-        self.optimizer_G.zero_grad()
-        if self.opt.netF == 'mlp_sample':
-            self.optimizer_F.zero_grad()
+        self.set_requires_grad(self.netG, True)
+        self.set_requires_grad(self.netf_s, False)
         self.loss_G = self.compute_G_loss()
-        self.loss_G.backward()
-        self.optimizer_G.step()
-        if self.opt.netF == 'mlp_sample':
-            self.optimizer_F.step()
+        (self.loss_G/self.opt.iter_size).backward()
+        if self.niter % self.opt.iter_size ==0:
+            self.optimizer_G.step()
+            self.optimizer_G.zero_grad()
+            if self.opt.netF == 'mlp_sample':
+                self.optimizer_F.step()
+                self.optimizer_F.zero_grad()
 
         # update f_s
-        self.set_requires_grad(self.netf_s, True)
-        self.optimizer_f_s.zero_grad()
+        self.set_requires_grad(self.netD, False)
+        self.set_requires_grad(self.netG, False) 
+        self.set_requires_grad(self.netf_s, True)            
         self.backward_f_s()
-        self.optimizer_f_s.step()
-        self.set_requires_grad(self.netf_s, False)
+        if self.niter % self.opt.iter_size ==0:
+            self.optimizer_f_s.step()
+            self.optimizer_f_s.zero_grad()
 
+        self.niter = self.niter +1
+        
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -314,6 +326,6 @@ class CUTSemanticMaskModel(BaseModel):
             label_B = self.input_B_label
             pred_B = self.netf_s(self.real_B) 
             self.loss_f_s += self.criterionf_s(pred_B, label_B)#.squeeze(1))
-        self.loss_f_s.backward()
+        (self.loss_f_s/self.opt.iter_size).backward()
 
         

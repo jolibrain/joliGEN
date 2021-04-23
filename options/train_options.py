@@ -37,7 +37,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lr_policy', type=str, default='linear', help='learning rate policy. [linear | step | plateau | cosine]')
         parser.add_argument('--lr_decay_iters', type=int, default=50, help='multiply by a gamma every lr_decay_iters iterations')
         parser.add_argument('--nb_img_max_fid', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used.')
-        
+        parser.add_argument('--iter_size', type=int, default=1, help='backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size*iter_size')
 
         # cut options
         parser.add_argument('--beta2', type=float, default=0.999, help='momentum term of adam')

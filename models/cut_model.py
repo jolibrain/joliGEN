@@ -93,7 +93,10 @@ class CUTModel(BaseModel):
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+            
+            self.niter=0
 
+            
     def data_dependent_initialize(self, data):
         """
         The feature network netF is defined in terms of the shape of the intermediate, extracted
@@ -119,21 +122,26 @@ class CUTModel(BaseModel):
 
         # update D
         self.set_requires_grad(self.netD, True)
-        self.optimizer_D.zero_grad()
+        self.set_requires_grad(self.netG, False)            
         self.loss_D = self.compute_D_loss()
-        self.loss_D.backward()
-        self.optimizer_D.step()
+        (self.loss_D/self.opt.iter_size).backward()
+        if self.niter % self.opt.iter_size ==0:
+            self.optimizer_D.step()
+            self.optimizer_D.zero_grad()
 
         # update G
         self.set_requires_grad(self.netD, False)
-        self.optimizer_G.zero_grad()
-        if self.opt.netF == 'mlp_sample':
-            self.optimizer_F.zero_grad()
+        self.set_requires_grad(self.netG, True)                
         self.loss_G = self.compute_G_loss()
-        self.loss_G.backward()
-        self.optimizer_G.step()
-        if self.opt.netF == 'mlp_sample':
-            self.optimizer_F.step()
+        (self.loss_G/self.opt.iter_size).backward()
+        if self.niter % self.opt.iter_size ==0:
+            self.optimizer_G.step()
+            self.optimizer_G.zero_grad()
+            if self.opt.netF == 'mlp_sample':
+                self.optimizer_F.step()
+                self.optimizer_F.zero_grad()
+
+        self.niter = self.niter +1
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -215,3 +223,5 @@ class CUTModel(BaseModel):
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers
+
+    
