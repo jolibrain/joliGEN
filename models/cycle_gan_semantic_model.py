@@ -206,8 +206,11 @@ class CycleGANSemanticModel(BaseModel):
             self.loss_CLS = self.opt.lambda_CLS * self.criterionCLS(pred_A.squeeze(1), label_A)
         if self.opt.train_cls_B:
             label_B = self.input_B_label
-            pred_B = self.netCLS(self.real_B) 
-            self.loss_CLS += self.opt.lambda_CLS * self.criterionCLS(pred_B, label_B)
+            pred_B = self.netCLS(self.real_B)
+            if not self.opt.regression:
+                self.loss_CLS += self.opt.lambda_CLS * self.criterionCLS(pred_B, label_B)
+            else:
+                self.loss_CLS += self.opt.lambda_CLS * self.criterionCLS(pred_B.squeeze(1), label_B)
         
         self.loss_CLS.backward()
 
@@ -267,7 +270,7 @@ class CycleGANSemanticModel(BaseModel):
             if not self.opt.regression:
                 self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.gt_pred_B)
             else:
-                self.loss_sem_BA = self.criterionCLS(self.pred_fake_A.squeeze(1), self.pred_real_B)
+                self.loss_sem_BA = self.criterionCLS(self.pred_fake_A.squeeze(1), self.pred_real_B.squeeze(1))
         #self.loss_sem_BA = 0
         #self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.pfB) # beniz
         
