@@ -11,8 +11,7 @@ from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.discriminators import NLayerDiscriminator
 from .modules.discriminators import PixelDiscriminator
-from .modules.classifiers import Classifier
-from .modules.classifiers import VGG16_FCN8s
+from .modules.classifiers import Classifier, VGG16_FCN8s, torch_model
 from .modules.UNet_classification import UNet
 from .modules.classifiers import Classifier_w
 from .modules.stylegan2.decoder_stylegan2 import Generator as GeneratorStyleGAN2
@@ -146,8 +145,11 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False,
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
     return init_net(net, init_type, init_gain, gpu_ids)
 
-def define_C(output_nc, ndf,img_size, init_type='normal', init_gain=0.02, gpu_ids=[], nclasses=10):
-    netC = Classifier(output_nc, ndf, nclasses,img_size)
+def define_C(input_nc, ndf,img_size, init_type='normal', init_gain=0.02, gpu_ids=[], nclasses=10, template='basic', pretrained=False):
+    if template == 'basic':
+        netC = Classifier(input_nc, ndf, nclasses,img_size)
+    else:
+        netC = torch_model(input_nc, ndf, nclasses, img_size, template, pretrained)
     return init_net(netC, init_type, init_gain, gpu_ids)
 
 def define_f(input_nc, nclasses, init_type='normal', init_gain=0.02, gpu_ids=[], fs_light=False):

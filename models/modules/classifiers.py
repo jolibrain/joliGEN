@@ -5,7 +5,7 @@ import torchvision
 import torch.nn.functional as F
 from torch.autograd import Variable
 from .utils import make_layers, get_upsample_filter,_crop
-from torchvision.models import vgg
+import torchvision.models as models
 import math
 
 class Classifier(nn.Module):
@@ -67,7 +67,7 @@ class VGG16_FCN8s(nn.Module):
             output_last_ft=False):
         super().__init__()
         self.output_last_ft = output_last_ft
-        self.vgg = make_layers(vgg.cfgs['D'])
+        self.vgg = make_layers(models.vgg.cfgs['D'])
         self.vgg_head = nn.Sequential(
             nn.Conv2d(512, 4096, 7),
             nn.ReLU(inplace=True),
@@ -192,4 +192,54 @@ class Classifier_w(nn.Module):
         
     def forward(self, x):
         out = self.model(x.permute(1,0,2))
+        return out
+
+# torchvision models
+model_classes = {
+    "alexnet": models.alexnet,
+    "vgg11": models.vgg11,
+    "vgg11_bn": models.vgg11_bn,
+    "vgg13": models.vgg13,
+    "vgg13_bn": models.vgg13_bn,
+    "vgg16": models.vgg16,
+    "vgg16_bn": models.vgg16_bn,
+    "vgg19": models.vgg19,
+    "vgg19_bn": models.vgg19_bn,
+    "resnet18": models.resnet18,
+    "resnet34": models.resnet34,
+    "resnet50": models.resnet50,
+    "resnet101": models.resnet101,
+    "resnet152": models.resnet152,
+    "squeezenet1_0": models.squeezenet1_0,
+    "squeezenet1_1": models.squeezenet1_1,
+    "densenet121": models.densenet121,
+    "densenet169": models.densenet169,
+    "densenet161": models.densenet161,
+    "densenet201": models.densenet201,
+    "inception_v3": models.inception_v3,
+    "googlenet": models.googlenet,
+    "shufflenet_v2_x0_5": models.shufflenet_v2_x0_5,
+    "shufflenet_v2_x1_0": models.shufflenet_v2_x1_0,
+    "shufflenet_v2_x1_5": models.shufflenet_v2_x1_5,
+    "shufflenet_v2_x2_0": models.shufflenet_v2_x1_0,
+    "mobilenet_v2": models.mobilenet_v2,
+    "resnext50_32x4d": models.resnext50_32x4d,
+    "resnext101_32x8d": models.resnext101_32x8d,
+    "wide_resnet50_2": models.wide_resnet50_2,
+    "wide_resnet101_2": models.wide_resnet101_2,
+    "mnasnet0_75": models.mnasnet0_75,
+    "mnasnet1_0": models.mnasnet1_0,
+    "mnasnet1_3": models.mnasnet1_3,
+}
+# all models are RGB internally.
+class torch_model(nn.Module):
+    def __init__(self, input_nc, ndf, nclasses, img_size, template, pretrained):
+        super().__init__()
+        self.model = model_classes[template](pretrained=pretrained)
+        if input_nc == 1: # XXX: doesn't work for now
+            raise NotImplementedError('torch models require input_nc and output_nc set to 3 for now')
+        self.model.fc = nn.Linear(512, nclasses)
+
+    def forward(self, x):
+        out = self.model(x)
         return out

@@ -41,6 +41,8 @@ class CycleGANSemanticModel(BaseModel):
             parser.add_argument('--rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
             parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
             parser.add_argument('--train_cls_B', action='store_true', help='if true cls will be trained not only on domain A but also on domain B, if true use_label_B needs to be True')
+            parser.add_argument('--cls_template', help='classifier/regressor model type, from torchvision (resnet18, ...), default is custom simple model', default='basic')
+            parser.add_argument('--cls_pretrained', action='store_true', help='whether to use a pretrained model, available for non "basic" model only')
             parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
 
         return parser
@@ -88,7 +90,8 @@ class CycleGANSemanticModel(BaseModel):
                                             opt.init_type, opt.init_gain, self.gpu_ids)
             self.netCLS = networks.define_C(opt.output_nc, opt.ndf,opt.crop_size,
                                             init_type=opt.init_type, init_gain=opt.init_gain,
-                                            gpu_ids=self.gpu_ids, nclasses=opt.semantic_nclasses)
+                                            gpu_ids=self.gpu_ids, nclasses=opt.semantic_nclasses,
+                                            template=opt.cls_template, pretrained=opt.cls_pretrained)
  
         if self.isTrain:
             if opt.lambda_identity > 0.0:  # only works when input and output images have the same number of channels
