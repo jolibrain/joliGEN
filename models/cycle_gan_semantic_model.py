@@ -7,6 +7,7 @@ from torch.autograd import Variable
 import numpy as np
 from .modules import loss
 from util.util import gaussian
+from util.iter_calculator import IterCalculator
 
 class CycleGANSemanticModel(BaseModel):
     #def name(self):
@@ -54,9 +55,34 @@ class CycleGANSemanticModel(BaseModel):
         BaseModel.__init__(self, opt)
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 
-                'D_B', 'G_B', 'cycle_B', 'idt_B', 
-                'sem_AB', 'sem_BA', 'CLS']
+        if self.opt.iter_size == 1:
+            losses_G = ['G_A','G_B']
+
+            losses_G += ['cycle_A', 'idt_A', 
+                       'cycle_B', 'idt_B', 
+                       'sem_AB', 'sem_BA']
+
+            losses_CLS = ['CLS']            
+            
+            losses_D = ['D_A', 'D_B']
+            
+        else:
+            losses_G = ['G_A_avg','G_B_avg']
+            
+            losses_D = ['D_A_avg', 'D_B_avg']    
+        
+            losses_CLS = ['CLS_avg']
+
+            losses_G += ['cycle_A_avg', 'idt_A_avg', 
+                       'cycle_B_avg', 'idt_B_avg', 
+                       'sem_AB_avg', 'sem_BA_avg']
+
+        self.loss_names_G = losses_G
+        self.loss_names_CLS = losses_CLS
+        self.loss_names_D = losses_D
+        
+        self.loss_names = self.loss_names_G + self.loss_names_CLS + self.loss_names_D
+        
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -126,6 +152,13 @@ class CycleGANSemanticModel(BaseModel):
 
             self.rec_noise = opt.rec_noise
 
+            if self.opt.iter_size > 1 :
+                self.iter_calculator = IterCalculator(self.loss_names)
+                for loss_name in self.loss_names:
+                    setattr(self, "loss_" + loss_name, 0)
+            
+            self.niter=0
+            
     def set_input(self, input):
         AtoB = self.opt.direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
@@ -193,7 +226,7 @@ class CycleGANSemanticModel(BaseModel):
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5
         # backward
-        loss_D.backward()
+        (loss_D/self.opt.iter_size).backward()
         return loss_D
     
     def backward_CLS(self):
@@ -212,7 +245,7 @@ class CycleGANSemanticModel(BaseModel):
             else:
                 self.loss_CLS += self.opt.lambda_CLS * self.criterionCLS(pred_B.squeeze(1), label_B)
         
-        self.loss_CLS.backward()
+        (self.loss_CLS/self.opt.iter_size).backward()
 
     def backward_D_A(self):
         fake_B = self.fake_B_pool.query(self.fake_B)
@@ -281,29 +314,40 @@ class CycleGANSemanticModel(BaseModel):
             self.loss_sem_BA = 0 * self.loss_sem_BA 
       
         self.loss_G += self.loss_sem_BA + self.loss_sem_AB
-        self.loss_G.backward()
+        (self.loss_G/self.opt.iter_size).backward()
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
-        # forward
-        self.forward()      # compute fake images and reconstruction images.
+                
         # G_A and G_B
+        
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
         self.set_requires_grad([self.netG_A, self.netG_B], True)
-        self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+        self.set_requires_grad([self.netCLS], False)
+        
+        self.forward()      # compute fake images and reconstruction images.
+        
         self.backward_G()             # calculate gradients for G_A and G_B
-        self.optimizer_G.step()       # update G_A and G_B's weights
+        
+        self.compute_step(self.optimizer_G,self.loss_names_G)
+        
         # D_A and D_B
+        self.set_requires_grad([self.netG_A, self.netG_B], False)            
         self.set_requires_grad([self.netD_A, self.netD_B], True)
-        self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
+        self.set_requires_grad([self.netCLS], False)
+
         self.backward_D_A()      # calculate gradients for D_A
         self.backward_D_B()      # calculate graidents for D_B
-        self.optimizer_D.step()  # update D_A and D_B's weights
+        
+        self.compute_step(self.optimizer_D,self.loss_names_D)
+                
         # CLS
+        self.set_requires_grad([self.netG_A, self.netG_B], False)            
         self.set_requires_grad([self.netD_A, self.netD_B], False)
         self.set_requires_grad([self.netCLS], True)
-        self.optimizer_CLS.zero_grad()
+
         self.backward_CLS()
-        self.optimizer_CLS.step()
 
-
+        self.compute_step(self.optimizer_CLS,self.loss_names_CLS)
+        
+        self.niter = self.niter +1

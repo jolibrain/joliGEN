@@ -4,6 +4,7 @@ from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
 from .modules import loss
+from util.iter_calculator import IterCalculator
 
 class CycleGANModel(BaseModel):
     """
@@ -41,7 +42,7 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
             parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
-
+            parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
         return parser
 
     def __init__(self, opt):
@@ -52,7 +53,27 @@ class CycleGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
+        if self.opt.iter_size == 1:
+            losses_G = ['G_A','G_B']
+
+            losses_G += ['cycle_A', 'idt_A', 
+                       'cycle_B', 'idt_B']            
+            
+            losses_D = ['D_A', 'D_B']
+            
+        else:
+            losses_G = ['G_A_avg','G_B_avg']
+            
+            losses_D = ['D_A_avg', 'D_B_avg']    
+
+            losses_G += ['cycle_A_avg', 'idt_A_avg', 
+                       'cycle_B_avg', 'idt_B_avg',]
+
+        self.loss_names_G = losses_G
+        self.loss_names_D = losses_D
+        
+        self.loss_names = self.loss_names_G + self.loss_names_D
+
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -95,6 +116,14 @@ class CycleGANModel(BaseModel):
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+            
+            if self.opt.iter_size > 1 :
+                self.iter_calculator = IterCalculator(self.loss_names)
+                for loss_name in self.loss_names:
+                    setattr(self, "loss_" + loss_name, 0)
+
+            self.niter=0
+
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -135,7 +164,7 @@ class CycleGANModel(BaseModel):
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake) * 0.5
-        loss_D.backward()
+        (loss_D/self.opt.iter_size).backward()
         return loss_D
 
     def backward_D_A(self):
@@ -175,20 +204,26 @@ class CycleGANModel(BaseModel):
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
-        self.loss_G.backward()
+        (self.loss_G/self.opt.iter_size).backward()
 
     def optimize_parameters(self):
-        """Calculate losses, gradients, and update network weights; called in every training iteration"""
-        # forward
-        self.forward()      # compute fake images and reconstruction images.
+        """Calculate losses, gradients, and update network weights; called in every training iteration"""        
         # G_A and G_B
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
-        self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+        self.set_requires_grad([self.netG_A, self.netG_B], True)
+        
+        # forward
+        self.forward()      # compute fake images and reconstruction images.
         self.backward_G()             # calculate gradients for G_A and G_B
-        self.optimizer_G.step()       # update G_A and G_B's weights
+        self.compute_step(self.optimizer_G,self.loss_names_G) #
+        
         # D_A and D_B
         self.set_requires_grad([self.netD_A, self.netD_B], True)
-        self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
+        self.set_requires_grad([self.netG_A, self.netG_B], False)
+        
         self.backward_D_A()      # calculate gradients for D_A
         self.backward_D_B()      # calculate graidents for D_B
-        self.optimizer_D.step()  # update D_A and D_B's weights
+
+        self.compute_step(self.optimizer_D,self.loss_names_D)
+                        
+        self.niter = self.niter +1
