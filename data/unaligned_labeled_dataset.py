@@ -1,7 +1,7 @@
 import os.path
 #import torchvision.transforms as transforms
 from data.base_dataset import BaseDataset, get_transform
-from data.image_folder import make_dataset, make_labeled_dataset
+from data.image_folder import make_dataset, make_labeled_dataset, make_labeled_mask_dataset
 from PIL import Image
 import random
 import numpy as np
@@ -30,14 +30,24 @@ class UnalignedLabeledDataset(BaseDataset):
         self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
         self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
 
-        
-        self.A_paths, self.A_label = make_labeled_dataset(self.dir_A, opt.max_dataset_size)   # load images from '/path/to/data/trainA' as well as labels
-        #print('A_labels list',self.A_label)
-        self.A_label = np.array(self.A_label)
+        if not os.path.isfile(self.dir_A+'/paths.txt'):
+            self.A_paths, self.A_label = make_labeled_dataset(self.dir_A, opt.max_dataset_size)   # load images from '/path/to/data/trainA' as well as labels
+            self.A_label = np.array(self.A_label)
+        else:
+            self.A_paths, self.A_label = make_labeled_mask_dataset(self.dir_A,'/paths.txt', opt.max_dataset_size)   # load images from '/path/to/data/trainA/paths.txt' as well as labels
+            self.A_label = np.array(self.A_label,dtype=np.float32)
+            
         
         #print('A_label',self.A_label)
         if opt.use_label_B:
-            self.B_paths, self.B_label = make_labeled_dataset(self.dir_B, opt.max_dataset_size)
+            if not os.path.isfile(self.dir_B+'/paths.txt'):
+                self.B_paths, self.B_label = make_labeled_dataset(self.dir_B, opt.max_dataset_size)
+                self.B_label = np.array(self.B_label)
+            else:
+                self.B_paths, self.B_label = make_labeled_mask_dataset(self.dir_B,'/paths.txt', opt.max_dataset_size)    # load images from '/path/to/data/trainB'
+                self.B_label = np.array(self.B_label,dtype=np.float32)
+           
+                
         else:
             self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
             

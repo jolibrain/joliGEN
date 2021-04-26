@@ -42,7 +42,10 @@ class CycleGANSemanticModel(BaseModel):
             parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
             parser.add_argument('--train_cls_B', action='store_true', help='if true cls will be trained not only on domain A but also on domain B, if true use_label_B needs to be True')
             parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
-
+            parser.add_argument('--regression', action='store_true', help='if true cls will be a regressor and not a classifier')
+            parser.add_argument('--lambda_CLS', type=float, default=1.0, help='weight for CLS loss')
+            parser.add_argument('--l1_regression', action='store_true', help='if true l1 loss will be used to compute regressor loss')
+            
         return parser
     
     def __init__(self, opt):
@@ -99,7 +102,14 @@ class CycleGANSemanticModel(BaseModel):
             self.criterionGAN = loss.GANLoss(opt.gan_mode).to(self.device)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
-            self.criterionCLS = torch.nn.modules.CrossEntropyLoss()
+            if opt.regression:
+                if opt.l1_regression:
+                    self.criterionCLS = torch.nn.L1Loss()
+                else:
+                    self.criterionCLS = torch.nn.modules.MSELoss()
+            else:
+                self.criterionCLS = torch.nn.modules.CrossEntropyLoss()
+                
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -121,11 +131,18 @@ class CycleGANSemanticModel(BaseModel):
         #print(input['B'])
         if 'A_label' in input:
             #self.input_A_label = input['A_label' if AtoB else 'B_label'].to(self.device)
-            self.input_A_label = input['A_label'].to(self.device)
+            if not self.opt.regression:
+                self.input_A_label = input['A_label'].to(self.device)
+            else:
+                self.input_A_label = input['A_label'].to(torch.float).to(device=self.device)
             #self.input_B_label = input['B_label' if AtoB else 'A_label'].to(self.device) # beniz: unused
             #self.image_paths = input['B_paths'] # Hack!! forcing the labels to corresopnd to B domain
         if 'B_label' in input:
-            self.input_B_label = input['B_label'].to(self.device)
+            if not self.opt.regression:
+                self.input_B_label = input['B_label'].to(self.device)
+            else:
+                self.input_B_label = input['B_label'].to(torch.float).to(device=self.device)
+                
 
 
     def forward(self):
@@ -151,13 +168,16 @@ class CycleGANSemanticModel(BaseModel):
            #print('real_A shape=',self.real_A.shape)
            #print('real_A=',self.real_A)
            self.pred_real_A = self.netCLS(self.real_A)
-           _,self.gt_pred_A = self.pred_real_A.max(1)
-           pred_real_B = self.netCLS(self.real_B)
-           _,self.gt_pred_B = pred_real_B.max(1)
+           if not self.opt.regression:
+               _,self.gt_pred_A = self.pred_real_A.max(1)
+           self.pred_real_B = self.netCLS(self.real_B)
+           if not self.opt.regression:
+               _,self.gt_pred_B = self.pred_real_B.max(1)
            self.pred_fake_A = self.netCLS(self.fake_A)
            self.pred_fake_B = self.netCLS(self.fake_B)
 
-           _,self.pfB = self.pred_fake_B.max(1) #beniz: unused ?
+           if not self.opt.regression:
+               _,self.pfB = self.pred_fake_B.max(1) #beniz: unused ?
         
 
     def backward_D_basic(self, netD, real, fake):
@@ -176,12 +196,15 @@ class CycleGANSemanticModel(BaseModel):
     def backward_CLS(self):
         label_A = self.input_A_label
         # forward only real source image through semantic classifier
-        pred_A = self.netCLS(self.real_A) 
-        self.loss_CLS = self.criterionCLS(pred_A, label_A)
+        pred_A = self.netCLS(self.real_A)
+        if not self.opt.regression:
+            self.loss_CLS = self.opt.lambda_CLS * self.criterionCLS(pred_A, label_A)
+        else:
+            self.loss_CLS = self.opt.lambda_CLS * self.criterionCLS(pred_A.squeeze(1), label_A)
         if self.opt.train_cls_B:
             label_B = self.input_B_label
             pred_B = self.netCLS(self.real_B) 
-            self.loss_CLS += self.criterionCLS(pred_B, label_B)
+            self.loss_CLS += self.opt.lambda_CLS * self.criterionCLS(pred_B, label_B)
         
         self.loss_CLS.backward()
 
@@ -225,13 +248,23 @@ class CycleGANSemanticModel(BaseModel):
         #print('fake_B=',self.pred_fake_B)
         #print('input_A_label=',self.input_A_label)
         #print(self.pred_fake_B.shape,self.input_A_label.shape)
-        self.loss_sem_AB = self.criterionCLS(self.pred_fake_B, self.input_A_label)
+        if not self.opt.regression:
+            self.loss_sem_AB = self.criterionCLS(self.pred_fake_B, self.input_A_label)
+        else:
+            self.loss_sem_AB = self.criterionCLS(self.pred_fake_B.squeeze(1), self.input_A_label)
+                
         #self.loss_sem_AB = self.criterionCLS(self.pred_fake_B, self.gt_pred_A)
         # semantic loss BA
         if hasattr(self,'input_B_label'):
-            self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.input_B_label)
+            if not self.opt.regression:
+                self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.input_B_label)
+            else:
+                self.loss_sem_BA = self.criterionCLS(self.pred_fake_A.squeeze(1), self.input_B_label)
         else:
-            self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.gt_pred_B)
+            if not self.opt.regression:
+                self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.gt_pred_B)
+            else:
+                self.loss_sem_BA = self.criterionCLS(self.pred_fake_A.squeeze(1), self.pred_real_B)
         #self.loss_sem_BA = 0
         #self.loss_sem_BA = self.criterionCLS(self.pred_fake_A, self.pfB) # beniz
         
