@@ -64,6 +64,7 @@ class BaseOptions():
         parser.add_argument('--verbose', action='store_true', help='if specified, print more debugging information')
         parser.add_argument('--suffix', default='', type=str, help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}')
         parser.add_argument('--semantic_nclasses',default=10,type=int,help='number of classes of the semantic loss classifier')
+        parser.add_argument('--semantic_threshold',default=1.0,type=float,help='threshold of the semantic classifier loss below with semantic loss is applied')
         parser.add_argument('--display_networks', action='store_true',help='Set True if you want to display networks on port 8000')
         parser.add_argument('--compute_fid', action='store_true')
         parser.add_argument('--fid_every', type=int, default=1000)

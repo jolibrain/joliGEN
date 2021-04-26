@@ -412,7 +412,7 @@ class CycleGANSemanticMaskModel(BaseModel):
         
         # only use semantic loss when classifier has reasonably low loss
         #if True:
-        if not hasattr(self, 'loss_f_s') or self.loss_f_s.detach().item() > 1.0:
+        if not hasattr(self, 'loss_f_s') or self.loss_f_s.detach().item() > self.opt.semantic_threshold:
             self.loss_sem_AB = 0 * self.loss_sem_AB 
             self.loss_sem_BA = 0 * self.loss_sem_BA 
         self.loss_G += self.loss_sem_BA + self.loss_sem_AB
