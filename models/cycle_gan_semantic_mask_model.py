@@ -2,6 +2,7 @@ import torch
 import itertools
 from util.image_pool import ImagePool
 from util.losses import L1_Charbonnier_loss
+from util.madgrad import MADGRAD
 from .base_model import BaseModel
 from . import networks
 from torch.autograd import Variable
@@ -54,7 +55,7 @@ class CycleGANSemanticMaskModel(BaseModel):
             parser.add_argument('--nb_attn', type=int, default=10, help='number of attention masks')
             parser.add_argument('--nb_mask_input', type=int, default=1, help='number of attention masks which will be applied on the input image')
             parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
-            
+            parser.add_argument('--madgrad',action='store_true',help='if true madgrad optim will be used')
 
         return parser
     
@@ -189,16 +190,27 @@ class CycleGANSemanticMaskModel(BaseModel):
                     self.criterionMask = L1_Charbonnier_loss(opt.charbonnier_eps)
                     
             # initialize optimizers
-            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
-            if opt.disc_in_mask:
-                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(),self.netD_B.parameters(),self.netD_A_mask.parameters(), self.netD_B_mask.parameters()),
+            if not opt.madgrad:
+                self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
+                                                    lr=opt.lr, betas=(opt.beta1, 0.999))
+                if opt.disc_in_mask:
+                    self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(),self.netD_B.parameters(),self.netD_A_mask.parameters(), self.netD_B_mask.parameters()),
                                                 lr=opt.D_lr, betas=(opt.beta1, 0.999))
-            else:    
-                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
+                else:    
+                    self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
                                                 lr=opt.D_lr, betas=(opt.beta1, 0.999))
-            self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.lr_f_s, betas=(opt.beta1, 0.999))
-            
+                self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.lr_f_s, betas=(opt.beta1, 0.999))
+            else:
+                self.optimizer_G = MADGRAD(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
+                                                    lr=opt.lr)
+                if opt.disc_in_mask:
+                    self.optimizer_D = MADGRAD(itertools.chain(self.netD_A.parameters(),self.netD_B.parameters(),self.netD_A_mask.parameters(), self.netD_B_mask.parameters()),
+                                                lr=opt.D_lr)
+                else:    
+                    self.optimizer_D = MADGRAD(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
+                                                lr=opt.D_lr)
+                self.optimizer_f_s = MADGRAD(self.netf_s.parameters(), lr=opt.lr_f_s)
+                
             self.optimizers = []
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
