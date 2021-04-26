@@ -236,10 +236,11 @@ class torch_model(nn.Module):
     def __init__(self, input_nc, ndf, nclasses, img_size, template, pretrained):
         super().__init__()
         self.model = model_classes[template](pretrained=pretrained)
-        if input_nc == 1: # XXX: doesn't work for now
-            raise NotImplementedError('torch models require input_nc and output_nc set to 3 for now')
+        self.input_nc = input_nc
         self.model.fc = nn.Linear(512, nclasses)
 
     def forward(self, x):
+        if self.input_nc == 1:
+            x = x.repeat(1, 3, 1, 1)
         out = self.model(x)
         return out
