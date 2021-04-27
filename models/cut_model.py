@@ -5,6 +5,7 @@ from . import networks
 from .patchnce import PatchNCELoss
 import util.util as util
 from .modules import loss
+from util.iter_calculator import IterCalculator
 
 class CUTModel(BaseModel):
     """ This class implements CUT and FastCUT model, described in the paper
@@ -35,6 +36,7 @@ class CUTModel(BaseModel):
         parser.add_argument('--flip_equivariance',
                             type=util.str2bool, nargs='?', const=True, default=False,
                             help="Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT")
+        parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
 
         parser.set_defaults(pool_size=0)  # no image pooling
 
@@ -58,12 +60,26 @@ class CUTModel(BaseModel):
 
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['G_GAN', 'D_real', 'D_fake', 'G', 'NCE']
+        if self.opt.iter_size == 1:
+            losses_G = ['G_GAN', 'G', 'NCE']
+            losses_D= ['D_real', 'D_fake']
+            if opt.nce_idt and self.isTrain:
+                losses_G += ['NCE_Y']
+        else:
+            losses_G = ['G_GAN_avg', 'G_avg', 'NCE_avg']
+            losses_D= ['D_real_avg', 'D_fake_avg']
+            if opt.nce_idt and self.isTrain:
+                losses_G += ['NCE_Y_avg']
+
+        self.loss_names_G = losses_G
+        self.loss_names_D = losses_D
+        
+        self.loss_names = self.loss_names_G + self.loss_names_D
+        
         self.visual_names = ['real_A', 'fake_B', 'real_B']
         self.nce_layers = [int(i) for i in self.opt.nce_layers.split(',')]
 
         if opt.nce_idt and self.isTrain:
-            self.loss_names += ['NCE_Y']
             self.visual_names += ['idt_B']
 
         if self.isTrain:
@@ -75,7 +91,6 @@ class CUTModel(BaseModel):
         self.netG =networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.G_spectral, opt.init_type, opt.init_gain, self.gpu_ids)
         self.netF = networks.define_F(opt.input_nc, opt.netF, opt.normG, not opt.no_dropout, opt.init_type, opt.init_gain, opt.no_antialias, self.gpu_ids, opt)
-        print(self.netF)
         if self.isTrain:
             self.netD = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain, self.gpu_ids)
@@ -93,8 +108,14 @@ class CUTModel(BaseModel):
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
-            
+
+            if self.opt.iter_size > 1 :
+                self.iter_calculator = IterCalculator(self.loss_names)
+                for loss_name in self.loss_names:
+                    setattr(self, "loss_" + loss_name, 0)
+
             self.niter=0
+
 
             
     def data_dependent_initialize(self, data):
@@ -117,30 +138,31 @@ class CUTModel(BaseModel):
                 self.optimizers.append(self.optimizer_F)
 
     def optimize_parameters(self):
-        # forward
-        self.forward()
-
-        # update D
-        self.set_requires_grad(self.netD, True)
-        self.set_requires_grad(self.netG, False)            
-        self.loss_D = self.compute_D_loss()
-        (self.loss_D/self.opt.iter_size).backward()
-        if self.niter % self.opt.iter_size ==0:
-            self.optimizer_D.step()
-            self.optimizer_D.zero_grad()
 
         # update G
         self.set_requires_grad(self.netD, False)
-        self.set_requires_grad(self.netG, True)                
+        self.set_requires_grad(self.netG, True)
+        self.set_requires_grad(self.netF, True)
+        
+        # forward
+        self.forward()
+
         self.loss_G = self.compute_G_loss()
         (self.loss_G/self.opt.iter_size).backward()
-        if self.niter % self.opt.iter_size ==0:
-            self.optimizer_G.step()
-            self.optimizer_G.zero_grad()
-            if self.opt.netF == 'mlp_sample':
-                self.optimizer_F.step()
-                self.optimizer_F.zero_grad()
+        self.compute_step([self.optimizer_G,self.optimizer_F],self.loss_names_G)
 
+        if self.opt.netF == 'mlp_sample' and self.niter % self.opt.iter_size == 0:
+            self.optimizer_F.step()
+            self.optimizer_F.zero_grad()
+        
+        # update D
+        self.set_requires_grad(self.netD, True)
+        self.set_requires_grad(self.netG, False)
+        self.set_requires_grad(self.netF, False)
+        self.loss_D = self.compute_D_loss()
+        (self.loss_D/self.opt.iter_size).backward()
+        self.compute_step(self.optimizer_D,self.loss_names_D)
+        
         self.niter = self.niter +1
 
     def set_input(self, input):
