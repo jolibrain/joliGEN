@@ -46,6 +46,7 @@ class CycleGANSemanticModel(BaseModel):
             parser.add_argument('--cls_pretrained', action='store_true', help='whether to use a pretrained model, available for non "basic" model only')
             parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
             parser.add_argument('--regression', action='store_true', help='if true cls will be a regressor and not a classifier')
+            parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
             parser.add_argument('--lambda_CLS', type=float, default=1.0, help='weight for CLS loss')
             parser.add_argument('--l1_regression', action='store_true', help='if true l1 loss will be used to compute regressor loss')
             
@@ -291,7 +292,7 @@ class CycleGANSemanticModel(BaseModel):
             self.loss_sem_AB = self.criterionCLS(self.pred_fake_B, self.input_A_label)
         else:
             self.loss_sem_AB = self.criterionCLS(self.pred_fake_B.squeeze(1), self.input_A_label)
-                
+            
         #self.loss_sem_AB = self.criterionCLS(self.pred_fake_B, self.gt_pred_A)
         # semantic loss BA
         if hasattr(self,'input_B_label'):
@@ -312,7 +313,10 @@ class CycleGANSemanticModel(BaseModel):
         if not hasattr(self, 'loss_CLS') or self.loss_CLS.detach().item() > self.opt.semantic_threshold:
             self.loss_sem_AB = 0 * self.loss_sem_AB 
             self.loss_sem_BA = 0 * self.loss_sem_BA 
-      
+
+        self.loss_sem_AB *= self.opt.lambda_sem
+        self.loss_sem_BA *= self.opt.lambda_sem
+            
         self.loss_G += self.loss_sem_BA + self.loss_sem_AB
         (self.loss_G/self.opt.iter_size).backward()
 
