@@ -349,10 +349,13 @@ class BaseModel(ABC):
                 fids[name] = float(getattr(self, name))  # float(...) works for both scalar tensor and float number
         return fids
 
-    def compute_step(self,optimizer,loss_names):
+    def compute_step(self,optimizers,loss_names):
+        if not isinstance(optimizers,list):
+            optimizers = [optimizers]
         if self.niter % self.opt.iter_size ==0:
-            optimizer.step()
-            optimizer.zero_grad()
+            for optimizer in optimizers:
+                optimizer.step()
+                optimizer.zero_grad()
             if self.opt.iter_size > 1:
                 self.iter_calculator.compute_last_step(loss_names)
                 for loss_name in loss_names:
