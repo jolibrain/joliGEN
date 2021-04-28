@@ -219,7 +219,7 @@ class CUTModel(BaseModel):
 
         total_nce_loss = 0.0
         for f_q, f_k, crit, nce_layer in zip(feat_q_pool, feat_k_pool, self.criterionNCE, self.nce_layers):
-            loss = crit(f_q, f_k) * self.opt.lambda_NCE
+            loss = crit(f_q, f_k,current_batch=src.shape[0]) * self.opt.lambda_NCE
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers
