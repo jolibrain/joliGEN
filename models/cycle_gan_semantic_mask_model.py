@@ -342,7 +342,7 @@ class CycleGANSemanticMaskModel(BaseModel):
         self.pfB = F.log_softmax(self.pred_fake_B,dim=d)#.argmax(dim=d)
         self.pfB_max = self.pfB.argmax(dim=d)
            
-    def backward_D_basic(self, netD, real, fake):
+    def compute_D_loss_basic(self, netD, real, fake):
         # Real
         pred_real = netD(real)
         loss_D_real = self.criterionGAN(pred_real, True)
@@ -352,10 +352,9 @@ class CycleGANSemanticMaskModel(BaseModel):
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5
         # backward
-        (loss_D/self.opt.iter_size).backward()
         return loss_D
     
-    def backward_f_s(self):
+    def compute_f_s_loss(self):
         #print('backward fs')
         label_A = self.input_A_label
         # forward only real source image through semantic classifier
@@ -365,41 +364,53 @@ class CycleGANSemanticMaskModel(BaseModel):
             label_B = self.input_B_label
             pred_B = self.netf_s(self.real_B) 
             self.loss_f_s += self.criterionf_s(pred_B, label_B)#.squeeze(1))
-        (self.loss_f_s/self.opt.iter_size).backward()
 
-    def backward_D_A(self):
+    def compute_D_A_loss(self):
         if self.D_noise > 0.0:
             fake_B = self.fake_B_pool.query(self.fake_B_noisy)
-            self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B_noisy, fake_B)
+            self.loss_D_A = self.compute_D_loss_basic(self.netD_A, self.real_B_noisy, fake_B)
         else:
             fake_B = self.fake_B_pool.query(self.fake_B)
-            self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
+            self.loss_D_A = self.compute_D_loss_basic(self.netD_A, self.real_B, fake_B)
 
-    def backward_D_B(self):
+    def compute_D_B_loss(self):
         if self.D_noise > 0.0:
             fake_A = self.fake_A_pool.query(self.fake_A_noisy)
-            self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A_noisy, fake_A)
+            self.loss_D_B = self.compute_D_loss_basic(self.netD_B, self.real_A_noisy, fake_A)
         else:
             fake_A = self.fake_A_pool.query(self.fake_A)
-            self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+            self.loss_D_B = self.compute_D_loss_basic(self.netD_B, self.real_A, fake_A)
 
-    def backward_D_A_mask(self):
+    def compute_D_A_mask_loss(self):
         fake_B_mask = self.fake_B_pool_mask.query(self.fake_B_mask)
-        self.loss_D_A_mask = self.backward_D_basic(self.netD_A_mask, self.real_B_mask, fake_B_mask)
+        self.loss_D_A_mask = self.compute_D_loss_basic(self.netD_A_mask, self.real_B_mask, fake_B_mask)
 
-    def backward_D_B_mask(self):
+    def compute_D_B_mask_loss(self):
         fake_A_mask = self.fake_A_pool_mask.query(self.fake_A_mask)
-        self.loss_D_B_mask = self.backward_D_basic(self.netD_B_mask, self.real_A_mask, fake_A_mask)
+        self.loss_D_B_mask = self.compute_D_loss_basic(self.netD_B_mask, self.real_A_mask, fake_A_mask)
 
-    def backward_D_A_mask_in(self):
+    def compute_D_A_mask_in_loss(self):
         fake_B_mask_in = self.fake_B_pool.query(self.fake_B_mask_in)
-        self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B_mask_in, fake_B_mask_in)
+        self.loss_D_A = self.compute_D_loss_basic(self.netD_A, self.real_B_mask_in, fake_B_mask_in)
 
-    def backward_D_B_mask_in(self):
+    def compute_D_B_mask_in_loss(self):
         fake_A_mask_in = self.fake_A_pool.query(self.fake_A_mask)
-        self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A_mask_in, fake_A_mask_in)
+        self.loss_D_B = self.compute_D_loss_basic(self.netD_B, self.real_A_mask_in, fake_A_mask_in)
 
-    def backward_G(self):
+    def compute_D_loss(self):
+        if self.disc_in_mask:
+            self.compute_D_A_mask_in_loss()
+            self.compute_D_B_mask_in_loss()
+            self.compute_D_A_mask_loss()
+            self.compute_D_B_mask_loss()
+            self.loss_D = self.loss_D_A + self.loss_D_B + self.loss_D_A_mask + self.loss_D_B_mask
+        else:
+            self.compute_D_A_loss()      # calculate gradients for D_A
+            self.compute_D_B_loss()      # calculate gradients for D_B
+            self.loss_D = self.loss_D_A + self.loss_D_B
+
+
+    def compute_G_loss(self):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
@@ -462,13 +473,8 @@ class CycleGANSemanticMaskModel(BaseModel):
                 self.loss_out_mask_BA = 0
             self.loss_G += self.loss_out_mask_AB + self.loss_out_mask_BA
 
-        (self.loss_G/self.opt.iter_size).backward()
-
     def optimize_parameters(self):
-        """Calculate losses, gradients, and update network weights; called in every training iteration"""
-        # forward
-        self.forward()      # compute fake images and reconstruction images.
-        
+        """Calculate losses, gradients, and update network weights; called in every training iteration"""        
         # G_A and G_B
         if self.disc_in_mask:
             self.set_requires_grad([self.netD_A, self.netD_B, self.netD_A_mask, self.netD_B_mask], False)
@@ -476,7 +482,12 @@ class CycleGANSemanticMaskModel(BaseModel):
             self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
         self.set_requires_grad([self.netG_A, self.netG_B], True)
         self.set_requires_grad([self.netf_s], False)
-        self.backward_G()             # calculate gradients for G_A and G_B
+
+        # forward
+        self.forward()      # compute fake images and reconstruction images.
+        
+        self.compute_G_loss()             # calculate gradients for G_A and G_B
+        (self.loss_G/self.opt.iter_size).backward()
 
         self.compute_step(self.optimizer_G,self.loss_names_G)
 
@@ -487,16 +498,10 @@ class CycleGANSemanticMaskModel(BaseModel):
             self.set_requires_grad([self.netD_A, self.netD_B], True)
         self.set_requires_grad([self.netG_A, self.netG_B], False)
         self.set_requires_grad([self.netf_s], False)
-        
-        if self.disc_in_mask:
-            self.backward_D_A_mask_in()
-            self.backward_D_B_mask_in()
-            self.backward_D_A_mask()
-            self.backward_D_B_mask()
-        else:
-            self.backward_D_A()      # calculate gradients for D_A
-            self.backward_D_B()      # calculate gradients for D_B
 
+        self.compute_D_loss()      # calculate gradients for all discriminators
+        (self.loss_D/self.opt.iter_size).backward()
+        
         self.compute_step(self.optimizer_D,self.loss_names_D)
         
         # f_s
@@ -507,7 +512,8 @@ class CycleGANSemanticMaskModel(BaseModel):
         self.set_requires_grad([self.netG_A, self.netG_B], False)
         self.set_requires_grad([self.netf_s], True)
         
-        self.backward_f_s()
+        self.compute_f_s_loss()
+        (self.loss_f_s/self.opt.iter_size).backward()
 
         self.compute_step(self.optimizer_f_s,self.loss_names_f_s)
         
