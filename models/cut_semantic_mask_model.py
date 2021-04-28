@@ -312,7 +312,7 @@ class CUTSemanticMaskModel(BaseModel):
             if self.opt.contrastive_noise>0.0:
                 f_q=gaussian(f_q,self.opt.contrastive_noise)
                 f_k=gaussian(f_k,self.opt.contrastive_noise)
-            loss = crit(f_q, f_k) * self.opt.lambda_NCE
+            loss = crit(f_q, f_k,current_batch=src.shape[0]) * self.opt.lambda_NCE
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers
