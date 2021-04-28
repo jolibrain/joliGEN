@@ -171,9 +171,12 @@ class CUTSemanticMaskModel(BaseModel):
         
         self.forward()                     # compute fake images: G(A)
         if self.opt.isTrain:
-            self.compute_D_loss().backward()                  # calculate gradients for D
-            self.compute_f_s_loss().backward()                   # calculate gradients for f_s
-            self.compute_G_loss().backward()                   # calculate gradients for G
+            self.compute_D_loss()                  
+            self.compute_f_s_loss()                  
+            self.compute_G_loss()                   
+            self.loss_D.backward()# calculate gradients for D
+            self.loss_f_s.backward()# calculate gradients for f_s
+            self.loss_G.backward()# calculate gradients for G
             if self.opt.lambda_NCE > 0.0:
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
                 self.optimizers.append(self.optimizer_F)
@@ -188,7 +191,7 @@ class CUTSemanticMaskModel(BaseModel):
         # forward
         self.forward()
         
-        self.loss_G = self.compute_G_loss()
+        self.compute_G_loss()
         (self.loss_G/self.opt.iter_size).backward()
 
         self.compute_step(self.optimizer_G,self.loss_names_G)
@@ -202,9 +205,10 @@ class CUTSemanticMaskModel(BaseModel):
         self.set_requires_grad(self.netG, False)
         self.set_requires_grad(self.netF, False)
         self.set_requires_grad(self.netf_s, False)
-        self.loss_D = self.compute_D_loss()
+        
+        self.compute_D_loss()
         (self.loss_D/self.opt.iter_size).backward()
-
+        
         self.compute_step(self.optimizer_D,self.loss_names_D)
         
         # update f_s
@@ -212,9 +216,10 @@ class CUTSemanticMaskModel(BaseModel):
         self.set_requires_grad(self.netG, False)
         self.set_requires_grad(self.netF, False)
         self.set_requires_grad(self.netf_s, True)            
-        self.loss_f_s = self.compute_f_s_loss()
-        (self.loss_f_s/self.opt.iter_size).backward()
 
+        self.compute_f_s_loss()
+        (self.loss_f_s/self.opt.iter_size).backward()
+        
         self.compute_step(self.optimizer_f_s,self.loss_names_f_s)            
             
         self.niter = self.niter +1
@@ -289,7 +294,6 @@ class CUTSemanticMaskModel(BaseModel):
 
         # combine loss and calculate gradients
         self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
-        return self.loss_D
 
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
@@ -319,8 +323,6 @@ class CUTSemanticMaskModel(BaseModel):
         if hasattr(self,'criterionMask'):
             self.loss_out_mask = self.criterionMask( self.real_A_out_mask, self.fake_B_out_mask) * self.opt.lambda_out_mask
             self.loss_G += self.loss_out_mask
-        
-        return self.loss_G
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
@@ -352,6 +354,3 @@ class CUTSemanticMaskModel(BaseModel):
             label_B = self.input_B_label
             pred_B = self.netf_s(self.real_B) 
             self.loss_f_s += self.criterionf_s(pred_B, label_B)#.squeeze(1))
-        return self.loss_f_s
-
-        

@@ -145,7 +145,7 @@ class CycleGANModel(BaseModel):
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
         self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
 
-    def backward_D_basic(self, netD, real, fake):
+    def compute_D_loss_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
 
         Parameters:
@@ -164,20 +164,25 @@ class CycleGANModel(BaseModel):
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake) * 0.5
-        (loss_D/self.opt.iter_size).backward()
         return loss_D
 
-    def backward_D_A(self):
+    def compute_D_A_loss(self):
         """Calculate GAN loss for discriminator D_A"""
         fake_B = self.fake_B_pool.query(self.fake_B)
-        self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
+        self.loss_D_A = self.compute_D_loss_basic(self.netD_A, self.real_B, fake_B)
 
-    def backward_D_B(self):
+    def compute_D_B_loss(self):
         """Calculate GAN loss for discriminator D_B"""
         fake_A = self.fake_A_pool.query(self.fake_A)
-        self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+        self.loss_D_B = self.compute_D_loss_basic(self.netD_B, self.real_A, fake_A)
 
-    def backward_G(self):
+    def compute_D_loss(self):
+        """Calculate GAN loss for both discriminators"""
+        self.compute_D_A_loss()
+        self.compute_D_B_loss()
+        self.loss_D = self.loss_D_A + self.loss_D_B
+        
+    def compute_G_loss(self):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
@@ -204,7 +209,6 @@ class CycleGANModel(BaseModel):
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
-        (self.loss_G/self.opt.iter_size).backward()
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""        
@@ -214,16 +218,17 @@ class CycleGANModel(BaseModel):
         
         # forward
         self.forward()      # compute fake images and reconstruction images.
-        self.backward_G()             # calculate gradients for G_A and G_B
+        self.compute_G_loss()             # calculate gradients for G_A and G_B
+        (self.loss_G/self.opt.iter_size).backward()
         self.compute_step(self.optimizer_G,self.loss_names_G) #
         
         # D_A and D_B
         self.set_requires_grad([self.netD_A, self.netD_B], True)
         self.set_requires_grad([self.netG_A, self.netG_B], False)
         
-        self.backward_D_A()      # calculate gradients for D_A
-        self.backward_D_B()      # calculate graidents for D_B
-
+        self.compute_D_loss()      # calculate gradients for D_A and D_B
+        (self.loss_D/self.opt.iter_size).backward()
+        
         self.compute_step(self.optimizer_D,self.loss_names_D)
                         
         self.niter = self.niter +1

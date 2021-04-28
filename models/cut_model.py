@@ -131,8 +131,11 @@ class CUTModel(BaseModel):
         self.real_B = self.real_B[:bs_per_gpu]
         self.forward()                     # compute fake images: G(A)
         if self.opt.isTrain:
-            self.compute_D_loss().backward()                  # calculate gradients for D
-            self.compute_G_loss().backward()                   # calculate graidents for G
+            self.compute_D_loss()                  
+            self.compute_G_loss()                   
+            self.loss_D.backward()# calculate gradients for D
+            self.loss_G.backward()# calculate graidents for G
+            
             if self.opt.lambda_NCE > 0.0:
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
                 self.optimizers.append(self.optimizer_F)

@@ -217,7 +217,7 @@ class CycleGANSemanticModel(BaseModel):
                _,self.pfB = self.pred_fake_B.max(1) #beniz: unused ?
         
 
-    def backward_D_basic(self, netD, real, fake):
+    def compute_D_loss_basic(self, netD, real, fake):
         # Real
         pred_real = netD(real)
         loss_D_real = self.criterionGAN(pred_real, True)
@@ -227,10 +227,9 @@ class CycleGANSemanticModel(BaseModel):
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5
         # backward
-        (loss_D/self.opt.iter_size).backward()
         return loss_D
     
-    def backward_CLS(self):
+    def compute_CLS_loss(self):
         label_A = self.input_A_label
         # forward only real source image through semantic classifier
         pred_A = self.netCLS(self.real_A)
@@ -245,18 +244,23 @@ class CycleGANSemanticModel(BaseModel):
                 self.loss_CLS += self.opt.lambda_CLS * self.criterionCLS(pred_B, label_B)
             else:
                 self.loss_CLS += self.opt.lambda_CLS * self.criterionCLS(pred_B.squeeze(1), label_B)
-        
-        (self.loss_CLS/self.opt.iter_size).backward()
 
-    def backward_D_A(self):
+    def compute_D_A_loss(self):
         fake_B = self.fake_B_pool.query(self.fake_B)
-        self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
+        self.loss_D_A = self.compute_D_loss_basic(self.netD_A, self.real_B, fake_B)
 
-    def backward_D_B(self):
+    def compute_D_B_loss(self):
         fake_A = self.fake_A_pool.query(self.fake_A)
-        self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+        self.loss_D_B = self.compute_D_loss_basic(self.netD_B, self.real_A, fake_A)
 
-    def backward_G(self):
+    def compute_D_loss(self):
+        """Calculate GAN loss for both discriminators"""
+        self.compute_D_A_loss()
+        self.compute_D_B_loss()
+        self.loss_D = self.loss_D_A + self.loss_D_B
+
+
+    def compute_G_loss(self):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
@@ -318,11 +322,9 @@ class CycleGANSemanticModel(BaseModel):
         self.loss_sem_BA *= self.opt.lambda_sem
             
         self.loss_G += self.loss_sem_BA + self.loss_sem_AB
-        (self.loss_G/self.opt.iter_size).backward()
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
-                
         # G_A and G_B
         
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
@@ -331,7 +333,8 @@ class CycleGANSemanticModel(BaseModel):
         
         self.forward()      # compute fake images and reconstruction images.
         
-        self.backward_G()             # calculate gradients for G_A and G_B
+        self.compute_G_loss()             # calculate gradients for G_A and G_B
+        (self.loss_G/self.opt.iter_size).backward()
         
         self.compute_step(self.optimizer_G,self.loss_names_G)
         
@@ -340,8 +343,8 @@ class CycleGANSemanticModel(BaseModel):
         self.set_requires_grad([self.netD_A, self.netD_B], True)
         self.set_requires_grad([self.netCLS], False)
 
-        self.backward_D_A()      # calculate gradients for D_A
-        self.backward_D_B()      # calculate graidents for D_B
+        self.compute_D_loss()      # calculate gradients for D
+        (self.loss_D/self.opt.iter_size).backward()
         
         self.compute_step(self.optimizer_D,self.loss_names_D)
                 
@@ -350,7 +353,8 @@ class CycleGANSemanticModel(BaseModel):
         self.set_requires_grad([self.netD_A, self.netD_B], False)
         self.set_requires_grad([self.netCLS], True)
 
-        self.backward_CLS()
+        self.compute_CLS_loss()
+        (self.loss_CLS/self.opt.iter_size).backward()
 
         self.compute_step(self.optimizer_CLS,self.loss_names_CLS)
         
