@@ -366,3 +366,6 @@ class BaseModel(ABC):
                 if torch.is_tensor(value):
                     value = value.detach()                    
                 self.iter_calculator.compute_step(loss_name,value)
+
+    def get_current_batch_size(self):
+        return self.real_A.shape[0]
