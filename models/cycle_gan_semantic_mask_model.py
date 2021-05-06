@@ -474,7 +474,9 @@ class CycleGANSemanticMaskModel(BaseModel):
             self.loss_G += self.loss_out_mask_AB + self.loss_out_mask_BA
 
     def optimize_parameters(self):
-        """Calculate losses, gradients, and update network weights; called in every training iteration"""        
+        """Calculate losses, gradients, and update network weights; called in every training iteration"""
+        self.niter = self.niter +1
+        
         # G_A and G_B
         if self.disc_in_mask:
             self.set_requires_grad([self.netD_A, self.netD_B, self.netD_A_mask, self.netD_B_mask], False)
@@ -516,5 +518,3 @@ class CycleGANSemanticMaskModel(BaseModel):
         (self.loss_f_s/self.opt.iter_size).backward()
 
         self.compute_step(self.optimizer_f_s,self.loss_names_f_s)
-        
-        self.niter = self.niter +1
