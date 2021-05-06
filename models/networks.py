@@ -17,7 +17,7 @@ from .modules.classifiers import Classifier_w
 from .modules.stylegan2.decoder_stylegan2 import Generator as GeneratorStyleGAN2
 from .modules.stylegan2.decoder_stylegan2 import Discriminator as DiscriminatorStyleGAN2
 from .modules.fid.pytorch_fid.inception import InceptionV3
-
+from .modules.stylegan_networks import StyleGAN2Discriminator, StyleGAN2Generator, TileStyleGAN2Discriminator
 from .modules.cut_networks import PatchSampleF
 
 class BaseNetwork(nn.Module):
@@ -32,7 +32,7 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,nb_attn = 10,nb_mask_input=1):
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,nb_attn = 10,nb_mask_input=1,opt=None):
     """Create a generator
 
     Parameters:
@@ -95,10 +95,14 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
         net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
     elif netG == 'mobile_resnet_attn':
         net = MobileResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
+    elif netG == 'stylegan2':
+        net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, opt=opt)
+    elif netG == 'smallstylegan2':
+        net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, n_blocks=2, opt=opt)
 
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
-    return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight)
+    return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight and ('stylegan2' not in netG))
 
 def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
     """Create a discriminator
