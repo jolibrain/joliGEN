@@ -177,7 +177,13 @@ class CUTSemanticModel(BaseModel):
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
                 self.optimizers.append(self.optimizer_F)
 
+        for optimizer in self.optimizers:
+            optimizer.zero_grad()
+        
+
     def optimize_parameters(self):
+
+        self.niter = self.niter +1
 
         # update G
         self.set_requires_grad(self.netD, False)
@@ -214,7 +220,6 @@ class CUTSemanticModel(BaseModel):
         (self.loss_CLS/self.opt.iter_size).backward()
         self.compute_step(self.optimizer_CLS,self.loss_names_CLS)
 
-        self.niter = self.niter +1
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.

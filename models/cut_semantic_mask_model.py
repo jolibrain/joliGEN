@@ -181,7 +181,14 @@ class CUTSemanticMaskModel(BaseModel):
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
                 self.optimizers.append(self.optimizer_F)
 
+        for optimizer in self.optimizers:
+            optimizer.zero_grad()
+        
+
     def optimize_parameters(self):
+
+        self.niter = self.niter +1
+        
         # update G
         self.set_requires_grad(self.netD, False)
         self.set_requires_grad(self.netG, True)
@@ -221,8 +228,6 @@ class CUTSemanticMaskModel(BaseModel):
         (self.loss_f_s/self.opt.iter_size).backward()
         
         self.compute_step(self.optimizer_f_s,self.loss_names_f_s)            
-            
-        self.niter = self.niter +1
         
 
     def set_input(self, input):

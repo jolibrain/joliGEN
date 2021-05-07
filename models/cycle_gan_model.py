@@ -211,7 +211,10 @@ class CycleGANModel(BaseModel):
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
 
     def optimize_parameters(self):
-        """Calculate losses, gradients, and update network weights; called in every training iteration"""        
+        """Calculate losses, gradients, and update network weights; called in every training iteration"""
+        
+        self.niter = self.niter +1
+        
         # G_A and G_B
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
         self.set_requires_grad([self.netG_A, self.netG_B], True)
@@ -230,5 +233,3 @@ class CycleGANModel(BaseModel):
         (self.loss_D/self.opt.iter_size).backward()
         
         self.compute_step(self.optimizer_D,self.loss_names_D)
-                        
-        self.niter = self.niter +1

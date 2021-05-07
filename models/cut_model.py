@@ -115,8 +115,7 @@ class CUTModel(BaseModel):
                     setattr(self, "loss_" + loss_name, 0)
 
             self.niter=0
-
-
+            
             
     def data_dependent_initialize(self, data):
         """
@@ -140,8 +139,14 @@ class CUTModel(BaseModel):
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
                 self.optimizers.append(self.optimizer_F)
 
+        for optimizer in self.optimizers:
+            optimizer.zero_grad()
+        
+        
     def optimize_parameters(self):
 
+        self.niter = self.niter +1
+        
         # update G
         self.set_requires_grad(self.netD, False)
         self.set_requires_grad(self.netG, True)
@@ -166,7 +171,6 @@ class CUTModel(BaseModel):
         (self.loss_D/self.opt.iter_size).backward()
         self.compute_step(self.optimizer_D,self.loss_names_D)
         
-        self.niter = self.niter +1
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
