@@ -41,7 +41,9 @@ class TrainOptions(BaseOptions):
 
         # cut options
         parser.add_argument('--beta2', type=float, default=0.999, help='momentum term of adam')
-        
+
+        #contrastive loss
+        parser.add_argument('--use_contrastive_loss_D', action='store_true')        
 
         self.isTrain = True
         return parser
