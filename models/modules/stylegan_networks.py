@@ -1,7 +1,7 @@
 """
 The network architectures is based on PyTorch implemenation of StyleGAN2Encoder.
 Original PyTorch repo: https://github.com/rosinality/style-based-gan-pytorch
-Origianl StyelGAN2 paper: https://github.com/NVlabs/stylegan2
+Original StyleGAN2 paper: https://github.com/NVlabs/stylegan2
 We　use the network architeture for our single-image traning setting.
 """
 

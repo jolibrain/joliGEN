@@ -97,48 +97,7 @@ class MobileResnetGenerator(nn.Module):
             """Standard forward"""
             output = self.encoder(input)
             output = self.decoder(output)
-            return output
-    
-class MobileResnetEncoderSty2(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
-                 dropout_rate=0, n_blocks=9, padding_type='reflect',
-                 wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
-                 img_size=128, img_size_dec=128):
-        assert (n_blocks >= 0)
-        super(MobileResnetEncoderSty2, self).__init__()
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-
-        self.encoder=MobileResnetEncoder(input_nc, output_nc, ngf, norm_layer,
-                 dropout_rate, n_blocks, padding_type,
-                 wplus, init_type, init_gain, gpu_ids,
-                 img_size, img_size_dec)
-        
-        n_feat = 2**(2*int(math.log(img_size,2)-2))
-        self.n_wplus = (2*int(math.log(img_size_dec,2)-1))
-        self.wblocks = nn.ModuleList()
-        n_downsampling = 2
-        mult = 2 ** n_downsampling
-        for n in range(0,self.n_wplus):
-            self.wblocks += [WBlock(ngf*mult,n_feat,init_type,init_gain,gpu_ids)]
-        self.nblocks = nn.ModuleList()
-        noise_map = [4,8,8,16,16,32,32,64,64,128,128,256,256,512,512,1024,1024]
-        for n in range(0,self.n_wplus-1):
-            self.nblocks += [NBlock(ngf*mult,n_feat,noise_map[n],init_type,init_gain,gpu_ids)]
-                
-    def forward(self, input):
-        """Standard forward"""
-        output = self.encoder(input)
-        outputs = []
-        noutputs = []
-        for wc in self.wblocks:
-            outputs.append(wc(output))
-        outputs=torch.stack(outputs).unsqueeze(0)
-        for nc in self.nblocks:
-            noutputs.append(nc(output))
-        return outputs, noutputs
+            return output    
 
 class MobileResnetEncoder(nn.Module):
     def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
@@ -243,46 +202,6 @@ class MobileResnetDecoder(nn.Module):
                 
     def forward(self, input):
         return self.model(input)
-
-class WBlock(nn.Module):
-    """Define a linear block for W"""
-    def __init__(self, dim, n_feat, init_type='normal', init_gain=0.02, gpu_ids=[]):
-        super(WBlock, self).__init__()
-        self.conv2d = nn.Conv2d(in_channels=dim,out_channels=1,kernel_size=1)
-        self.lin1 = nn.Linear(n_feat,32,bias=True)
-        self.lin2 = nn.Linear(32,512,bias=True)
-        w_block = []
-        w_block += [self.conv2d,nn.InstanceNorm2d(1),nn.Flatten(),self.lin1,nn.ReLU(True),self.lin2]
-        self.w_block = init_net(nn.Sequential(*w_block), init_type, init_gain, gpu_ids)
-        
-    def forward(self, x):
-        out = self.w_block(x)
-        return out.squeeze(0)
-    
-class NBlock(nn.Module):
-    """Define a linear block for N"""
-    def __init__(self, dim, n_feat, out_feat, init_type='normal', init_gain=0.02, gpu_ids=[]):
-        super(NBlock, self).__init__()
-        self.out_feat = out_feat
-        if out_feat < 32: # size of input
-            self.conv2d = nn.Conv2d(dim,1,kernel_size=1)
-            self.lin = nn.Linear(n_feat,out_feat**2)
-            n_block = []
-            n_block += [self.conv2d,nn.InstanceNorm2d(1),nn.Flatten(),self.lin]
-            self.n_block = init_net(nn.Sequential(*n_block), init_type, init_gain, gpu_ids)
-        else:
-            self.n_block = []
-            self.n_block = [SeparableConv2d(in_channels=256,out_channels=32,kernel_size=3,stride=1,padding=1),
-                            nn.InstanceNorm2d(1),
-                            nn.ReLU(True)]
-            self.n_block += [nn.Upsample((out_feat,out_feat))]
-            self.n_block += [nn.Conv2d(in_channels=32,out_channels=1,kernel_size=1)]
-            self.n_block += [nn.Flatten()]
-            self.n_block = init_net(nn.Sequential(*self.n_block), init_type, init_gain, gpu_ids)
-                    
-    def forward(self, x):
-        out = self.n_block(x)
-        return torch.reshape(out.unsqueeze(1),(1,1,self.out_feat,self.out_feat))
 
 
 class MobileResnetBlock_attn(nn.Module):
