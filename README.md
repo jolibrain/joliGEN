@@ -74,3 +74,8 @@ There are three dataloaders for different dataset architectures :
 
 ## Acknowledgments
 Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/pnsuau/contrastive-unpaired-translation) and [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN).
+
+## Display training losses from a previous training
+```
+python3 util/load_display_losses.py --loss_log_file_path path_to_repo_of_loss.json --port 8097 --env_name visdom_environment_name
+```
