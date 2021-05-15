@@ -115,6 +115,10 @@ class CUTModel(BaseModel):
                     setattr(self, "loss_" + loss_name, 0)
 
             self.niter=0
+
+            self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
+
+            self.nb_preds=int(torch.prod(torch.tensor(self.netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
             
             
     def data_dependent_initialize(self, data):
@@ -167,7 +171,10 @@ class CUTModel(BaseModel):
         self.set_requires_grad(self.netD, True)
         self.set_requires_grad(self.netG, False)
         self.set_requires_grad(self.netF, False)
-        self.loss_D = self.compute_D_loss()
+        if self.opt.use_contrastive_loss_D:
+            self.compute_D_contrastive_loss()      # calculate gradients for D_A and D_B
+        else:
+            self.loss_D = self.compute_D_loss()
         (self.loss_D/self.opt.iter_size).backward()
         self.compute_step(self.optimizer_D,self.loss_names_D)
         
@@ -217,7 +224,12 @@ class CUTModel(BaseModel):
         # First, G(A) should fake the discriminator
         if self.opt.lambda_GAN > 0.0:
             pred_fake = self.netD(fake)
-            self.loss_G_GAN = self.criterionGAN(pred_fake, True).mean() * self.opt.lambda_GAN
+            if self.opt.use_contrastive_loss_D:
+                current_batch_size=self.get_current_batch_size()
+                temp=torch.cat((self.netD(self.real_B).flatten().unsqueeze(1),pred_fake.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
+                self.loss_G_GAN = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+            else:
+                self.loss_G_GAN = self.criterionGAN(pred_fake, True).mean() * self.opt.lambda_GAN
         else:
             self.loss_G_GAN = 0.0
 
@@ -254,3 +266,22 @@ class CUTModel(BaseModel):
         return total_nce_loss / n_layers
 
     
+
+    def compute_D_contrastive_loss(self):
+        """Calculate contrastive GAN loss for the discriminator"""
+        # Fake; stop backprop to the generator by detaching fake_B
+        fake_B = self.fake_B.detach()
+        pred_fake_B = self.netD(fake_B)
+        
+        # Real
+        pred_real_B = self.netD(self.real_B)
+        
+        current_batch_size=self.get_current_batch_size()
+        
+        temp=torch.cat((pred_real_B.flatten().unsqueeze(1),pred_fake_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
+        loss_D_real = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+        
+        temp=torch.cat((-pred_fake_B.flatten().unsqueeze(1),-pred_real_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
+        loss_D_fake = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+
+        self.loss_D = (loss_D_fake + loss_D_real) * 0.5
