@@ -95,53 +95,6 @@ class ResnetGenerator(nn.Module):
         output=self.decoder(output)
         return output
 
-class ResnetEncoderSty2(nn.Module):
-    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
-
-    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
-    """
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[],img_size=128,img_size_dec=128):
-        """Construct a Resnet-based generator
-
-        Parameters:
-            input_nc (int)      -- the number of channels in input images
-            output_nc (int)     -- the number of channels in output images
-            ngf (int)           -- the number of filters in the last conv layer
-            norm_layer          -- normalization layer
-            use_dropout (bool)  -- if use dropout layers
-            n_blocks (int)      -- the number of ResNet blocks
-            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
-        """
-        assert(n_blocks >= 0)
-        super(ResnetEncoderSty2, self).__init__()
-
-        self.encoder=ResnetEncoder(input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks, padding_type, use_spectral, init_type, init_gain, gpu_ids)
-
-        n_feat = 2**(2*int(math.log(img_size,2)-2))
-        self.n_wplus = (2*int(math.log(img_size_dec,2)-1))
-        n_downsampling = 2
-        mult = 2 ** n_downsampling
-        self.wblocks = nn.ModuleList()
-        for n in range(0,self.n_wplus):
-            self.wblocks += [WBlock(ngf*mult,n_feat,init_type,init_gain,gpu_ids)]
-        self.nblocks = nn.ModuleList()
-        noise_map = [4,8,8,16,16,32,32,64,64,128,128,256,256,512,512,1024,1024]
-        for n in range(0,self.n_wplus-1):
-            self.nblocks += [NBlock(ngf*mult,n_feat,noise_map[n],init_type,init_gain,gpu_ids)]
-        
-    def forward(self, input):
-        """Standard forward"""
-        features=self.encoder(input)
-        outputs = []
-        noutputs = []
-        for wc in self.wblocks:
-            outputs.append(wc(features))
-        outputs=torch.stack(outputs).unsqueeze(0)
-        for nc in self.nblocks:
-            noutputs.append(nc(features))            
-        return outputs, noutputs
-
-
 class ResnetEncoder(nn.Module):
     """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
 
@@ -365,44 +318,3 @@ class ResnetGenerator_attn(nn.Module):
         for i in range(1,self.nb_attn):
             o += outputs[i]
         return o
-
-class WBlock(nn.Module):
-    """Define a linear block for W"""
-    def __init__(self, dim, n_feat, init_type='normal', init_gain=0.02, gpu_ids=[]):
-        super(WBlock, self).__init__()
-        self.conv2d = nn.Conv2d(dim,1,kernel_size=1)
-        self.lin1 = nn.Linear(n_feat,32,bias=True)
-        self.lin2 = nn.Linear(32,512,bias=True)
-        #self.lin = nn.Linear(n_feat,512)
-        w_block = []
-        w_block += [self.conv2d,nn.InstanceNorm2d(1),nn.Flatten(),self.lin1,nn.ReLU(True),self.lin2]
-        self.w_block = init_net(nn.Sequential(*w_block), init_type, init_gain, gpu_ids)
-        
-    def forward(self, x):
-        out = self.w_block(x)
-        return out.squeeze(0)
-    
-class NBlock(nn.Module):
-    """Define a linear block for N"""
-    def __init__(self, dim, n_feat, out_feat, init_type='normal', init_gain=0.02, gpu_ids=[]):
-        super(NBlock, self).__init__()
-        self.out_feat = out_feat
-        if out_feat < 32: # size of input
-            self.conv2d = nn.Conv2d(dim,1,kernel_size=1)
-            self.lin = nn.Linear(n_feat,out_feat**2)
-            n_block = []
-            n_block += [self.conv2d,nn.InstanceNorm2d(1),nn.Flatten(),self.lin]
-            self.n_block = init_net(nn.Sequential(*n_block), init_type, init_gain, gpu_ids)
-        else:
-            self.n_block = []
-            self.n_block = [nn.Conv2d(256,64,kernel_size=3,stride=1,padding=1),
-                            nn.InstanceNorm2d(1),
-                            nn.ReLU(True)]
-            self.n_block += [nn.Upsample((out_feat,out_feat))]
-            self.n_block += [nn.Conv2d(64,1,kernel_size=1)]
-            self.n_block += [nn.Flatten()]
-            self.n_block = init_net(nn.Sequential(*self.n_block), init_type, init_gain, gpu_ids)
-                    
-    def forward(self, x):
-        out = self.n_block(x)
-        return torch.reshape(out.unsqueeze(1),(1,1,self.out_feat,self.out_feat))

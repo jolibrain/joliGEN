@@ -5,8 +5,8 @@ import math
 
 from .modules.utils import spectral_norm,init_net,init_weights,get_norm_layer
 
-from .modules.resnet_architecture.resnet_generator import ResnetGenerator,ResnetEncoderSty2
-from .modules.resnet_architecture.mobile_resnet_generator import MobileResnetGenerator,MobileResnetEncoderSty2,MobileResnetGenerator_attn
+from .modules.resnet_architecture.resnet_generator import ResnetGenerator
+from .modules.resnet_architecture.mobile_resnet_generator import MobileResnetGenerator,MobileResnetGenerator_attn
 from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.discriminators import NLayerDiscriminator
@@ -14,10 +14,8 @@ from .modules.discriminators import PixelDiscriminator
 from .modules.classifiers import Classifier, VGG16_FCN8s, torch_model
 from .modules.UNet_classification import UNet
 from .modules.classifiers import Classifier_w
-from .modules.stylegan2.decoder_stylegan2 import Generator as GeneratorStyleGAN2
-from .modules.stylegan2.decoder_stylegan2 import Discriminator as DiscriminatorStyleGAN2
 from .modules.fid.pytorch_fid.inception import InceptionV3
-
+from .modules.stylegan_networks import StyleGAN2Discriminator, StyleGAN2Generator, TileStyleGAN2Discriminator
 from .modules.cut_networks import PatchSampleF
 
 class BaseNetwork(nn.Module):
@@ -32,7 +30,7 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,nb_attn = 10,nb_mask_input=1):
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,nb_attn = 10,nb_mask_input=1,opt=None):
     """Create a generator
 
     Parameters:
@@ -64,26 +62,13 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     norm_layer = get_norm_layer(norm_type=norm)
     
     if netG == 'resnet_9blocks':
-        if decoder:
-            net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
-        else:
-            net = ResnetEncoderSty2(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
-                                        n_blocks=9,
-                                        init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
-                                        img_size=img_size, img_size_dec=img_size_dec)
-    
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
     elif netG == 'resnet_6blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=6, decoder=decoder, wplus=wplus, wskip=wskip, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, img_size=img_size,img_size_dec=img_size_dec)
     elif netG == 'resnet_12blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=12, decoder=decoder, wplus=wplus, wskip=wskip, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, img_size=img_size,img_size_dec=img_size_dec)
     elif netG == 'mobile_resnet_9blocks':
-        if decoder :
-            net = MobileResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
-                                        dropout_rate=0.0, n_blocks=9, wplus=wplus,
-                                        init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
-                                        img_size=img_size, img_size_dec=img_size_dec)
-        else:
-            net = MobileResnetEncoderSty2(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
+        net = MobileResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
                                         dropout_rate=0.0, n_blocks=9, wplus=wplus,
                                         init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
                                         img_size=img_size, img_size_dec=img_size_dec)
@@ -95,10 +80,14 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
         net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
     elif netG == 'mobile_resnet_attn':
         net = MobileResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
+    elif netG == 'stylegan2':
+        net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, opt=opt)
+    elif netG == 'smallstylegan2':
+        net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, n_blocks=2, opt=opt)
 
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
-    return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight)
+    return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight and ('stylegan2' not in netG))
 
 def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
     """Create a discriminator
@@ -161,14 +150,6 @@ def define_f(input_nc, nclasses, init_type='normal', init_gain=0.02, gpu_ids=[],
 
 def define_classifier_w(pretrained=False, weights_init='', init_type='normal', init_gain=0.02, gpu_ids=[],init_weight=True,img_size_dec=256):
     net = Classifier_w(img_size_dec=img_size_dec)
-    return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight)
-
-def define_decoder(init_type='normal', init_gain=0.02, gpu_ids=[],decoder=False,size=512,init_weight=True,clamp=False):
-    net = GeneratorStyleGAN2(size,512,8,clamp=clamp)    
-    return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight)
-
-def define_discriminatorstylegan2(init_type='normal', init_gain=0.02, gpu_ids=[], init_weight=True, img_size=128, lightness=1):
-    net = DiscriminatorStyleGAN2(img_size, lightness=lightness)    
     return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight)
 
 def define_inception(device,dims):
