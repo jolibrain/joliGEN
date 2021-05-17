@@ -384,9 +384,9 @@ class CUTSemanticMaskModel(BaseModel):
         current_batch_size=self.get_current_batch_size()
         
         temp=torch.cat((pred_real_B.flatten().unsqueeze(1),pred_fake_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_real = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+        self.loss_D_real = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
         
         temp=torch.cat((-pred_fake_B.flatten().unsqueeze(1),-pred_real_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_fake = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+        self.loss_D_fake = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
 
-        self.loss_D = (loss_D_fake + loss_D_real) * 0.5
+        self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
