@@ -5,6 +5,7 @@ from .base_model import BaseModel
 from . import networks
 from .modules import loss
 from util.iter_calculator import IterCalculator
+from util.util import gaussian
 
 class CycleGANModel(BaseModel):
     """
@@ -43,6 +44,9 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
             parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
+            parser.add_argument('--rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
+            parser.add_argument('--D_noise', type=float, default=0.0, help='whether to add instance noise to discriminator inputs')
+            parser.add_argument('--D_label_smooth', action='store_true', help='whether to use one-sided label smoothing with discriminator')
         return parser
 
     def __init__(self, opt):
@@ -51,7 +55,7 @@ class CycleGANModel(BaseModel):
         Parameters:
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseModel.__init__(self, opt)
+        super().__init__(opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         if self.opt.iter_size == 1:
             losses_G = ['G_A','G_B']
@@ -108,7 +112,11 @@ class CycleGANModel(BaseModel):
             self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             # define loss functions
-            self.criterionGAN = loss.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
+            if opt.D_label_smooth:
+                target_real_label = 0.9
+            else:
+                target_real_label = 1.0
+            self.criterionGAN = loss.GANLoss(opt.gan_mode,target_real_label=target_real_label).to(self.device)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
@@ -122,6 +130,9 @@ class CycleGANModel(BaseModel):
                 for loss_name in self.loss_names:
                     setattr(self, "loss_" + loss_name, 0)
 
+            self.rec_noise = opt.rec_noise
+            self.D_noise = opt.D_noise
+                    
             self.niter=0
 
             self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
@@ -145,9 +156,25 @@ class CycleGANModel(BaseModel):
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
-        self.rec_A = self.netG_B(self.fake_B)   # G_B(G_A(A))
+        if self.rec_noise > 0.0:
+            self.fake_B_noisy1 = gaussian(self.fake_B, self.rec_noise)
+            self.rec_A= self.netG_B(self.fake_B_noisy1)
+        else:
+            self.rec_A = self.netG_B(self.fake_B)   # G_B(G_A(A))
+        
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
-        self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
+        if self.rec_noise > 0.0:
+            self.fake_A_noisy1 = gaussian(self.fake_A, self.rec_noise)
+            self.rec_B = self.netG_A(self.fake_A_noisy1)
+        else:
+            self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
+            
+        if self.D_noise > 0.0:
+            self.fake_B_noisy = gaussian(self.fake_B, self.D_noise)
+            self.real_A_noisy = gaussian(self.real_A, self.D_noise)
+            self.fake_A_noisy = gaussian(self.fake_A, self.D_noise)
+            self.real_B_noisy = gaussian(self.real_B, self.D_noise)
+
 
     def compute_D_loss_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -171,14 +198,21 @@ class CycleGANModel(BaseModel):
         return loss_D
 
     def compute_D_A_loss(self):
-        """Calculate GAN loss for discriminator D_A"""
-        fake_B = self.fake_B_pool.query(self.fake_B)
-        self.loss_D_A = self.compute_D_loss_basic(self.netD_A, self.real_B, fake_B)
+        if self.D_noise > 0.0:
+            fake_B = self.fake_B_pool.query(self.fake_B_noisy)
+            self.loss_D_A = self.compute_D_loss_basic(self.netD_A, self.real_B_noisy, fake_B)
+        else:
+            fake_B = self.fake_B_pool.query(self.fake_B)
+            self.loss_D_A = self.compute_D_loss_basic(self.netD_A, self.real_B, fake_B)
 
     def compute_D_B_loss(self):
-        """Calculate GAN loss for discriminator D_B"""
-        fake_A = self.fake_A_pool.query(self.fake_A)
-        self.loss_D_B = self.compute_D_loss_basic(self.netD_B, self.real_A, fake_A)
+        if self.D_noise > 0.0:
+            fake_A = self.fake_A_pool.query(self.fake_A_noisy)
+            self.loss_D_B = self.compute_D_loss_basic(self.netD_B, self.real_A_noisy, fake_A)
+        else:
+            fake_A = self.fake_A_pool.query(self.fake_A)
+            self.loss_D_B = self.compute_D_loss_basic(self.netD_B, self.real_A, fake_A)
+
 
     def compute_D_loss(self):
         """Calculate GAN loss for both discriminators"""
