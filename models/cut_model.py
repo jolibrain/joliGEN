@@ -159,7 +159,7 @@ class CUTModel(BaseModel):
         # forward
         self.forward()
 
-        self.loss_G = self.compute_G_loss()
+        self.compute_G_loss()
         (self.loss_G/self.opt.iter_size).backward()
         self.compute_step([self.optimizer_G,self.optimizer_F],self.loss_names_G)
 
@@ -245,7 +245,6 @@ class CUTModel(BaseModel):
             loss_NCE_both = self.loss_NCE
 
         self.loss_G = self.loss_G_GAN + loss_NCE_both
-        return self.loss_G
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
