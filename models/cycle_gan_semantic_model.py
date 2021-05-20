@@ -7,6 +7,7 @@ from torch.autograd import Variable
 import numpy as np
 from .modules import loss
 from util.iter_calculator import IterCalculator
+from util.network_group import NetworkGroup
 
 class CycleGANSemanticModel(CycleGANModel):
     #def name(self):
@@ -92,6 +93,20 @@ class CycleGANSemanticModel(CycleGANModel):
                 for loss_name in self.loss_names:
                     setattr(self, "loss_" + loss_name, 0)
 
+            ###Making groups
+            self.networks_groups = []
+            
+            self.group_G = NetworkGroup(networks_to_optimize=["netG_A","netG_B"], networks_not_to_optimize=["netD_A","netD_B","netCLS"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
+            self.networks_groups.append(self.group_G)
+            if self.opt.use_contrastive_loss_D:
+                self.group_D = NetworkGroup(networks_to_optimize=["netD_A","netD_B"], networks_not_to_optimize=["netG_A","netG_B","netCLS"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            else:
+                self.group_D = NetworkGroup(networks_to_optimize=["netD_A","netD_B"], networks_not_to_optimize=["netG_A","netG_B","netCLS"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            
+            self.networks_groups.append(self.group_D)
+
+            self.group_CLS = NetworkGroup(networks_to_optimize=["netCLS"], networks_not_to_optimize=["netD_A","netD_B","netG_A","netG_B"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward="loss_CLS")
+            self.networks_groups.append(self.group_CLS)
                     
     def set_input(self, input):
         super().set_input(input)
@@ -171,76 +186,3 @@ class CycleGANSemanticModel(CycleGANModel):
         self.loss_sem_BA *= self.opt.lambda_sem
             
         self.loss_G += self.loss_sem_BA + self.loss_sem_AB
-
-    def optimize_parameters(self):
-        """Calculate losses, gradients, and update network weights; called in every training iteration"""
-        self.niter = self.niter +1
-        
-        # G_A and G_B
-        
-        self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
-        self.set_requires_grad([self.netG_A, self.netG_B], True)
-        self.set_requires_grad([self.netCLS], False)
-        
-        self.forward()      # compute fake images and reconstruction images.
-        
-        self.compute_G_loss()             # calculate gradients for G_A and G_B
-        (self.loss_G/self.opt.iter_size).backward()
-        
-        self.compute_step(self.optimizer_G,self.loss_names_G)
-        
-        # D_A and D_B
-        self.set_requires_grad([self.netG_A, self.netG_B], False)            
-        self.set_requires_grad([self.netD_A, self.netD_B], True)
-        self.set_requires_grad([self.netCLS], False)
-
-        if self.opt.use_contrastive_loss_D:
-            self.compute_D_contrastive_loss()      # calculate gradients for D_A and D_B
-        else:
-            self.compute_D_loss()      # calculate gradients for D
-        (self.loss_D/self.opt.iter_size).backward()
-        
-        self.compute_step(self.optimizer_D,self.loss_names_D)
-                
-        # CLS
-        self.set_requires_grad([self.netG_A, self.netG_B], False)            
-        self.set_requires_grad([self.netD_A, self.netD_B], False)
-        self.set_requires_grad([self.netCLS], True)
-
-        self.compute_CLS_loss()
-        (self.loss_CLS/self.opt.iter_size).backward()
-
-        self.compute_step(self.optimizer_CLS,self.loss_names_CLS)
-
-
-    def compute_D_contrastive_loss(self):
-        """Calculate contrastive GAN loss for the discriminator"""
-        # Fake; stop backprop to the generator by detaching fake_B
-        fake_B = self.fake_B.detach()
-        fake_A = self.fake_A.detach()
-        
-        pred_fake_A = self.netD_B(fake_A)
-        pred_fake_B = self.netD_A(fake_B)
-        # Real
-        pred_real_A = self.netD_B(self.real_A)
-        pred_real_B = self.netD_A(self.real_B)
-
-        current_batch_size=self.get_current_batch_size()
-        
-        temp=torch.cat((pred_real_A.flatten().unsqueeze(1),pred_fake_A.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_real_A = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-
-        temp=torch.cat((-pred_fake_A.flatten().unsqueeze(1),-pred_real_A.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_fake_B = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-        
-        temp=torch.cat((pred_real_B.flatten().unsqueeze(1),pred_fake_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_real_B = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-        
-        temp=torch.cat((-pred_fake_B.flatten().unsqueeze(1),-pred_real_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_fake_A = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-        
-        # combine loss and calculate gradients
-        self.loss_D_A = (loss_D_fake_A + loss_D_real_A) * 0.5
-        self.loss_D_B = (loss_D_fake_B + loss_D_real_B) * 0.5
-
-        self.loss_D = self.loss_D_A + self.loss_D_B

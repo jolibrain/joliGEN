@@ -8,6 +8,7 @@ from .modules import loss
 import torch.nn.functional as F
 from util.util import gaussian
 from util.iter_calculator import IterCalculator
+from util.network_group import NetworkGroup
 
 class CUTSemanticMaskModel(CUTModel):
     """ This class implements CUT and FastCUT model, described in the paper
@@ -85,7 +86,22 @@ class CUTSemanticMaskModel(CUTModel):
             if self.opt.iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
                 for loss_name in self.loss_names:
-                    setattr(self, "loss_" + loss_name, 0)            
+                    setattr(self, "loss_" + loss_name, 0)
+
+            ###Making groups
+            self.networks_groups = []
+            self.group_G = NetworkGroup(networks_to_optimize=["netG","netF"], networks_not_to_optimize=["netD","netf_s"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
+            self.networks_groups.append(self.group_G)
+            if self.opt.use_contrastive_loss_D:
+                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF","netf_s"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            else:
+                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF","netf_s"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            
+            self.networks_groups.append(self.group_D)
+
+            self.group_f_s = NetworkGroup(networks_to_optimize=["netf_s"], networks_not_to_optimize=["netD","netG","netF"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward="loss_f_s")
+            self.networks_groups.append(self.group_f_s)
+
 
     def data_dependent_initialize(self, data):
         """
@@ -117,55 +133,6 @@ class CUTSemanticMaskModel(CUTModel):
         for optimizer in self.optimizers:
             optimizer.zero_grad()
         
-
-    def optimize_parameters(self):
-
-        self.niter = self.niter +1
-        
-        # update G
-        self.set_requires_grad(self.netD, False)
-        self.set_requires_grad(self.netG, True)
-        self.set_requires_grad(self.netF, True)
-        self.set_requires_grad(self.netf_s, False)
-
-        # forward
-        self.forward()
-        
-        self.compute_G_loss()
-        (self.loss_G/self.opt.iter_size).backward()
-
-        self.compute_step(self.optimizer_G,self.loss_names_G)
-
-        if self.opt.netF == 'mlp_sample' and self.niter % self.opt.iter_size == 0:
-            self.optimizer_F.step()
-            self.optimizer_F.zero_grad()
-                        
-        # update D
-        self.set_requires_grad(self.netD, True)
-        self.set_requires_grad(self.netG, False)
-        self.set_requires_grad(self.netF, False)
-        self.set_requires_grad(self.netf_s, False)
-
-        if self.opt.use_contrastive_loss_D:
-            self.compute_D_contrastive_loss()      # calculate gradients for D_A and D_B
-        else:
-            self.compute_D_loss()
-        (self.loss_D/self.opt.iter_size).backward()
-        
-        self.compute_step(self.optimizer_D,self.loss_names_D)
-        
-        # update f_s
-        self.set_requires_grad(self.netD, False)
-        self.set_requires_grad(self.netG, False)
-        self.set_requires_grad(self.netF, False)
-        self.set_requires_grad(self.netf_s, True)            
-
-        self.compute_f_s_loss()
-        (self.loss_f_s/self.opt.iter_size).backward()
-        
-        self.compute_step(self.optimizer_f_s,self.loss_names_f_s)            
-        
-
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
         Parameters:

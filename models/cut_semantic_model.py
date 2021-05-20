@@ -8,6 +8,7 @@ from .modules import loss
 import torch.nn.functional as F
 from util.util import gaussian
 from util.iter_calculator import IterCalculator
+from util.network_group import NetworkGroup
 
 class CUTSemanticModel(CUTModel):
     """ This class implements CUT and FastCUT model, described in the paper
@@ -87,6 +88,20 @@ class CUTSemanticModel(CUTModel):
 
             self.nb_preds=int(torch.prod(torch.tensor(self.netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
 
+            ###Making groups
+            self.networks_groups = []
+            self.group_G = NetworkGroup(networks_to_optimize=["netG","netF"], networks_not_to_optimize=["netD","netCLS"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
+            self.networks_groups.append(self.group_G)
+            if self.opt.use_contrastive_loss_D:
+                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF","netCLS"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            else:
+                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF","netCLS"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            
+            self.networks_groups.append(self.group_D)
+
+            self.group_CLS = NetworkGroup(networks_to_optimize=["netCLS"], networks_not_to_optimize=["netD","netG","netF"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward="loss_CLS")
+            self.networks_groups.append(self.group_CLS)
+
 
     def data_dependent_initialize(self, data):
         """
@@ -107,49 +122,8 @@ class CUTSemanticModel(CUTModel):
             self.loss_CLS.backward()# calculate gradients for CLS
 
         for optimizer in self.optimizers:
-            optimizer.zero_grad()        
-
-    def optimize_parameters(self):
-
-        self.niter = self.niter +1
-
-        # update G
-        self.set_requires_grad(self.netD, False)
-        self.set_requires_grad(self.netG, True)
-        self.set_requires_grad(self.netF, True)
-        self.set_requires_grad(self.netCLS, False)
-
-        # forward
-        self.forward()
-        self.compute_G_loss()
-        (self.loss_G/self.opt.iter_size).backward()
-        self.compute_step(self.optimizer_G,self.loss_names_G)
-        if self.opt.netF == 'mlp_sample' and self.niter % self.opt.iter_size == 0:
-            self.optimizer_F.step()
-            self.optimizer_F.zero_grad()
-        
-        # update D
-        self.set_requires_grad(self.netD, True)
-        self.set_requires_grad(self.netG, False)
-        self.set_requires_grad(self.netF, False)
-        self.set_requires_grad(self.netCLS, False)
-        if self.opt.use_contrastive_loss_D:
-            self.compute_D_contrastive_loss()      # calculate gradients for D_A and D_B
-        else:
-            self.compute_D_loss()
-        (self.loss_D/self.opt.iter_size).backward()
-        self.compute_step(self.optimizer_D,self.loss_names_D)           
-
-        # update CLS
-        self.set_requires_grad(self.netD, False)
-        self.set_requires_grad(self.netG, False)
-        self.set_requires_grad(self.netF, False)
-        self.set_requires_grad(self.netCLS, True)
-        self.compute_CLS_loss()
-        (self.loss_CLS/self.opt.iter_size).backward()
-        self.compute_step(self.optimizer_CLS,self.loss_names_CLS)
-
-
+            optimizer.zero_grad()
+            
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
         Parameters:
