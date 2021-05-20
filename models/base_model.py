@@ -368,4 +368,26 @@ class BaseModel(ABC):
                 self.iter_calculator.compute_step(loss_name,value)
 
     def get_current_batch_size(self):
-        return self.real_A.shape[0]
+        return self.real_A.shape[0]        
+        
+    def optimize_parameters(self):
+        """Calculate losses, gradients, and update network weights; called in every training iteration"""
+        
+        self.niter = self.niter +1
+
+        for group in self.networks_groups :
+            for network in group.networks_to_optimize :
+                self.set_requires_grad(getattr(self,network), True)
+            
+            for network in group.networks_not_to_optimize :
+                self.set_requires_grad(getattr(self,network), False)
+
+            if not group.forward_functions is None:
+                for forward in group.forward_functions: 
+                    getattr(self,forward)()
+
+            for backward in group.backward_functions: 
+                getattr(self,backward)()
+            
+            for optimizer, loss_names in zip(group.optimizer, group.loss_names_list):
+                self.compute_step(getattr(self,optimizer),getattr(self,loss_names))
