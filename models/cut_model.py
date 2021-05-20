@@ -6,6 +6,7 @@ from .patchnce import PatchNCELoss
 import util.util as util
 from .modules import loss
 from util.iter_calculator import IterCalculator
+from util.network_group import NetworkGroup
 
 class CUTModel(BaseModel):
     """ This class implements CUT and FastCUT model, described in the paper
@@ -119,6 +120,19 @@ class CUTModel(BaseModel):
             self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
 
             self.nb_preds=int(torch.prod(torch.tensor(self.netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
+
+            ###Making groups
+            self.networks_groups = []
+
+            self.group_G = NetworkGroup(networks_to_optimize=["netG","netF"], networks_not_to_optimize=["netD"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
+            self.networks_groups.append(self.group_G)
+            if self.opt.use_contrastive_loss_D:
+                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            else:
+                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            
+            self.networks_groups.append(self.group_D) 
+
             
             
     def data_dependent_initialize(self, data):
@@ -144,40 +158,7 @@ class CUTModel(BaseModel):
                 self.optimizers.append(self.optimizer_F)
 
         for optimizer in self.optimizers:
-            optimizer.zero_grad()
-        
-        
-    def optimize_parameters(self):
-
-        self.niter = self.niter +1
-        
-        # update G
-        self.set_requires_grad(self.netD, False)
-        self.set_requires_grad(self.netG, True)
-        self.set_requires_grad(self.netF, True)
-        
-        # forward
-        self.forward()
-
-        self.compute_G_loss()
-        (self.loss_G/self.opt.iter_size).backward()
-        self.compute_step([self.optimizer_G,self.optimizer_F],self.loss_names_G)
-
-        if self.opt.netF == 'mlp_sample' and self.niter % self.opt.iter_size == 0:
-            self.optimizer_F.step()
-            self.optimizer_F.zero_grad()
-        
-        # update D
-        self.set_requires_grad(self.netD, True)
-        self.set_requires_grad(self.netG, False)
-        self.set_requires_grad(self.netF, False)
-        if self.opt.use_contrastive_loss_D:
-            self.compute_D_contrastive_loss()      # calculate gradients for D_A and D_B
-        else:
-            self.loss_D = self.compute_D_loss()
-        (self.loss_D/self.opt.iter_size).backward()
-        self.compute_step(self.optimizer_D,self.loss_names_D)
-        
+            optimizer.zero_grad()        
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.

@@ -10,6 +10,7 @@ import numpy as np
 import torch.nn.functional as F
 from .modules import loss
 from util.iter_calculator import IterCalculator
+from util.network_group import NetworkGroup
 
 class CycleGANSemanticMaskModel(CycleGANModel):
     def name(self):
@@ -193,6 +194,25 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                 self.iter_calculator = IterCalculator(self.loss_names)
                 for loss_name in self.loss_names:
                     setattr(self, "loss_" + loss_name, 0)
+
+            ###Making groups
+            self.networks_groups = []
+            discriminators=["netD_A","netD_B"]
+            if opt.disc_in_mask:
+                discriminators += ["netD_A_mask","netD_B_mask"]
+            self.group_G = NetworkGroup(networks_to_optimize=["netG_A","netG_B"], networks_not_to_optimize=discriminators + ["netf_s"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
+            self.networks_groups.append(self.group_G)
+            
+            if self.opt.use_contrastive_loss_D:
+                self.group_D = NetworkGroup(networks_to_optimize=discriminators, networks_not_to_optimize=["netG_A","netG_B","netf_s"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            else:
+                self.group_D = NetworkGroup(networks_to_optimize=discriminators, networks_not_to_optimize=["netG_A","netG_B","netf_s"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+            
+            self.networks_groups.append(self.group_D)
+
+            self.group_f_s= NetworkGroup(networks_to_optimize=["netf_s"], networks_not_to_optimize=discriminators+["netG_A","netG_B"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward="loss_f_s")
+            self.networks_groups.append(self.group_f_s)
+
             
     def set_input(self, input):
         super().set_input(input)
@@ -341,51 +361,3 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                 self.loss_out_mask_BA = 0
             self.loss_G += self.loss_out_mask_AB + self.loss_out_mask_BA
 
-    def optimize_parameters(self):
-        """Calculate losses, gradients, and update network weights; called in every training iteration"""
-        self.niter = self.niter +1
-        
-        # G_A and G_B
-        if self.disc_in_mask:
-            self.set_requires_grad([self.netD_A, self.netD_B, self.netD_A_mask, self.netD_B_mask], False)
-        else:
-            self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
-        self.set_requires_grad([self.netG_A, self.netG_B], True)
-        self.set_requires_grad([self.netf_s], False)
-
-        # forward
-        self.forward()      # compute fake images and reconstruction images.
-        
-        self.compute_G_loss()             # calculate gradients for G_A and G_B
-        (self.loss_G/self.opt.iter_size).backward()
-
-        self.compute_step(self.optimizer_G,self.loss_names_G)
-
-        # D_A and D_B
-        if self.disc_in_mask:
-            self.set_requires_grad([self.netD_A, self.netD_B, self.netD_A_mask, self.netD_B_mask], True)
-        else:
-            self.set_requires_grad([self.netD_A, self.netD_B], True)
-        self.set_requires_grad([self.netG_A, self.netG_B], False)
-        self.set_requires_grad([self.netf_s], False)
-
-        if self.opt.use_contrastive_loss_D:
-            self.compute_D_contrastive_loss()      # calculate gradients for D_A and D_B
-        else:
-            self.compute_D_loss()      # calculate gradients for all discriminators
-        (self.loss_D/self.opt.iter_size).backward()
-        
-        self.compute_step(self.optimizer_D,self.loss_names_D)
-        
-        # f_s
-        if self.disc_in_mask:
-            self.set_requires_grad([self.netD_A, self.netD_B, self.netD_A_mask, self.netD_B_mask], False)
-        else:
-            self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
-        self.set_requires_grad([self.netG_A, self.netG_B], False)
-        self.set_requires_grad([self.netf_s], True)
-        
-        self.compute_f_s_loss()
-        (self.loss_f_s/self.opt.iter_size).backward()
-
-        self.compute_step(self.optimizer_f_s,self.loss_names_f_s)

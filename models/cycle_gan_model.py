@@ -142,12 +142,12 @@ class CycleGANModel(BaseModel):
             ###Making groups
             self.networks_groups = []
 
-            self.group_G = NetworkGroup(networks_to_optimize=["netG_A","netG_B"], networks_not_to_optimize=["netD_A","netD_B"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"])
+            self.group_G = NetworkGroup(networks_to_optimize=["netG_A","netG_B"], networks_not_to_optimize=["netD_A","netD_B"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
             self.networks_groups.append(self.group_G)
             if self.opt.use_contrastive_loss_D:
-                self.group_D = NetworkGroup(networks_to_optimize=["netD_A","netD_B"], networks_not_to_optimize=["netG_A","netG_B"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"])
+                self.group_D = NetworkGroup(networks_to_optimize=["netD_A","netD_B"], networks_not_to_optimize=["netG_A","netG_B"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
             else:
-                self.group_D = NetworkGroup(networks_to_optimize=["netD_A","netD_B"], networks_not_to_optimize=["netG_A","netG_B"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"])
+                self.group_D = NetworkGroup(networks_to_optimize=["netD_A","netD_B"], networks_not_to_optimize=["netG_A","netG_B"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
             
             self.networks_groups.append(self.group_D) 
 
@@ -231,7 +231,6 @@ class CycleGANModel(BaseModel):
         self.compute_D_A_loss()
         self.compute_D_B_loss()
         self.loss_D = self.loss_D_A + self.loss_D_B
-        (self.loss_D/self.opt.iter_size).backward()
         
     def compute_G_loss(self):
         """Calculate the loss for generators G_A and G_B"""
@@ -268,8 +267,6 @@ class CycleGANModel(BaseModel):
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
-
-        (self.loss_G/self.opt.iter_size).backward()
         
     def compute_D_contrastive_loss(self):
         """Calculate contrastive GAN loss for the discriminator"""
@@ -294,5 +291,3 @@ class CycleGANModel(BaseModel):
         self.loss_D_B = (loss_D_fake_B + loss_D_real_B) * 0.5
 
         self.loss_D = self.loss_D_A + self.loss_D_B
-
-        (self.loss_D/self.opt.iter_size).backward()
