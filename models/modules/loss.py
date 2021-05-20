@@ -109,3 +109,21 @@ def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', const
 
 
 
+class ContrastiveLoss(nn.Module):
+    """Define different GAN objectives.
+
+    The GANLoss class abstracts away the need to create the target label tensor
+    that has the same size as the input.
+    """
+
+    def __init__(self, nb_preds=1):
+        super().__init__()
+        self.nb_preds = nb_preds
+        self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
+
+    def __call__(self, pred_true,pred_false):
+        current_batch_size=pred_true.shape[0]
+        temp=torch.cat((pred_true.flatten().unsqueeze(1),pred_false.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
+        loss= self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device))
+        
+        return loss.mean()

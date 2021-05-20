@@ -120,6 +120,9 @@ class CycleGANModel(BaseModel):
             self.criterionGAN = loss.GANLoss(opt.gan_mode,target_real_label=target_real_label).to(self.device)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
+            
+            self.nb_preds=int(torch.prod(torch.tensor(self.netD_A(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
+            self.criterionContrastive = loss.ContrastiveLoss(self.nb_preds)
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -135,10 +138,6 @@ class CycleGANModel(BaseModel):
             self.D_noise = opt.D_noise
                     
             self.niter=0
-
-            self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
-
-            self.nb_preds=int(torch.prod(torch.tensor(self.netD_A(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
 
             ###Making groups
             self.networks_groups = []
@@ -254,16 +253,13 @@ class CycleGANModel(BaseModel):
         # GAN loss D_A(G_A(A))
         current_batch_size=self.get_current_batch_size()
         if self.opt.use_contrastive_loss_D:
-            current_batch_size=self.get_current_batch_size()
-            temp=torch.cat((self.netD_A(self.real_B).flatten().unsqueeze(1),self.netD_A(self.fake_B).flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-            self.loss_G_A = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+            self.loss_G_A = self.criterionContrastive(-self.netD_A(self.real_B),-self.netD_A(self.fake_B))
         else:
             self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
         # GAN loss D_B(G_B(B))
         
         if self.opt.use_contrastive_loss_D:
-            temp=torch.cat((self.netD_B(self.real_A).flatten().unsqueeze(1),self.netD_B(self.fake_A).flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-            self.loss_G_B = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+            self.loss_G_B = self.criterionContrastive(-self.netD_B(self.real_A),-self.netD_B(self.fake_A))                                                    
         else:
             self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
         # Forward cycle loss || G_B(G_A(A)) - A||
@@ -286,21 +282,13 @@ class CycleGANModel(BaseModel):
         # Real
         pred_real_A = self.netD_B(self.real_A)
         pred_real_B = self.netD_A(self.real_B)
-
-        current_batch_size=self.get_current_batch_size()
-
-        temp=torch.cat((pred_real_A.flatten().unsqueeze(1),pred_fake_A.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_real_A = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-
-        temp=torch.cat((-pred_fake_A.flatten().unsqueeze(1),-pred_real_A.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_fake_B = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-
-        temp=torch.cat((pred_real_B.flatten().unsqueeze(1),pred_fake_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_real_B = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-
-        temp=torch.cat((-pred_fake_B.flatten().unsqueeze(1),-pred_real_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss_D_fake_A = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-
+        
+        loss_D_real_A = self.criterionContrastive(pred_real_A,pred_fake_A)
+        loss_D_fake_B = self.criterionContrastive(-pred_fake_A,-pred_real_A)
+        
+        loss_D_real_B = self.criterionContrastive(pred_real_B,pred_fake_B)
+        loss_D_fake_A = self.criterionContrastive(-pred_fake_B,-pred_real_B)
+        
         # combine loss and calculate gradients
         self.loss_D_A = (loss_D_fake_A + loss_D_real_A) * 0.5
         self.loss_D_B = (loss_D_fake_B + loss_D_real_B) * 0.5
