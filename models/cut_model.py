@@ -225,9 +225,7 @@ class CUTModel(BaseModel):
         if self.opt.lambda_GAN > 0.0:
             pred_fake = self.netD(fake)
             if self.opt.use_contrastive_loss_D:
-                current_batch_size=self.get_current_batch_size()
-                temp=torch.cat((self.netD(self.real_B).flatten().unsqueeze(1),pred_fake.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-                self.loss_G_GAN = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+                self.loss_G_GAN = self.criterionContrastive(-self.netD_A(self.real_B),-self.netD_A(self.fake_B))
             else:
                 self.loss_G_GAN = self.criterionGAN(pred_fake, True).mean() * self.opt.lambda_GAN
         else:
@@ -275,12 +273,7 @@ class CUTModel(BaseModel):
         # Real
         pred_real_B = self.netD(self.real_B)
         
-        current_batch_size=self.get_current_batch_size()
-        
-        temp=torch.cat((pred_real_B.flatten().unsqueeze(1),pred_fake_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        self.loss_D_real = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-        
-        temp=torch.cat((-pred_fake_B.flatten().unsqueeze(1),-pred_real_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        self.loss_D_fake = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+        self.loss_D_real = self.criterionContrastive(pred_real_B,pred_fake_B)
+        self.loss_D_fake = self.criterionContrastive(-pred_fake_B,-pred_real_B)
 
         self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
