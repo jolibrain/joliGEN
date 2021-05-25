@@ -376,12 +376,12 @@ class BaseModel(ABC):
         self.niter = self.niter +1
 
         for group in self.networks_groups :
-            for network in group.networks_to_optimize :
-                self.set_requires_grad(getattr(self,network), True)
-            
-            for network in group.networks_not_to_optimize :
-                self.set_requires_grad(getattr(self,network), False)
-
+            for network in self.model_names:
+                if network in group.networks_to_optimize :                
+                    self.set_requires_grad(getattr(self,"net"+network), True)
+                else:
+                    self.set_requires_grad(getattr(self,"net"+network), False)
+                    
             if not group.forward_functions is None:
                 for forward in group.forward_functions: 
                     getattr(self,forward)()
