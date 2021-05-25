@@ -196,21 +196,18 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                     setattr(self, "loss_" + loss_name, 0)
 
             ###Making groups
-            self.networks_groups = []
-            discriminators=["netD_A","netD_B"]
+            discriminators = ["D_A","D_B"]
             if opt.disc_in_mask:
-                discriminators += ["netD_A_mask","netD_B_mask"]
-            self.group_G = NetworkGroup(networks_to_optimize=["netG_A","netG_B"], networks_not_to_optimize=discriminators + ["netf_s"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
-            self.networks_groups.append(self.group_G)
+                discriminators += ["D_A_mask","D_B_mask"]
             
-            if self.opt.use_contrastive_loss_D:
-                self.group_D = NetworkGroup(networks_to_optimize=discriminators, networks_not_to_optimize=["netG_A","netG_B","netf_s"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
-            else:
-                self.group_D = NetworkGroup(networks_to_optimize=discriminators, networks_not_to_optimize=["netG_A","netG_B","netf_s"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+                if self.opt.use_contrastive_loss_D:
+                    self.group_D = NetworkGroup(networks_to_optimize=discriminators,forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+                else:
+                    self.group_D = NetworkGroup(networks_to_optimize=discriminators,forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
             
-            self.networks_groups.append(self.group_D)
+                self.networks_groups[1]=self.group_D
 
-            self.group_f_s= NetworkGroup(networks_to_optimize=["netf_s"], networks_not_to_optimize=discriminators+["netG_A","netG_B"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward="loss_f_s")
+            self.group_f_s= NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward="loss_f_s")
             self.networks_groups.append(self.group_f_s)
 
             

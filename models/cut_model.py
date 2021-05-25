@@ -124,12 +124,12 @@ class CUTModel(BaseModel):
             ###Making groups
             self.networks_groups = []
 
-            self.group_G = NetworkGroup(networks_to_optimize=["netG","netF"], networks_not_to_optimize=["netD"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
+            self.group_G = NetworkGroup(networks_to_optimize=["G","F"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
             self.networks_groups.append(self.group_G)
             if self.opt.use_contrastive_loss_D:
-                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+                self.group_D = NetworkGroup(networks_to_optimize=["D"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
             else:
-                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
+                self.group_D = NetworkGroup(networks_to_optimize=["D"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
             
             self.networks_groups.append(self.group_D) 
 

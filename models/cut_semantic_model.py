@@ -88,18 +88,8 @@ class CUTSemanticModel(CUTModel):
 
             self.nb_preds=int(torch.prod(torch.tensor(self.netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
 
-            ###Making groups
-            self.networks_groups = []
-            self.group_G = NetworkGroup(networks_to_optimize=["netG","netF"], networks_not_to_optimize=["netD","netCLS"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
-            self.networks_groups.append(self.group_G)
-            if self.opt.use_contrastive_loss_D:
-                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF","netCLS"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
-            else:
-                self.group_D = NetworkGroup(networks_to_optimize=["netD"], networks_not_to_optimize=["netG","netF","netCLS"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
-            
-            self.networks_groups.append(self.group_D)
-
-            self.group_CLS = NetworkGroup(networks_to_optimize=["netCLS"], networks_not_to_optimize=["netD","netG","netF"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward="loss_CLS")
+            ###Making groups            
+            self.group_CLS = NetworkGroup(networks_to_optimize=["CLS"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward="loss_CLS")
             self.networks_groups.append(self.group_CLS)
 
 
