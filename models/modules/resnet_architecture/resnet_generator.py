@@ -220,13 +220,13 @@ class resnet_block_attn(nn.Module):
 
 class ResnetGenerator_attn(nn.Module):
     # initializers
-    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[],size=128,nb_attn = 10,nb_mask_input=1): #nb_attn : nombre de masques d'attention, nb_mask_input : nb de masques d'attention qui vont etre appliqués a l'input
+    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[],size=128,nb_mask_attn = 10,nb_mask_input=1): #nb_mask_attn : nombre de masques d'attention, nb_mask_input : nb de masques d'attention qui vont etre appliqués a l'input
         super(ResnetGenerator_attn, self).__init__()
         self.input_nc = input_nc
         self.output_nc = output_nc
         self.ngf = ngf
         self.nb = n_blocks
-        self.nb_attn = nb_attn
+        self.nb_mask_attn = nb_mask_attn
         self.nb_mask_input = nb_mask_input
         self.conv1 = spectral_norm(nn.Conv2d(input_nc, ngf, 7, 1, 0),use_spectral)
         self.conv1_norm = nn.InstanceNorm2d(ngf)
@@ -246,13 +246,13 @@ class ResnetGenerator_attn(nn.Module):
         self.deconv1_norm_content = nn.InstanceNorm2d(ngf * 2)
         self.deconv2_content = spectral_norm(nn.ConvTranspose2d(ngf * 2, ngf, 3, 2, 1, 1),use_spectral)
         self.deconv2_norm_content = nn.InstanceNorm2d(ngf)        
-        self.deconv3_content = spectral_norm(nn.Conv2d(ngf, self.input_nc * (self.nb_attn-nb_mask_input), 7, 1, 0),use_spectral)#self.nb_attn-nb_mask_input: nombre d'images générées ou les masques d'attention vont etre appliqués
+        self.deconv3_content = spectral_norm(nn.Conv2d(ngf, self.input_nc * (self.nb_mask_attn-nb_mask_input), 7, 1, 0),use_spectral)#self.nb_mask_attn-nb_mask_input: nombre d'images générées ou les masques d'attention vont etre appliqués
 
         self.deconv1_attention = spectral_norm(nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, 2, 1, 1),use_spectral)
         self.deconv1_norm_attention = nn.InstanceNorm2d(ngf * 2)
         self.deconv2_attention = spectral_norm(nn.ConvTranspose2d(ngf * 2, ngf, 3, 2, 1, 1),use_spectral)
         self.deconv2_norm_attention = nn.InstanceNorm2d(ngf)
-        self.deconv3_attention = nn.Conv2d(ngf,self.nb_attn, 1, 1, 0)
+        self.deconv3_attention = nn.Conv2d(ngf,self.nb_mask_attn, 1, 1, 0)
         
         self.tanh = nn.Tanh()
 
@@ -262,7 +262,7 @@ class ResnetGenerator_attn(nn.Module):
             normal_init(self._modules[m], mean, std)
 
     # forward method
-    def forward(self, input, extract_layer_ids=[], encode_only=False):
+    def forward(self, input, extract_layer_ids=[], encode_only=False,return_attention_masks=False):
         x = F.pad(input, (3, 3, 3, 3), 'reflect')
         x = F.relu(self.conv1_norm(self.conv1(x)))
         x = F.relu(self.conv2_norm(self.conv2(x)))
@@ -292,7 +292,7 @@ class ResnetGenerator_attn(nn.Module):
 
         images = []
 
-        for i in range(self.nb_attn - self.nb_mask_input):
+        for i in range(self.nb_mask_attn - self.nb_mask_input):
             images.append(image[:, self.input_nc*i:self.input_nc*(i+1), :, :])
 
         x_attention = F.relu(self.deconv1_norm_attention(self.deconv1_attention(x)))
@@ -304,17 +304,20 @@ class ResnetGenerator_attn(nn.Module):
 
         attentions =[]
         
-        for i in range(self.nb_attn):
+        for i in range(self.nb_mask_attn):
             attentions.append(attention[:, i:i+1, :, :].repeat(1, self.input_nc, 1, 1))
+
+        if return_attention_masks:
+            return attentions
 
         outputs = []
         
-        for i in range(self.nb_attn-self.nb_mask_input):
+        for i in range(self.nb_mask_attn-self.nb_mask_input):
             outputs.append(images[i]*attentions[i])
-        for i in range(self.nb_attn-self.nb_mask_input,self.nb_attn):
+        for i in range(self.nb_mask_attn-self.nb_mask_input,self.nb_mask_attn):
             outputs.append(input * attentions[i])
         
         o = outputs[0]
-        for i in range(1,self.nb_attn):
+        for i in range(1,self.nb_mask_attn):
             o += outputs[i]
         return o

@@ -47,8 +47,6 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             parser.add_argument('--train_f_s_B', action='store_true', help='if true f_s will be trained not only on domain A but also on domain B')
             parser.add_argument('--fs_light',action='store_true', help='whether to use a light (unet) network for f_s')
             parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
-            parser.add_argument('--nb_attn', type=int, default=10, help='number of attention masks')
-            parser.add_argument('--nb_mask_input', type=int, default=1, help='number of attention masks which will be applied on the input image')
             parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
             parser.add_argument('--madgrad',action='store_true',help='if true madgrad optim will be used')
 
@@ -230,12 +228,37 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             
             self.pred_real_B = self.netf_s(self.real_B)
             self.gt_pred_B = F.log_softmax(self.pred_real_B,dim=d).argmax(dim=d)
+
+            if True:
+                self.fake_B = self.netG_A(self.real_A,mask=self.gt_pred_A)
+                self.fake_A = self.netG_A(self.real_B,mask=self.gt_pred_B)
+                
+                self.idt_A = self.netG_A(self.real_B,mask=self.gt_pred_B)
+                self.idt_B = self.netG_B(self.real_A,mask=self.gt_pred_A)
             
             self.pred_fake_A = self.netf_s(self.fake_A)
             
             self.pfA = F.log_softmax(self.pred_fake_A,dim=d)
             self.pfA_max = self.pfA.argmax(dim=d)
 
+            self.pred_fake_B = self.netf_s(self.fake_B)
+            self.pfB = F.log_softmax(self.pred_fake_B,dim=d)
+            self.pfB_max = self.pfB.argmax(dim=d)
+
+            if self.opt.display_attention_masks:
+                attentions,images,outputs=self.netG_A(self.real_A,return_attention_masks=self.opt.display_attention_masks,mask=self.gt_pred_A)
+                for i,cur_mask in enumerate(attentions):
+                    setattr(self,"attention_"+str(i),cur_mask)
+                    
+                for i,cur_output in enumerate(outputs):
+                    setattr(self,"output_"+str(i),cur_output)
+
+                for i,cur_image in enumerate(images):
+                    setattr(self,"image_"+str(i),cur_image)
+
+            if True:
+                self.rec_A= self.netG_B(self.fake_B,mask=self.pfB_max)
+                self.rec_B= self.netG_A(self.fake_A,mask=self.pfA_max)
             if hasattr(self,'criterionMask'):
                 label_A = self.input_A_label
                 label_A_in = label_A.unsqueeze(1)
@@ -266,9 +289,8 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                         self.real_B_mask = self.real_B
                         self.fake_A_mask = self.fake_A_mask_in + self.real_B_out_mask.float()
     
-        self.pred_fake_B = self.netf_s(self.fake_B)
-        self.pfB = F.log_softmax(self.pred_fake_B,dim=d)
-        self.pfB_max = self.pfB.argmax(dim=d)
+        
+        
                
     def compute_f_s_loss(self):
         #print('backward fs')

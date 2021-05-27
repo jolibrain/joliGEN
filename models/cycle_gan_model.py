@@ -48,6 +48,9 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
             parser.add_argument('--D_noise', type=float, default=0.0, help='whether to add instance noise to discriminator inputs')
             parser.add_argument('--D_label_smooth', action='store_true', help='whether to use one-sided label smoothing with discriminator')
+            parser.add_argument('--display_attention_masks',action='store_true')
+            parser.add_argument('--nb_mask_attn',type=int, default=10,help='number of masks in attention resnet')
+            parser.add_argument('--nb_mask_input',type=int, default=1,help='number of masks in attention resnet which uses input instead of computed image')
         return parser
 
     def __init__(self, opt):
@@ -87,6 +90,12 @@ class CycleGANModel(BaseModel):
             visual_names_B.append('idt_A')
 
         self.visual_names = visual_names_A + visual_names_B  # combine visualizations for A and B
+        if opt.display_attention_masks:
+            for i in range (opt.nb_mask_attn):
+                self.visual_names += ["attention_"+str(i)]
+                if i < opt.nb_mask_attn - opt.nb_mask_input:
+                    self.visual_names += ["image_"+str(i)]
+                self.visual_names += ["output_"+str(i)]
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
         if self.isTrain:
             self.model_names = ['G_A', 'G_B', 'D_A', 'D_B']
@@ -168,6 +177,14 @@ class CycleGANModel(BaseModel):
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
+        if self.opt.display_attention_masks :
+            attentions,images,outputs=self.netG_A(self.real_A,return_attention_masks=self.opt.display_attention_masks)
+            for i,(cur_mask,cur_output) in enumerate(zip(attentions,outputs)):
+                setattr(self,"attention_"+str(i),torch.mul(cur_mask,2)-1)
+                setattr(self,"output_"+str(i),cur_output)
+            for i,cur_image in enumerate(images):
+                setattr(self,"image_"+str(i),cur_image)
+
         if self.rec_noise > 0.0:
             self.fake_B_noisy1 = gaussian(self.fake_B, self.rec_noise)
             self.rec_A= self.netG_B(self.fake_B_noisy1)
