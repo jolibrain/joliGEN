@@ -6,7 +6,6 @@ from ..utils import spectral_norm,normal_init,init_net,init_weights
 import torch.nn.functional as F
 import math
 
-
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
 
@@ -39,7 +38,7 @@ class ResnetBlock(nn.Module):
             conv_block += [nn.ReflectionPad2d(1)]
         elif padding_type == 'replicate':
             conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
+        elif padding_type == 'zeros':
             p = 1
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
@@ -53,7 +52,7 @@ class ResnetBlock(nn.Module):
             conv_block += [nn.ReflectionPad2d(1)]
         elif padding_type == 'replicate':
             conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
+        elif padding_type == 'zeros':
             p = 1
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
@@ -194,15 +193,16 @@ class ResnetDecoder(nn.Module):
         return output
 
 class resnet_block_attn(nn.Module):
-    def __init__(self, channel, kernel, stride, padding):
+    def __init__(self, channel, kernel, stride, padding_type):
         super(resnet_block_attn, self).__init__()
         self.channel = channel
         self.kernel = kernel
-        self.strdie = stride
-        self.padding = padding
-        self.conv1 = nn.Conv2d(channel, channel, kernel, stride, 0)
+        self.stride = stride
+        self.padding = 1
+        self.padding_type = padding_type
+        self.conv1 = nn.Conv2d(channel, channel, kernel, stride, padding=self.padding, padding_mode=self.padding_type)
         self.conv1_norm = nn.InstanceNorm2d(channel)
-        self.conv2 = nn.Conv2d(channel, channel, kernel, stride, 0)
+        self.conv2 = nn.Conv2d(channel, channel, kernel, stride, padding=self.padding, padding_mode=self.padding_type)
         self.conv2_norm = nn.InstanceNorm2d(channel)
 
     # weight_init
@@ -211,16 +211,13 @@ class resnet_block_attn(nn.Module):
             normal_init(self._modules[m], mean, std)
 
     def forward(self, input):
-        x = F.pad(input, (self.padding, self.padding, self.padding, self.padding), 'reflect')
-        x = F.relu(self.conv1_norm(self.conv1(x)))
-        x = F.pad(x, (self.padding, self.padding, self.padding, self.padding), 'reflect')
+        x = F.relu(self.conv1_norm(self.conv1(input)))
         x = self.conv2_norm(self.conv2(x))
-
         return input + x
 
 class ResnetGenerator_attn(nn.Module):
     # initializers
-    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[],size=128,nb_attn = 10,nb_mask_input=1): #nb_attn : nombre de masques d'attention, nb_mask_input : nb de masques d'attention qui vont etre appliqués a l'input
+    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[],size=128,nb_attn = 10,nb_mask_input=1, padding_type='reflect'): #nb_attn : nombre de masques d'attention, nb_mask_input : nb de masques d'attention qui vont etre appliqués a l'input
         super(ResnetGenerator_attn, self).__init__()
         self.input_nc = input_nc
         self.output_nc = output_nc
@@ -228,6 +225,7 @@ class ResnetGenerator_attn(nn.Module):
         self.nb = n_blocks
         self.nb_attn = nb_attn
         self.nb_mask_input = nb_mask_input
+        self.padding_type = padding_type
         self.conv1 = spectral_norm(nn.Conv2d(input_nc, ngf, 7, 1, 0),use_spectral)
         self.conv1_norm = nn.InstanceNorm2d(ngf)
         self.conv2 = spectral_norm(nn.Conv2d(ngf, ngf * 2, 3, 2, 1),use_spectral)
@@ -237,7 +235,7 @@ class ResnetGenerator_attn(nn.Module):
 
         self.resnet_blocks = []
         for i in range(n_blocks):
-            self.resnet_blocks.append(resnet_block_attn(ngf * 4, 3, 1, 1))
+            self.resnet_blocks.append(resnet_block_attn(ngf * 4, 3, 1, self.padding_type))
             self.resnet_blocks[i].weight_init(0, 0.02)
 
         self.resnet_blocks = nn.Sequential(*self.resnet_blocks)
@@ -263,7 +261,10 @@ class ResnetGenerator_attn(nn.Module):
 
     # forward method
     def forward(self, input, extract_layer_ids=[], encode_only=False):
-        x = F.pad(input, (3, 3, 3, 3), 'reflect')
+        if self.padding_type == 'reflect':
+            x = F.pad(input, (3, 3, 3, 3), 'reflect')
+        else:
+            x = F.pad(input, (3, 3, 3, 3), 'constant', 0)
         x = F.relu(self.conv1_norm(self.conv1(x)))
         x = F.relu(self.conv2_norm(self.conv2(x)))
         x = F.relu(self.conv3_norm(self.conv3(x)))
@@ -286,7 +287,10 @@ class ResnetGenerator_attn(nn.Module):
         
         x_content = F.relu(self.deconv1_norm_content(self.deconv1_content(x)))
         x_content = F.relu(self.deconv2_norm_content(self.deconv2_content(x_content)))
-        x_content = F.pad(x_content, (3, 3, 3, 3), 'reflect')
+        if self.padding_type == 'reflect':
+            x_content = F.pad(x_content, (3, 3, 3, 3), 'reflect')
+        else:
+            x_content = F.pad(x_content, (3, 3, 3, 3), 'constant', 0)
         content = self.deconv3_content(x_content)
         image = self.tanh(content)
 

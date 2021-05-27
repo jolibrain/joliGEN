@@ -12,6 +12,7 @@ parser.add_argument('--model-type',default='mobile_resnet_9blocks',help='model t
 parser.add_argument('--img-size',default=256,type=int,help='square image size')
 parser.add_argument('--cpu',action='store_true',help='whether to export for CPU')
 parser.add_argument('--bw',action='store_true',help='whether input/output is bw')
+parser.add_argument('--padding-type',type=str,help='whether to use padding, zeros or reflect', default='reflect')
 args = parser.parse_args()
 
 if not args.model_out_file:
@@ -31,7 +32,8 @@ img_size = args.img_size
 model = networks.define_G(input_nc,output_nc,ngf,args.model_type,'instance',use_dropout,
                           decoder=decoder,
                           img_size=args.img_size,
-                          img_size_dec=args.img_size)
+                          img_size_dec=args.img_size,
+                          padding_type=args.padding_type)
 if not args.cpu:
     model = model.cuda()
     
