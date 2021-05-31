@@ -30,7 +30,7 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,nb_attn = 10,nb_mask_input=1,opt=None):
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,nb_attn = 10,nb_mask_input=1,padding_type='reflect',opt=None):
     """Create a generator
 
     Parameters:
@@ -62,11 +62,11 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     norm_layer = get_norm_layer(norm_type=norm)
     
     if netG == 'resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, padding_type=padding_type)
     elif netG == 'resnet_6blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=6, decoder=decoder, wplus=wplus, wskip=wskip, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, img_size=img_size,img_size_dec=img_size_dec)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=6, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, padding_type=padding_type)
     elif netG == 'resnet_12blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=12, decoder=decoder, wplus=wplus, wskip=wskip, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, img_size=img_size,img_size_dec=img_size_dec)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=12, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, padding_type=padding_type)
     elif netG == 'mobile_resnet_9blocks':
         net = MobileResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
                                         dropout_rate=0.0, n_blocks=9, wplus=wplus,
@@ -77,9 +77,9 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'resnet_attn':
-        net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
+        net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input,padding_type=padding_type)
     elif netG == 'mobile_resnet_attn':
-        net = MobileResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input)
+        net = MobileResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input,padding_type=padding_type)
     elif netG == 'stylegan2':
         net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, opt=opt)
     elif netG == 'smallstylegan2':
