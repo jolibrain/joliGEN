@@ -61,8 +61,11 @@ def create_dataset(opt):
 
 def collate_fn(batch):
     batch = list(filter(lambda x: x is not None, batch))
-    return torch.utils.data.dataloader.default_collate(batch)
-
+    if len(batch) > 0:
+        return torch.utils.data.dataloader.default_collate(batch)
+    else:
+        return None
+    
 class CustomDatasetDataLoader():
     """Wrapper class of Dataset class that performs multi-threaded data loading"""
 
