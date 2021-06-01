@@ -14,6 +14,8 @@ parser.add_argument('--img-size',default=256,type=int,help='square image size')
 parser.add_argument('--img-in',help='image to transform',required=True)
 parser.add_argument('--img-out',help='transformed image',required=True)
 parser.add_argument('--gpu',help='whether to run on GPU',action='store_true')
+parser.add_argument('--backend',help='whether to use torch or tensorrt backend',type=str,default='torch')
+parser.add_argument('--maxbatchsize',help='maxBatchSize parameter for tensorrt models',type=int,default=1)
 args = parser.parse_args()
 
 # service creation call
@@ -26,10 +28,12 @@ parameters_input = {
     'height': args.img_size
 }
 parameters_mllib = {'gpu': args.gpu}
+if args.backend == 'tensorrt':
+    parameters_mllib['maxBatchSize'] = args.maxbatchsize
 parameters_output = {}
 try:    
     jout = dd.put_service('testggan',model,'gan generator inference test',
-                          'torch',
+                          args.backend,
                           parameters_input,
                           parameters_mllib,
                           parameters_output)
