@@ -394,4 +394,17 @@ class BaseModel(ABC):
             for optimizer, loss_names in zip(group.optimizer, group.loss_names_list):
                 self.compute_step(getattr(self,optimizer),getattr(self,loss_names))
 
-                
+    def compute_D_loss_generic(self,netD,domain_img,loss):
+        noisy=""
+        if self.opt.D_noise > 0.0:
+            noisy="_noisy"
+        fake = getattr(self,"fake_"+domain_img+"_pool").query(getattr(self,"fake_"+domain_img+noisy))
+        loss = loss.compute_loss_D(netD, getattr(self,"real_"+domain_img+noisy), fake)
+        return loss
+
+    def compute_G_loss_GAN_generic(self,netD,domain_img,loss):
+        fake = getattr(self,"fake_"+domain_img)
+        loss = loss.compute_loss_G(netD, getattr(self,"real_"+domain_img), fake)
+        return loss
+
+    

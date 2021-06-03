@@ -128,7 +128,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
         if self.isTrain:
-            self.model_names == ['f_s']
+            self.model_names += ['f_s']
             if opt.disc_in_mask:
                 self.model_names += ['D_A_mask', 'D_B_mask']
 
@@ -157,7 +157,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             # define loss functions
             self.criterionf_s = torch.nn.modules.CrossEntropyLoss()
             
-            if opt.out_mask:
+            if opt.out_mask or opt.disc_in_mask:
                 if opt.loss_out_mask == 'L1':
                     self.criterionMask = torch.nn.L1Loss()
                 elif opt.loss_out_mask == 'MSE':
@@ -308,29 +308,14 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         # Identity loss
         
         if self.disc_in_mask:
-            self.loss_G_A_mask = self.criterionGAN(self.netD_A(self.fake_B_mask_in), True)
-            self.loss_G_B_mask = self.criterionGAN(self.netD_B(self.fake_A_mask_in), True)
-            if self.opt.use_contrastive_loss_D:
-                current_batch_size=self.get_current_batch_size()
-                temp=torch.cat((self.netD_A(self.real_B).flatten().unsqueeze(1),self.netD_A(self.fake_B).flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-                self.loss_G_A = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-                temp=torch.cat((self.netD_B(self.real_A).flatten().unsqueeze(1),self.netD_B(self.fake_A).flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-                self.loss_G_B = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-            else:
-                self.loss_G_A = self.criterionGAN(self.netD_A_mask(self.fake_B_mask), True)
-                self.loss_G_B = self.criterionGAN(self.netD_B_mask(self.fake_A_mask), True)
-        else:
-            if self.opt.use_contrastive_loss_D:
-                current_batch_size=self.get_current_batch_size()
-                temp=torch.cat((self.netD_A(self.real_B).flatten().unsqueeze(1),self.netD_A(self.fake_B).flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-                self.loss_G_A = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-                temp=torch.cat((self.netD_B(self.real_A).flatten().unsqueeze(1),self.netD_B(self.fake_A).flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-                self.loss_G_B = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
+            self.loss_G_A_mask = self.compute_G_loss_GAN_generic(self.netD_A,"B",self.D_loss,fake_name="fake_B_mask_in")
+            self.loss_G_B_mask = self.compute_G_loss_GAN_generic(self.netD_B,"A",self.D_loss,fake_name="fake_A_mask_in")
+        
+            self.loss_G_A = self.compute_G_loss_GAN_generic(self.netD_A_mask,"B",self.D_loss,fake_name="fake_B_mask")
+            self.loss_G_B = self.compute_G_loss_GAN_generic(self.netD_B_mask,"A",self.D_loss,fake_name="fake_A_mask")
             
-        # combined loss standard cyclegan
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
-        if self.disc_in_mask:
-            self.loss_G += self.loss_G_A_mask + self.loss_G_B_mask
+            # combined loss standard cyclegan
+            self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_G_A_mask + self.loss_G_B_mask
 
         # semantic loss AB
         self.loss_sem_AB = self.opt.lambda_sem*self.criterionf_s(self.pfB, self.input_A_label)

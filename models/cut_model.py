@@ -7,6 +7,8 @@ import util.util as util
 from .modules import loss
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
+import itertools
+from util.image_pool import ImagePool
 
 class CUTModel(BaseModel):
     """ This class implements CUT and FastCUT model, described in the paper
@@ -63,14 +65,21 @@ class CUTModel(BaseModel):
         # The training/test scripts will call <BaseModel.get_current_losses>
         if self.opt.iter_size == 1:
             losses_G = ['G_GAN', 'G', 'NCE']
-            losses_D= ['D_real', 'D_fake']
+            losses_D= ['D_tot','D']
             if opt.nce_idt and self.isTrain:
                 losses_G += ['NCE_Y']
+            if opt.netD_global != "none":
+                losses_D += ['D_global']
+                losses_G += ['G_GAN_global']
+
         else:
             losses_G = ['G_GAN_avg', 'G_avg', 'NCE_avg']
-            losses_D= ['D_real_avg', 'D_fake_avg']
+            losses_D= ['D_tot_avg', 'D_avg']
             if opt.nce_idt and self.isTrain:
                 losses_G += ['NCE_Y_avg']
+            if opt.netD_global != "none":
+                losses_D += ['D_global_avg']
+                losses_G += ['G_GAN_global_avg']
 
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
@@ -85,6 +94,11 @@ class CUTModel(BaseModel):
 
         if self.isTrain:
             self.model_names = ['G', 'F', 'D']
+            if opt.netD_global != "none":
+                self.model_names += ['D_global']
+
+            self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
+        
         else:  # during test time, only load G
             self.model_names = ['G']
 
@@ -94,8 +108,11 @@ class CUTModel(BaseModel):
         self.netF = networks.define_F(opt.input_nc, opt.netF, opt.normG, not opt.no_dropout, opt.init_type, opt.init_gain, opt.no_antialias, self.gpu_ids, opt)
         if self.isTrain:
             self.netD = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain, self.gpu_ids)
-            
+                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,opt)
+            if opt.netD_global != "none":
+                self.netD_global = networks.define_D(opt.output_nc, opt.ndf, opt.netD_global,
+                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,opt)
+
 
             # define loss functions
             self.criterionGAN = loss.GANLoss(opt.gan_mode).to(self.device)
@@ -106,7 +123,10 @@ class CUTModel(BaseModel):
 
             self.criterionIdt = torch.nn.L1Loss().to(self.device)
             self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
-            self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
+            if opt.netD_global== "none":
+                self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
+            else:
+                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD.parameters(),self.netD_global.parameters()), lr=opt.lr, betas=(opt.beta1, opt.beta2))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
@@ -117,23 +137,29 @@ class CUTModel(BaseModel):
 
             self.niter=0
 
-            self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
-
-            self.nb_preds=int(torch.prod(torch.tensor(self.netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
-
+            if opt.netD_global == "none":
+                self.loss_D_global=0
+                self.loss_G_GAN_global=0
+ 
             ###Making groups
+            discriminators=["netD"]
+            if opt.netD_global != "none":
+                discriminators += ["netD_global"]
+                self.D_global_loss=loss.DiscriminatorGANLoss(opt,self.netD_global,self.device)
             self.networks_groups = []
 
             self.group_G = NetworkGroup(networks_to_optimize=["G","F"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward="loss_G")
             self.networks_groups.append(self.group_G)
-            if self.opt.use_contrastive_loss_D:
-                self.group_D = NetworkGroup(networks_to_optimize=["D"],forward_functions=None,backward_functions=["compute_D_contrastive_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
-            else:
-                self.group_D = NetworkGroup(networks_to_optimize=["D"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D")
-            
+
+            self.group_D = NetworkGroup(networks_to_optimize=["D"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward="loss_D_tot")
             self.networks_groups.append(self.group_D) 
 
-            
+
+        if self.opt.use_contrastive_loss_D:
+            self.D_loss=loss.DiscriminatorContrastiveLoss(opt,self.netD,self.device)
+        else:
+            self.D_loss=loss.DiscriminatorGANLoss(opt,self.netD,self.device)
+
             
     def data_dependent_initialize(self, data):
         """
@@ -148,9 +174,9 @@ class CUTModel(BaseModel):
         self.real_B = self.real_B[:bs_per_gpu]
         self.forward()                     # compute fake images: G(A)
         if self.opt.isTrain:
-            self.compute_D_loss()                  
+            self.compute_D_loss()
             self.compute_G_loss()                   
-            self.loss_D.backward()# calculate gradients for D
+            self.loss_D_tot.backward()# calculate gradients for D
             self.loss_G.backward()# calculate graidents for G
             
             if self.opt.lambda_NCE > 0.0:
@@ -185,32 +211,22 @@ class CUTModel(BaseModel):
             self.idt_B = self.fake[self.real_A.size(0):]
 
     def compute_D_loss(self):
-        """Calculate GAN loss for the discriminator"""
-        fake = self.fake_B.detach()
-        # Fake; stop backprop to the generator by detaching fake_B
-        pred_fake = self.netD(fake)
-        self.loss_D_fake = self.criterionGAN(pred_fake, False).mean()
-        # Real
-        self.pred_real = self.netD(self.real_B)
-        loss_D_real = self.criterionGAN(self.pred_real, True)
-        self.loss_D_real = loss_D_real.mean()
+        """Calculate GAN loss for both discriminators"""
+        self.loss_D = self.compute_D_loss_generic(self.netD,"B",self.D_loss)
 
-        # combine loss and calculate gradients
-        self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
-        return self.loss_D
+        if self.opt.netD_global != "none":
+            self.loss_D_global = self.compute_D_loss_generic(self.netD_global,"B",self.D_global_loss)
+        
+        self.loss_D_tot = self.loss_D + self.loss_D_global
 
+                                        
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
-        fake = self.fake_B
         # First, G(A) should fake the discriminator
         if self.opt.lambda_GAN > 0.0:
-            pred_fake = self.netD(fake)
-            if self.opt.use_contrastive_loss_D:
-                self.loss_G_GAN = self.criterionContrastive(-self.netD_A(self.real_B),-self.netD_A(self.fake_B))
-            else:
-                self.loss_G_GAN = self.criterionGAN(pred_fake, True).mean() * self.opt.lambda_GAN
-        else:
-            self.loss_G_GAN = 0.0
+            self.loss_G_GAN = self.compute_G_loss_GAN_generic(self.netD,"B",self.D_loss)
+            if self.opt.netD_global != "none":
+                self.loss_G_GAN_global = self.compute_G_loss_GAN_generic(self.netD_global,"B",self.D_global_loss)
 
         if self.opt.lambda_NCE > 0.0:
             self.loss_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
@@ -223,7 +239,7 @@ class CUTModel(BaseModel):
         else:
             loss_NCE_both = self.loss_NCE
 
-        self.loss_G = self.loss_G_GAN + loss_NCE_both
+        self.loss_G = self.loss_G_GAN + self.loss_G_GAN_global + loss_NCE_both
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
@@ -242,19 +258,3 @@ class CUTModel(BaseModel):
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers
-
-    
-
-    def compute_D_contrastive_loss(self):
-        """Calculate contrastive GAN loss for the discriminator"""
-        # Fake; stop backprop to the generator by detaching fake_B
-        fake_B = self.fake_B.detach()
-        pred_fake_B = self.netD(fake_B)
-        
-        # Real
-        pred_real_B = self.netD(self.real_B)
-        
-        self.loss_D_real = self.criterionContrastive(pred_real_B,pred_fake_B)
-        self.loss_D_fake = self.criterionContrastive(-pred_fake_B,-pred_real_B)
-
-        self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5

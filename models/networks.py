@@ -2,6 +2,7 @@ import torch.nn as nn
 import functools
 from torch.optim import lr_scheduler
 import math
+import torchvision.models as models
 
 from .modules.utils import spectral_norm,init_net,init_weights,get_norm_layer
 
@@ -11,7 +12,7 @@ from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.discriminators import NLayerDiscriminator
 from .modules.discriminators import PixelDiscriminator
-from .modules.classifiers import Classifier, VGG16_FCN8s, torch_model
+from .modules.classifiers import Classifier, VGG16_FCN8s, torch_model,model_classes
 from .modules.UNet_classification import UNet
 from .modules.classifiers import Classifier_w
 from .modules.fid.pytorch_fid.inception import InceptionV3
@@ -89,7 +90,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight and ('stylegan2' not in netG))
 
-def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
+def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, no_antialias=False, gpu_ids=[],opt=None):
     """Create a discriminator
 
     Parameters:
@@ -130,9 +131,15 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False,
         net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral)
     elif netD == 'pixel':     # classify if each pixel is real or fake
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
+    elif 'stylegan2' in netD: # global D from sty2 repo
+        net = StyleGAN2Discriminator(input_nc, ndf, n_layers_D, no_antialias=no_antialias, opt=opt)
+    elif netD in model_classes : # load torchvision model
+        nclasses=1
+        template=netD
+        net = torch_model(input_nc, ndf, nclasses,opt.crop_size, template, pretrained=False)
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
-    return init_net(net, init_type, init_gain, gpu_ids)
+    return init_net(net, init_type, init_gain, gpu_ids,init_weight= 'stylegan2' not in netD)
 
 def define_C(input_nc, ndf,img_size, init_type='normal', init_gain=0.02, gpu_ids=[], nclasses=10, template='basic', pretrained=False):
     if template == 'basic':
