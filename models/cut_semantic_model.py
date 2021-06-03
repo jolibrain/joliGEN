@@ -28,7 +28,6 @@ class CUTSemanticModel(CUTModel):
         parser.add_argument('--cls_template', help='classifier/regressor model type, from torchvision (resnet18, ...), default is custom simple model', default='basic')
         parser.add_argument('--cls_pretrained', action='store_true', help='whether to use a pretrained model, available for non "basic" model only')    
         parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
-        parser.add_argument('--D_noise', type=float, default=0.0, help='whether to add instance noise to discriminator inputs')
         parser.add_argument('--contrastive_noise', type=float, default=0.0, help='noise on constrastive classifier')
         parser.add_argument('--regression', action='store_true', help='if true cls will be a regressor and not a classifier')
         parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
@@ -83,10 +82,6 @@ class CUTSemanticModel(CUTModel):
                     setattr(self, "loss_" + loss_name, 0)
             
             self.niter=0
-
-            self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
-
-            self.nb_preds=int(torch.prod(torch.tensor(self.netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
 
             ###Making groups            
             self.group_CLS = NetworkGroup(networks_to_optimize=["CLS"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward="loss_CLS")

@@ -17,7 +17,7 @@ class CUTSemanticMaskModel(CUTModel):
     ECCV, 2020
 
     The code borrows heavily from the PyTorch implementation of CycleGAN
-    https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
+    https://github.om/junyanz/pytorch-CycleGAN-and-pix2pix
     """
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -26,9 +26,7 @@ class CUTSemanticMaskModel(CUTModel):
         parser = CUTModel.modify_commandline_options(parser, is_train=True)
         parser.add_argument('--train_f_s_B', action='store_true', help='if true f_s will be trained not only on domain A but also on domain B')
         parser.add_argument('--fs_light',action='store_true', help='whether to use a light (unet) network for f_s')
-        parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
-        parser.add_argument('--D_noise', type=float, default=0.0, help='whether to add instance noise to discriminator inputs')
-        
+        parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')        
         parser.add_argument('--out_mask', action='store_true', help='use loss out mask')
         parser.add_argument('--lambda_out_mask', type=float, default=10.0, help='weight for loss out mask')
         parser.add_argument('--loss_out_mask', type=str, default='L1', help='loss mask')
@@ -85,8 +83,8 @@ class CUTSemanticMaskModel(CUTModel):
 
             if self.opt.iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
-                for loss_name in self.loss_names:
-                    setattr(self, "loss_" + loss_name, 0)
+            for loss_name in self.loss_names:
+                setattr(self, "loss_" + loss_name, 0)
 
             ###Making groups
             self.group_f_s = NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward="loss_f_s")
@@ -107,11 +105,10 @@ class CUTSemanticMaskModel(CUTModel):
         self.input_A_label=self.input_A_label[:bs_per_gpu]
         if hasattr(self,'input_B_label'):
             self.input_B_label=self.input_B_label[:bs_per_gpu]
-        
         self.forward()                     # compute fake images: G(A)
         if self.opt.isTrain:
             self.compute_D_loss()                  
-            self.compute_f_s_loss()                  
+            self.compute_f_s_loss()
             self.compute_G_loss()                   
             self.loss_D.backward()# calculate gradients for D
             self.loss_f_s.backward()# calculate gradients for f_s
@@ -129,10 +126,7 @@ class CUTSemanticMaskModel(CUTModel):
             input (dict): include the data itself and its metadata information.
         The option 'direction' can be used to swap domain A and domain B.
         """
-        AtoB = self.opt.direction == 'AtoB'
-        self.real_A = input['A' if AtoB else 'B'].to(self.device)
-        self.real_B = input['B' if AtoB else 'A'].to(self.device)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        super().set_input(input)
         if 'A_label' in input :
             self.input_A_label = input['A_label'].to(self.device).squeeze(1)
         if self.opt.train_f_s_B and 'B_label' in input:
@@ -141,17 +135,8 @@ class CUTSemanticMaskModel(CUTModel):
         
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        self.real = torch.cat((self.real_A, self.real_B), dim=0) if self.opt.nce_idt and self.opt.isTrain else self.real_A
-        if self.opt.flip_equivariance:
-            self.flipped_for_equivariance = self.opt.isTrain and (np.random.random() < 0.5)
-            if self.flipped_for_equivariance:
-                self.real = torch.flip(self.real, [3])
-
-        self.fake = self.netG(self.real)
-        self.fake_B = self.fake[:self.real_A.size(0)]
-        if self.opt.nce_idt:
-            self.idt_B = self.fake[self.real_A.size(0):]
-
+        super().forward()
+        
         d = 1
         self.pred_real_A = self.netf_s(self.real_A)    
         self.gt_pred_A = F.log_softmax(self.pred_real_A,dim= d).argmax(dim=d)
@@ -172,81 +157,18 @@ class CUTSemanticMaskModel(CUTModel):
                     self.fake_B_noisy = gaussian(self.fake_B, self.opt.D_noise)
                     self.real_B_noisy = gaussian(self.real_B, self.opt.D_noise)
                 
-    def compute_D_loss(self):
-        """Calculate GAN loss for the discriminator"""
-        if self.opt.D_noise:
-            fake = self.fake_B_noisy.detach()
-        else:
-            fake = self.fake_B.detach()
-        # Fake; stop backprop to the generator by detaching fake_B
-        pred_fake = self.netD(fake)
-        self.loss_D_fake = self.criterionGAN(pred_fake, False).mean()
-        # Real
-        if self.opt.D_noise:
-            real_B = self.real_B_noisy
-        else:
-            real_B = self.real_B
-        self.pred_real = self.netD(real_B)
-        loss_D_real = self.criterionGAN(self.pred_real, True)
-        self.loss_D_real = loss_D_real.mean()
-
-        # combine loss and calculate gradients
-        self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
-
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
-        fake = self.fake_B
-        # First, G(A) should fake the discriminator
-        if self.opt.lambda_GAN > 0.0:
-            pred_fake = self.netD(fake)
-            if self.opt.use_contrastive_loss_D:
-                current_batch_size=self.get_current_batch_size()
-                temp=torch.cat((self.netD(self.real_B).flatten().unsqueeze(1),pred_fake.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-                self.loss_G_GAN = self.cross_entropy_loss(-temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-            else:
-                self.loss_G_GAN = self.criterionGAN(pred_fake, True).mean() * self.opt.lambda_GAN
-        else:
-            self.loss_G_GAN = 0.0
-
-        if self.opt.lambda_NCE > 0.0:
-            self.loss_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
-        else:
-            self.loss_NCE, self.loss_NCE_bd = 0.0, 0.0
-
-        if self.opt.nce_idt and self.opt.lambda_NCE > 0.0:
-            self.loss_NCE_Y = self.calculate_NCE_loss(self.real_B, self.idt_B)
-            loss_NCE_both = (self.loss_NCE + self.loss_NCE_Y) * 0.5
-        else:
-            loss_NCE_both = self.loss_NCE
+        super().compute_G_loss()
+        
         self.loss_sem = self.opt.lambda_sem*self.criterionf_s(self.pfB, self.input_A_label)
         if self.loss_f_s.detach().item() > 1.0:
             self.loss_sem = 0 * self.loss_sem
-        self.loss_G = self.loss_G_GAN + loss_NCE_both + self.loss_sem
+        self.loss_G += self.loss_sem
 
         if hasattr(self,'criterionMask'):
             self.loss_out_mask = self.criterionMask( self.real_A_out_mask, self.fake_B_out_mask) * self.opt.lambda_out_mask
             self.loss_G += self.loss_out_mask
-
-    def calculate_NCE_loss(self, src, tgt):
-        n_layers = len(self.nce_layers)
-        feat_q = self.netG(tgt, self.nce_layers, encode_only=True)
-
-        if self.opt.flip_equivariance and self.flipped_for_equivariance:
-            feat_q = [torch.flip(fq, [3]) for fq in feat_q]
-
-        feat_k = self.netG(src, self.nce_layers, encode_only=True)
-        feat_k_pool, sample_ids = self.netF(feat_k, self.opt.num_patches, None)
-        feat_q_pool, _ = self.netF(feat_q, self.opt.num_patches, sample_ids)
-
-        total_nce_loss = 0.0
-        for f_q, f_k, crit, nce_layer in zip(feat_q_pool, feat_k_pool, self.criterionNCE, self.nce_layers):
-            if self.opt.contrastive_noise>0.0:
-                f_q=gaussian(f_q,self.opt.contrastive_noise)
-                f_k=gaussian(f_k,self.opt.contrastive_noise)
-            loss = crit(f_q, f_k,current_batch=src.shape[0]) * self.opt.lambda_NCE
-            total_nce_loss += loss.mean()
-
-        return total_nce_loss / n_layers
 
     def compute_f_s_loss(self):
         label_A = self.input_A_label
@@ -257,22 +179,3 @@ class CUTSemanticMaskModel(CUTModel):
             label_B = self.input_B_label
             pred_B = self.netf_s(self.real_B) 
             self.loss_f_s += self.criterionf_s(pred_B, label_B)#.squeeze(1))
-
-    def compute_D_contrastive_loss(self):
-        """Calculate contrastive GAN loss for the discriminator"""
-        # Fake; stop backprop to the generator by detaching fake_B
-        fake_B = self.fake_B.detach()
-        pred_fake_B = self.netD(fake_B)
-        
-        # Real
-        pred_real_B = self.netD(self.real_B)
-        
-        current_batch_size=self.get_current_batch_size()
-        
-        temp=torch.cat((pred_real_B.flatten().unsqueeze(1),pred_fake_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        self.loss_D_real = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-        
-        temp=torch.cat((-pred_fake_B.flatten().unsqueeze(1),-pred_real_B.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        self.loss_D_fake = self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device)).mean()
-
-        self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
