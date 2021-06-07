@@ -52,20 +52,18 @@ class CUTSemanticMaskModel(CUTModel):
         self.loss_names_f_s = losses_f_s
 
         self.loss_names = self.loss_names_G + self.loss_names_D + self.loss_names_f_s
-
-        self.visual_names += ['input_A_label','gt_pred_A','pfB_max']
-            
-        if opt.out_mask and self.isTrain:
-            self.loss_names += ['out_mask']
-            self.visual_names += ['real_A_out_mask','fake_B_out_mask']
-        if self.isTrain:
-            self.model_names += ['f_s']
             
         # define networks (both generator and discriminator)
         if self.isTrain:
             self.netf_s = networks.define_f(opt.input_nc, nclasses=opt.semantic_nclasses, 
                                             init_type=opt.init_type, init_gain=opt.init_gain,
                                             gpu_ids=self.gpu_ids, fs_light=opt.fs_light)
+
+            if opt.out_mask:
+                self.loss_names += ['out_mask']
+
+            self.model_names += ['f_s']
+
 
             # define loss functions
             self.criterionf_s = torch.nn.modules.CrossEntropyLoss()
@@ -119,6 +117,21 @@ class CUTSemanticMaskModel(CUTModel):
 
         for optimizer in self.optimizers:
             optimizer.zero_grad()
+
+        visual_names_seg_A = ['input_A_label','gt_pred_A','pfB_max']
+
+        if hasattr(self,'input_B_label'):
+            visual_names_seg_B = ['input_B_label']
+        else:
+            visual_names_seg_B = []
+
+        visual_names_seg_B += ['gt_pred_B']
+
+        self.visual_names += [visual_names_seg_A,visual_names_seg_B]
+        
+        if self.opt.out_mask and self.isTrain:
+            visual_names_out_mask_A = ['real_A_out_mask','fake_B_out_mask']
+            self.visual_names += [visual_names_out_mask_A]
         
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -140,6 +153,9 @@ class CUTSemanticMaskModel(CUTModel):
         d = 1
         self.pred_real_A = self.netf_s(self.real_A)    
         self.gt_pred_A = F.log_softmax(self.pred_real_A,dim= d).argmax(dim=d)
+
+        self.pred_real_B = self.netf_s(self.real_B)
+        self.gt_pred_B = F.log_softmax(self.pred_real_B,dim=d).argmax(dim=d)
             
         self.pred_fake_B = self.netf_s(self.fake_B)
         self.pfB = F.log_softmax(self.pred_fake_B,dim=d)#.argmax(dim=d)
