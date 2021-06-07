@@ -99,32 +99,6 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         self.loss_names_D += losses_D
         
         self.loss_names = self.loss_names_G + self.loss_names_f_s + self.loss_names_D
-        
-        # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        visual_names_seg_A = ['input_A_label','gt_pred_A','pfB_max']
-
-        
-        visual_names_seg_B = ['gt_pred_B','pfA_max']
-        
-        visual_names_out_mask = ['real_A_out_mask','fake_B_out_mask']
-
-        if hasattr(self, 'input_B_label') and len(self.input_B_label) > 0: # XXX: model is created after dataset is populated so this check stands
-            visual_names_seg_B.append('input_B_label')
-            visual_names_out_mask.append('real_B_out_mask')
-            visual_names_out_mask.append('fake_A_out_mask')
-        
-        visual_names_mask = ['fake_B_mask','fake_A_mask']
-
-        visual_names_mask_in = ['real_B_mask','fake_B_mask','real_A_mask','fake_A_mask',
-                                'real_B_mask_in','fake_B_mask_in','real_A_mask_in','fake_A_mask_in']
-        
-        self.visual_names += visual_names_seg_A + visual_names_seg_B 
-
-        if opt.out_mask :
-            self.visual_names += visual_names_out_mask
-
-        if opt.disc_in_mask:
-            self.visual_names += visual_names_mask_in
             
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
         if self.isTrain:
@@ -217,6 +191,36 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             self.input_A_label = input['A_label'].to(self.device).squeeze(1)
         if 'B_label' in input and len(input['B_label']) > 0:
             self.input_B_label = input['B_label'].to(self.device).squeeze(1) # beniz: unused
+
+    def data_dependent_initialize(self, data):
+        self.set_input(data)
+        # specify the images you want to save/display. The program will call base_model.get_current_visuals
+        visual_names_seg_A = ['input_A_label','gt_pred_A','pfB_max']
+
+        if hasattr(self,'input_B_label'):
+            visual_names_seg_B = ['input_B_label']
+        else:
+            visual_names_seg_B = []
+            
+        visual_names_seg_B += ['gt_pred_B','pfA_max']
+        
+        visual_names_out_mask_A = ['real_A_out_mask','fake_B_out_mask']
+
+        visual_names_out_mask_B = ['real_B_out_mask','fake_A_out_mask']
+        
+        visual_names_mask = ['fake_B_mask','fake_A_mask']
+
+        visual_names_mask_in = ['real_B_mask','fake_B_mask','real_A_mask','fake_A_mask',
+                                'real_B_mask_in','fake_B_mask_in','real_A_mask_in','fake_A_mask_in']
+        
+        self.visual_names += [visual_names_seg_A , visual_names_seg_B ]
+
+        if self.opt.out_mask :
+            self.visual_names += [visual_names_out_mask_A,visual_names_out_mask_B]
+
+        if self.opt.disc_in_mask:
+            self.visual_names += [visual_names_mask_in]
+        
 
     def forward(self):
         super().forward()
