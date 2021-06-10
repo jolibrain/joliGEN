@@ -8,10 +8,8 @@ from torchvision.utils import save_image
 import numpy as np
 import argparse
 
-#image_path = '/data2/clients/cartier/models/cartier_phase2_basic_mobilenet/input_patches/IMG_0050803.jpg'
-
 parser = argparse.ArgumentParser()
-parser.add_argument('--model-in-file',help='file path to generator model to export (.pth file)',required=True)
+parser.add_argument('--model-in-file',help='file path to generator model (.pth file)',required=True)
 parser.add_argument('--model-type',default='mobile_resnet_9blocks',help='model type, e.g. mobile_resnet_9blocks')
 parser.add_argument('--img-size',default=256,type=int,help='square image size')
 parser.add_argument('--img-in',help='image to transform',required=True)

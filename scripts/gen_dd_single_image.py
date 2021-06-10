@@ -9,7 +9,7 @@ dd = DD(host,port)
 dd.set_return_format(dd.RETURN_PYTHON)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model-in-path',help='directory path that contains model to export (i.e. the .pt file)',required=True)
+parser.add_argument('--model-in-path',help='directory path that contains the exported model (i.e. the .pt file)',required=True)
 parser.add_argument('--img-size',default=256,type=int,help='square image size')
 parser.add_argument('--img-in',help='image to transform',required=True)
 parser.add_argument('--img-out',help='transformed image',required=True)
