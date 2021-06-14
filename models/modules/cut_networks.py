@@ -34,7 +34,7 @@ class PatchSampleF(nn.Module):
             feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)
             if num_patches > 0:
                 if patch_ids is not None:
-                    patch_id = patch_ids[feat_id]
+                    patch_id = patch_ids[feat_id].squeeze()
                 else:
                     patch_id = torch.randperm(feat_reshape.shape[1], device=feats[0].device)
                     patch_id = patch_id[:int(min(num_patches, patch_id.shape[0]))]  # .to(patch_ids.device)
@@ -45,7 +45,7 @@ class PatchSampleF(nn.Module):
             if self.use_mlp:
                 mlp = getattr(self, 'mlp_%d' % feat_id)
                 x_sample = mlp(x_sample)
-            return_ids.append(patch_id)
+            return_ids.append(patch_id.unsqueeze(0))
             x_sample = self.l2norm(x_sample)
 
             if num_patches == 0:
