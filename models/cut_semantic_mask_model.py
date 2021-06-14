@@ -85,7 +85,7 @@ class CUTSemanticMaskModel(CUTModel):
                 setattr(self, "loss_" + loss_name, 0)
 
             ###Making groups
-            self.group_f_s = NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward="loss_f_s")
+            self.group_f_s = NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward=["loss_f_s"])
             self.networks_groups.append(self.group_f_s)
 
 

@@ -94,7 +94,7 @@ class CycleGANSemanticModel(CycleGANModel):
                     setattr(self, "loss_" + loss_name, 0)
 
             ###Making groups
-            self.group_CLS = NetworkGroup(networks_to_optimize=["CLS"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward="loss_CLS")
+            self.group_CLS = NetworkGroup(networks_to_optimize=["CLS"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward=["loss_CLS"])
             self.networks_groups.append(self.group_CLS)
                     
     def set_input(self, input):

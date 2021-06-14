@@ -391,23 +391,41 @@ class BaseModel(ABC):
 
             for backward in group.backward_functions: 
                 getattr(self,backward)()
-                
-            (getattr(self,group.loss_backward)/self.opt.iter_size).backward()
+
+            for loss in group.loss_backward:
+                (getattr(self,loss)/self.opt.iter_size).backward()
             
             for optimizer, loss_names in zip(group.optimizer, group.loss_names_list):
                 self.compute_step(getattr(self,optimizer),getattr(self,loss_names))
 
-    def compute_D_loss_generic(self,netD,domain_img,loss):
+    def compute_D_loss_generic(self,netD,domain_img,loss,real_name=None,fake_name=None):
         noisy=""
         if self.opt.D_noise > 0.0:
             noisy="_noisy"
-        fake = getattr(self,"fake_"+domain_img+"_pool").query(getattr(self,"fake_"+domain_img+noisy))
-        loss = loss.compute_loss_D(netD, getattr(self,"real_"+domain_img+noisy), fake)
+
+        if fake_name is None :
+            fake = getattr(self,"fake_"+domain_img+"_pool").query(getattr(self,"fake_"+domain_img+noisy))
+        else:
+            fake = getattr(self,fake_name)
+        if real_name is None:
+            real = getattr(self,"real_"+domain_img+noisy)
+        else:
+            real = getattr(self,real_name)
+            
+        loss = loss.compute_loss_D(netD, real, fake)
         return loss
 
-    def compute_G_loss_GAN_generic(self,netD,domain_img,loss):
-        fake = getattr(self,"fake_"+domain_img)
-        loss = loss.compute_loss_G(netD, getattr(self,"real_"+domain_img), fake)
+    def compute_G_loss_GAN_generic(self,netD,domain_img,loss,real_name=None,fake_name=None):
+        if fake_name is None :
+            fake = getattr(self,"fake_"+domain_img)
+        else:
+            fake = getattr(self,fake_name)
+        if real_name is None:
+            real = getattr(self,"real_"+domain_img)
+        else:
+            real = getattr(self,real_name)
+            
+        loss = loss.compute_loss_G(netD, real, fake)
         return loss
 
     
