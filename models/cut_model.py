@@ -161,6 +161,11 @@ class CUTModel(BaseModel):
         else:
             self.D_loss=loss.DiscriminatorGANLoss(opt,self.netD,self.device)
 
+    def set_input_first_gpu(self,data):
+        self.set_input(data)
+        self.bs_per_gpu = self.real_A.size(0) // max(len(self.opt.gpu_ids), 1)
+        self.real_A = self.real_A[:self.bs_per_gpu]
+        self.real_B = self.real_B[:self.bs_per_gpu]
             
     def data_dependent_initialize(self, data):
         """
@@ -169,17 +174,9 @@ class CUTModel(BaseModel):
         initialized at the first feedforward pass with some input images.
         Please also see PatchSampleF.create_mlp(), which is called at the first forward() call.
         """
-        self.set_input(data)
-        bs_per_gpu = self.real_A.size(0) // max(len(self.opt.gpu_ids), 1)
-        self.real_A = self.real_A[:bs_per_gpu]
-        self.real_B = self.real_B[:bs_per_gpu]
-        self.forward()                     # compute fake images: G(A)
+        self.set_input_first_gpu(data)
         if self.opt.isTrain:
-            self.compute_D_loss()
-            self.compute_G_loss()                   
-            self.loss_D_tot.backward()# calculate gradients for D
-            self.loss_G.backward()# calculate graidents for G
-            
+            self.optimize_parameters()
             if self.opt.lambda_NCE > 0.0:
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
                 self.optimizers.append(self.optimizer_F)

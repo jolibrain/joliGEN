@@ -88,7 +88,12 @@ class CUTSemanticMaskModel(CUTModel):
             self.group_f_s = NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward=["loss_f_s"])
             self.networks_groups.append(self.group_f_s)
 
-
+    def set_input_first_gpu(self,data):
+        super().set_input_first_gpu(data)
+        self.input_A_label=self.input_A_label[:self.bs_per_gpu]
+        if hasattr(self,'input_B_label'):
+            self.input_B_label=self.input_B_label[:self.bs_per_gpu]
+        
     def data_dependent_initialize(self, data):
         """
         The feature network netF is defined in terms of the shape of the intermediate, extracted
@@ -96,28 +101,7 @@ class CUTSemanticMaskModel(CUTModel):
         initialized at the first feedforward pass with some input images.
         Please also see PatchSampleF.create_mlp(), which is called at the first forward() call.
         """
-        self.set_input(data)
-        bs_per_gpu = self.real_A.size(0) // max(len(self.opt.gpu_ids), 1)
-        self.real_A = self.real_A[:bs_per_gpu]
-        self.real_B = self.real_B[:bs_per_gpu]
-        self.input_A_label=self.input_A_label[:bs_per_gpu]
-        if hasattr(self,'input_B_label'):
-            self.input_B_label=self.input_B_label[:bs_per_gpu]
-        self.forward()                     # compute fake images: G(A)
-        if self.opt.isTrain:
-            self.compute_D_loss()                  
-            self.compute_f_s_loss()
-            self.compute_G_loss()                   
-            self.loss_D.backward()# calculate gradients for D
-            self.loss_f_s.backward()# calculate gradients for f_s
-            self.loss_G.backward()# calculate gradients for G
-            if self.opt.lambda_NCE > 0.0:
-                self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
-                self.optimizers.append(self.optimizer_F)
-
-        for optimizer in self.optimizers:
-            optimizer.zero_grad()
-
+        super().data_dependent_initialize(data)
         visual_names_seg_A = ['input_A_label','gt_pred_A','pfB_max']
 
         if hasattr(self,'input_B_label'):
@@ -178,7 +162,7 @@ class CUTSemanticMaskModel(CUTModel):
         super().compute_G_loss()
         
         self.loss_sem = self.opt.lambda_sem*self.criterionf_s(self.pfB, self.input_A_label)
-        if self.loss_f_s.detach().item() > 1.0:
+        if self.loss_f_s > 1.0:
             self.loss_sem = 0 * self.loss_sem
         self.loss_G += self.loss_sem
 
