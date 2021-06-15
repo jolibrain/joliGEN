@@ -87,27 +87,12 @@ class CUTSemanticModel(CUTModel):
             self.group_CLS = NetworkGroup(networks_to_optimize=["CLS"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward=["loss_CLS"])
             self.networks_groups.append(self.group_CLS)
 
-
-    def data_dependent_initialize(self, data):
-        """
-        The feature network netF is defined in terms of the shape of the intermediate, extracted
-        features of the encoder portion of netG. Because of this, the weights of netF are
-        initialized at the first feedforward pass with some input images.
-        Please also see PatchSampleF.create_mlp(), which is called at the first forward() call.
-        """
-        super().data_dependent_initialize(data)
-        bs_per_gpu = self.real_A.size(0) // max(len(self.opt.gpu_ids), 1)
-        self.input_A_label=self.input_A_label[:bs_per_gpu]
+    def set_input_first_gpu(self,data):
+        super().set_input_first_gpu(data)
+        self.input_A_label=self.input_A_label[:self.bs_per_gpu]
         if hasattr(self,'input_B_label'):
-            self.input_B_label=self.input_B_label[:bs_per_gpu]
-        
-        self.forward()                     # compute fake images: G(A)
-        if self.opt.isTrain:
-            self.compute_CLS_loss()
-            self.loss_CLS.backward()# calculate gradients for CLS
-
-        for optimizer in self.optimizers:
-            optimizer.zero_grad()
+            self.input_B_label=self.input_B_label[:self.bs_per_gpu]
+            
             
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
