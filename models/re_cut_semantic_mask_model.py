@@ -25,27 +25,20 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
     def __init__(self, opt):
         super().__init__(opt)
 
-        if self.opt.iter_size == 1:
-            if self.opt.adversarial_loss_p:
-                self.loss_names_G += ["proj_fake_B_adversarial"]
-            self.loss_names_G += ["recut","proj_real_B"]
-            self.loss_names_P = ["proj_real_B"]
-            if self.opt.adversarial_loss_p:
-                self.loss_names_P += ["proj_real_A_adversarial","proj_real_B_adversarial"]
-        else:
-            if self.opt.adversarial_loss_p:
-                self.loss_names_G += ["proj_fake_B_adversarial_avg"]
-            self.loss_names_G += ["recut_avg"]
-            self.loss_names_P = ["proj_real_B_avg"]
-            if self.opt.adversarial_loss_p:
-                self.loss_names_P = ["proj_real_B_adversarial_avg"]
-
+        if self.opt.adversarial_loss_p:
+            self.loss_names_G += ["proj_fake_B_adversarial"]
+        self.loss_names_G += ["recut"]
+        self.loss_names_P = ["proj_real_B"]
+        if self.opt.adversarial_loss_p:
+            self.loss_names_P += ["proj_real_A_adversarial","proj_real_B_adversarial"]
+    
         self.loss_names = self.loss_names_G + self.loss_names_f_s + self.loss_names_D + self.loss_names_P
-
+        
         if self.opt.iter_size > 1 :
             self.iter_calculator = IterCalculator(self.loss_names)
-            for loss_name in self.loss_names:
-                setattr(self, "loss_" + loss_name, 0)
+            for i,cur_loss in enumerate(self.loss_names):
+                    self.loss_names[i] = cur_loss + '_avg'
+                    setattr(self, "loss_" + self.loss_names[i], 0)
 
         self.visual_names += [["real_A_last","proj_fake_B"],["real_B_last","proj_real_B"]]
         
@@ -142,7 +135,7 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
             self.loss_proj_fake_B_adversarial = 0
         
         ## Recycle loss between fake images projection reconstruction and ground truth
-        if not hasattr(self, 'loss_proj_real_B') or (self.loss_proj_real_B.detach().item()) > self.opt.projection_threshold: #if P networks aren't accurate enough on real images, we don't use them on fake images:
+        if not hasattr(self, 'loss_proj_real_B') or (self.loss_proj_real_B) > self.opt.projection_threshold: #if P networks aren't accurate enough on real images, we don't use them on fake images:
             self.loss_recut = 0
             self.loss_proj_fake_B_adversarial = 0
             

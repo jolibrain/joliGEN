@@ -56,29 +56,17 @@ class CycleGANModel(BaseModel):
         """
         super().__init__(opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        if self.opt.iter_size == 1:
-            losses_G = ['G_A','G_B']
-
-            losses_G += ['cycle_A', 'idt_A', 
-                       'cycle_B', 'idt_B']            
+        
+        losses_G = ['G_A','G_B']
+        
+        losses_G += ['cycle_A', 'idt_A', 
+                     'cycle_B', 'idt_B']            
             
-            losses_D = ['D_A', 'D_B']
+        losses_D = ['D_A', 'D_B']
 
-            if opt.netD_global != "none":
-                losses_D += ['D_A_global', 'D_B_global']
-                losses_G += ['G_A_global','G_B_global']
-            
-        else:
-            losses_G = ['G_A_avg','G_B_avg']
-            
-            losses_D = ['D_A_avg', 'D_B_avg']
-
-            if opt.netD_global != "none":
-                losses_D += ['D_A_global_avg', 'D_B_global_avg']
-                losses_G += ['G_A_global_avg','G_B_global_avg']
-
-            losses_G += ['cycle_A_avg', 'idt_A_avg', 
-                       'cycle_B_avg', 'idt_B_avg',]
+        if opt.netD_global != "none":
+            losses_D += ['D_A_global', 'D_B_global']
+            losses_G += ['G_A_global','G_B_global']
 
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
@@ -150,8 +138,9 @@ class CycleGANModel(BaseModel):
             
             if self.opt.iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
-                for loss_name in self.loss_names:
-                    setattr(self, "loss_" + loss_name, 0)
+                for i,cur_loss in enumerate(self.loss_names):
+                    self.loss_names[i] = cur_loss + '_avg'
+                    setattr(self, "loss_" + self.loss_names[i], 0)
 
             self.rec_noise = opt.rec_noise
                     

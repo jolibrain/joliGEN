@@ -25,28 +25,20 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
     def __init__(self, opt):
         super().__init__(opt)
 
-        if self.opt.iter_size == 1:
-
-            if self.opt.adversarial_loss_p:
-                self.loss_names_G += ["proj_fake_A_adversarial","proj_fake_B_adversarial"]
-            self.loss_names_G += ["recycle_A","recycle_B","proj_real_A","proj_real_B"]
-            self.loss_names_P = ["proj_real_A","proj_real_B"]
-            if self.opt.adversarial_loss_p:
-                self.loss_names_P += ["proj_real_A_adversarial","proj_real_B_adversarial"]
-        else:
-            if self.opt.adversarial_loss_p:
-                self.loss_names_G += ["proj_fake_A_adversarial_avg","proj_fake_B_adversarial_avg"]
-            self.loss_names_G += ["recycle_A_avg","recycle_B_avg"]
-            self.loss_names_P = ["proj_real_A_avg","proj_real_B_avg"]
-            if self.opt.adversarial_loss_p:
-                self.loss_names_P = ["proj_real_A_adversarial_avg","proj_real_B_adversarial_avg"]
+        if self.opt.adversarial_loss_p:
+            self.loss_names_G += ["proj_fake_A_adversarial","proj_fake_B_adversarial"]
+        self.loss_names_G += ["recycle_A","recycle_B","proj_real_A","proj_real_B"]
+        self.loss_names_P = ["proj_real_A","proj_real_B"]
+        if self.opt.adversarial_loss_p:
+            self.loss_names_P += ["proj_real_A_adversarial","proj_real_B_adversarial"]
 
         self.loss_names = self.loss_names_G + self.loss_names_f_s + self.loss_names_D + self.loss_names_P
 
         if self.opt.iter_size > 1 :
             self.iter_calculator = IterCalculator(self.loss_names)
-            for loss_name in self.loss_names:
-                setattr(self, "loss_" + loss_name, 0)
+            for i,cur_loss in enumerate(self.loss_names):
+                    self.loss_names[i] = cur_loss + '_avg'
+                    setattr(self, "loss_" + self.loss_names[i], 0)
 
         self.visual_names += [["real_A_last","proj_real_A","rec_proj_A","proj_fake_B"] , ["real_B_last","proj_real_B","rec_proj_B","proj_fake_A"]]
         
@@ -105,7 +97,7 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
             self.loss_proj_fake_A_adversarial = 0
         
         ## Recycle loss between fake images projection reconstruction and ground truth
-        if not hasattr(self, 'loss_proj_real_A') or ((self.loss_proj_real_A + self.loss_proj_real_B).detach().item())/2 > self.opt.projection_threshold: #if P networks aren't accurate enough on real images, we don't use them on fake images:
+        if not hasattr(self, 'loss_proj_real_A') or (self.loss_proj_real_A + self.loss_proj_real_B)/2 > self.opt.projection_threshold: #if P networks aren't accurate enough on real images, we don't use them on fake images:
             self.loss_recycle_A = 0
             self.loss_recycle_B = 0
             self.loss_proj_fake_B_adversarial = 0

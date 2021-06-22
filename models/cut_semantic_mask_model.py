@@ -41,12 +41,8 @@ class CUTSemanticMaskModel(CUTModel):
 
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
-        if self.opt.iter_size == 1:
-            losses_G = ['sem']
-            losses_f_s = ['f_s']
-        else:
-            losses_G = ['sem_avg']
-            losses_f_s = ['f_s_avg']
+        losses_G = ['sem']
+        losses_f_s = ['f_s']
 
         self.loss_names_G += losses_G
         self.loss_names_f_s = losses_f_s
@@ -81,8 +77,9 @@ class CUTSemanticMaskModel(CUTModel):
 
             if self.opt.iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
-            for loss_name in self.loss_names:
-                setattr(self, "loss_" + loss_name, 0)
+                for i,cur_loss in enumerate(self.loss_names):
+                    self.loss_names[i] = cur_loss + '_avg'
+                    setattr(self, "loss_" + self.loss_names[i], 0)
 
             ###Making groups
             self.group_f_s = NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward=["loss_f_s"])
@@ -162,7 +159,7 @@ class CUTSemanticMaskModel(CUTModel):
         super().compute_G_loss()
         
         self.loss_sem = self.opt.lambda_sem*self.criterionf_s(self.pfB, self.input_A_label)
-        if self.loss_f_s > 1.0:
+        if not hasattr(self, 'loss_f_s') or self.loss_f_s > self.opt.semantic_threshold:
             self.loss_sem = 0 * self.loss_sem
         self.loss_G += self.loss_sem
 

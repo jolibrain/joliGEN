@@ -63,23 +63,13 @@ class CUTModel(BaseModel):
 
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
-        if self.opt.iter_size == 1:
-            losses_G = ['G_GAN', 'G', 'NCE']
-            losses_D= ['D_tot','D']
-            if opt.nce_idt and self.isTrain:
-                losses_G += ['NCE_Y']
-            if opt.netD_global != "none":
-                losses_D += ['D_global']
-                losses_G += ['G_GAN_global']
-
-        else:
-            losses_G = ['G_GAN_avg', 'G_avg', 'NCE_avg']
-            losses_D= ['D_tot_avg', 'D_avg']
-            if opt.nce_idt and self.isTrain:
-                losses_G += ['NCE_Y_avg']
-            if opt.netD_global != "none":
-                losses_D += ['D_global_avg']
-                losses_G += ['G_GAN_global_avg']
+        losses_G = ['G_GAN', 'G', 'NCE']
+        losses_D= ['D_tot','D']
+        if opt.nce_idt and self.isTrain:
+            losses_G += ['NCE_Y']
+        if opt.netD_global != "none":
+            losses_D += ['D_global']
+            losses_G += ['G_GAN_global']
 
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
@@ -133,8 +123,9 @@ class CUTModel(BaseModel):
 
             if self.opt.iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
-                for loss_name in self.loss_names:
-                    setattr(self, "loss_" + loss_name, 0)
+                for i,cur_loss in enumerate(self.loss_names):
+                    self.loss_names[i] = cur_loss + '_avg'
+                    setattr(self, "loss_" + self.loss_names[i], 0)
 
             self.niter=0
 

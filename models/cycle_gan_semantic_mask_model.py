@@ -68,32 +68,17 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             opt.fs_light = False
             
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        if self.opt.iter_size == 1:
-            losses_G = ['sem_AB', 'sem_BA']
+        losses_G = ['sem_AB', 'sem_BA']
 
-            if opt.out_mask:
-                losses_G += ['out_mask_AB','out_mask_BA']
+        if opt.out_mask:
+            losses_G += ['out_mask_AB','out_mask_BA']
 
-            losses_f_s = ['f_s']
+        losses_f_s = ['f_s']
             
+        losses_D = []
+        if opt.disc_in_mask:
+            losses_D = ['D_A_mask', 'D_B_mask']
             
-            losses_D = []
-            if opt.disc_in_mask:
-                losses_D = ['D_A_mask', 'D_B_mask']
-            
-        else:
-            losses_G = ['sem_AB_avg', 'sem_BA_avg']
-
-            if opt.out_mask:
-                losses_G += ['out_mask_AB_avg','out_mask_BA_avg']
-
-            losses_f_s = ['f_s_avg']
-            
-            
-            losses_D = []
-            if opt.disc_in_mask:
-                losses_D = ['D_A_mask_avg', 'D_B_mask_avg']
-
         self.loss_names_G += losses_G
         self.loss_names_f_s = losses_f_s
         self.loss_names_D += losses_D
@@ -166,8 +151,10 @@ class CycleGANSemanticMaskModel(CycleGANModel):
 
             if self.opt.iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
-                for loss_name in self.loss_names:
-                    setattr(self, "loss_" + loss_name, 0)
+                for i,cur_loss in enumerate(self.loss_names):
+                    self.loss_names[i] = cur_loss + '_avg'
+                    setattr(self, "loss_" + self.loss_names[i], 0)
+
 
             ###Making groups
             discriminators = ["D_A","D_B"]
@@ -325,7 +312,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         
         # only use semantic loss when classifier has reasonably low loss
         #if True:
-        if not hasattr(self, 'loss_f_s') or self.loss_f_s.detach().item() > self.opt.semantic_threshold:
+        if not hasattr(self, 'loss_f_s') or self.loss_f_s > self.opt.semantic_threshold:
             self.loss_sem_AB = 0 * self.loss_sem_AB 
             self.loss_sem_BA = 0 * self.loss_sem_BA 
         self.loss_G += self.loss_sem_BA + self.loss_sem_AB

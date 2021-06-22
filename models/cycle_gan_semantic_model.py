@@ -51,13 +51,9 @@ class CycleGANSemanticModel(CycleGANModel):
         super().__init__(opt)
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        if self.opt.iter_size == 1:
-            losses_G = ['sem_AB', 'sem_BA']
-            losses_CLS = ['CLS']            
-        else:
-            losses_G = ['sem_AB_avg', 'sem_BA_avg']
-            losses_CLS = ['CLS_avg']
-
+        losses_G = ['sem_AB', 'sem_BA']
+        losses_CLS = ['CLS']            
+        
         self.loss_names_G += losses_G
         self.loss_names_CLS = losses_CLS
 
@@ -90,8 +86,9 @@ class CycleGANSemanticModel(CycleGANModel):
 
             if self.opt.iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
-                for loss_name in self.loss_names:
-                    setattr(self, "loss_" + loss_name, 0)
+                for i,cur_loss in enumerate(self.loss_names):
+                    self.loss_names[i] = cur_loss + '_avg'
+                    setattr(self, "loss_" + self.loss_names[i], 0)
 
             ###Making groups
             self.group_CLS = NetworkGroup(networks_to_optimize=["CLS"],forward_functions=None,backward_functions=["compute_CLS_loss"],loss_names_list=["loss_names_CLS"],optimizer=["optimizer_CLS"],loss_backward=["loss_CLS"])
@@ -167,7 +164,7 @@ class CycleGANSemanticModel(CycleGANModel):
                 
         # only use semantic loss when classifier has reasonably low loss
         #if True:
-        if not hasattr(self, 'loss_CLS') or self.loss_CLS.detach().item() > self.opt.semantic_threshold:
+        if not hasattr(self, 'loss_CLS') or self.loss_CLS > self.opt.semantic_threshold:
             self.loss_sem_AB = 0 * self.loss_sem_AB 
             self.loss_sem_BA = 0 * self.loss_sem_BA 
 
