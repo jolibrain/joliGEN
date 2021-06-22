@@ -60,7 +60,7 @@ def make_labeled_dataset(dir, max_dataset_size=float("inf")):
             labels.append(label)
     
     #print('labels=',labels)        
-    return images[:min(max_dataset_size, len(images))],labels
+    return images[:min(max_dataset_size, len(images))],labels[:min(max_dataset_size, len(images))]
 
 def make_labeled_mask_dataset(dir,paths, max_dataset_size=float("inf")):
     images = []
@@ -78,7 +78,7 @@ def make_labeled_mask_dataset(dir,paths, max_dataset_size=float("inf")):
         elif len(line_split)==1 and len(line_split[0]) > 0: # we allow B not having a label
             images.append(line_split[0])
     
-    return images,labels
+    return images[:min(max_dataset_size, len(images))],labels[:min(max_dataset_size, len(images))]
 
 def make_dataset_path(dir,paths, max_dataset_size=float("inf")):
     images = []

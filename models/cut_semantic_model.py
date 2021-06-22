@@ -41,15 +41,9 @@ class CUTSemanticModel(CUTModel):
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
-        if self.opt.iter_size == 1:
-            losses_G = ['sem']
+        losses_G = ['sem']
 
-            losses_CLS = ['CLS']            
-            
-        else:
-            losses_G = ['sem_avg']
-
-            losses_CLS = ['CLS_avg']            
+        losses_CLS = ['CLS']            
 
         self.loss_names_G += losses_G
         self.loss_names_CLS = losses_CLS
@@ -78,8 +72,9 @@ class CUTSemanticModel(CUTModel):
 
             if self.opt.iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
-                for loss_name in self.loss_names:
-                    setattr(self, "loss_" + loss_name, 0)
+                for i,cur_loss in enumerate(self.loss_names):
+                    self.loss_names[i] = cur_loss + '_avg'
+                    setattr(self, "loss_" + self.loss_names[i], 0)
             
             self.niter=0
 
@@ -131,7 +126,7 @@ class CUTSemanticModel(CUTModel):
             self.loss_sem = self.criterionCLS(self.pred_fake_B, self.input_A_label)
         else:
             self.loss_sem = self.criterionCLS(self.pred_fake_B.squeeze(1), self.input_A_label)
-        if not hasattr(self, 'loss_CLS') or self.loss_CLS.detach().item() > self.opt.semantic_threshold:
+        if not hasattr(self, 'loss_CLS') or self.loss_CLS > self.opt.semantic_threshold:
             self.loss_sem = 0 * self.loss_sem
         self.loss_G += self.loss_sem
     

@@ -362,10 +362,10 @@ class BaseModel(ABC):
             if self.opt.iter_size > 1:
                 self.iter_calculator.compute_last_step(loss_names)
                 for loss_name in loss_names:
-                    setattr(self, "loss_" + loss_name , getattr(self.iter_calculator, "loss_" + loss_name ))               
+                    setattr(self, "loss_" + loss_name + "_avg", getattr(self.iter_calculator, "loss_" + loss_name ))               
         elif self.opt.iter_size > 1:
             for loss_name in loss_names:
-                value=getattr(self, "loss_" + loss_name[:-4])/self.opt.iter_size
+                value=getattr(self, "loss_" + loss_name)/self.opt.iter_size
                 if torch.is_tensor(value):
                     value = value.detach()                    
                 self.iter_calculator.compute_step(loss_name,value)
