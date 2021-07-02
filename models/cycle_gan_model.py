@@ -208,10 +208,10 @@ class CycleGANModel(BaseModel):
             self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
             
         if self.opt.D_noise > 0.0:
-            self.fake_B_noisy = gaussian(self.fake_B, self.D_noise)
-            self.real_A_noisy = gaussian(self.real_A, self.D_noise)
-            self.fake_A_noisy = gaussian(self.fake_A, self.D_noise)
-            self.real_B_noisy = gaussian(self.real_B, self.D_noise)
+            self.fake_B_noisy = gaussian(self.fake_B, self.opt.D_noise)
+            self.real_A_noisy = gaussian(self.real_A, self.opt.D_noise)
+            self.fake_A_noisy = gaussian(self.fake_A, self.opt.D_noise)
+            self.real_B_noisy = gaussian(self.real_B, self.opt.D_noise)
 
         if self.opt.lambda_identity > 0:
             self.idt_A = self.netG_A(self.real_B)
