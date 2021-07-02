@@ -59,6 +59,7 @@ class BaseOptions():
         parser.add_argument('--affine_scale_min', type=float, default=0.8, help='if random affine specified, min scale range value')
         parser.add_argument('--affine_scale_max', type=float, default=1.2, help='if random affine specified, max scale range value')
         parser.add_argument('--affine_shear', type=int, default=45, help='if random affine specified, shear range (0,value)')
+        parser.add_argument('--imgaug', action='store_true', help='whether to apply random image augmentation')
         parser.add_argument('--display_winsize', type=int, default=256, help='display window size for both visdom and HTML')
         # additional parameters
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')

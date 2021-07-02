@@ -11,6 +11,8 @@ from abc import ABC, abstractmethod
 import torchvision.transforms.functional as F
 import torch
 from torchvision.transforms import InterpolationMode
+import imgaug as ia
+import imgaug.augmenters as iaa
 
 class BaseDataset(data.Dataset, ABC):
     """This class is an abstract base class (ABC) for datasets.
@@ -112,7 +114,11 @@ def get_transform(opt, params=None, grayscale=False, method=InterpolationMode.BI
         transform_list.append(transforms.RandomAffine(0,(opt.affine_translate, opt.affine_translate),
                                                       (opt.affine_scale_min, opt.affine_scale_max),
                                                       (-opt.affine_shear, opt.affine_shear)))
-        
+
+
+    if not grayscale:
+        transform_list.append(RandomImgAug(with_mask=False))
+    
     if convert:
         transform_list += [transforms.ToTensor()]
         if grayscale:
@@ -183,6 +189,10 @@ def get_transform_seg(opt, params=None, grayscale=False, method=InterpolationMod
     if 'crop' in opt.preprocess:
         transform_list.append(RandomCropMask(opt.crop_size))
 
+    if opt.imgaug:
+        if not grayscale:
+            transform_list.append(RandomImgAug())
+        
     if not opt.no_flip:
         transform_list.append(RandomHorizontalFlipMask())
 
@@ -197,12 +207,12 @@ def get_transform_seg(opt, params=None, grayscale=False, method=InterpolationMod
         transform_list.append(raff)
         
     transform_list += [ToTensorMask()]
-
+    
     if grayscale:
         transform_list += [NormalizeMask((0.5,), (0.5,))]
     else:
         transform_list += [NormalizeMask((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-
+        
     return ComposeMask(transform_list)
 
 
@@ -475,6 +485,64 @@ class RandomAffineMask(transforms.RandomAffine):
             return img, mask
 
 
+class RandomImgAug(with_mask=True):
+
+    def __init__(self):
+        self.with_mask = with_mask
+        self.sometimes = lambda aug: iaa.Sometimes(0.5, aug)
+        self.seq = iaa.Sequential(
+            [
+            iaa.SomeOf((0, 5),
+                [
+                    self.sometimes(iaa.Superpixels(p_replace=(0, 0.5), n_segments=(100, 200))), # convert images into their superpixel representation
+                    iaa.OneOf([
+                        iaa.GaussianBlur((0, 3.0)), # blur images with a sigma between 0 and 3.0
+                        iaa.AverageBlur(k=(2, 7)), # blur image using local means with kernel sizes between 2 and 7
+                        iaa.MedianBlur(k=(3, 11)), # blur image using local medians with kernel sizes between 2 and 7
+                    ]),
+                    iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.5)), # sharpen images
+                    iaa.Emboss(alpha=(0, 1.0), strength=(0, 2.0)), # emboss images
+                    # search either for all edges or for directed edges,
+                    # blend the result with the original image using a blobby mask
+                    iaa.SimplexNoiseAlpha(iaa.OneOf([
+                        iaa.EdgeDetect(alpha=(0.5, 1.0)),
+                        iaa.DirectedEdgeDetect(alpha=(0.5, 1.0), direction=(0.0, 1.0)),
+                    ])),
+                    iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05*255), per_channel=0.5), # add gaussian noise to images
+                    #iaa.OneOf([
+                    #    iaa.Dropout((0.01, 0.1), per_channel=0.5), # randomly remove up to 10% of the pixels
+                    #    iaa.CoarseDropout((0.03, 0.15), size_percent=(0.02, 0.05), per_channel=0.2),
+                    #]),
+                    iaa.Invert(0.05, per_channel=True), # invert color channels
+                    iaa.Add((-5, 5), per_channel=0.5), # change brightness of images
+                    iaa.AddToHueAndSaturation((-20, 20)), # change hue and saturation
+                    # either change the brightness of the whole image (sometimes
+                    # per channel) or change the brightness of subareas
+                    iaa.OneOf([
+                        iaa.Multiply((0.5, 1.5), per_channel=0.5),
+                        iaa.FrequencyNoiseAlpha(
+                            exponent=(-4, 0),
+                            first=iaa.Multiply((0.5, 1.5), per_channel=True),
+                            second=iaa.LinearContrast((0.5, 2.0))
+                        )
+                    ]),
+                    iaa.LinearContrast((0.5, 2.0), per_channel=0.5), # improve or worsen the contrast
+                    iaa.Grayscale(alpha=(0.0, 1.0))
+                ],
+                random_order=True
+            )
+        ],
+        random_order=True
+    )
+    
+    def __call__(self, img, mask):
+        tarr = self.seq(image=np.array(img))
+        nimg = Image.fromarray(tarr)
+        if self.with_mask:
+            return nimg, mask
+        else:
+            return nimg
+        
 ################################################################
 
 def get_transform_list(opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC):
