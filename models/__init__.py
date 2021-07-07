@@ -19,8 +19,23 @@ See our template model class 'template_model.py' for more details.
 """
 
 import importlib
+import pkgutil
+import inspect
 from models.base_model import BaseModel
 
+def get_models_names():
+    model_names = set()
+    for importer, module_name, ispkg in pkgutil.iter_modules(__path__):
+        model_name = module_name[:-6]
+        
+        try:
+            find_model_using_name(model_name)
+            if (model_name != "base"):
+                model_names |= { model_name }
+        except:
+            pass
+        
+    return list(model_names)
 
 def find_model_using_name(model_name):
     """Import the module "models/[model_name]_model.py".
@@ -39,8 +54,7 @@ def find_model_using_name(model_name):
             model = cls
 
     if model is None:
-        print("In %s.py, there should be a subclass of BaseModel with class name that matches %s in lowercase." % (model_filename, target_model_name))
-        exit(0)
+        raise RuntimeError("In %s.py, there should be a subclass of BaseModel with class name that matches %s in lowercase." % (model_filename, target_model_name))
 
     return model
 
