@@ -13,11 +13,11 @@
 
 - Image to image translation while preserving semantic
 
-_glasses 2 no glasses, explicative schemas, results_
+<!-- _glasses 2 no glasses, explicative schemas, results_ -->
 
 - Image to image translation to cope with scarce data
 
-_eye gaze or another dataset, schemas, results_
+<!-- _eye gaze or another dataset, schemas, results_ -->
 
 ## Models
 
@@ -27,7 +27,7 @@ _eye gaze or another dataset, schemas, results_
 | CyCADA | https://arxiv.org/abs/1711.03213 |
 | CUT | https://arxiv.org/abs/2007.15651 |
 | RecycleGAN | https://arxiv.org/abs/1808.05174 |
-| SyleGAN2 | https://arxiv.org/abs/1912.04958 |
+| StyleGAN2 | https://arxiv.org/abs/1912.04958 |
 
 ## Quick Start
 
@@ -77,6 +77,6 @@ bash ./scripts/train_cyclegan_semantic_mask.sh dataroot
 
 ## Authors
 
-**JoliGAN** is maintained by [Jolibrain](https://www.jolibrain.com/).
+**JoliGAN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).
 
-Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/taesungp/contrastive-unpaired-translation) and [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN).
+Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/taesungp/contrastive-unpaired-translation) and [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN) among others.

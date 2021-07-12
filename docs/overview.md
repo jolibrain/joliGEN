@@ -1,7 +1,8 @@
 ## Overview of Code Structure
+
 To help users better understand and use our codebase, we briefly overview the functionality and implementation of each package and each module. Please see the documentation in each file for more details. If you have questions, you may find useful information in [training/test tips](tips.md) and [frequently asked questions](qa.md).
 
-[train.py](../train.py) is a general-purpose training script. It works for various models (with option `--model`: e.g., `pix2pix`, `cyclegan`, `colorization`) and different datasets (with option `--dataset_mode`: e.g., `aligned`, `unaligned`, `single`, `colorization`). See the main [README](.../README.md) and [training/test  tips](tips.md) for more details.
+[train.py](../train.py) is a general-purpose training script. It works for various models (with option `--model`: e.g., `cycle_gan`, `cut`, `cycle_gan_semantic`, ...) and different datasets (with option `--dataset_mode`: e.g., `aligned`, `unaligned`, `unaligned_labeled`, `unaligned_labeled_mask`). See the main [README](.../README.md) and [training/test  tips](tips.md) for more details.
 
 [test.py](../test.py) is a general-purpose test script. Once you have trained your model with `train.py`, you can use this script to test the model. It will load a saved model from `--checkpoints_dir` and save the results to `--results_dir`. See the main [README](.../README.md) and [training/test tips](tips.md) for more details.
 
