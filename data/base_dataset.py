@@ -484,17 +484,18 @@ class RandomAffineMask(transforms.RandomAffine):
         else:
             return img, mask
 
-
+def sometimes(aug):
+    return iaa.Sometimes(0.5, aug)
+    
 class RandomImgAug():
 
     def __init__(self,with_mask=True):
         self.with_mask = with_mask
-        self.sometimes = lambda aug: iaa.Sometimes(0.5, aug)
         self.seq = iaa.Sequential(
             [
             iaa.SomeOf((0, 5),
                 [
-                    self.sometimes(iaa.Superpixels(p_replace=(0, 0.5), n_segments=(100, 200))), # convert images into their superpixel representation
+                    sometimes(iaa.Superpixels(p_replace=(0, 0.5), n_segments=(100, 200))), # convert images into their superpixel representation
                     iaa.OneOf([
                         iaa.GaussianBlur((0, 3.0)), # blur images with a sigma between 0 and 3.0
                         iaa.AverageBlur(k=(2, 7)), # blur image using local means with kernel sizes between 2 and 7
