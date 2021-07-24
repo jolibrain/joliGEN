@@ -485,9 +485,9 @@ class RandomAffineMask(transforms.RandomAffine):
             return img, mask
 
 
-class RandomImgAug(with_mask=True):
+class RandomImgAug():
 
-    def __init__(self):
+    def __init__(self,with_mask=True):
         self.with_mask = with_mask
         self.sometimes = lambda aug: iaa.Sometimes(0.5, aug)
         self.seq = iaa.Sequential(
