@@ -116,7 +116,7 @@ def get_transform(opt, params=None, grayscale=False, method=InterpolationMode.BI
                                                       (-opt.affine_shear, opt.affine_shear)))
 
 
-    if not grayscale:
+    if opt.imgaug and not grayscale:
         transform_list.append(RandomImgAug(with_mask=False))
     
     if convert:
