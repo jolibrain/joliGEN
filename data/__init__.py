@@ -13,7 +13,7 @@ See our template dataset class 'template_dataset.py' for more details.
 import importlib
 import torch.utils.data
 from data.base_dataset import BaseDataset
-
+from torch.utils import data
 
 def find_dataset_using_name(dataset_name):
     """Import the module "data/[dataset_name]_dataset.py".
@@ -44,7 +44,7 @@ def get_option_setter(dataset_name):
     return dataset_class.modify_commandline_options
 
 
-def create_dataset(opt):
+def create_dataset(opt,rank):
     """Create a dataset given the option.
 
     This function wraps the class CustomDatasetDataLoader.
@@ -54,7 +54,7 @@ def create_dataset(opt):
         >>> from data import create_dataset
         >>> dataset = create_dataset(opt)
     """
-    data_loader = CustomDatasetDataLoader(opt)
+    data_loader = CustomDatasetDataLoader(opt,rank)
     dataset = data_loader.load_data()
     return dataset
 
@@ -69,7 +69,7 @@ def collate_fn(batch):
 class CustomDatasetDataLoader():
     """Wrapper class of Dataset class that performs multi-threaded data loading"""
 
-    def __init__(self, opt):
+    def __init__(self, opt,rank):
         """Initialize this class
 
         Step 1: create a dataset instance given the name [dataset_mode]
@@ -78,11 +78,19 @@ class CustomDatasetDataLoader():
         self.opt = opt
         dataset_class = find_dataset_using_name(opt.dataset_mode)
         self.dataset = dataset_class(opt)
-        print("dataset [%s] was created" % type(self.dataset).__name__)
+        if rank==0:
+            print("dataset [%s] was created" % type(self.dataset).__name__)
+        if len(opt.gpu_ids)>1:
+            sampler=data.distributed.DistributedSampler(self.dataset, shuffle=not opt.serial_batches)
+            shuffle=False
+        else:
+            sampler=None
+            shuffle=not opt.serial_batches
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=opt.batch_size,
-            shuffle=not opt.serial_batches,
+            sampler=sampler,
+            shuffle=shuffle,
             num_workers=int(opt.num_threads),
             collate_fn=collate_fn)
 

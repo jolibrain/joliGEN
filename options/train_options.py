@@ -43,7 +43,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--beta2', type=float, default=0.999, help='momentum term of adam')
 
         #contrastive loss
-        parser.add_argument('--use_contrastive_loss_D', action='store_true')        
+        parser.add_argument('--use_contrastive_loss_D', action='store_true')
+        parser.add_argument('--ddp_port', type=str, default='12355')
 
         self.isTrain = True
         return parser

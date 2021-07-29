@@ -14,6 +14,9 @@ class PatchSampleF(nn.Module):
         self.init_gain = init_gain
         self.gpu_ids = gpu_ids
 
+    def set_device(self,device):
+        self.device=device
+
     def create_mlp(self, feats):
         for mlp_id, feat in enumerate(feats):
             input_nc = feat.shape[1]
@@ -22,6 +25,8 @@ class PatchSampleF(nn.Module):
                 mlp.cuda()
             setattr(self, 'mlp_%d' % mlp_id, mlp)
         init_net(self, self.init_type, self.init_gain, self.gpu_ids)
+        for mlp_id in range(len(feats)):
+            setattr(self, 'mlp_%d' % mlp_id, getattr(self, 'mlp_%d' % mlp_id).to(self.device))
         self.mlp_init = True
 
     def forward(self, feats, num_patches=64, patch_ids=None):

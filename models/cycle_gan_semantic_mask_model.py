@@ -54,8 +54,8 @@ class CycleGANSemanticMaskModel(CycleGANModel):
 
         return parser
     
-    def __init__(self, opt):
-        super().__init__(opt)
+    def __init__(self, opt,rank):
+        super().__init__(opt,rank)
         if not hasattr(opt, 'disc_in_mask'):
             opt.disc_in_mask = False
         if not hasattr(opt, 'out_mask'):

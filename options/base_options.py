@@ -141,7 +141,7 @@ class BaseOptions():
             opt_file.write(message)
             opt_file.write('\n')
 
-    def parse(self):
+    def parse(self,rank):
         """Parse our options, create checkpoints directory suffix, and set up gpu device."""
         opt = self.gather_options()
         opt.isTrain = self.isTrain   # train or test
@@ -151,7 +151,8 @@ class BaseOptions():
             suffix = ('_' + opt.suffix.format(**vars(opt))) if opt.suffix != '' else ''
             opt.name = opt.name + suffix
 
-        self.print_options(opt)
+        if rank==0:
+            self.print_options(opt)
 
         # set gpu ids
         str_ids = opt.gpu_ids.split(',')

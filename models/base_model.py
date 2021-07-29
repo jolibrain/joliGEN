@@ -22,7 +22,7 @@ class BaseModel(ABC):
         -- <modify_commandline_options>:    (optionally) add model-specific options and set default options.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt,rank):
         """Initialize the BaseModel class.
 
         Parameters:
@@ -36,6 +36,7 @@ class BaseModel(ABC):
             -- self.visual_names (str list):        define networks used in our training.
             -- self.optimizers (optimizer list):    define and initialize optimizers. You can define one optimizer for each network. If two networks are updated at the same time, you can use itertools.chain to group them. See cycle_gan_model.py for an example.
         """
+        self.rank=rank
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
@@ -45,7 +46,7 @@ class BaseModel(ABC):
             self.disc_in_mask = False
         if hasattr(opt,'fs_light'):
             self.fs_light = opt.fs_light
-        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')  # get device name: CPU or GPU
+        self.device = torch.device('cuda:{}'.format(self.gpu_ids[rank]) if self.gpu_ids else torch.device('cpu'))  # get device name: CPU or GPU
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)  # save all the checkpoints to save_dir
         if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
             torch.backends.cudnn.benchmark = True
@@ -135,14 +136,22 @@ class BaseModel(ABC):
         if not self.isTrain or opt.continue_train:
             load_suffix = 'iter_%d' % opt.load_iter if opt.load_iter > 0 else opt.epoch
             self.load_networks(load_suffix)
-        self.print_networks(opt.verbose)
+        if self.rank==0:
+            self.print_networks(opt.verbose)
 
-    def parallelize(self):
+    def parallelize(self,rank):
         for name in self.model_names:
             if isinstance(name, str):
-                net = getattr(self, 'net' + name)
-                setattr(self, 'net' + name, torch.nn.DataParallel(net, self.opt.gpu_ids))
+                net = getattr(self, 'net' + name).to(self.gpu_ids[rank])
+                self.set_requires_grad(net, True)
+                net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
+                setattr(self, 'net' + name, torch.nn.parallel.DistributedDataParallel(net, device_ids=[self.gpu_ids[rank]]))
 
+    def single_gpu(self):
+        for name in self.model_names:
+            if isinstance(name, str):
+                net = getattr(self, 'net' + name).to(self.gpu_ids[0])
+                setattr(self, 'net' + name, net)
         
     def eval(self):
         """Make models eval mode during test time"""
@@ -219,9 +228,11 @@ class BaseModel(ABC):
                 save_path = os.path.join(self.save_dir, save_filename)
                 net = getattr(self, 'net' + name)
 
-                if len(self.gpu_ids) > 0 and torch.cuda.is_available():
+                if len(self.gpu_ids) ==1 and torch.cuda.is_available():
                     torch.save(net.module.cpu().state_dict(), save_path)
-                    net.cuda(self.gpu_ids[0])
+                    net.cuda(self.gpu_ids[self.rank])
+                elif len(self.gpu_ids) >1 and torch.cuda.is_available():
+                    torch.save(net.state_dict(), save_path)
                 else:
                     torch.save(net.cpu().state_dict(), save_path)
 

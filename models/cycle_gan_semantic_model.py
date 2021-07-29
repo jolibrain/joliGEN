@@ -47,8 +47,8 @@ class CycleGANSemanticModel(CycleGANModel):
             
         return parser
     
-    def __init__(self, opt):
-        super().__init__(opt)
+    def __init__(self, opt,rank):
+        super().__init__(opt,rank)
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         losses_G = ['sem_AB', 'sem_BA']

@@ -63,22 +63,20 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     norm_layer = get_norm_layer(norm_type=norm)
     
     if netG == 'resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, padding_type=padding_type)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, padding_type=padding_type)
     elif netG == 'resnet_6blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=6, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, padding_type=padding_type)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=6, padding_type=padding_type)
     elif netG == 'resnet_12blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=12, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, padding_type=padding_type)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=12, padding_type=padding_type)
     elif netG == 'resnet_3blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=3, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, padding_type=padding_type)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=3, padding_type=padding_type)
     elif netG == 'mobile_resnet_9blocks':
         net = MobileResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
                                         dropout_rate=0.0, n_blocks=9, wplus=wplus,
-                                        init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
                                         img_size=img_size, img_size_dec=img_size_dec)
     elif netG == 'mobile_resnet_3blocks':
         net = MobileResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
                                         dropout_rate=0.0, n_blocks=3, wplus=wplus,
-                                        init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids,
                                         img_size=img_size, img_size_dec=img_size_dec)
     elif netG == 'unet_128':
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)

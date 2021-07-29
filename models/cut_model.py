@@ -58,8 +58,8 @@ class CUTModel(BaseModel):
 
         return parser
 
-    def __init__(self, opt):
-        BaseModel.__init__(self, opt)
+    def __init__(self, opt,rank):
+        BaseModel.__init__(self, opt,rank)
 
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
@@ -97,6 +97,7 @@ class CUTModel(BaseModel):
         self.netG =networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.G_spectral, opt.init_type, opt.init_gain, self.gpu_ids,opt=self.opt)
         self.netF = networks.define_F(opt.input_nc, opt.netF, opt.normG, not opt.no_dropout, opt.init_type, opt.init_gain, opt.no_antialias, self.gpu_ids, opt)
+        self.netF.set_device(self.device)
         if self.isTrain:
             self.netD = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,opt)
@@ -154,7 +155,7 @@ class CUTModel(BaseModel):
 
     def set_input_first_gpu(self,data):
         self.set_input(data)
-        self.bs_per_gpu = self.real_A.size(0) // max(len(self.opt.gpu_ids), 1)
+        self.bs_per_gpu = self.real_A.size(0) #// max(len(self.opt.gpu_ids), 1)
         self.real_A = self.real_A[:self.bs_per_gpu]
         self.real_B = self.real_B[:self.bs_per_gpu]
             
@@ -165,6 +166,9 @@ class CUTModel(BaseModel):
         initialized at the first feedforward pass with some input images.
         Please also see PatchSampleF.create_mlp(), which is called at the first forward() call.
         """
+        for net in self.model_names:
+            setattr(self,"net" + net,getattr(self,"net" + net).to(self.device))
+
         self.set_input_first_gpu(data)
         if self.opt.isTrain:
             self.optimize_parameters()
@@ -238,6 +242,7 @@ class CUTModel(BaseModel):
             feat_q = [torch.flip(fq, [3]) for fq in feat_q]
 
         feat_k = self.netG(src, self.nce_layers, True)
+
         feat_k_pool, sample_ids = self.netF(feat_k, self.opt.num_patches, None)
         feat_q_pool, _ = self.netF(feat_q, self.opt.num_patches, sample_ids)
         total_nce_loss = 0.0

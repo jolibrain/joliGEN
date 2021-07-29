@@ -35,8 +35,8 @@ class CUTSemanticModel(CUTModel):
 
         return parser
 
-    def __init__(self, opt):
-        super().__init__(opt)
+    def __init__(self, opt,rank):
+        super().__init__(opt,rank)
 
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
@@ -54,6 +54,8 @@ class CUTSemanticModel(CUTModel):
             self.netCLS = networks.define_C(opt.output_nc, opt.ndf,opt.crop_size,
                                             init_type=opt.init_type, init_gain=opt.init_gain,
                                             gpu_ids=self.gpu_ids, nclasses=opt.semantic_nclasses)
+
+            self.model_names += ["CLS"]
  
             # define loss functions
             self.criterionCLS = torch.nn.modules.CrossEntropyLoss()

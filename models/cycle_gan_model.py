@@ -48,13 +48,13 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
         return parser
 
-    def __init__(self, opt):
+    def __init__(self, opt,rank):
         """Initialize the CycleGAN class.
 
         Parameters:
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        super().__init__(opt)
+        super().__init__(opt,rank)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         
         losses_G = ['G_A','G_B']

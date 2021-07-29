@@ -64,7 +64,7 @@ class MobileResnetBlock(nn.Module):
 class MobileResnetGenerator(nn.Module):
     def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
                  dropout_rate=0.0, n_blocks=9, padding_type='reflect',
-                 wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
+                 wplus=True,
                  img_size=128, img_size_dec=128):
         assert (n_blocks >= 0)
         super(MobileResnetGenerator, self).__init__()
@@ -75,12 +75,12 @@ class MobileResnetGenerator(nn.Module):
         
         self.encoder=MobileResnetEncoder(input_nc, output_nc, ngf, norm_layer,
                  dropout_rate, n_blocks, padding_type,
-                 wplus, init_type, init_gain, gpu_ids,
+                 wplus,
                  img_size, img_size_dec)
 
         self.decoder=MobileResnetDecoder(input_nc, output_nc, ngf, norm_layer,
                  dropout_rate, n_blocks, padding_type,
-                 wplus, init_type, init_gain, gpu_ids,
+                 wplus,
                  img_size, img_size_dec)
                 
     def forward(self, input, extract_layer_ids=[], encode_only=False):
@@ -102,7 +102,7 @@ class MobileResnetGenerator(nn.Module):
 class MobileResnetEncoder(nn.Module):
     def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
                  dropout_rate=0, n_blocks=9, padding_type='reflect',
-                 wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
+                 wplus=True,
                  img_size=128, img_size_dec=128):
         assert (n_blocks >= 0)
         self.wplus = wplus
@@ -174,7 +174,7 @@ class MobileResnetEncoder(nn.Module):
 class MobileResnetDecoder(nn.Module):
     def __init__(self, input_nc, output_nc, ngf, norm_layer=nn.InstanceNorm2d,
                  dropout_rate=0, n_blocks=9, padding_type='reflect', decoder=True,
-                 wplus=True, init_type='normal', init_gain=0.02, gpu_ids=[],
+                 wplus=True,
                  img_size=128, img_size_dec=128):
         assert (n_blocks >= 0)
         super(MobileResnetDecoder, self).__init__()
@@ -230,7 +230,7 @@ class MobileResnetBlock_attn(nn.Module):
 
 class MobileResnetGenerator_attn(nn.Module):
     # initializers
-    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[],size=128,nb_attn = 10,nb_mask_input=1,padding_type='reflect'): #nb_attn : nombre de masques d'attention, nb_mask_input : nb de masques d'attention qui vont etre appliqués a l'input
+    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False,size=128,nb_attn = 10,nb_mask_input=1,padding_type='reflect'): #nb_attn : nombre de masques d'attention, nb_mask_input : nb de masques d'attention qui vont etre appliqués a l'input
         super(MobileResnetGenerator_attn, self).__init__()
         self.input_nc = input_nc
         self.output_nc = output_nc
