@@ -36,8 +36,8 @@ class CUTSemanticMaskModel(CUTModel):
 
         return parser
         
-    def __init__(self, opt):
-        super().__init__(opt)
+    def __init__(self, opt,rank):
+        super().__init__(opt,rank)
 
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>

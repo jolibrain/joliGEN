@@ -178,7 +178,7 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
 class DiscriminatorContrastiveLoss(DiscriminatorLoss):
     def __init__(self,opt,netD,device):
         super().__init__(opt,netD,device)
-        self.nb_preds=int(torch.prod(torch.tensor(netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float,device=self.device)).shape)))
+        self.nb_preds=int(torch.prod(torch.tensor(netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float)).shape)))
         self.criterionContrastive = ContrastiveLoss(self.nb_preds)
         
     def compute_loss_D(self,netD,real,fake):

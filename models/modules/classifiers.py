@@ -9,7 +9,7 @@ import torchvision.models as models
 import math
 
 class Classifier(nn.Module):
-    def __init__(self, input_nc, ndf, nclasses,img_size, norm_layer=nn.BatchNorm2d):
+    def __init__(self, input_nc, ndf, nclasses,img_size, norm_layer=nn.SyncBatchNorm):
         super(Classifier, self).__init__()
 
         kw = 3
@@ -70,10 +70,10 @@ class VGG16_FCN8s(nn.Module):
         self.vgg = make_layers(models.vgg.cfgs['D'])
         self.vgg_head = nn.Sequential(
             nn.Conv2d(512, 4096, 7),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Dropout2d(p=0.5),
             nn.Conv2d(4096, 4096, 1),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Dropout2d(p=0.5),
             nn.Conv2d(4096, num_cls, 1)
             )
