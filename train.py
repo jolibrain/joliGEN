@@ -50,11 +50,14 @@ def train_gpu(rank,world_size):
         data=next(iter(dataset))
         model.data_dependent_initialize(data)
 
+    model.setup(opt)               # regular setup: load and print networks; create schedulers
+
     if len(opt.gpu_ids)>1:
         model.parallelize(rank)
     else:
         model.single_gpu()        
-    model.setup(opt)               # regular setup: load and print networks; create schedulers
+
+    
     visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     total_iters = 0                # the total number of training iterations
         
