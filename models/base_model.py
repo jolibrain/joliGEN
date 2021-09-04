@@ -227,11 +227,11 @@ class BaseModel(ABC):
                 save_filename = '%s_net_%s.pth' % (epoch, name)
                 save_path = os.path.join(self.save_dir, save_filename)
                 net = getattr(self, 'net' + name)
-
-                if torch.cuda.is_available():
-                    torch.save(net.state_dict(), save_path)
+                
+                if len(self.gpu_ids) >1 and torch.cuda.is_available():
+                    torch.save(net.module.state_dict(), save_path)
                 else:
-                    torch.save(net.cpu().state_dict(), save_path)
+                    torch.save(net.state_dict(), save_path)
 
     def __patch_instance_norm_state_dict(self, state_dict, module, keys, i=0):
         """Fix InstanceNorm checkpoints incompatibility (prior to 0.4)"""
