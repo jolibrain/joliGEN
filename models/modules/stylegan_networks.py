@@ -306,7 +306,7 @@ class ModulatedConv2d(nn.Module):
         if style is not None:
             style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
         else:
-            style = torch.ones(batch, 1, in_channel, 1, 1).cuda()
+            style = torch.ones(batch, 1, in_channel, 1, 1).to(input.device)
         weight = self.scale * self.weight * style
 
         if self.demodulate:
@@ -398,8 +398,8 @@ class StyledConv(nn.Module):
             blur_kernel=blur_kernel,
             demodulate=demodulate,
         )
-
-        self.noise = NoiseInjection()
+        if self.inject_noise:
+            self.noise = NoiseInjection()
         # self.bias = nn.Parameter(torch.zeros(1, out_channel, 1, 1))
         # self.activate = ScaledLeakyReLU(0.2)
         self.activate = FusedLeakyReLU(out_channel)
