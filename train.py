@@ -115,8 +115,8 @@ def train_gpu(rank,world_size):
         if epoch % opt.save_epoch_freq == 0:              # cache our model every <save_epoch_freq> epochs
             if rank == 0:
                 print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
-            model.save_networks('latest')
-            model.save_networks(epoch)
+                model.save_networks('latest')
+                model.save_networks(epoch)
 
         if rank == 0:
             print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))    
