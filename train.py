@@ -35,7 +35,11 @@ def setup(rank, world_size,port):
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     
 
+def signal_handler(sig, frame):
+    dist.destroy_process_group()
+ 
 def train_gpu(rank,world_size):
+    signal.signal(signal.SIGINT, signal_handler) #to really kill the process
     opt = TrainOptions().parse(rank)   # get training options
     if len(opt.gpu_ids)>1:
         setup(rank, world_size,opt.ddp_port)
