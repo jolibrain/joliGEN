@@ -26,6 +26,7 @@ from util.visualizer import Visualizer
 import torch.multiprocessing as mp
 import os
 import torch.distributed as dist
+import signal
 
 def setup(rank, world_size,port):
     os.environ['MASTER_ADDR'] = 'localhost'
