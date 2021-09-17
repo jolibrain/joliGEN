@@ -85,6 +85,21 @@ class BaseOptions():
         parser.add_argument('--D_label_smooth', action='store_true', help='whether to use one-sided label smoothing with discriminator')
         parser.add_argument('--D_noise', type=float, default=0.0, help='whether to add instance noise to discriminator inputs')
 
+        #Online dataset creation options
+        parser.add_argument('--online_creation_crop_size_A', type=int, default=512, help='crop to this size during online creation, it needs to be greater than bbox size for domain A')
+        parser.add_argument('--online_creation_crop_delta_A', type=int, default=50, help='size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain A')
+        parser.add_argument('--online_creation_mask_delta_A', type=int, default=0, help='mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain A')
+        parser.add_argument('--online_creation_mask_square_A', action='store_true', help='whether masks should be squared for domain A')
+
+        parser.add_argument('--online_creation_crop_size_B', type=int, default=512, help='crop to this size during online creation, it needs to be greater than bbox size for domain B')
+        parser.add_argument('--online_creation_crop_delta_B', type=int, default=50, help='size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain B')
+        parser.add_argument('--online_creation_mask_delta_B', type=int, default=0, help='mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B')
+        parser.add_argument('--online_creation_mask_square_B', action='store_true', help='whether masks should be squared for domain B')
+
+
+        parser.add_argument('--sanitize_paths',action='store_true',help='if true, wrong images or labels paths will be removed before training')
+        parser.add_argument('--sanitize_paths_vebose',action='store_true',help='if true, wrong images or labels paths will be printed')
+
         self.initialized = True
         return parser
 

@@ -62,7 +62,7 @@ def make_labeled_dataset(dir, max_dataset_size=float("inf")):
     #print('labels=',labels)        
     return images[:min(max_dataset_size, len(images))],labels[:min(max_dataset_size, len(images))]
 
-def make_labeled_mask_dataset(dir,paths, max_dataset_size=float("inf")):
+def make_labeled_path_dataset(dir,paths, max_dataset_size=float("inf")):
     images = []
     labels = []
     assert os.path.isdir(dir), '%s is not a valid directory' % dir
