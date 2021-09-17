@@ -129,6 +129,7 @@ def train_gpu(rank,world_size):
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, signal_handler) #to really kill the process
     opt = TrainOptions().parse(rank=None)   # get training options
     world_size=len(opt.gpu_ids)
     
