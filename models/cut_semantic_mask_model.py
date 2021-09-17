@@ -42,6 +42,9 @@ class CUTSemanticMaskModel(CUTModel):
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
         losses_G = ['sem']
+        if opt.out_mask:
+            losses_G += ['out_mask']
+
         losses_f_s = ['f_s']
 
         self.loss_names_G += losses_G
@@ -54,9 +57,6 @@ class CUTSemanticMaskModel(CUTModel):
             self.netf_s = networks.define_f(opt.input_nc, nclasses=opt.semantic_nclasses, 
                                             init_type=opt.init_type, init_gain=opt.init_gain,
                                             gpu_ids=self.gpu_ids, fs_light=opt.fs_light)
-
-            if opt.out_mask:
-                self.loss_names += ['out_mask']
 
             self.model_names += ['f_s']
 
