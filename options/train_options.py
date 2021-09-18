@@ -46,5 +46,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--use_contrastive_loss_D', action='store_true')
         parser.add_argument('--ddp_port', type=str, default='12355')
 
+        #imgaug options
+        parser.add_argument('--diff_aug_policy',type=str, default='',help='choose the augmentation policy : color translation and cutout. If you want more than one, please write them separated by a comma with no space (e.g. color,translation)')
+
         self.isTrain = True
         return parser

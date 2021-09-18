@@ -11,6 +11,7 @@ from data.base_dataset import get_transform
 from .modules.fid.pytorch_fid.fid_score import _compute_statistics_of_path,calculate_frechet_distance
 from util.util import save_image,tensor2im
 import numpy as np
+from util.diff_aug import diff_augment
 
 class BaseModel(ABC):
     """This class is an abstract base class (ABC) for models.
@@ -92,6 +93,8 @@ class BaseModel(ABC):
                 os.mkdir(pathB)
             self.fidA=0
             self.fidB=0
+
+        self.diff_aug_policy = self.opt.diff_aug_policy
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -419,7 +422,10 @@ class BaseModel(ABC):
             real = getattr(self,"real_"+domain_img+noisy)
         else:
             real = getattr(self,real_name)
-            
+
+        real = diff_augment(real,self.diff_aug_policy)
+        fake = diff_augment(fake,self.diff_aug_policy)
+
         loss = loss.compute_loss_D(netD, real, fake)
         return loss
 
@@ -432,6 +438,9 @@ class BaseModel(ABC):
             real = getattr(self,"real_"+domain_img)
         else:
             real = getattr(self,real_name)
+
+        real = diff_augment(real,self.diff_aug_policy)
+        fake = diff_augment(fake,self.diff_aug_policy)
             
         loss = loss.compute_loss_G(netD, real, fake)
         return loss
