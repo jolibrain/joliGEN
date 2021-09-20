@@ -20,7 +20,7 @@ See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-a
 """
 import time
 from options.train_options import TrainOptions
-from data import create_dataset
+from data import create_dataset,create_dataloader
 from models import create_model
 from util.visualizer import Visualizer
 import torch.multiprocessing as mp
@@ -39,20 +39,16 @@ def setup(rank, world_size,port):
 def signal_handler(sig, frame):
     dist.destroy_process_group()
  
-def train_gpu(rank,world_size):
+def train_gpu(rank,world_size,opt,dataset):
     signal.signal(signal.SIGINT, signal_handler) #to really kill the process
-    opt = TrainOptions().parse(rank)   # get training options
     if len(opt.gpu_ids)>1:
         setup(rank, world_size,opt.ddp_port)
-    dataset = create_dataset(opt,rank)  # create a dataset given opt.dataset_mode and other options
+    dataloader = create_dataloader(opt,rank,dataset)  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)    # get the number of images in the dataset.
-    if rank==0:
-        print('The number of training images = %d' % dataset_size)
-
     model = create_model(opt,rank)      # create a model given opt.model and other options
 
     if hasattr(model,'data_dependent_initialize'):
-        data=next(iter(dataset))
+        data=next(iter(dataloader))
         model.data_dependent_initialize(data)
 
     model.setup(opt)               # regular setup: load and print networks; create schedulers
@@ -62,12 +58,12 @@ def train_gpu(rank,world_size):
     else:
         model.single_gpu()        
 
-    
-    visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
+    if rank==0:
+        visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     total_iters = 0                # the total number of training iterations
         
-    if opt.display_networks:
-        data=next(iter(dataset))
+    if rank==0 and opt.display_networks:
+        data=next(iter(dataloader))
         for path in model.save_networks_img(data):
             visualizer.display_img(path+'.png')
 
@@ -75,15 +71,15 @@ def train_gpu(rank,world_size):
         epoch_start_time = time.time()  # timer for entire epoch
         iter_data_time = time.time()    # timer for data loading per iteration
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
-        visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
+        if rank==0:
+            visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
 
-        for i, data in enumerate(dataset):  # inner loop (minibatch) within one epoch
+        for i, data in enumerate(dataloader):  # inner loop (minibatch) within one epoch
             
             iter_start_time = time.time()  # timer for computation per iteration
-
             t_data_mini_batch = iter_start_time - iter_data_time
             
-            model.set_input(data)         # unpack data from dataset and apply preprocessing
+            model.set_input(data)         # unpack data from dataloader and apply preprocessing
             model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
 
             t_comp = (time.time() - iter_start_time) / opt.batch_size
@@ -130,10 +126,13 @@ def train_gpu(rank,world_size):
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler) #to really kill the process
-    opt = TrainOptions().parse(rank=None)   # get training options
+    opt = TrainOptions().parse()   # get training options
     world_size=len(opt.gpu_ids)
+
+    dataset=create_dataset(opt)
+    print('The number of training images = %d' % len(dataset))
     
     mp.spawn(train_gpu,
-             args=(world_size,),
+             args=(world_size,opt,dataset,),
              nprocs=world_size,
              join=True)
