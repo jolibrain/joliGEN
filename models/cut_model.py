@@ -78,11 +78,19 @@ class CUTModel(BaseModel):
         
         visual_names_A = ['real_A', 'fake_B']
         visual_names_B = ['real_B']
+
+        
+        
         self.nce_layers = [int(i) for i in self.opt.nce_layers.split(',')]
 
         if opt.nce_idt and self.isTrain:
             visual_names_B += ['idt_B']
         self.visual_names = [visual_names_A,visual_names_B]
+
+        if self.opt.diff_aug_policy != '':
+            self.visual_names.append(['fake_B_aug'])
+            self.visual_names.append(['real_B_aug'])
+        
         if self.isTrain:
             self.model_names = ['G', 'F', 'D']
             if opt.netD_global != "none":

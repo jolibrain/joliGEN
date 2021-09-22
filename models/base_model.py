@@ -426,6 +426,16 @@ class BaseModel(ABC):
         real = diff_augment(real,self.diff_aug_policy)
         fake = diff_augment(fake,self.diff_aug_policy)
 
+        if fake_name is None:
+            setattr(self,"fake_"+domain_img+"_aug",fake)
+        else:
+            setattr(self,fake_name,fake)
+
+        if real_name is None:
+            setattr(self,"real_"+domain_img+"_aug",real)
+        else:
+            setattr(self,real_name,real)
+
         loss = loss.compute_loss_D(netD, real, fake)
         return loss
 
@@ -441,6 +451,17 @@ class BaseModel(ABC):
 
         real = diff_augment(real,self.diff_aug_policy)
         fake = diff_augment(fake,self.diff_aug_policy)
+
+        if fake_name is None:
+            setattr(self,"fake_"+domain_img+"_aug",fake)
+        else:
+            setattr(self,fake_name,fake)
+
+        if real_name is None:
+            setattr(self,"real_"+domain_img+"_aug",real)
+        else:
+            setattr(self,real_name,real)
+
             
         loss = loss.compute_loss_G(netD, real, fake)
         return loss
