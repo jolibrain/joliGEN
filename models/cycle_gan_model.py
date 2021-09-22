@@ -82,6 +82,11 @@ class CycleGANModel(BaseModel):
 
         self.visual_names = [visual_names_A , visual_names_B]  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
+
+        if self.opt.diff_aug_policy != '':
+            self.visual_names.append(['real_A_aug','fake_B_aug'])
+            self.visual_names.append(['real_B_aug','fake_A_aug'])
+        
         if self.isTrain:
             self.model_names = ['G_A', 'G_B', 'D_A', 'D_B']
             if opt.netD_global != "none":
