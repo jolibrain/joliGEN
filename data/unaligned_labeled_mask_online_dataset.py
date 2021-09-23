@@ -1,7 +1,7 @@
 import os.path
 from data.base_dataset import BaseDataset, get_transform, get_transform_seg
 from data.image_folder import make_dataset, make_labeled_path_dataset, make_dataset_path
-from data.online_creation import crop_image, sanitize_paths
+from data.online_creation import crop_image, sanitize_paths,write_paths_file
 from PIL import Image
 import random
 import numpy as np
@@ -47,7 +47,12 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             self.B_img_paths, self.B_bbox_paths = make_labeled_path_dataset(self.dir_B,'/paths.txt')    # load images from '/path/to/data/trainB'
 
         if self.opt.sanitize_paths:
-            self.sanitize()
+            if os.path.exists(os.path.join(self.dir_A,'paths_sanitized.txt')) and os.path.exists(os.path.join(self.dir_B,'paths_sanitized.txt')) :
+                self.A_img_paths, self.A_bbox_paths = make_labeled_path_dataset(self.dir_A,'/paths_sanitized.txt')
+                self.B_img_paths, self.B_bbox_paths = make_labeled_path_dataset(self.dir_B,'/paths_sanitized.txt')
+                print("Sanitized images and labels paths loaded.")
+            else:
+                self.sanitize()
         elif opt.max_dataset_size!=float("inf"):
             self.A_img_paths, self.A_bbox_paths=self.A_img_paths[:opt.max_dataset_size], self.A_bbox_paths[:opt.max_dataset_size]
             self.B_img_paths, self.B_bbox_paths=self.B_img_paths[:opt.max_dataset_size], self.B_bbox_paths[:opt.max_dataset_size]
@@ -60,15 +65,16 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         self.transform_noseg=get_transform(self.opt, grayscale=(self.input_nc == 1))
 
         self.opt = opt
-        
 
     def sanitize(self):
         print('--------------')
-        print('Cleaning images and labels paths')
+        print('Sanitizing images and labels paths')
         print('--- DOMAIN A ---')
         self.A_img_paths, self.A_bbox_paths = sanitize_paths(self.A_img_paths, self.A_bbox_paths,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size,max_dataset_size=self.opt.max_dataset_size)
+        write_paths_file(self.A_img_paths, self.A_bbox_paths,os.path.join(self.dir_A,'paths_sanitized.txt'))
         print('--- DOMAIN B ---')
         self.B_img_paths, self.B_bbox_paths = sanitize_paths(self.B_img_paths, self.B_bbox_paths,mask_delta=self.opt.online_creation_mask_delta_B,crop_delta=self.opt.online_creation_crop_delta_B,mask_square=self.opt.online_creation_mask_square_B,crop_dim=self.opt.online_creation_crop_size_B,output_dim=self.opt.load_size,max_dataset_size=self.opt.max_dataset_size)
+        write_paths_file(self.B_img_paths, self.B_bbox_paths,os.path.join(self.dir_B,'paths_sanitized.txt'))
         print('--------------')
         
     def __getitem__(self, index):

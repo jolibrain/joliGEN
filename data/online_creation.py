@@ -107,4 +107,18 @@ def sanitize_paths(paths_img,paths_bb=None,mask_delta=None,crop_delta=None,mask_
   
     return return_paths_img,return_paths_bb
         
+def write_paths_file(img_paths,label_paths,file_path):
+    try:
+        with open(file_path, 'w') as f:
+            for img_path,label_path in zip(img_paths,label_paths):
+                if label_path is None:
+                    label_path=''
+                cur_line = img_path + " " + label_path
+                f.write(cur_line)
+                f.write('\n')
+    except Exception as e:
+        print('failed saving sanitized paths file at ',file_path)
+        print(e)
 
+    print('sanitized paths file saved at ',file_path)
+        
