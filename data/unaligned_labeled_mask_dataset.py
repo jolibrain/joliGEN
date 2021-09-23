@@ -78,6 +78,8 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             return None
        
         A,A_label = self.transform(A_img,A_label)
+        if self.opt.all_classes_as_one:
+            A_label = A_label >= 1
 
         if hasattr(self,'B_img_paths') :
             if self.opt.serial_batches:   # make sure index is within then range
@@ -96,6 +98,9 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 B_label_path = self.B_label_paths[index_B]
                 B_label = Image.open(B_label_path)
                 B,B_label = self.transform(B_img,B_label)
+                if self.opt.all_classes_as_one:
+                    B_label = B_label >= 1
+
             else:
                 B = self.transform_noseg(B_img)
                 B_label = []
