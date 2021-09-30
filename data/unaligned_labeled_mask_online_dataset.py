@@ -102,6 +102,9 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             return None
        
         A,A_label = self.transform(A_img,A_label)
+        if self.opt.all_classes_as_one:
+            A_label = (A_label >= 1)*1
+
 
         if hasattr(self,'B_img_paths') :
             if self.opt.serial_batches:   # make sure index is within then range
@@ -116,6 +119,9 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     B_label_path = self.B_bbox_paths[index_B]
                     B_img , B_label = crop_image(B_img_path,B_label_path,mask_delta=self.opt.online_creation_mask_delta_B,crop_delta=self.opt.online_creation_crop_delta_B,mask_square=self.opt.online_creation_mask_square_B,crop_dim=self.opt.online_creation_crop_size_B,output_dim=self.opt.load_size)
                     B,B_label = self.transform(B_img,B_label)
+                    if self.opt.all_classes_as_one:
+                        B_label = (B_label >= 1)*1
+
                 else:
                     B_img = Image.open(B_img_path).convert('RGB')
                     B = self.transform_noseg(B_img)
