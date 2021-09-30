@@ -51,17 +51,64 @@ class BaseDataset(data.Dataset, ABC):
         """Return the total number of images in the dataset."""
         return 0
 
-    @abstractmethod
     def __getitem__(self, index):
         """Return a data point and its metadata information.
 
         Parameters:
-            index - - a random integer for data indexing
+            index (int)      -- a random integer for data indexing
 
-        Returns:
-            a dictionary of data with their names. It ususally contains the data itself and its metadata information.
+        Returns a dictionary that contains A, B, A_paths and B_paths
+            A (tensor)       -- an image in the input domain
+            B (tensor)       -- its corresponding image in the target domain
+            A_paths (str)    -- image paths
+            B_paths (str)    -- image paths
+            A_label (tensor) -- mask label of image A
         """
-        pass
+        A_img_path = self.A_img_paths[index % self.A_size]  # make sure index is within then range
+        if hasattr(self,'A_label_paths') :
+            A_label_path = self.A_label_paths[index % self.A_size]
+        else:
+            A_label_path = None
+
+        if hasattr(self,'B_img_paths') :
+            if self.opt.serial_batches:   # make sure index is within then range
+                index_B = index % self.B_size
+            else:   # randomize the index for domain B to avoid fixed pairs.
+                index_B = random.randint(0, self.B_size - 1)
+            
+            B_img_path = self.B_img_paths[index_B]
+
+            if hasattr(self,'B_label_paths') and len(self.B_label_paths) > 0: # B label is optional
+                B_label_path = self.B_label_paths[index_B]
+            else:
+                B_label_path = None
+        else:
+            B_img_path=None
+                
+        return self.get_img(A_img_path,A_label_path,B_img_path,B_label_path,index)
+
+    def get_validation_set(self,size):
+        return_A_list = []
+        return_B_list = []
+        if not hasattr(self,'B_img_paths') :
+            self.B_img_paths = [None for k in range(size)]
+        if not hasattr(self,'B_label_paths') :
+            self.B_label_paths = [None for k in range(size)]
+            
+        for A_img_path,A_label_path,B_img_path,B_label_path in zip(self.A_img_paths,self.A_label_paths,self.B_img_paths,self.B_label_paths):
+            if len(return_A_list) >=size :
+                break
+            images=self.get_img(A_img_path,A_label_path,B_img_path,B_label_path)
+            if images is not None:
+                return_A_list.append(images['A'].unsqueeze(0))
+                if 'B' in images:
+                    return_B_list.append(images['B'].unsqueeze(0))
+
+        return_A_list = torch.cat(return_A_list)
+        if return_B_list[0] is not None:
+            return_B_list = torch.cat(return_B_list)
+
+        return return_A_list,return_B_list
 
 
 def get_params(opt, size):

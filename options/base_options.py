@@ -96,9 +96,12 @@ class BaseOptions():
         parser.add_argument('--online_creation_mask_delta_B', type=int, default=0, help='mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B')
         parser.add_argument('--online_creation_mask_square_B', action='store_true', help='whether masks should be squared for domain B')
 
-
         parser.add_argument('--sanitize_paths',action='store_true',help='if true, wrong images or labels paths will be removed before training')
         parser.add_argument('--sanitize_paths_vebose',action='store_true',help='if true, wrong images or labels paths will be printed')
+
+        #D accuracy
+        parser.add_argument('--compute_D_accuracy', action='store_true')
+        parser.add_argument('--D_accuracy_every', type=int, default=1000)
 
         self.initialized = True
         return parser

@@ -13,6 +13,10 @@ from util.util import save_image,tensor2im
 import numpy as np
 from util.diff_aug import diff_augment
 
+#for D accuracy
+from util.image_pool import ImagePool
+import torch.nn.functional as F
+
 class BaseModel(ABC):
     """This class is an abstract base class (ABC) for models.
     To create a subclass, you need to implement the following five functions:
@@ -60,6 +64,12 @@ class BaseModel(ABC):
         self.optimizers = []
         self.image_paths = []
         self.metric = 0  # used for learning rate policy 'plateau'
+
+        self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
+        self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
+        self.real_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
+        self.real_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
+
 
         if opt.compute_fid:
             self.transform = get_transform(opt, grayscale=(opt.input_nc == 1))
@@ -111,6 +121,7 @@ class BaseModel(ABC):
 
     @abstractmethod
     def set_input(self, input):
+        
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
 
         Parameters:
@@ -118,9 +129,10 @@ class BaseModel(ABC):
         """
         pass
 
-    @abstractmethod
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
+        self.real_A_pool.query(self.real_A)
+        self.real_B_pool.query(self.real_B)
         pass
 
     @abstractmethod
@@ -324,6 +336,7 @@ class BaseModel(ABC):
                 temp=net(self.netG_A(self.real_A).detach()) #decoders take w+ in input
             make_dot(temp,params=dict(net.named_parameters())).render(path, format='png')
             paths.append(path)
+            
         return paths
 
     def set_display_param(self,params=None):
@@ -362,6 +375,67 @@ class BaseModel(ABC):
             if isinstance(name, str):
                 fids[name] = float(getattr(self, name))  # float(...) works for both scalar tensor and float number
         return fids
+
+    def compute_D_accuracy_pred(self,real,fake,netD):
+        pred_real = (netD(real).flatten()>0.5)*1
+        pred_fake = (netD(fake).flatten()>0.5)*1
+        
+        FP=F.l1_loss(pred_fake, torch.zeros(pred_real.shape).to(self.device), reduction='sum')
+        TP=F.l1_loss(pred_real, torch.zeros(pred_real.shape).to(self.device), reduction='sum')
+        TN=F.l1_loss(pred_fake, torch.ones(pred_real.shape).to(self.device), reduction='sum')
+        FN=F.l1_loss(pred_real, torch.ones(pred_real.shape).to(self.device), reduction='sum')
+
+        prec_real = TP/(TP+FP)
+        prec_fake = TN/(TN+FN)
+        rec_real = TP/(TP+FN)
+        rec_fake = TN/(TN+FP)
+        acc = (TP+TN)/(TP+TN+FN+FP)
+
+        return prec_real,prec_fake,rec_real,rec_fake,acc
+
+    def compute_fake_val(self,imgs,netG):
+        return_imgs=[]
+        for img in imgs:
+            return_imgs.append(netG(img.unsqueeze(0)))
+        return torch.cat(return_imgs)
+    
+    def compute_D_accuracy(self):
+        real_A = torch.cat(self.real_A_pool.get_all())
+        real_B = torch.cat(self.real_B_pool.get_all())
+        if hasattr(self,'netD_A'):
+            fake_A = self.compute_fake_val(real_B,self.netG_B)
+            self.prec_real_A, self.prec_fake_A,self.rec_real_A,self.rec_fake_A,self.acc_A = self.compute_D_accuracy_pred(real_A,fake_A,self.netD_A)
+
+            fake_A_val = self.compute_fake_val(self.real_B_val,self.netG_B)
+            self.prec_real_A_val, self.prec_fake_A_val,self.rec_real_A_val,self.rec_fake_A_val,self.acc_A_val = self.compute_D_accuracy_pred(self.real_A_val,fake_A_val,self.netD_A)
+            
+        if hasattr(self,'netD_B') or hasattr(self,'netD'):
+            if hasattr(self,'netD_B') :
+                netD=self.netD_B
+                netG=self.netG_B
+            elif hasattr(self,'netD'):
+                netD=self.netD
+                netG=self.netG
+
+            fake_B = self.compute_fake_val(real_A,netG)
+            self.prec_real_B, self.prec_fake_B,self.rec_real_B,self.rec_fake_B,self.acc_B = self.compute_D_accuracy_pred(real_B,fake_B,netD)
+
+            fake_B_val = self.compute_fake_val(self.real_B_val,netG)
+            self.prec_real_B_val, self.prec_fake_B_val,self.rec_real_B_val,self.rec_fake_B_val,self.acc_B_val = self.compute_D_accuracy_pred(self.real_A_val,fake_B_val,netD)
+            
+    def get_current_D_accuracies(self):
+        accuracies = OrderedDict()
+        names=[]
+        if hasattr(self,'netD_A'):
+            names += ['acc_A','prec_real_A','prec_fake_A','rec_real_A','rec_fake_A']
+            names += ['acc_A_val','prec_real_A_val','prec_fake_A_val','rec_real_A_val','rec_fake_A_val']
+        if hasattr(self,'netD_B') or hasattr(self,'netD'):
+            names += ['acc_B','prec_real_B','prec_fake_B','rec_real_B','rec_fake_B']
+            names += ['acc_B_val','prec_real_B_val','prec_fake_B_val','rec_real_B_val','rec_fake_B_val']
+        for name in names:
+            if isinstance(name, str):
+                accuracies[name] = float(getattr(self, name))  # float(...) works for both scalar tensor and float number
+        return accuracies
 
     def compute_step(self,optimizers,loss_names):
         if not isinstance(optimizers,list):

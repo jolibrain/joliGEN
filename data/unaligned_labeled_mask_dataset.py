@@ -49,28 +49,10 @@ class UnalignedLabeledMaskDataset(BaseDataset):
 
         self.transform=get_transform_seg(self.opt, grayscale=(self.input_nc == 1))
         self.transform_noseg=get_transform(self.opt, grayscale=(self.input_nc == 1))
-        
-    def __getitem__(self, index):
-        """Return a data point and its metadata information.
 
-        Parameters:
-            index (int)      -- a random integer for data indexing
-
-        Returns a dictionary that contains A, B, A_paths and B_paths
-            A (tensor)       -- an image in the input domain
-            B (tensor)       -- its corresponding image in the target domain
-            A_paths (str)    -- image paths
-            B_paths (str)    -- image paths
-            A_label (tensor) -- mask label of image A
-        """
-
-        A_img_path = self.A_img_paths[index % self.A_size]  # make sure index is within then range
-        A_label_path = self.A_label_paths[index % self.A_size]
-
+    def get_img(self,A_img_path,A_label_path,B_img_path=None,B_label_path=None,index=None):
         try:
             A_img = Image.open(A_img_path).convert('RGB')
-            #if self.input_nc == 1:
-            #    A_img = A_img.convert('L')
             A_label = Image.open(A_label_path)
         except Exception as e:
             print('failure with reading A domain image ', A_img_path, ' or label ', A_label_path)
@@ -81,17 +63,17 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         if self.opt.all_classes_as_one:
             A_label = (A_label >= 1)*1
 
-        if hasattr(self,'B_img_paths') :
-            if self.opt.serial_batches:   # make sure index is within then range
-                index_B = index % self.B_size
-            else:   # randomize the index for domain B to avoid fixed pairs.
-                index_B = random.randint(0, self.B_size - 1)
-            
-            B_img_path = self.B_img_paths[index_B]
+        if B_img_path is not None:
             try:
                 B_img = Image.open(B_img_path).convert('RGB')
+                if B_label_path is not None:
+                    B_label = Image.open(B_label_path)
+                    B,B_label = self.transform(B_img,B_label)
+                else:
+                    B = self.transform_noseg(B_img)
+                    B_label = []
             except:
-                print("failed to read B domain image ", B_img_path, " at index_B=", index_B)
+                print("failed to read B domain image ", B_img_path, " or label", B_label_path)
                 return None
             
             if len(self.B_label_paths) > 0: # B label is optional
@@ -105,11 +87,11 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 B = self.transform_noseg(B_img)
                 B_label = []
         
-            return {'A': A, 'B': B, 'A_paths': A_img_path, 'B_paths': B_img_path, 'A_label': A_label, 'B_label': B_label}
+            return {'A': A, 'B': B, 'A_img_paths': A_img_path, 'B_img_paths': B_img_path, 'A_label': A_label, 'B_label': B_label}
+
         else:
-            return {'A': A, 'A_paths': A_img_path,'A_label': A_label}
-
-
+            return {'A': A, 'A_img_paths': A_img_path,'A_label': A_label}
+        
     def __len__(self):
         """Return the total number of images in the dataset.
         As we have two datasets with potentially different number of images,

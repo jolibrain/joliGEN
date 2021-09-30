@@ -34,17 +34,23 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         btoA = self.opt.direction == 'BtoA'
         self.input_nc = self.opt.output_nc if btoA else self.opt.input_nc       # get the number of channels of input image
         output_nc = self.opt.input_nc if btoA else self.opt.output_nc      # get the number of channels of output image
-
         
         self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
         self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
         if os.path.exists(self.dir_A):
-            self.A_img_paths, self.A_bbox_paths = make_labeled_path_dataset(self.dir_A,'/paths.txt')   # load images from '/path/to/data/trainA/paths.txt' as well as labels
+            self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(self.dir_A,'/paths.txt')   # load images from '/path/to/data/trainA/paths.txt' as well as labels
+            if opt.phase == 'train' and opt.compute_D_accuracy:
+                self.dir_val_A = os.path.join(opt.dataroot, 'validationA')  # create a path '/path/to/data/trainA'
+                self.A_img_paths_val, self.A_label_paths_val = make_labeled_path_dataset(self.dir_val_A,'/paths.txt')   # load images from '/path/to/data/validationA/paths.txt' as well as labels
+                
         else:
-            self.A_img_paths, self.A_bbox_paths = make_labeled_path_dataset(opt.dataroot,'/paths.txt')   # load images from '/path/to/data/trainA/paths.txt' as well as labels        
+            self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(opt.dataroot,'/paths.txt')   # load images from '/path/to/data/trainA/paths.txt' as well as labels
         
         if os.path.exists(self.dir_B):
-            self.B_img_paths, self.B_bbox_paths = make_labeled_path_dataset(self.dir_B,'/paths.txt')    # load images from '/path/to/data/trainB'
+            self.B_img_paths, self.B_label_paths = make_labeled_path_dataset(self.dir_B,'/paths.txt')    # load images from '/path/to/data/trainB'
+            if opt.phase == 'train' and opt.compute_D_accuracy:
+                self.dir_val_B = os.path.join(opt.dataroot, 'validationA')  # create a path '/path/to/data/validationA'
+                self.B_img_paths_val, self.B_label_paths_val = make_labeled_path_dataset(self.dir_val_B,'/paths.txt')   # load images from '/path/to/data/validationB/paths.txt' as well as labels
 
         if self.opt.sanitize_paths:
             if os.path.exists(os.path.join(self.dir_A,'paths_sanitized.txt')) and os.path.exists(os.path.join(self.dir_B,'paths_sanitized.txt')) :
@@ -54,8 +60,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             else:
                 self.sanitize()
         elif opt.max_dataset_size!=float("inf"):
-            self.A_img_paths, self.A_bbox_paths=self.A_img_paths[:opt.max_dataset_size], self.A_bbox_paths[:opt.max_dataset_size]
-            self.B_img_paths, self.B_bbox_paths=self.B_img_paths[:opt.max_dataset_size], self.B_bbox_paths[:opt.max_dataset_size]
+            self.A_img_paths, self.A_label_paths=self.A_img_paths[:opt.max_dataset_size], self.A_label_paths[:opt.max_dataset_size]
+            self.B_img_paths, self.B_label_paths=self.B_img_paths[:opt.max_dataset_size], self.B_label_paths[:opt.max_dataset_size]
             
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
         if os.path.exists(self.dir_B):
@@ -70,32 +76,22 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         print('--------------')
         print('Sanitizing images and labels paths')
         print('--- DOMAIN A ---')
+
         self.A_img_paths, self.A_bbox_paths = sanitize_paths(self.A_img_paths, self.A_bbox_paths,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size,max_dataset_size=self.opt.max_dataset_size)
         write_paths_file(self.A_img_paths, self.A_bbox_paths,os.path.join(self.dir_A,'paths_sanitized.txt'))
+        if self.opt.phase == 'train' and self.opt.compute_D_accuracy:
+            self.A_img_paths_val, self.A_label_paths_val = sanitize_paths(self.A_img_paths_val, self.A_label_paths_val,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size,max_dataset_size=self.opt.pool_size)
         print('--- DOMAIN B ---')
         self.B_img_paths, self.B_bbox_paths = sanitize_paths(self.B_img_paths, self.B_bbox_paths,mask_delta=self.opt.online_creation_mask_delta_B,crop_delta=self.opt.online_creation_crop_delta_B,mask_square=self.opt.online_creation_mask_square_B,crop_dim=self.opt.online_creation_crop_size_B,output_dim=self.opt.load_size,max_dataset_size=self.opt.max_dataset_size)
         write_paths_file(self.B_img_paths, self.B_bbox_paths,os.path.join(self.dir_B,'paths_sanitized.txt'))
+        if self.opt.phase == 'train' and self.opt.compute_D_accuracy:
+            self.B_img_paths_val, self.B_label_paths_val = sanitize_paths(self.B_img_paths_val, self.B_label_paths_val,mask_delta=self.opt.online_creation_mask_delta_B,crop_delta=self.opt.online_creation_crop_delta_B,mask_square=self.opt.online_creation_mask_square_B,crop_dim=self.opt.online_creation_crop_size_B,output_dim=self.opt.load_size,max_dataset_size=self.opt.pool_size)
         print('--------------')
-        
-    def __getitem__(self, index):
-        """Return a data point and its metadata information.
 
-        Parameters:
-            index (int)      -- a random integer for data indexing
-
-        Returns a dictionary that contains A, B, A_paths and B_paths
-            A (tensor)       -- an image in the input domain
-            B (tensor)       -- its corresponding image in the target domain
-            A_paths (str)    -- image paths
-            B_paths (str)    -- image paths
-            A_label (tensor) -- mask label of image A
-        """
-        A_img_path = self.A_img_paths[index % self.A_size]  # make sure index is within then range
-        A_label_path = self.A_bbox_paths[index % self.A_size]
-
+    def get_img(self,A_img_path,A_label_path,B_img_path=None,B_label_path=None,index=None):
         try:
-            A_img , A_label = crop_image(A_img_path,A_label_path,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size)
-            
+            A_img,A_label = crop_image(A_img_path,A_label_path,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size)
+
         except Exception as e:
             print('failure with reading A domain image ', A_img_path, ' or label ', A_label_path)
             print(e)
@@ -105,18 +101,9 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         if self.opt.all_classes_as_one:
             A_label = (A_label >= 1)*1
 
-
-        if hasattr(self,'B_img_paths') :
-            if self.opt.serial_batches:   # make sure index is within then range
-                index_B = index % self.B_size
-            else:   # randomize the index for domain B to avoid fixed pairs.
-                index_B = random.randint(0, self.B_size - 1)
-            
-            B_img_path = self.B_img_paths[index_B]
-
+        if B_img_path is not None:
             try:
-                if len(self.B_bbox_paths) > 0: # B label is optional
-                    B_label_path = self.B_bbox_paths[index_B]
+                if B_label_path is not None:
                     B_img , B_label = crop_image(B_img_path,B_label_path,mask_delta=self.opt.online_creation_mask_delta_B,crop_delta=self.opt.online_creation_crop_delta_B,mask_square=self.opt.online_creation_mask_square_B,crop_dim=self.opt.online_creation_crop_size_B,output_dim=self.opt.load_size)
                     B,B_label = self.transform(B_img,B_label)
                     if self.opt.all_classes_as_one:
@@ -126,18 +113,16 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     B_img = Image.open(B_img_path).convert('RGB')
                     B = self.transform_noseg(B_img)
                     B_label = []
-        
+                
             except Exception as e:
-                print("failed to read B domain image ", B_img_path, " at index_B=", index_B)
+                print("failed to read B domain image ", B_img_path, 'or label', B_label_path)
                 print(e)
                 return None
 
-            
-            return {'A': A, 'B': B, 'A_paths': A_img_path, 'B_paths': B_img_path, 'A_label': A_label, 'B_label': B_label}
+            return {'A': A, 'B': B, 'A_img_paths': A_img_path, 'B_img_paths': B_img_path, 'A_label': A_label, 'B_label': B_label}
         else:
-            return {'A': A, 'A_paths': A_img_path,'A_label': A_label}
-
-
+            return {'A': A, 'A_img_paths': A_img_path,'A_label': A_label}
+                
     def __len__(self):
         """Return the total number of images in the dataset.
         As we have two datasets with potentially different number of images,

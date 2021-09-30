@@ -55,3 +55,6 @@ class ImagePool():
 
     def get_all(self):
         return self.images
+
+    def __len__(self):
+        return len(self.images)
