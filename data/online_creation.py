@@ -18,10 +18,7 @@ def crop_image(img_path,bbox_path,mask_delta,crop_delta,mask_square,crop_dim,out
             bboxes.append(line)
         
         bbox = bboxes[0].split()
-        if self.opt.all_classes_as_one:
-            cat=1
-        else:
-            cat = int(bbox[0])
+        cat = int(bbox[0])
         xmin =math.floor(int(bbox[1]))
         ymin =math.floor(int(bbox[2]))
         xmax =math.floor(int(bbox[3]))
