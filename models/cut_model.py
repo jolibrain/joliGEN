@@ -8,7 +8,6 @@ from .modules import loss
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 import itertools
-from util.image_pool import ImagePool
 
 class CUTModel(BaseModel):
     """ This class implements CUT and FastCUT model, described in the paper
@@ -40,8 +39,6 @@ class CUTModel(BaseModel):
                             type=util.str2bool, nargs='?', const=True, default=False,
                             help="Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT")
         parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
-
-        parser.set_defaults(pool_size=0)  # no image pooling
 
         opt, _ = parser.parse_known_args()
 
@@ -95,8 +92,6 @@ class CUTModel(BaseModel):
             self.model_names = ['G', 'F', 'D']
             if opt.netD_global != "none":
                 self.model_names += ['D_global']
-
-            self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
         
         else:  # during test time, only load G
             self.model_names = ['G']
@@ -196,10 +191,11 @@ class CUTModel(BaseModel):
         AtoB = self.opt.direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        self.image_paths = input['A_img_paths' if AtoB else 'B_img_paths']
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
+        super().forward()
         self.real = torch.cat((self.real_A, self.real_B), dim=0) if self.opt.nce_idt and self.opt.isTrain else self.real_A
         if self.opt.flip_equivariance:
             self.flipped_for_equivariance = self.opt.isTrain and (np.random.random() < 0.5)

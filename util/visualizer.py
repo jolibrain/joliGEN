@@ -287,3 +287,30 @@ class Visualizer():
                 win=self.display_id+4)
         except VisdomExceptionBase:
             self.create_visdom_connections()
+
+    def plot_current_D_accuracies(self, epoch, counter_ratio, accuracies):
+        """display the current fid values on visdom display: dictionary of fid labels and values
+
+        Parameters:
+            epoch (int)           -- current epoch
+            counter_ratio (float) -- progress (percentage) in the current epoch, between 0 to 1
+            fids (OrderedDict)  -- training fid values stored in the format of (name, float) pairs
+        """
+        if not hasattr(self, 'plot_accuracy'):
+            self.plot_accuracy = {'X': [], 'Y': [], 'legend': list(accuracies.keys())}
+        self.plot_accuracy['X'].append(epoch + counter_ratio)
+        self.plot_accuracy['Y'].append([accuracies[k] for k in self.plot_accuracy['legend']])
+        X=np.stack([np.array(self.plot_accuracy['X'])] * len(self.plot_accuracy['legend']), 1)
+        Y=np.array(self.plot_accuracy['Y'])
+        try:
+            self.vis.line(
+                Y,
+                X,
+                opts={
+                    'title': self.name + ' accuracy over time',
+                    'legend': self.plot_accuracy['legend'],
+                    'xlabel': 'epoch',
+                    'ylabel': 'accuracy'},
+                win=self.display_id+5)
+        except VisdomExceptionBase:
+            self.create_visdom_connections()

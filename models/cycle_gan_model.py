@@ -1,6 +1,5 @@
 import torch
 import itertools
-from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
 from .modules import loss
@@ -126,8 +125,6 @@ class CycleGANModel(BaseModel):
         if self.isTrain:
             if opt.lambda_identity > 0.0:  # only works when input and output images have the same number of channels
                 assert(opt.input_nc == opt.output_nc)
-            self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
-            self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             # define loss functions
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
@@ -183,10 +180,11 @@ class CycleGANModel(BaseModel):
         AtoB = self.opt.direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        self.image_paths = input['A_img_paths' if AtoB else 'B_img_paths']
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
+        super().forward()
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
         if self.rec_noise > 0.0:
             self.fake_B_noisy1 = gaussian(self.fake_B, self.rec_noise)

@@ -61,6 +61,10 @@ def train_gpu(rank,world_size,opt,dataset):
     if rank==0:
         visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     total_iters = 0                # the total number of training iterations
+
+    if rank == 0:
+        model.real_A_val,model.real_B_val = dataset.get_validation_set(opt.pool_size)
+        model.real_A_val,model.real_B_val=model.real_A_val.to(model.device),model.real_B_val.to(model.device)
         
     if rank==0 and opt.display_networks:
         data=next(iter(dataloader))
@@ -110,6 +114,12 @@ def train_gpu(rank,world_size,opt,dataset):
                     if opt.display_id > 0:
                         fids=model.get_current_fids()
                         visualizer.plot_current_fid(epoch, float(epoch_iter) / dataset_size, fids)
+
+                if total_iters % opt.D_accuracy_every < batch_size and opt.compute_D_accuracy:
+                    model.compute_D_accuracy()
+                    if opt.display_id > 0:
+                        accuracies=model.get_current_D_accuracies()
+                        visualizer.plot_current_D_accuracies(epoch, float(epoch_iter) / dataset_size, accuracies)
     
                 iter_data_time = time.time()
             
