@@ -11,7 +11,7 @@ from data.base_dataset import get_transform
 from .modules.fid.pytorch_fid.fid_score import _compute_statistics_of_path,calculate_frechet_distance
 from util.util import save_image,tensor2im
 import numpy as np
-from util.diff_aug import diff_augment
+from util.diff_aug import DiffAugment
 
 #for D accuracy
 from util.image_pool import ImagePool
@@ -103,8 +103,9 @@ class BaseModel(ABC):
                 os.mkdir(pathB)
             self.fidA=0
             self.fidB=0
-
-        self.diff_aug_policy = self.opt.diff_aug_policy
+            
+        if opt.diff_aug_policy !="":
+            self.diff_augment = DiffAugment(opt.diff_aug_policy,opt.diff_aug_proba)
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -496,20 +497,7 @@ class BaseModel(ABC):
             real = getattr(self,"real_"+domain_img+noisy)
         else:
             real = getattr(self,real_name)
-
-        real = diff_augment(real,self.diff_aug_policy)
-        fake = diff_augment(fake,self.diff_aug_policy)
-
-        if fake_name is None:
-            setattr(self,"fake_"+domain_img+"_aug",fake)
-        else:
-            setattr(self,fake_name,fake)
-
-        if real_name is None:
-            setattr(self,"real_"+domain_img+"_aug",real)
-        else:
-            setattr(self,real_name,real)
-
+            
         loss = loss.compute_loss_D(netD, real, fake)
         return loss
 
@@ -523,19 +511,20 @@ class BaseModel(ABC):
         else:
             real = getattr(self,real_name)
 
-        real = diff_augment(real,self.diff_aug_policy)
-        fake = diff_augment(fake,self.diff_aug_policy)
+        if hasattr(self,"diff_augment"):
+        
+            real = self.diff_augment(real)
+            fake = self.diff_augment(fake)
 
-        if fake_name is None:
-            setattr(self,"fake_"+domain_img+"_aug",fake)
-        else:
-            setattr(self,fake_name,fake)
+            if fake_name is None:
+                setattr(self,"fake_"+domain_img+"_aug",fake)
+            else:
+                setattr(self,fake_name+"_aug",fake)
 
-        if real_name is None:
-            setattr(self,"real_"+domain_img+"_aug",real)
-        else:
-            setattr(self,real_name,real)
-
+            if real_name is None:
+                setattr(self,"real_"+domain_img+"_aug",real)
+            else:
+                setattr(self,real_name+"_aug",real)
             
         loss = loss.compute_loss_G(netD, real, fake)
         return loss

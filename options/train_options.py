@@ -48,6 +48,7 @@ class TrainOptions(BaseOptions):
 
         #imgaug options
         parser.add_argument('--diff_aug_policy',type=str, default='',help='choose the augmentation policy : color translation and cutout. If you want more than one, please write them separated by a comma with no space (e.g. color,translation)')
+        parser.add_argument('--diff_aug_proba',type=float,default=0.5,help='proba of using each transformation')
 
         #all classes are the same options
         parser.add_argument('--all_classes_as_one',action='store_true',help='if true, all classes will be considered as the same one (ie foreground vs background)')
