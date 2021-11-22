@@ -25,6 +25,7 @@ class CUTSemanticMaskModel(CUTModel):
         """
         parser = CUTModel.modify_commandline_options(parser, is_train=True)
         parser.add_argument('--train_f_s_B', action='store_true', help='if true f_s will be trained not only on domain A but also on domain B')
+        parser.add_argument('--no_train_f_s_A', action='store_true', help='if true f_s wont be trained on domain A')
         parser.add_argument('--fs_light',action='store_true', help='whether to use a light (unet) network for f_s')
         parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')        
         parser.add_argument('--out_mask', action='store_true', help='use loss out mask')
@@ -168,10 +169,12 @@ class CUTSemanticMaskModel(CUTModel):
             self.loss_G += self.loss_out_mask
 
     def compute_f_s_loss(self):
-        label_A = self.input_A_label
-        # forward only real source image through semantic classifier
-        pred_A = self.netf_s(self.real_A)
-        self.loss_f_s = self.criterionf_s(pred_A, label_A)#.squeeze(1))
+        self.loss_f_s = 0
+        if not self.opt.no_train_f_s_A:
+            label_A = self.input_A_label
+            # forward only real source image through semantic classifier
+            pred_A = self.netf_s(self.real_A) 
+            self.loss_f_s += self.criterionf_s(pred_A, label_A)#.squeeze(1))
         if self.opt.train_f_s_B:
             label_B = self.input_B_label
             pred_B = self.netf_s(self.real_B) 
