@@ -50,7 +50,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         self.transform=get_transform_seg(self.opt, grayscale=(self.input_nc == 1))
         self.transform_noseg=get_transform(self.opt, grayscale=(self.input_nc == 1))
 
-    def get_img(self,A_img_path,A_label_path,B_img_path=None,B_label_path=None,index=None):
+    def get_img(self,A_img_path,A_label_path,B_img_path=None,B_label_path=None,index_B=None):
         try:
             A_img = Image.open(A_img_path).convert('RGB')
             A_label = Image.open(A_label_path)
@@ -76,7 +76,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 print("failed to read B domain image ", B_img_path, " or label", B_label_path)
                 return None
             
-            if len(self.B_label_paths) > 0: # B label is optional
+            if len(self.B_label_paths) > 0 and index_B is not None: # B label is optional
                 B_label_path = self.B_label_paths[index_B]
                 B_label = Image.open(B_label_path)
                 B,B_label = self.transform(B_img,B_label)

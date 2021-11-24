@@ -84,8 +84,8 @@ class BaseDataset(data.Dataset, ABC):
                 B_label_path = None
         else:
             B_img_path=None
-                
-        return self.get_img(A_img_path,A_label_path,B_img_path,B_label_path,index)
+
+        return self.get_img(A_img_path,A_label_path,B_img_path,B_label_path,index_B)
 
     def get_validation_set(self,size):
         return_A_list = []
