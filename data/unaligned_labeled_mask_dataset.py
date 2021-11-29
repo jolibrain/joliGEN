@@ -76,8 +76,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 print("failed to read B domain image ", B_img_path, " or label", B_label_path)
                 return None
             
-            if len(self.B_label_paths) > 0: # B label is optional
-                B_label_path = self.B_label_paths[index_B]
+            if B_label_path is not None: # B label is optional
                 B_label = Image.open(B_label_path)
                 B,B_label = self.transform(B_img,B_label)
                 if self.opt.all_classes_as_one:
