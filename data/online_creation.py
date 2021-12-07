@@ -9,55 +9,75 @@ from tqdm import tqdm
 def crop_image(img_path,bbox_path,mask_delta,crop_delta,mask_square,crop_dim,output_dim):
 
     img = np.array(Image.open(img_path))
-    x=0
-    y=0
 
     with open(bbox_path,'r')as f:
         bboxes=[]
+        
         for line in f:
-            bboxes.append(line)
-        
-        bbox = bboxes[0].split()
-        cat = int(bbox[0])
-        xmin =math.floor(int(bbox[1]))
-        ymin =math.floor(int(bbox[2]))
-        xmax =math.floor(int(bbox[3]))
-        ymax =math.floor(int(bbox[4]))
-            
-        if mask_delta > 0: # increase mask box so that it can fit the reconstructed object (for semantic loss)
-            ymin -= mask_delta
-            ymax += mask_delta
-            xmin -= mask_delta
-            xmax += mask_delta
-            
-        if mask_square:
-            sdiff = (xmax-xmin)-(ymax-ymin)
-            if sdiff > 0:
-                ymax += int(sdiff/2)
-                ymin -= int(sdiff/2)
-            else:
-                xmax += -int(sdiff/2)
-                xmin -= -int(sdiff/2)
-                        
-        xmin = max(0,xmin)
-        ymin = max(0,ymin)
-        xmax = min(xmax,img.shape[1])
-        ymax = min(ymax,img.shape[0])
-            
+            if len(line)>2:# to make sure the current line is a real bbox
+                bboxes.append(line)
+            elif line != "" or line != " ":
+                print("%s does not describe a bbox"%line)
+
+        #Creation of a blank mask
         mask = np.zeros(img.shape[:2],dtype=np.uint8)
-        mask[ymin:ymax,xmin:xmax] = np.full((ymax-ymin,xmax-xmin), cat)
 
-        height = ymax - ymin
-        width = xmax - xmin
+        #A bbox of reference will be used to compute the crop
+        idx_bbox_ref = random.randint(0,len(bboxes)-1)
         
-        crop_size_min = max(height,width,crop_dim-crop_delta)
-        crop_size_max = max(height,width,crop_dim+crop_delta)
+        for i,cur_bbox in enumerate(bboxes):
+            bbox = cur_bbox.split()
+            cat = int(bbox[0])
+            xmin =math.floor(int(bbox[1]))
+            ymin =math.floor(int(bbox[2]))
+            xmax =math.floor(int(bbox[3]))
+            ymax =math.floor(int(bbox[4]))
+            
+            if i == idx_bbox_ref:
+                x_min_ref = xmin
+                x_max_ref = xmax
+                y_min_ref = ymin
+                y_max_ref = ymax
+            
+            if mask_delta > 0: # increase mask box so that it can fit the reconstructed object (for semantic loss)
+                ymin -= mask_delta
+                ymax += mask_delta
+                xmin -= mask_delta
+                xmax += mask_delta
+            
+            if mask_square:
+                sdiff = (xmax-xmin)-(ymax-ymin)
+                if sdiff > 0:
+                    ymax += int(sdiff/2)
+                    ymin -= int(sdiff/2)
+                else:
+                    xmax += -int(sdiff/2)
+                    xmin -= -int(sdiff/2)
+                        
+            xmin = max(0,xmin)
+            ymin = max(0,ymin)
+            xmax = min(xmax,img.shape[1])
+            ymax = min(ymax,img.shape[0])
+            
+            mask[ymin:ymax,xmin:xmax] = np.full((ymax-ymin,xmax-xmin), cat)
 
-        crop_size = random.randint(crop_size_min,crop_size_max)
+    height = y_max_ref - y_min_ref
+    width = x_max_ref - x_min_ref
+        
+    crop_size_min = max(height,width,crop_dim-crop_delta)
+    crop_size_max = max(height,width,crop_dim+crop_delta)
 
-        x_crop = random.randint(max(0,xmax-crop_size),min(xmin,img.shape[1]-crop_size))
-        y_crop = random.randint(max(0,ymax-crop_size),min(ymin,img.shape[0]-crop_size))
-                
+    crop_size = random.randint(crop_size_min,crop_size_max)
+
+    x_crop_min = max(0,x_max_ref-crop_size)
+    x_crop_max = min(x_min_ref,img.shape[1]-crop_size)
+
+    y_crop_min = max(0,y_max_ref-crop_size)
+    y_crop_max = min(y_min_ref,img.shape[0]-crop_size)        
+
+    x_crop = random.randint(x_crop_min,x_crop_max)
+    y_crop = random.randint(y_crop_min,y_crop_max)
+        
     img = img[y_crop:y_crop+crop_size,x_crop:x_crop+crop_size,:]
     img = Image.fromarray(img)
     img = F.resize(img,output_dim)
