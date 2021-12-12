@@ -47,7 +47,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--ddp_port', type=str, default='12355')
 
         #imgaug options
-        parser.add_argument('--diff_aug_policy',type=str, default='',help='choose the augmentation policy : color translation and cutout. If you want more than one, please write them separated by a comma with no space (e.g. color,translation)')
+        parser.add_argument('--diff_aug_policy',type=str, default='',help='choose the augmentation policy : color randaffine. If you want more than one, please write them separated by a comma with no space (e.g. color,randaffine)')
         parser.add_argument('--diff_aug_proba',type=float,default=0.5,help='proba of using each transformation')
 
         #all classes are the same options
