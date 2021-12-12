@@ -90,12 +90,18 @@ class BaseDataset(data.Dataset, ABC):
     def get_validation_set(self,size):
         return_A_list = []
         return_B_list = []
+        if not hasattr(self,'A_label_paths') :
+            A_label_paths = [None for k in range(size)]
+        else:
+            A_label_paths = self.A_label_paths
         if not hasattr(self,'B_img_paths') :
             self.B_img_paths = [None for k in range(size)]
         if not hasattr(self,'B_label_paths') :
-            self.B_label_paths = [None for k in range(size)]
-            
-        for A_img_path,A_label_path,B_img_path,B_label_path in zip(self.A_img_paths,self.A_label_paths,self.B_img_paths,self.B_label_paths):
+            B_label_paths = [None for k in range(size)]
+        else:
+            B_label_paths = self.B_label_paths
+
+        for A_img_path,A_label_path,B_img_path,B_label_path in zip(self.A_img_paths,A_label_paths,self.B_img_paths,B_label_paths):
             if len(return_A_list) >=size :
                 break
             images=self.get_img(A_img_path,A_label_path,B_img_path,B_label_path)
