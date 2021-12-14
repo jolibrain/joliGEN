@@ -1,6 +1,7 @@
 import torch
 import torchvision
 from torch import nn as nn
+import torch.nn.functional as F
 
 class GANLoss(nn.Module):
     """Define different GAN objectives.
@@ -28,7 +29,7 @@ class GANLoss(nn.Module):
             self.loss = nn.MSELoss()
         elif gan_mode == 'vanilla':
             self.loss = nn.BCEWithLogitsLoss()
-        elif gan_mode in ['wgangp']:
+        elif gan_mode in ['wgangp','projected']:
             self.loss = None
         else:
             raise NotImplementedError('gan mode %s not implemented' % gan_mode)
@@ -50,7 +51,7 @@ class GANLoss(nn.Module):
             target_tensor = self.fake_label
         return target_tensor.expand_as(prediction)
 
-    def __call__(self, prediction, target_is_real):
+    def __call__(self, prediction, target_is_real, relu=True):
         """Calculate loss given Discriminator's output and grount truth labels.
 
         Parameters:
@@ -68,6 +69,14 @@ class GANLoss(nn.Module):
                 loss = -prediction.mean()
             else:
                 loss = prediction.mean()
+        elif self.gan_mode == 'projected':
+            if relu:
+                if target_is_real:
+                    loss = (F.relu(torch.ones_like(prediction) - prediction)).mean()
+                else:
+                    loss = (F.relu(torch.ones_like(prediction) + prediction)).mean()
+            else:
+                loss = (-prediction).mean()
         return loss
 
 
@@ -172,7 +181,7 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
 
     def compute_loss_G(self,netD,real,fake):
         pred_fake = netD(fake)
-        loss_D_fake = self.criterionGAN(pred_fake,True)
+        loss_D_fake = self.criterionGAN(pred_fake,True,relu=False)
         return loss_D_fake
         
 class DiscriminatorContrastiveLoss(DiscriminatorLoss):

@@ -36,6 +36,7 @@ class UnalignedDataset(BaseDataset):
         self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
         self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
 
+    # A_label_path and B_label_path are unused
     def get_img(self,A_img_path,A_label_path,B_img_path=None,B_label_path=None,index=None):
         A_img = Image.open(A_img_path).convert('RGB')
         B_img = Image.open(B_img_path).convert('RGB')
