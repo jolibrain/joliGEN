@@ -18,6 +18,7 @@ from .modules.classifiers import Classifier_w
 from .modules.fid.pytorch_fid.inception import InceptionV3
 from .modules.stylegan_networks import StyleGAN2Discriminator, StyleGAN2Generator, TileStyleGAN2Discriminator
 from .modules.cut_networks import PatchSampleF
+from .modules.projected_d.discriminator import ProjectedDiscriminator
 
 class BaseNetwork(nn.Module):
     def __init__(self):
@@ -142,6 +143,9 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False,
         nclasses=1
         template=netD
         net = torch_model(input_nc, ndf, nclasses,opt.crop_size, template, pretrained=False)
+    elif netD == 'projected_d': # D in projected feature space
+        net = ProjectedDiscriminator()
+        return net # no init since custom frozen backbone
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
     return init_net(net, init_type, init_gain, gpu_ids,init_weight= 'stylegan2' not in netD)
