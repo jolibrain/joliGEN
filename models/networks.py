@@ -144,7 +144,7 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False,
         template=netD
         net = torch_model(input_nc, ndf, nclasses,opt.crop_size, template, pretrained=False)
     elif netD == 'projected_d': # D in projected feature space
-        net = ProjectedDiscriminator()
+        net = ProjectedDiscriminator(interp224=True if opt.crop_size < 224 else False)
         return net # no init since custom frozen backbone
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)

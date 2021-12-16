@@ -151,7 +151,7 @@ class MultiScaleD(nn.Module):
 class ProjectedDiscriminator(torch.nn.Module):
     def __init__(
         self,
-        interp224=False, #TODO: true if image size < 224
+        interp224=False,
         backbone_kwargs={'cout': 64, 'expand': True},
         **kwargs
     ):
