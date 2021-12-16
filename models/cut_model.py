@@ -141,7 +141,7 @@ class CUTModel(BaseModel):
             discriminators=["netD"]
             if opt.netD_global != "none":
                 discriminators += ["netD_global"]
-                self.D_global_loss=loss.DiscriminatorGANLoss(opt,self.netD_global,self.device)
+                self.D_global_loss=loss.DiscriminatorGANLoss(opt,self.netD_global,self.device,gan_mode="lsgan")
             self.networks_groups = []
 
             self.group_G = NetworkGroup(networks_to_optimize=["G","F"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward=["loss_G"])

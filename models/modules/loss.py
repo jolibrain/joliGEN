@@ -151,13 +151,17 @@ class DiscriminatorLoss(nn.Module):
         pass
 
 class DiscriminatorGANLoss(DiscriminatorLoss):
-    def __init__(self,opt,netD,device):
+    def __init__(self,opt,netD,device,gan_mode=None):
         super().__init__(opt,netD,device)
         if opt.D_label_smooth:
             target_real_label = 0.9
         else:
             target_real_label = 1.0
-        self.criterionGAN = GANLoss(opt.gan_mode,target_real_label=target_real_label).to(self.device)
+        if not gan_mode is None:
+            self.gan_mode = gan_mode
+        else:
+            self.gan_mode = opt.gan_mode
+        self.criterionGAN = GANLoss(self.gan_mode,target_real_label=target_real_label).to(self.device)
         
     def compute_loss_D(self,netD,real,fake):
         """Calculate GAN loss for the discriminator
