@@ -172,14 +172,14 @@ def define_inception(device,dims):
 def define_F(input_nc, netF, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, no_antialias=False, gpu_ids=[], opt=None):
     if netF == 'global_pool':
         net = PoolingF()
-    elif netF == 'reshape':
-        net = ReshapeF()
+    #elif netF == 'reshape':
+    #    net = ReshapeF()
     elif netF == 'sample':
         net = PatchSampleF(use_mlp=False, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.netF_nc)
     elif netF == 'mlp_sample':
         net = PatchSampleF(use_mlp=True, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.netF_nc)
-    elif netF == 'strided_conv':
-        net = StridedConvF(init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
+    #elif netF == 'strided_conv':
+    #    net = StridedConvF(init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
     else:
         raise NotImplementedError('projection model name [%s] is not recognized' % netF)
     return init_net(net, init_type, init_gain, gpu_ids)

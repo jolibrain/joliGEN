@@ -31,7 +31,7 @@ class CUTModel(BaseModel):
         parser.add_argument('--nce_includes_all_negatives_from_minibatch',
                             type=util.str2bool, nargs='?', const=True, default=False,
                             help='(used for single image translation) If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. Please see models/patchnce.py for more details.')
-        parser.add_argument('--netF', type=str, default='mlp_sample', choices=['sample', 'reshape', 'mlp_sample'], help='how to downsample the feature map')
+        parser.add_argument('--netF', type=str, default='mlp_sample', choices=['sample', 'mlp_sample'], help='how to downsample the feature map')
         parser.add_argument('--netF_nc', type=int, default=256)
         parser.add_argument('--nce_T', type=float, default=0.07, help='temperature for NCE loss')
         parser.add_argument('--num_patches', type=int, default=256, help='number of patches per layer')
@@ -175,7 +175,7 @@ class CUTModel(BaseModel):
         self.set_input_first_gpu(data)
         if self.opt.isTrain:
             self.optimize_parameters()
-            if self.opt.lambda_NCE > 0.0:
+            if self.opt.lambda_NCE > 0.0 and not self.opt.netF == 'sample':
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
                 self.optimizers.append(self.optimizer_F)
 
