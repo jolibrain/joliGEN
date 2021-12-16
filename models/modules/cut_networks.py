@@ -6,7 +6,6 @@ class PatchSampleF(nn.Module):
     def __init__(self, use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[]):
         # potential issues: currently, we use the same patch_ids for multiple images in the batch
         super(PatchSampleF, self).__init__()
-        self.l2norm = Normalize(2)
         self.use_mlp = use_mlp
         self.nc = nc  # hard-coded
         self.mlp_init = False
@@ -51,20 +50,9 @@ class PatchSampleF(nn.Module):
                 mlp = getattr(self, 'mlp_%d' % feat_id)
                 x_sample = mlp(x_sample)
             return_ids.append(patch_id.unsqueeze(0))
-            x_sample = self.l2norm(x_sample)
-
+            x_sample = torch.nn.functional.normalize(x_sample,eps=1e-7)
+            
             if num_patches == 0:
                 x_sample = x_sample.permute(0, 2, 1).reshape([B, x_sample.shape[-1], H, W])
             return_feats.append(x_sample)
-        return return_feats, return_ids
-
-class Normalize(nn.Module):
-
-    def __init__(self, power=2):
-        super(Normalize, self).__init__()
-        self.power = power
-
-    def forward(self, x):
-        norm = x.pow(self.power).sum(1, keepdim=True).pow(1. / self.power)
-        out = x.div(norm + 1e-7)
-        return out
+        return return_feats, return_ids                
