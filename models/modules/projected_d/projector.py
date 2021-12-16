@@ -125,7 +125,6 @@ class F_RandomProj(nn.Module):
         }
 
         if self.proj_type == 0: return out
-
         out0_channel_mixed = self.scratch.layer0_ccm(out['0'])
         out1_channel_mixed = self.scratch.layer1_ccm(out['1'])
         out2_channel_mixed = self.scratch.layer2_ccm(out['2'])
@@ -151,6 +150,39 @@ class F_RandomProj(nn.Module):
             '1': out1_scale_mixed,
             '2': out2_scale_mixed,
             '3': out3_scale_mixed,
+        }
+
+        return out
+
+class Proj(nn.Module):
+    def __init__(
+            self,
+            layer0,
+            layer1,
+            layer2,
+            layer3,
+            CHANNELS,
+            RESOLUTIONS
+    ):
+        super().__init__()
+        
+        self.layer0 = layer0
+        self.layer1 = layer1
+        self.layer2 = layer2
+        self.layer3 = layer3
+        self.CHANNELS = CHANNELS
+        self.RESOLUTIONS = RESOLUTIONS
+
+    def forward(self, x):
+        out0 = self.layer0(x)
+        out1 = self.layer1(out0)
+        out2 = self.layer2(out1)
+        out3 = self.layer3(out2)
+        out = {
+            '0': out0,
+            '1': out1,
+            '2': out2,
+            '3': out3,
         }
 
         return out

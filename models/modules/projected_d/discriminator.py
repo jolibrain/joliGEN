@@ -153,11 +153,15 @@ class ProjectedDiscriminator(torch.nn.Module):
         self,
         interp224=False, #TODO: true if image size < 224
         backbone_kwargs={'cout': 64, 'expand': True},
+        feature_network=None,
         **kwargs
     ):
         super().__init__()
         self.interp224 = interp224
-        self.feature_network = F_RandomProj(**backbone_kwargs)
+        if feature_network is None:
+            self.feature_network = F_RandomProj(**backbone_kwargs)
+        else:
+            self.feature_network = feature_network
         self.feature_network.requires_grad_(False)
         self.discriminator = MultiScaleD(
             channels=self.feature_network.CHANNELS,

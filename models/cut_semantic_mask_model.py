@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from util.util import gaussian
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
+from .modules.projected_d.projector import Proj
 
 class CUTSemanticMaskModel(CUTModel):
     """ This class implements CUT and FastCUT model, described in the paper
@@ -35,6 +36,8 @@ class CUTSemanticMaskModel(CUTModel):
         parser.add_argument('--contrastive_noise', type=float, default=0.0, help='noise on constrastive classifier')
         parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
 
+        parser.add_argument('--use_f_s_as_projector', action='store_true')
+
         return parser
         
     def __init__(self, opt,rank):
@@ -52,7 +55,7 @@ class CUTSemanticMaskModel(CUTModel):
         self.loss_names_f_s = losses_f_s
 
         self.loss_names = self.loss_names_G + self.loss_names_D + self.loss_names_f_s
-            
+
         # define networks (both generator and discriminator)
         if self.isTrain:
             self.netf_s = networks.define_f(opt.input_nc, nclasses=opt.semantic_nclasses, 
@@ -85,6 +88,19 @@ class CUTSemanticMaskModel(CUTModel):
             ###Making groups
             self.group_f_s = NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward=["loss_f_s"])
             self.networks_groups.append(self.group_f_s)
+
+            if opt.use_f_s_as_projector and opt.netD=='projected_d':
+                feature_network = Proj(
+                    layer0 = self.netf_s.inc,
+                    layer1 = self.netf_s.down1,
+                    layer2 = self.netf_s.down2,
+                    layer3 = self.netf_s.down3,
+                    CHANNELS = [32,64,128,256],
+                    RESOLUTIONS = [256,128,64,32]
+                )
+                self.netD = self.netD = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
+                                                          opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,opt,feature_network=feature_network)
+        
 
     def set_input_first_gpu(self,data):
         super().set_input_first_gpu(data)
