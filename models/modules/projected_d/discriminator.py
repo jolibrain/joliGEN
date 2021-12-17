@@ -138,7 +138,6 @@ class MultiScaleD(nn.Module):
             mini_discs += [str(i), Disc(nc=cin, start_sz=start_sz, end_sz=8, separable=separable, patch=patch)],
         self.mini_discs = nn.ModuleDict(mini_discs)
 
-    #TODO: relu here
     def forward(self, features):
         all_logits = []
         for k, disc in self.mini_discs.items():
@@ -157,30 +156,27 @@ class ProjectedDiscriminator(torch.nn.Module):
     ):
         super().__init__()
         self.interp224 = interp224
-        self.feature_network = F_RandomProj(**backbone_kwargs)
-        self.feature_network.requires_grad_(False)
+        self.freeze_feature_network = F_RandomProj(**backbone_kwargs)
+        self.freeze_feature_network.requires_grad_(False)
         self.discriminator = MultiScaleD(
-            channels=self.feature_network.CHANNELS,
-            resolutions=self.feature_network.RESOLUTIONS,
+            channels=self.freeze_feature_network.CHANNELS,
+            resolutions=self.freeze_feature_network.RESOLUTIONS,
             **backbone_kwargs,
         )
 
     def train(self, mode=True):
-        self.feature_network = self.feature_network.train(False)
-        #self.feature_network.requires_grad_(not mode)
+        self.freeze_feature_network = self.feature_network.train(False)
         self.discriminator = self.discriminator.train(mode)
-        #self.discriminator.requires_grad_(True)
         return self
 
     def eval(self):
         return self.train(False)
 
     def forward(self, x):
-        self.feature_network.requires_grad_(False)
         if self.interp224:
             x = F.interpolate(x, 224, mode='bilinear', align_corners=False)
 
-        features = self.feature_network(x)
+        features = self.freeze_feature_network(x)
         logits = self.discriminator(features)
         
         return logits

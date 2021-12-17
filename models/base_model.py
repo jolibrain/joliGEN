@@ -312,7 +312,7 @@ class BaseModel(ABC):
         print('-----------------------------------------------')
 
     def set_requires_grad(self, nets, requires_grad=False):
-        """Set requies_grad=Fasle for all the networks to avoid unnecessary computations
+        """Set requires_grad=False for all the networks to avoid unnecessary computations
         Parameters:
             nets (network list)   -- a list of networks
             requires_grad (bool)  -- whether the networks require gradients or not
@@ -321,10 +321,12 @@ class BaseModel(ABC):
             nets = [nets]
         for net in nets:
             if net is not None:
-                for param in net.parameters():
-                    param.requires_grad = requires_grad
-
-
+                for name, param in net.named_parameters():
+                    if not 'freeze' in name:
+                        param.requires_grad = requires_grad
+                    else:
+                        param.requires_grad = False
+                    
     def save_networks_img(self,data):
         self.set_input(data)
         paths=[]
@@ -466,11 +468,11 @@ class BaseModel(ABC):
 
         for group in self.networks_groups :
             for network in self.model_names:
-                if network in group.networks_to_optimize :                
+                if network in group.networks_to_optimize :
                     self.set_requires_grad(getattr(self,"net"+network), True)
                 else:
                     self.set_requires_grad(getattr(self,"net"+network), False)
-                    
+
             if not group.forward_functions is None:
                 for forward in group.forward_functions: 
                     getattr(self,forward)()
