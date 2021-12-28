@@ -150,12 +150,12 @@ class MultiScaleD(nn.Module):
 class ProjectedDiscriminator(torch.nn.Module):
     def __init__(
         self,
-        interp224=False,
+        interp=-1,
         backbone_kwargs={'cout': 64, 'expand': True},
         **kwargs
     ):
         super().__init__()
-        self.interp224 = interp224
+        self.interp = interp
         self.freeze_feature_network = F_RandomProj(**backbone_kwargs)
         self.freeze_feature_network.requires_grad_(False)
         self.discriminator = MultiScaleD(
@@ -173,9 +173,9 @@ class ProjectedDiscriminator(torch.nn.Module):
         return self.train(False)
 
     def forward(self, x):
-        if self.interp224:
-            x = F.interpolate(x, 224, mode='bilinear', align_corners=False)
-
+        if self.interp > 0:
+            x = F.interpolate(x, self.interp, mode='bilinear', align_corners=False)
+            
         features = self.freeze_feature_network(x)
         logits = self.discriminator(features)
         
