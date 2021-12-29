@@ -43,6 +43,8 @@ class BaseOptions():
         parser.add_argument('--G_spectral', action='store_true', help='whether to use spectral norm in the generator')
         parser.add_argument('--G_padding_type', type=str, help='whether to use padding in the generator, zeros or reflect', default='reflect')
         parser.add_argument('--D_projected_interp', type=int, default=-1, help='whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation')
+        parser.add_argument('--G_ema', action='store_true', help='whether to build G via exponential moving average')
+        parser.add_argument('--ema_beta', type=float, default=0.999, help='exponential decay for ema')
         
         # dataset parameters
         parser.add_argument('--dataset_mode', type=str, default='unaligned', help='chooses how datasets are loaded. [unaligned | aligned | single | colorization]')

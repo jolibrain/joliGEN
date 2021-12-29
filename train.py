@@ -85,7 +85,7 @@ def train_gpu(rank,world_size,opt,dataset):
             
             model.set_input(data)         # unpack data from dataloader and apply preprocessing
             model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
-
+            
             t_comp = (time.time() - iter_start_time) / opt.batch_size
 
             batch_size=model.get_current_batch_size() * len(opt.gpu_ids)
