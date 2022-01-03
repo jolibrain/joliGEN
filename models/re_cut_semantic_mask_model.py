@@ -52,7 +52,7 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
             self.group_P = NetworkGroup(networks_to_optimize=["P_B"],forward_functions=["forward_P"],backward_functions=["compute_P_loss"],loss_names_list=["loss_names_P"],optimizer=["optimizer_P"],loss_backward=["loss_P"])
             self.networks_groups.insert(1,self.group_P)
         else: # P and G networks will be trained in the same time
-            self.group_G = NetworkGroup(networks_to_optimize=["G","P_B"],forward_functions=["forward","forward_P"],backward_functions=["compute_G_loss","compute_P_loss"],loss_names_list=["loss_names_G","loss_names_P"],optimizer=["optimizer_G","optimizer_P"],loss_backward=["loss_G","loss_P"])
+            self.group_G = NetworkGroup(networks_to_optimize=["G","P_B"],forward_functions=["forward","forward_P"],backward_functions=["compute_G_loss","compute_P_loss"],loss_names_list=["loss_names_G","loss_names_P"],optimizer=["optimizer_G","optimizer_P"],loss_backward=["loss_G","loss_P"],networks_to_ema["G"])
             self.networks_groups[0] = self.group_G
 
         self.criterionCycle = torch.nn.L1Loss()

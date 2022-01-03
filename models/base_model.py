@@ -1,4 +1,5 @@
 import os
+import copy
 import torch
 from collections import OrderedDict
 from abc import ABC, abstractmethod
@@ -106,6 +107,7 @@ class BaseModel(ABC):
             
         if opt.diff_aug_policy !="":
             self.diff_augment = DiffAugment(opt.diff_aug_policy,opt.diff_aug_proba)
+
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -458,6 +460,21 @@ class BaseModel(ABC):
                     value = value.detach()                    
                 self.iter_calculator.compute_step(loss_name,value)
 
+    def ema_step(self, network_name):
+        ema_beta = self.opt.ema_beta
+        network = getattr(self,"net"+network_name)
+        network_ema = getattr(self,"net"+network_name+"_ema",None)
+        #- first iteration create the EMA + add to self.model_names + new X_ema to self.visual_names
+        if network_ema is None:
+            setattr(self,"net"+network_name+"_ema",copy.deepcopy(network).eval())
+            network_ema = getattr(self,"net"+network_name+"_ema")
+        #- update EMAs
+        with torch.no_grad():
+            for p_ema, p in zip(network_ema.parameters(), network.parameters()):
+                p_ema.copy_(p.lerp(p_ema, ema_beta)) # p is updated as well
+            for b_ema, b in zip(network_ema.buffers(), network.buffers()):
+                b_ema.copy_(b)
+                
     def get_current_batch_size(self):
         return self.real_A.shape[0]        
         
@@ -486,6 +503,11 @@ class BaseModel(ABC):
             for optimizer, loss_names in zip(group.optimizer, group.loss_names_list):
                 self.compute_step(getattr(self,optimizer),getattr(self,loss_names))
 
+            if self.opt.G_ema:
+                for network in self.model_names:
+                    if network in group.networks_to_ema:
+                        self.ema_step(network)
+                
     def compute_D_loss_generic(self,netD,domain_img,loss,real_name=None,fake_name=None):
         noisy=""
         if self.opt.D_noise > 0.0:

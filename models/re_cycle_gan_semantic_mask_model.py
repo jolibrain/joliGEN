@@ -52,7 +52,7 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
         if self.opt.no_train_P_fake_images:
             self.group_P = NetworkGroup(networks_to_optimize=["P_A","P_B"],forward_functions=["forward_P"],backward_functions=["compute_P_loss"],loss_names_list=["loss_names_P"],optimizer=["optimizer_P"],loss_backward=["loss_P"])
         else: # P and G networks will be trained in the same time
-            self.group_G = NetworkGroup(networks_to_optimize=["G_A","G_B","P_A","P_B"],forward_functions=["forward","forward_P"],backward_functions=["compute_G_loss","compute_P_loss"],loss_names_list=["loss_names_G","loss_names_P"],optimizer=["optimizer_G","optimizer_P"],loss_backward=["loss_G","loss_P"])
+            self.group_G = NetworkGroup(networks_to_optimize=["G_A","G_B","P_A","P_B"],forward_functions=["forward","forward_P"],backward_functions=["compute_G_loss","compute_P_loss"],loss_names_list=["loss_names_G","loss_names_P"],optimizer=["optimizer_G","optimizer_P"],loss_backward=["loss_G","loss_P"],network_to_ema=["G_A","G_B"])
             self.networks_groups[0] = self.group_G
 
 

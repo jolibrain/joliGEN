@@ -162,7 +162,7 @@ class CycleGANModel(BaseModel):
                 discriminators += ["netD_A_global","netD_B_global"]
                 self.D_global_loss=loss.DiscriminatorGANLoss(opt,self.netD_A_global,self.device)
 
-            self.group_G = NetworkGroup(networks_to_optimize=["G_A","G_B"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward=["loss_G"])
+            self.group_G = NetworkGroup(networks_to_optimize=["G_A","G_B"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward=["loss_G"],networks_to_ema=["G_A","G_B"])
             self.networks_groups.append(self.group_G)
 
             self.group_D = NetworkGroup(networks_to_optimize=["D_A","D_B"],forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward=["loss_D"])
