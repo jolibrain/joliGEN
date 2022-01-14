@@ -53,5 +53,13 @@ class TrainOptions(BaseOptions):
         #all classes are the same options
         parser.add_argument('--all_classes_as_one',action='store_true',help='if true, all classes will be considered as the same one (ie foreground vs background)')
 
+        #Adaptive pseudo augmentation using G
+        parser.add_argument('--APA', action='store_true',help='if true, G will be used as augmentation during D training adaptively to D overfitting between real and fake images')
+        parser.add_argument('--APA_target',type=float,default=0.6)
+        parser.add_argument('--APA_p',type=float,default=0,help='initial value of probability APA')
+        parser.add_argument('--APA_every', type=int, default=4,help='How often to perform APA adjustment?')
+        parser.add_argument('--APA_nimg', type=int, default=50,help='APA adjustment speed, measured in how many images it takes for p to increase/decrease by one unit.')
+
+
         self.isTrain = True
         return parser

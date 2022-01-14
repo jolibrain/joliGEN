@@ -120,6 +120,12 @@ def train_gpu(rank,world_size,opt,dataset):
                     if opt.display_id > 0:
                         accuracies=model.get_current_D_accuracies()
                         visualizer.plot_current_D_accuracies(epoch, float(epoch_iter) / dataset_size, accuracies)
+
+                if total_iters % opt.display_freq < batch_size and opt.APA:
+                    if opt.display_id > 0:
+                        p=model.get_current_APA_prob()
+                        visualizer.plot_current_APA_prob(epoch, float(epoch_iter) / dataset_size, p)
+                    
     
                 iter_data_time = time.time()
             
