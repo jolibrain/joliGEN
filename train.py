@@ -43,6 +43,7 @@ def signal_handler(sig, frame):
 def train_gpu(rank,world_size,opt,dataset):
     torch.cuda.set_device(opt.gpu_ids[rank])
     signal.signal(signal.SIGINT, signal_handler) #to really kill the process
+    signal.signal(signal.SIGTERM, signal_handler)
     if len(opt.gpu_ids)>1:
         setup(rank, world_size,opt.ddp_port)
     dataloader = create_dataloader(opt,rank,dataset)  # create a dataset given opt.dataset_mode and other options
@@ -58,7 +59,7 @@ def train_gpu(rank,world_size,opt,dataset):
     if len(opt.gpu_ids)>1:
         model.parallelize(rank)
     else:
-        model.single_gpu()        
+        model.single_gpu()
 
     if rank==0:
         visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots

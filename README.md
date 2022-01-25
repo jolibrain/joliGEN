@@ -88,6 +88,18 @@ You can tune the hyperparameters in `./scripts/train_cyclegan_semantic_mask.sh` 
 bash ./scripts/train_cyclegan_semantic_mask.sh dataroot
 ```
 
+## JoliGAN server
+
+Ensure everything is installed
+```bash
+python3 -m pip install fastapi uvicorn
+```
+
+Then run server:
+```bash
+server/run.sh --host localhost --port 8000
+```
+
 ## Authors
 
 **JoliGAN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).
