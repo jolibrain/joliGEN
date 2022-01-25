@@ -22,11 +22,9 @@ class CUTModel(BaseModel):
     def modify_commandline_options(parser, is_train=True):
         """  Configures options specific for CUT model
         """
-        parser.add_argument('--CUT_mode', type=str, default="CUT", choices='(CUT, cut, FastCUT, fastcut)')
-
         parser.add_argument('--lambda_GAN', type=float, default=1.0, help='weight for GAN loss：GAN(G(X))')
         parser.add_argument('--lambda_NCE', type=float, default=1.0, help='weight for NCE loss: NCE(G(X), X)')
-        parser.add_argument('--nce_idt', type=util.str2bool, nargs='?', const=True, default=False, help='use NCE loss for identity mapping: NCE(G(Y), Y))')
+        parser.add_argument('--nce_idt', type=util.str2bool, nargs='?', const=True, default=True, help='use NCE loss for identity mapping: NCE(G(Y), Y))')
         parser.add_argument('--nce_layers', type=str, default='0,4,8,12,16', help='compute NCE loss on which layers')
         parser.add_argument('--nce_includes_all_negatives_from_minibatch',
                             type=util.str2bool, nargs='?', const=True, default=False,
@@ -39,19 +37,6 @@ class CUTModel(BaseModel):
                             type=util.str2bool, nargs='?', const=True, default=False,
                             help="Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT")
         parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
-
-        opt, _ = parser.parse_known_args()
-
-        # Set default parameters for CUT and FastCUT
-        if opt.CUT_mode.lower() == "cut":
-            parser.set_defaults(nce_idt=True, lambda_NCE=1.0)
-        elif opt.CUT_mode.lower() == "fastcut":
-            parser.set_defaults(
-                nce_idt=False, lambda_NCE=10.0, flip_equivariance=True,
-                n_epochs=150, n_epochs_decay=50
-            )
-        else:
-            raise ValueError(opt.CUT_mode)
 
         return parser
 

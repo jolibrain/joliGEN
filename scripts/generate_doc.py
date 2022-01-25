@@ -50,25 +50,23 @@ def document_parser(parser):
             pass
     
     for action_group in parser._action_groups:
-        options_list = []
+        for action in action_group._group_actions:
+            if isinstance(action, _HelpAction):
+                continue
 
-    for action in action_group._group_actions:
-        if isinstance(action, _HelpAction):
-            continue
+            name = ",".join(action.option_strings)
 
-        name = ",".join(action.option_strings)
+            if isinstance(action, _StoreConstAction):
+                type_str = "flag"
+                default = ""
+            else:
+                type_str = action.type.__name__ if action.type is not None else "str"
+                default = action.default if action.default is not None else ""
 
-        if isinstance(action, _StoreConstAction):
-            type_str = "flag"
-            default = ""
-        else:
-            type_str = action.type.__name__ if action.type is not None else "str"
-            default = action.default if action.default is not None else ""
+            description = action.help if action.help is not None else ""
+            description = description.replace("|", "\\|")
 
-        description = action.help if action.help is not None else ""
-        description = description.replace("|", "\\|")
-
-        help_str += "| %s | %s | %s | %s |\n" % (name, type_str, default, description)
+            help_str += "| %s | %s | %s | %s |\n" % (name, type_str, default, description)
     return help_str
 
 

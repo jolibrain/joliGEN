@@ -1,9 +1,12 @@
 import argparse
 import os
+import math
+from collections import defaultdict
 from util import util
 import torch
 import models
 import data
+from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
 
 
 class BaseOptions():
@@ -161,9 +164,24 @@ class BaseOptions():
             opt_file.write(message)
             opt_file.write('\n')
 
-    def parse(self):
-        """Parse our options, create checkpoints directory suffix, and set up gpu device."""
-        opt = self.gather_options()
+    def to_json(self, ignore_default=False):
+        """
+        Converts an argparse namespace to a json-like dict containing the same arguments.
+        This dict can be used to re-run with the same arguments from the API
+
+        Parameters
+            ignore_default Add only non-default options to json
+        """
+        json_args = dict()
+
+        for k, v in sorted(vars(self.opt).items()):
+            default = self.parser.get_default(k)
+            if v != default or not ignore_default:
+                json_args[k] = v
+
+        return json_args
+
+    def _after_parse(self, opt):
         opt.isTrain = self.isTrain   # train or test
 
         # process opt.suffix
@@ -185,3 +203,142 @@ class BaseOptions():
 
         self.opt = opt
         return self.opt
+
+    def parse(self):
+        """Parse our options, create checkpoints directory suffix, and set up gpu device."""
+        opt = self.gather_options()
+        return self._after_parse(opt)
+
+    def _json_parse_known_args(self, parser, opt, json_args):
+        for action_group in parser._action_groups:
+            for action in action_group._group_actions:
+                if isinstance(action, _HelpAction):
+                    continue
+
+                if hasattr(opt, action.dest):
+                    # already parsed
+                    continue
+
+                if isinstance(action, _StoreConstAction):
+                    val = False
+                    check_type = bool
+                else:
+                    val = action.default
+                    check_type = action.type
+
+                if check_type is None:
+                    check_type = str
+
+                names = { action.dest }
+                for opt_name in action.option_strings:
+                    if opt_name.startswith("--"):
+                        names.add(opt_name[2:])
+
+                for name in names:
+                    if name in json_args:
+                        val = json_args[name]
+
+                        if not isinstance(val, check_type):
+                            raise ValueError("%s: Bad type" % (name,))
+
+                        del json_args[name]
+
+                setattr(opt, action.dest, val)
+
+    def parse_json(self, json_args):
+        """
+        Parse a json-like dict using the joliGAN argument parser.
+
+        JSON structure is
+
+        ```
+        {
+            "base_option1": ...,
+            "base_option2": ...,
+            "cut_option1": ...,
+            ...
+        }
+        ```
+        """
+
+        if not self.initialized:  # check if it has been initialized
+            parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+            parser = self.initialize(parser)
+
+        opt = argparse.Namespace()
+        self._json_parse_known_args(parser, opt, json_args)
+
+        model_name = opt.model
+        model_option_setter = models.get_option_setter(model_name)
+        parser = model_option_setter(parser, self.isTrain)
+        self._json_parse_known_args(parser, opt, json_args)
+        self.parser = parser
+
+        if len(json_args) != 0:
+            raise ValueError("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
+
+        return self._after_parse(opt)
+
+    def get_schema(self, allow_nan = False):
+        if not self.initialized:
+            parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+            parser = self.initialize(parser)
+
+        opt = argparse.Namespace()
+        self._json_parse_known_args(parser, opt, {})
+        
+        named_parsers = {"": parser}
+        for model_name in models.get_models_names():
+            if self.isTrain and model_name in ["test"]:
+                continue
+            setter = models.get_option_setter(model_name)
+            model_parser = argparse.ArgumentParser()
+            setter(model_parser)
+            self._json_parse_known_args(model_parser, opt, {})
+            named_parsers[model_name] = model_parser
+
+        self.opt = opt
+        self.parser = parser
+        json_vals = self.to_json()
+
+        for k in json_vals:
+            if json_vals[k] is None:
+                json_vals[k] = "None"
+            if not allow_nan:
+                if json_vals[k] == float("inf"):
+                    json_vals[k] = 1e100
+                if json_vals[k] == float("-inf"):
+                    json_vals[k] = -1e100
+                if type(json_vals[k]) == float and math.isnan(json_vals[k]):
+                    json_vals[k] = 0
+
+        from pydantic import create_model
+        schema = create_model(type(self).__name__, **json_vals).schema()
+        
+        option_tags = defaultdict(list)
+
+        for parser_name in named_parsers:
+            current_parser = named_parsers[parser_name]
+
+            for action_group in current_parser._action_groups:
+                for action in action_group._group_actions:
+                    if isinstance(action, _HelpAction):
+                        continue
+
+                    if len(parser_name) > 0:
+                        option_tags[action.dest].append(parser_name)
+
+                    if action.dest in schema["properties"]:
+                        field = schema["properties"][action.dest]
+                        description = action.help if action.help is not None else ""
+                        for c in "#*<>":
+                            description = description.replace(c, "\\" + c)
+                        field["description"] = description
+                        if "title" in field:
+                            del field["title"]
+
+        for tagged in option_tags:
+            tags = " | ".join(option_tags[tagged])
+            schema["properties"][tagged]["description"] = "[" + tags + "]\n\n" + schema["properties"][tagged]["description"]
+
+        return schema
