@@ -53,9 +53,15 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 self.B_img_paths_val, self.B_label_paths_val = make_labeled_path_dataset(self.dir_val_B,'/paths.txt')   # load images from '/path/to/data/validationB/paths.txt' as well as labels
 
         if self.opt.sanitize_paths:
-            if os.path.exists(os.path.join(self.dir_A,'paths_sanitized.txt')) and os.path.exists(os.path.join(self.dir_B,'paths_sanitized.txt')) :
-                self.A_img_paths, self.A_bbox_paths = make_labeled_path_dataset(self.dir_A,'/paths_sanitized.txt')
-                self.B_img_paths, self.B_bbox_paths = make_labeled_path_dataset(self.dir_B,'/paths_sanitized.txt')
+            train_sanitized_exist = os.path.exists(os.path.join(self.sv_dir,'paths_sanitized_train_A.txt')) and os.path.exists(os.path.join(self.sv_dir,'paths_sanitized_train_B.txt'))
+            validation_is_needed = self.opt.phase == 'train' and self.opt.compute_D_accuracy
+            validation_sanitized_exist = os.path.exists(os.path.join(self.sv_dir,'paths_sanitized_validation_B.txt')) and os.path.exists(os.path.join(self.sv_dir,'paths_sanitized_validation_A.txt'))
+            if train_sanitized_exist and (not validation_is_needed or validation_sanitized_exist) :
+                self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(self.sv_dir,'/paths_sanitized_train_A.txt')
+                self.B_img_paths, self.B_label_paths = make_labeled_path_dataset(self.sv_dir,'/paths_sanitized_train_B.txt')
+                if validation_is_needed:
+                    self.A_img_paths_val, self.A_label_paths_val = make_labeled_path_dataset(self.sv_dir,'/paths_sanitized_validation_A.txt')
+                    self.B_img_paths_val, self.B_label_paths_val = make_labeled_path_dataset(self.sv_dir,'/paths_sanitized_validation_B.txt')
                 print("Sanitized images and labels paths loaded.")
             else:
                 self.sanitize()
@@ -77,15 +83,17 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         print('Sanitizing images and labels paths')
         print('--- DOMAIN A ---')
 
-        self.A_img_paths, self.A_bbox_paths = sanitize_paths(self.A_img_paths, self.A_bbox_paths,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size,max_dataset_size=self.opt.max_dataset_size)
-        write_paths_file(self.A_img_paths, self.A_bbox_paths,os.path.join(self.dir_A,'paths_sanitized.txt'))
+        self.A_img_paths, self.A_label_paths = sanitize_paths(self.A_img_paths, self.A_label_paths,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size,max_dataset_size=self.opt.max_dataset_size)
+        write_paths_file(self.A_img_paths, self.A_label_paths,os.path.join(self.sv_dir,'paths_sanitized_train_A.txt'))
         if self.opt.phase == 'train' and self.opt.compute_D_accuracy:
             self.A_img_paths_val, self.A_label_paths_val = sanitize_paths(self.A_img_paths_val, self.A_label_paths_val,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size,max_dataset_size=self.opt.pool_size)
+            write_paths_file(self.A_img_paths_val, self.A_label_paths_val,os.path.join(self.sv_dir,'paths_sanitized_validation_A.txt'))
         print('--- DOMAIN B ---')
-        self.B_img_paths, self.B_bbox_paths = sanitize_paths(self.B_img_paths, self.B_bbox_paths,mask_delta=self.opt.online_creation_mask_delta_B,crop_delta=self.opt.online_creation_crop_delta_B,mask_square=self.opt.online_creation_mask_square_B,crop_dim=self.opt.online_creation_crop_size_B,output_dim=self.opt.load_size,max_dataset_size=self.opt.max_dataset_size)
-        write_paths_file(self.B_img_paths, self.B_bbox_paths,os.path.join(self.dir_B,'paths_sanitized.txt'))
+        self.B_img_paths, self.B_label_paths = sanitize_paths(self.B_img_paths, self.B_label_paths,mask_delta=self.opt.online_creation_mask_delta_B,crop_delta=self.opt.online_creation_crop_delta_B,mask_square=self.opt.online_creation_mask_square_B,crop_dim=self.opt.online_creation_crop_size_B,output_dim=self.opt.load_size,max_dataset_size=self.opt.max_dataset_size)
+        write_paths_file(self.B_img_paths, self.B_label_paths,os.path.join(self.sv_dir,'paths_sanitized_train_B.txt'))
         if self.opt.phase == 'train' and self.opt.compute_D_accuracy:
             self.B_img_paths_val, self.B_label_paths_val = sanitize_paths(self.B_img_paths_val, self.B_label_paths_val,mask_delta=self.opt.online_creation_mask_delta_B,crop_delta=self.opt.online_creation_crop_delta_B,mask_square=self.opt.online_creation_mask_square_B,crop_dim=self.opt.online_creation_crop_size_B,output_dim=self.opt.load_size,max_dataset_size=self.opt.pool_size)
+            write_paths_file(self.B_img_paths_val, self.B_label_paths_val,os.path.join(self.sv_dir,'paths_sanitized_validation_B.txt'))
         print('--------------')
 
     def get_img(self,A_img_path,A_label_path,B_img_path=None,B_label_path=None,index=None):
