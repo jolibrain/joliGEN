@@ -112,6 +112,9 @@ class BaseModel(ABC):
 
         self.objects_to_update = []
 
+        if self.opt.APA:
+            self.visual_names.append(['APA_img'])
+
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
