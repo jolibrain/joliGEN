@@ -19,6 +19,9 @@ def crop_image(img_path,bbox_path,mask_delta,crop_delta,mask_square,crop_dim,out
             elif line != "" or line != " ":
                 print("%s does not describe a bbox"%line)
 
+        if len(bboxes)==0:
+            print('There is no bbox.')
+
         #Creation of a blank mask
         mask = np.zeros(img.shape[:2],dtype=np.uint8)
 

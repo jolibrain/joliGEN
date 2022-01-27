@@ -93,7 +93,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             A_img,A_label = crop_image(A_img_path,A_label_path,mask_delta=self.opt.online_creation_mask_delta_A,crop_delta=self.opt.online_creation_crop_delta_A,mask_square=self.opt.online_creation_mask_square_A,crop_dim=self.opt.online_creation_crop_size_A,output_dim=self.opt.load_size)
 
         except Exception as e:
-            print('failure with reading A domain image ', A_img_path, ' or label ', A_label_path)
+            print('failure with loading A domain image ', A_img_path, ' or label ', A_label_path)
             print(e)
             return None
        
@@ -115,7 +115,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     B_label = []
                 
             except Exception as e:
-                print("failed to read B domain image ", B_img_path, 'or label', B_label_path)
+                print("failure with loading B domain image ", B_img_path, 'or label', B_label_path)
                 print(e)
                 return None
 
