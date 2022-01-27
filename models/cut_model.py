@@ -87,6 +87,8 @@ class CUTModel(BaseModel):
         if self.opt.diff_aug_policy != '':
             self.visual_names.append(['fake_B_aug'])
             self.visual_names.append(['real_B_aug'])
+
+        self.visual_names.append(['APA_img'])
         
         if self.isTrain:
             self.model_names = ['G', 'F', 'D']
@@ -131,8 +133,6 @@ class CUTModel(BaseModel):
                     self.loss_names[i] = cur_loss + '_avg'
                     setattr(self, "loss_" + self.loss_names[i], 0)
 
-            self.niter=0
-
             if opt.netD_global == "none":
                 self.loss_D_global=0
                 self.loss_G_GAN_global=0
@@ -158,6 +158,8 @@ class CUTModel(BaseModel):
             self.D_loss=loss.DiscriminatorContrastiveLoss(opt,self.netD,self.device)
         else:
             self.D_loss=loss.DiscriminatorGANLoss(opt,self.netD,self.device)
+
+        self.objects_to_update.append(self.D_loss)
 
     def set_input_first_gpu(self,data):
         self.set_input(data)

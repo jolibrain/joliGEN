@@ -314,3 +314,28 @@ class Visualizer():
                 win=self.display_id+5)
         except VisdomExceptionBase:
             self.create_visdom_connections()
+        
+    def plot_current_APA_prob(self, epoch, counter_ratio, p):
+        if not hasattr(self, 'plot_APA_prob'):
+            self.plot_APA_prob = {'X': [], 'Y': [], 'legend': list(p.keys())}
+        self.plot_APA_prob['X'].append(epoch + counter_ratio)
+        self.plot_APA_prob['Y'].append([p[k] for k in self.plot_APA_prob['legend']])
+        X=np.stack([np.array(self.plot_APA_prob['X'])] * len(self.plot_APA_prob['legend']), 1)
+        Y=np.array(self.plot_APA_prob['Y'])
+
+        if X.shape[1]==1:
+            X = X.squeeze(1)
+            Y = Y.squeeze(1)
+
+        try:
+            self.vis.line(
+                Y,
+                X,
+                opts={
+                    'title': self.name + ' APA params over time',
+                    'legend': self.plot_APA_prob['legend'],
+                    'xlabel': 'epoch',
+                    'ylabel': 'prob APA'},
+                win=self.display_id+6)
+        except VisdomExceptionBase:
+            self.create_visdom_connections()

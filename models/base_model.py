@@ -107,6 +107,10 @@ class BaseModel(ABC):
             
         if opt.diff_aug_policy !="":
             self.diff_augment = DiffAugment(opt.diff_aug_policy,opt.diff_aug_proba)
+            
+        self.niter=0
+
+        self.objects_to_update = []
 
 
     @staticmethod
@@ -442,6 +446,13 @@ class BaseModel(ABC):
                 accuracies[name] = float(getattr(self, name))  # float(...) works for both scalar tensor and float number
         return accuracies
 
+    def get_current_APA_prob(self):
+        current_APA_prob=OrderedDict()
+        current_APA_prob['APA_p'] = float(self.D_loss.adaptive_pseudo_augmentation_p)
+        current_APA_prob['APA_adjust'] = float(self.D_loss.adjust)
+   
+        return current_APA_prob
+
     def compute_step(self,optimizers,loss_names):
         if not isinstance(optimizers,list):
             optimizers = [optimizers]
@@ -481,7 +492,7 @@ class BaseModel(ABC):
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
         
-        self.niter = self.niter +1
+        self.niter = self.niter  +1
 
         for group in self.networks_groups :
             for network in self.model_names:
@@ -508,6 +519,10 @@ class BaseModel(ABC):
                     if network in group.networks_to_ema:
                         self.ema_step(network)
                 
+        for cur_object in self.objects_to_update:
+            cur_object.update(self.niter)
+
+
     def compute_D_loss_generic(self,netD,domain_img,loss,real_name=None,fake_name=None):
         noisy=""
         if self.opt.D_noise > 0.0:
@@ -517,12 +532,19 @@ class BaseModel(ABC):
             fake = getattr(self,"fake_"+domain_img+"_pool").query(getattr(self,"fake_"+domain_img+noisy))
         else:
             fake = getattr(self,fake_name)
+
+        if self.opt.APA:
+            fake_2 = getattr(self,"fake_"+domain_img+"_pool").get_random(fake.shape[0])
+            self.APA_img = fake_2
+        else:
+            fake_2 = None
+            
         if real_name is None:
             real = getattr(self,"real_"+domain_img+noisy)
         else:
             real = getattr(self,real_name)
             
-        loss = loss.compute_loss_D(netD, real, fake)
+        loss = loss.compute_loss_D(netD, real, fake, fake_2)
         return loss
 
     def compute_G_loss_GAN_generic(self,netD,domain_img,loss,real_name=None,fake_name=None):

@@ -146,14 +146,14 @@ class CycleGANModel(BaseModel):
 
             self.rec_noise = opt.rec_noise
                     
-            self.niter=0
-
             if self.opt.use_contrastive_loss_D:
                 self.D_loss="compute_D_contrastive_loss_basic"
                 self.D_loss=loss.DiscriminatorContrastiveLoss(opt,self.netD_A,self.device)
             else:
                 self.D_loss="compute_D_loss_basic"
                 self.D_loss=loss.DiscriminatorGANLoss(opt,self.netD_A,self.device)
+
+            self.objects_to_update.append(self.D_loss)
                 
             ###Making groups
             self.networks_groups = []

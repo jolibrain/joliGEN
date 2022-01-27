@@ -58,3 +58,13 @@ class ImagePool():
 
     def __len__(self):
         return len(self.images)
+
+    def get_random(self,nb):
+        return_images = []
+        for i in range(nb):
+            random_id = random.randint(0, len(self.images) - 1)
+            tmp = self.images[random_id].clone()
+            return_images.append(tmp)
+        return_images = torch.cat(return_images, 0)   # collect all the images and return
+
+        return return_images
