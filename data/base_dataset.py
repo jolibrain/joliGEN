@@ -13,6 +13,7 @@ import torch
 from torchvision.transforms import InterpolationMode
 import imgaug as ia
 import imgaug.augmenters as iaa
+import os
 
 class BaseDataset(data.Dataset, ABC):
     """This class is an abstract base class (ABC) for datasets.
@@ -32,6 +33,7 @@ class BaseDataset(data.Dataset, ABC):
         """
         self.opt = opt
         self.root = opt.dataroot
+        self.sv_dir = os.path.join(opt.checkpoints_dir, opt.name)
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
