@@ -82,13 +82,11 @@ class CUTModel(BaseModel):
 
         if opt.nce_idt and self.isTrain:
             visual_names_B += ['idt_B']
-        self.visual_names = [visual_names_A,visual_names_B]
+        self.visual_names += [visual_names_A,visual_names_B]
 
         if self.opt.diff_aug_policy != '':
             self.visual_names.append(['fake_B_aug'])
             self.visual_names.append(['real_B_aug'])
-
-        self.visual_names.append(['APA_img'])
         
         if self.isTrain:
             self.model_names = ['G', 'F', 'D']
