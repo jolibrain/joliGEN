@@ -3,6 +3,7 @@
 It also includes common transformation functions (e.g., get_transform, __scale_width), which can be later used in subclasses.
 """
 import random
+import os.path
 import numpy as np
 import torch.utils.data as data
 from PIL import Image
@@ -84,7 +85,15 @@ class BaseDataset(data.Dataset, ABC):
                 B_label_path = None
         else:
             B_img_path=None
-                
+
+        if self.opt.relative_paths:
+            A_img_path = os.path.join(self.root,A_img_path)
+            if A_label_path is not None:
+                A_label_path = os.path.join(self.root,A_label_path)
+            B_img_path = os.path.join(self.root,B_img_path)
+            if B_label_path is not None:
+                B_label_path = os.path.join(self.root,B_label_path)
+
         return self.get_img(A_img_path,A_label_path,B_img_path,B_label_path,index)
 
     def get_validation_set(self,size):
@@ -104,6 +113,14 @@ class BaseDataset(data.Dataset, ABC):
         for A_img_path,A_label_path,B_img_path,B_label_path in zip(self.A_img_paths,A_label_paths,self.B_img_paths,B_label_paths):
             if len(return_A_list) >=size :
                 break
+            
+            if self.opt.relative_paths:
+                A_img_path = os.path.join(self.root,A_img_path)
+            if A_label_path is not None:
+                A_label_path = os.path.join(self.root,A_label_path)
+            B_img_path = os.path.join(self.root,B_img_path)
+            if B_label_path is not None:
+                B_label_path = os.path.join(self.root,B_label_path)
             images=self.get_img(A_img_path,A_label_path,B_img_path,B_label_path)
             if images is not None:
                 return_A_list.append(images['A'].unsqueeze(0))

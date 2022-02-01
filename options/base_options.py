@@ -102,7 +102,8 @@ class BaseOptions():
 
         parser.add_argument('--sanitize_paths',action='store_true',help='if true, wrong images or labels paths will be removed before training')
         parser.add_argument('--sanitize_paths_vebose',action='store_true',help='if true, wrong images or labels paths will be printed')
-
+        parser.add_argument('--relative_paths',action='store_true',help='whether paths to images are relative to dataroot')
+        
         #D accuracy
         parser.add_argument('--compute_D_accuracy', action='store_true')
         parser.add_argument('--D_accuracy_every', type=int, default=1000)
