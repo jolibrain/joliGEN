@@ -115,6 +115,17 @@ class BaseModel(ABC):
         if self.opt.APA:
             self.visual_names.append(['APA_img'])
 
+        if opt.display_attention_masks:
+            for i in range (opt.nb_mask_attn):
+                temp_visual_names_attn=[]
+                temp_visual_names_attn += ["attention_"+str(i)]
+                temp_visual_names_attn += ["output_"+str(i)]
+                if i < opt.nb_mask_attn - opt.nb_mask_input:
+                    temp_visual_names_attn += ["image_"+str(i)]
+
+                self.visual_names.append(temp_visual_names_attn)
+
+
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -143,6 +154,24 @@ class BaseModel(ABC):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.real_A_pool.query(self.real_A)
         self.real_B_pool.query(self.real_B)
+
+        if hasattr(self,'netG'):
+            netG= self.netG
+        else:
+            netG= self.netG_A
+        
+        if self.opt.display_attention_masks :
+            images,attentions,outputs=netG.get_attention_masks(self.real_A)
+            for i,cur_mask in enumerate(attentions):
+                setattr(self,"attention_"+str(i),cur_mask)
+
+            for i,cur_output in enumerate(outputs):
+                setattr(self,"output_"+str(i),cur_output)
+
+            for i,cur_image in enumerate(images):
+                setattr(self,"image_"+str(i),cur_image)
+
+        
         pass
 
     @abstractmethod

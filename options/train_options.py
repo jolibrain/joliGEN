@@ -62,5 +62,12 @@ class TrainOptions(BaseOptions):
 
         parser.add_argument('--display_diff_fake_real', action='store_true',help='if True x - G(x) is displayed')
 
+        #Segformer Options
+        parser.add_argument('--config_segformer',type=str,default='models/configs/segformer/segformer_config_b0.py',help='path to segforme configuration file')
+
+        parser.add_argument('--display_attention_masks',action='store_true')
+        parser.add_argument('--nb_mask_attn',default=10)
+        parser.add_argument('--nb_mask_input',default=1)
+
         self.isTrain = True
         return parser

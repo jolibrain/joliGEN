@@ -68,7 +68,8 @@ class CUTModel(BaseModel):
 
         if opt.nce_idt and self.isTrain:
             visual_names_B += ['idt_B']
-        self.visual_names += [visual_names_A,visual_names_B]
+        self.visual_names.insert(0,visual_names_A)
+        self.visual_names.insert(1,visual_names_B)
 
         if self.opt.diff_aug_policy != '':
             self.visual_names.append(['fake_B_aug'])
@@ -188,6 +189,7 @@ class CUTModel(BaseModel):
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         super().forward()
+
         self.real = torch.cat((self.real_A, self.real_B), dim=0) if self.opt.nce_idt and self.opt.isTrain else self.real_A
         if self.opt.flip_equivariance:
             self.flipped_for_equivariance = self.opt.isTrain and (np.random.random() < 0.5)
