@@ -48,8 +48,6 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             parser.add_argument('--no_train_f_s_A', action='store_true', help='if true f_s wont be trained on domain A')
             parser.add_argument('--fs_light',action='store_true', help='whether to use a light (unet) network for f_s')
             parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')
-            parser.add_argument('--nb_attn', type=int, default=10, help='number of attention masks')
-            parser.add_argument('--nb_mask_input', type=int, default=1, help='number of attention masks which will be applied on the input image')
             parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
             parser.add_argument('--madgrad',action='store_true',help='if true madgrad optim will be used')
 
@@ -61,10 +59,6 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             opt.disc_in_mask = False
         if not hasattr(opt, 'out_mask'):
             opt.out_mask = False
-        if not hasattr(opt, 'nb_attn'):
-            opt.nb_attn = 10
-        if not hasattr(opt, 'nb_mask_input'):
-            opt.nb_mask_input = 1
         if not hasattr(opt, 'fs_light'):
             opt.fs_light = False
             

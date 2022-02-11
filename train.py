@@ -146,6 +146,7 @@ def train_gpu(rank,world_size,opt,dataset):
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler) #to really kill the process
     opt = TrainOptions().parse()   # get training options
+    opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-1]))
     world_size=len(opt.gpu_ids)
 
     dataset=create_dataset(opt)

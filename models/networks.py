@@ -19,6 +19,7 @@ from .modules.fid.pytorch_fid.inception import InceptionV3
 from .modules.stylegan_networks import StyleGAN2Discriminator, StyleGAN2Generator, TileStyleGAN2Discriminator
 from .modules.cut_networks import PatchSampleF
 from .modules.projected_d.discriminator import ProjectedDiscriminator
+from .modules.segformer.segformer_generator import Segformer,SegformerGenerator_attn
 
 class BaseNetwork(nn.Module):
     def __init__(self):
@@ -32,7 +33,7 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,nb_attn = 10,nb_mask_input=1,padding_type='reflect',opt=None):
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,padding_type='reflect',opt=None):
     """Create a generator
 
     Parameters:
@@ -84,13 +85,20 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'resnet_attn':
-        net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input,padding_type=padding_type)
+        net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,padding_type=padding_type,opt=opt)
     elif netG == 'mobile_resnet_attn':
-        net = MobileResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,nb_attn = nb_attn,nb_mask_input=nb_mask_input,padding_type=padding_type)
+        net = MobileResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,padding_type=padding_type,opt=opt)
     elif netG == 'stylegan2':
         net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, opt=opt)
     elif netG == 'smallstylegan2':
         net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, n_blocks=2, opt=opt)
+        return net
+    elif netG == 'segformer_attn_conv':
+        net = SegformerGenerator_attn(opt=opt,final_conv=True)
+        return net
+    elif netG == 'segformer_conv':
+        net = Segformer(opt=opt,num_classes=256,final_conv=True)
+        return net
 
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
