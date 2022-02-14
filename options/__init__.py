@@ -1,6 +1,7 @@
 """This package options includes option modules: training options, test options, and basic options (used in both training and test)."""
 import argparse
 from .base_options import BaseOptions
+from .train_options import TrainOptions
 from models import get_models_names, get_option_setter
 
 def get_parser():
@@ -30,3 +31,4 @@ def get_models_parsers():
             pass
 
     return model_parsers
+
