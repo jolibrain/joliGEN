@@ -27,6 +27,7 @@ import torch.multiprocessing as mp
 import os
 import torch.distributed as dist
 import signal
+import torch
 
 def setup(rank, world_size,port):
     os.environ['MASTER_ADDR'] = 'localhost'
@@ -40,6 +41,7 @@ def signal_handler(sig, frame):
     dist.destroy_process_group()
  
 def train_gpu(rank,world_size,opt,dataset):
+    torch.cuda.set_device(opt.gpu_ids[rank])
     signal.signal(signal.SIGINT, signal_handler) #to really kill the process
     if len(opt.gpu_ids)>1:
         setup(rank, world_size,opt.ddp_port)
