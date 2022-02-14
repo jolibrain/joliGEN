@@ -29,6 +29,19 @@
 | RecycleGAN | https://arxiv.org/abs/1808.05174 |
 | StyleGAN2 | https://arxiv.org/abs/1912.04958 |
 
+## Generator architectures
+
+| Architecture  | Number of parameters |
+| -- | -- |
+|Resnet 9 blocks|11.378M|
+|Mobile resnet 9 blocks|1.987M|
+|Resnet attn|11.823M|
+|Mobile resnet attn|2.432M|
+|Segformer b0|4.158M|
+|Segformer attn b0|4.60M|
+|Segformer attn b1|14.724M|
+|Segformer attn b5|83.016M|
+
 ## Quick Start
 
 ### Prerequisites
