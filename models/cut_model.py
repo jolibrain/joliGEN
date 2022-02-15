@@ -144,6 +144,10 @@ class CUTModel(BaseModel):
 
         self.objects_to_update.append(self.D_loss)
 
+        if self.opt.display_diff_fake_real:
+            self.visual_names.append(['diff_real_A_fake_B'])
+
+
     def set_input_first_gpu(self,data):
         self.set_input(data)
         self.bs_per_gpu = self.real_A.size(0) #// max(len(self.opt.gpu_ids), 1)
@@ -198,6 +202,8 @@ class CUTModel(BaseModel):
         if self.opt.D_noise > 0.0:
             self.fake_B_noisy = gaussian(self.fake_B, self.opt.D_noise)
             self.real_B_noisy = gaussian(self.real_B, self.opt.D_noise)
+
+        self.diff_real_A_fake_B = self.real_A - self.fake_B
             
     def compute_D_loss(self):
         """Calculate GAN loss for both discriminators"""
