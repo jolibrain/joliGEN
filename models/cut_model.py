@@ -5,6 +5,7 @@ from . import networks
 from .patchnce import PatchNCELoss
 import util.util as util
 from .modules import loss
+from util.util import gaussian
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 import itertools
@@ -194,6 +195,10 @@ class CUTModel(BaseModel):
         if self.opt.nce_idt:
             self.idt_B = self.fake[self.real_A.size(0):]
 
+        if self.opt.D_noise > 0.0:
+            self.fake_B_noisy = gaussian(self.fake_B, self.opt.D_noise)
+            self.real_B_noisy = gaussian(self.real_B, self.opt.D_noise)
+            
     def compute_D_loss(self):
         """Calculate GAN loss for both discriminators"""
         self.loss_D = self.compute_D_loss_generic(self.netD,"B",self.D_loss)

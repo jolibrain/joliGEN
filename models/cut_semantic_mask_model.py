@@ -6,7 +6,6 @@ from .patchnce import PatchNCELoss
 import util.util as util
 from .modules import loss
 import torch.nn.functional as F
-from util.util import gaussian
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 
@@ -150,10 +149,6 @@ class CUTSemanticMaskModel(CUTModel):
                 label_A_inv = label_A_inv.unsqueeze(1)
                 self.real_A_out_mask = self.real_A *label_A_inv
                 self.fake_B_out_mask = self.fake_B *label_A_inv            
-
-                if self.opt.D_noise > 0.0:
-                    self.fake_B_noisy = gaussian(self.fake_B, self.opt.D_noise)
-                    self.real_B_noisy = gaussian(self.real_B, self.opt.D_noise)
                 
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
