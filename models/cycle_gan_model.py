@@ -167,6 +167,9 @@ class CycleGANModel(BaseModel):
 
             self.group_D = NetworkGroup(networks_to_optimize=discriminators,forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward=["loss_D"])
             self.networks_groups.append(self.group_D)
+
+        if self.opt.display_diff_fake_real:
+            self.visual_names.append(['diff_real_B_fake_A','diff_real_A_fake_B'])
             
 
     def set_input(self, input):
@@ -209,6 +212,8 @@ class CycleGANModel(BaseModel):
             self.idt_A = self.netG_A(self.real_B)
             self.idt_B = self.netG_B(self.real_A)
 
+        self.diff_real_B_fake_A = self.real_B - self.fake_A
+        self.diff_real_A_fake_B = self.real_A - self.fake_B
 
     def compute_D_loss(self):
         """Calculate GAN loss for both discriminators"""

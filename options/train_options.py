@@ -60,6 +60,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--APA_every', type=int, default=4,help='How often to perform APA adjustment?')
         parser.add_argument('--APA_nimg', type=int, default=50,help='APA adjustment speed, measured in how many images it takes for p to increase/decrease by one unit.')
 
+        parser.add_argument('--display_diff_fake_real', action='store_true',help='if True x - G(x) is displayed')
 
         self.isTrain = True
         return parser
