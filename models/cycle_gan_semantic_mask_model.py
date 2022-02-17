@@ -49,14 +49,35 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
         if self.isTrain:
-            self.model_names += ['f_s']
+            if self.opt.train_mask_disjoint_f_s:
+                self.opt.train_mask_f_s_B = True
+                self.model_names += ['f_s_A','f_s_B']
+            else:
+                self.model_names += ['f_s']
 
         # load/define networks
         # The naming conversion is different from those used in the paper
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netf_s = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
+
+        networks_f_s=[]
+        if self.opt.disjoint_f_s:
+            self.netf_s_A = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
                                         init_type=opt.model_init_type, init_gain=opt.model_init_gain,
                                         gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
+
+            networks_f_s.append('f_s_A')
+            self.netf_s_B = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
+                                        init_type=opt.model_init_type, init_gain=opt.model_init_gain,
+                                        gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
+
+            networks_f_s.append('f_s_B')
+            
+        else:
+            self.netf_s = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
+                                        init_type=opt.model_init_type, init_gain=opt.model_init_gain,
+                                        gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
+
+            networks_f_s.append('f_s')
  
         if self.isTrain:
             self.fake_A_pool_mask = ImagePool(opt.train_pool_size)
@@ -77,17 +98,25 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             if not opt.madgrad:
                 self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                     lr=opt.train_G_lr, betas=(opt.train_beta1, opt.train_beta2))    
-                    self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
+                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
                                                 lr=opt.train_D_lr, betas=(opt.train_beta1, opt.train_beta2))
-                self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
+                    
+                if self.opt.disjoint_f_s:
+                    self.optimizer_f_s = torch.optim.Adam(itertools.chain(self.netf_s_A.parameters(),self.netf_s_B.parameters()), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
+                else:
+                    self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
             else:
                 self.optimizer_G = MADGRAD(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                     lr=opt.train_G_lr)
                 self.optimizer_D = MADGRAD(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
                                                 lr=opt.train_D_lr)
-                self.optimizer_f_s = MADGRAD(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s)
+                self.optimizers[0]=self.optimizer_G
+                self.optimizers[1]=self.optimizer_D
+                if self.opt.disjoint_f_s:
+                    self.optimizer_f_s = MADGRAD(itertools.chain(self.netf_s_A.parameters(),self.netf_s_B.parameters()), lr=opt.train_sem_lr_f_s)
+                else:
+                    self.optimizer_f_s = MADGRAD(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s)
                 
-
             self.optimizers.append(self.optimizer_f_s)
 
             if self.opt.train_iter_size > 1 :
@@ -100,7 +129,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             ###Making groups
             discriminators = ["D_A","D_B"]
             
-            self.group_f_s= NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward=["loss_f_s"])
+            self.group_f_s= NetworkGroup(networks_to_optimize=networks_f_s,forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward=["loss_f_s"])
             self.networks_groups.append(self.group_f_s)
 
             
@@ -141,14 +170,24 @@ class CycleGANSemanticMaskModel(CycleGANModel):
     def forward(self):
         super().forward()
         d=1
+        if self.opt.disjoint_f_s:
+            f_s = self.netf_s_A
+        else:
+            f_s = self.netf_s
+
         if self.isTrain:
-            self.pred_real_A = self.netf_s(self.real_A)            
+            self.pred_real_A = f_s(self.real_A)            
             self.gt_pred_A = F.log_softmax(self.pred_real_A,dim= d).argmax(dim=d)
+
+            self.pred_fake_A = f_s(self.fake_A)
             
-            self.pred_real_B = self.netf_s(self.real_B)
+            if self.opt.disjoint_f_s:
+                f_s = self.netf_s_B
+            else:
+                f_s = self.netf_s
+            
+            self.pred_real_B = f_s(self.real_B)
             self.gt_pred_B = F.log_softmax(self.pred_real_B,dim=d).argmax(dim=d)
-            
-            self.pred_fake_A = self.netf_s(self.fake_A)
             
             self.pfA = F.log_softmax(self.pred_fake_A,dim=d)
             self.pfA_max = self.pfA.argmax(dim=d)
@@ -171,8 +210,12 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                     
                     self.real_B_out_mask = self.real_B *label_B_inv
                     self.fake_A_out_mask = self.fake_A *label_B_inv
-    
-        self.pred_fake_B = self.netf_s(self.fake_B)
+        if self.opt.disjoint_f_s:
+            f_s = self.netf_s_B
+        else:
+            f_s = self.netf_s
+
+        self.pred_fake_B = f_s(self.fake_B)
         self.pfB = F.log_softmax(self.pred_fake_B,dim=d)
         self.pfB_max = self.pfB.argmax(dim=d)
                
@@ -182,11 +225,21 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         if not self.opt.train_mask_no_train_f_s_A:
             label_A = self.input_A_label
             # forward only real source image through semantic classifier
-            pred_A = self.netf_s(self.real_A) 
+            if self.opt.disjoint_f_s:
+                f_s = self.netf_s_A
+            else:
+                f_s = self.netf_s
+
+            pred_A = f_s(self.real_A) 
             self.loss_f_s += self.criterionf_s(pred_A, label_A)#.squeeze(1))
         if self.opt.train_mask_f_s_B:
             label_B = self.input_B_label
-            pred_B = self.netf_s(self.real_B) 
+            if self.opt.disjoint_f_s:
+                f_s = self.netf_s_B
+            else:
+                f_s = self.netf_s
+
+            pred_B = f_s(self.real_B) 
             self.loss_f_s += self.criterionf_s(pred_B, label_B)#.squeeze(1))
 
     def compute_D_A_mask_loss(self):
