@@ -38,13 +38,12 @@ class CycleGANModel(BaseModel):
         Identity loss (optional): lambda_identity * (||G_A(B) - B|| * lambda_B + ||G_B(A) - A|| * lambda_A) (Sec 5.2 "Photo generation from paintings" in the paper)
         Dropout is not used in the original CycleGAN paper.
         """
-        parser.set_defaults(no_dropout=True)  # default CycleGAN did not use dropout
+        parser.set_defaults(G_dropout=False)  # default CycleGAN did not use dropout
         if is_train:
-            parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
-            parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
-            parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
-            parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
-            parser.add_argument('--rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
+            parser.add_argument('--alg_cyclegan_lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
+            parser.add_argument('--alg_cyclegan_lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
+            parser.add_argument('--alg_cyclegan_lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
+            parser.add_argument('--alg_cyclegan_rec_noise', type=float, default=0.0, help='whether to add noise to reconstruction')
         return parser
 
     def __init__(self, opt,rank):
@@ -63,7 +62,7 @@ class CycleGANModel(BaseModel):
             
         losses_D = ['D_A', 'D_B']
 
-        if opt.netD_global != "none":
+        if opt.D_netD_global != "none":
             losses_D += ['D_A_global', 'D_B_global']
             losses_G += ['G_A_global','G_B_global']
 
@@ -75,20 +74,20 @@ class CycleGANModel(BaseModel):
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
-        if self.isTrain and self.opt.lambda_identity > 0.0:  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
+        if self.isTrain and self.opt.alg_cyclegan_lambda_identity > 0.0:  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
             visual_names_A.append('idt_B')
             visual_names_B.append('idt_A')
 
         self.visual_names = [visual_names_A , visual_names_B] + self.visual_names  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
 
-        if self.opt.diff_aug_policy != '':
+        if self.opt.dataaug_diff_aug_policy != '':
             self.visual_names.append(['real_A_aug','fake_B_aug'])
             self.visual_names.append(['real_B_aug','fake_A_aug'])
         
         if self.isTrain:
             self.model_names = ['G_A', 'G_B', 'D_A', 'D_B']
-            if opt.netD_global != "none":
+            if opt.D_netD_global != "none":
                 self.model_names += ['D_A_global', 'D_B_global']
         else:  # during test time, only load Gs
             self.model_names = ['G_A', 'G_B']
@@ -96,57 +95,57 @@ class CycleGANModel(BaseModel):
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.G_spectral, opt.init_type, opt.init_gain, self.gpu_ids,padding_type=opt.G_padding_type,opt=self.opt)
-        self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.G_spectral, opt.init_type, opt.init_gain, self.gpu_ids,padding_type=opt.G_padding_type,opt=self.opt)
+        self.netG_A = networks.define_G(opt.model_input_nc, opt.model_output_nc, opt.G_ngf, opt.G_netG, opt.G_norm,
+                                        opt.G_dropout, opt.G_spectral, opt.model_init_type, opt.model_init_gain, self.gpu_ids,padding_type=opt.G_padding_type,opt=self.opt)
+        self.netG_B = networks.define_G(opt.model_output_nc, opt.model_input_nc, opt.G_ngf, opt.G_netG, opt.G_norm,
+                                        opt.G_dropout, opt.G_spectral, opt.model_init_type, opt.model_init_gain, self.gpu_ids,padding_type=opt.G_padding_type,opt=self.opt)
 
         if self.isTrain:  # define discriminators
-            self.netD_A = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,self.opt)
-            self.netD_B = networks.define_D(opt.input_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,self.opt)
+            self.netD_A = networks.define_D(opt.model_output_nc, opt.D_ndf, opt.D_netD,
+                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,self.opt)
+            self.netD_B = networks.define_D(opt.model_input_nc, opt.D_ndf, opt.D_netD,
+                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,self.opt)
 
-            if opt.netD_global != "none":
-                self.netD_A_global = networks.define_D(opt.output_nc, opt.ndf, opt.netD_global,
-                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,self.opt)
-                self.netD_B_global = networks.define_D(opt.input_nc, opt.ndf, opt.netD_global,
-                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,self.opt)
+            if opt.D_netD_global != "none":
+                self.netD_A_global = networks.define_D(opt.model_output_nc, opt.D_ndf, opt.D_netD_global,
+                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,self.opt)
+                self.netD_B_global = networks.define_D(opt.model_input_nc, opt.D_ndf, opt.D_netD_global,
+                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,self.opt)
 
-            if self.opt.lambda_identity == 0.0:
+            if self.opt.alg_cyclegan_lambda_identity == 0.0:
                 self.loss_idt_A = 0
                 self.loss_idt_B = 0
-            if opt.netD_global == "none":
+            if opt.D_netD_global == "none":
                 self.loss_D_A_global=0
                 self.loss_D_B_global=0
                 self.loss_G_A_global=0
                 self.loss_G_B_global=0
  
         if self.isTrain:
-            if opt.lambda_identity > 0.0:  # only works when input and output images have the same number of channels
-                assert(opt.input_nc == opt.output_nc)
+            if opt.alg_cyclegan_lambda_identity > 0.0:  # only works when input and output images have the same number of channels
+                assert(opt.model_input_nc == opt.model_output_nc)
             # define loss functions
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
 
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
-            if opt.netD_global== "none":
-                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.train_G_lr, betas=(opt.train_beta1, opt.train_beta2))
+            if opt.D_netD_global== "none":
+                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()), lr=opt.train_D_lr, betas=(opt.train_beta1, opt.train_beta2))
             else:
-                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters(),self.netD_A_global.parameters(), self.netD_B_global.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
+                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters(),self.netD_A_global.parameters(), self.netD_B_global.parameters()), lr=opt.train_D_lr, betas=(opt.train_beta1, opt.train_beta2))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
             
-            if self.opt.iter_size > 1 :
+            if self.opt.train_iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
                 for i,cur_loss in enumerate(self.loss_names):
                     self.loss_names[i] = cur_loss + '_avg'
                     setattr(self, "loss_" + self.loss_names[i], 0)
 
-            self.rec_noise = opt.rec_noise
+            self.rec_noise = opt.alg_cyclegan_rec_noise
                     
-            if self.opt.use_contrastive_loss_D:
+            if self.opt.train_use_contrastive_loss_D:
                 self.D_loss="compute_D_contrastive_loss_basic"
                 self.D_loss=loss.DiscriminatorContrastiveLoss(opt,self.netD_A,self.device)
             else:
@@ -158,7 +157,7 @@ class CycleGANModel(BaseModel):
             ###Making groups
             self.networks_groups = []
             discriminators=["D_A","D_B"]
-            if opt.netD_global != "none":
+            if opt.D_netD_global != "none":
                 discriminators += ["D_A_global","D_B_global"]
                 self.D_global_loss=loss.DiscriminatorGANLoss(opt,self.netD_A_global,self.device)
 
@@ -168,7 +167,7 @@ class CycleGANModel(BaseModel):
             self.group_D = NetworkGroup(networks_to_optimize=discriminators,forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward=["loss_D"])
             self.networks_groups.append(self.group_D)
 
-        if self.opt.display_diff_fake_real:
+        if self.opt.output_display_diff_fake_real:
             self.visual_names.append(['diff_real_B_fake_A','diff_real_A_fake_B'])
             
 
@@ -180,7 +179,7 @@ class CycleGANModel(BaseModel):
 
         The option 'direction' can be used to swap domain A and domain B.
         """
-        AtoB = self.opt.direction == 'AtoB'
+        AtoB = self.opt.data_direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_img_paths' if AtoB else 'B_img_paths']
@@ -202,13 +201,13 @@ class CycleGANModel(BaseModel):
         else:
             self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
             
-        if self.opt.D_noise > 0.0:
-            self.fake_B_noisy = gaussian(self.fake_B, self.opt.D_noise)
-            self.real_A_noisy = gaussian(self.real_A, self.opt.D_noise)
-            self.fake_A_noisy = gaussian(self.fake_A, self.opt.D_noise)
-            self.real_B_noisy = gaussian(self.real_B, self.opt.D_noise)
+        if self.opt.dataaug_D_noise > 0.0:
+            self.fake_B_noisy = gaussian(self.fake_B, self.opt.dataaug_D_noise)
+            self.real_A_noisy = gaussian(self.real_A, self.opt.dataaug_D_noise)
+            self.fake_A_noisy = gaussian(self.fake_A, self.opt.dataaug_D_noise)
+            self.real_B_noisy = gaussian(self.real_B, self.opt.dataaug_D_noise)
 
-        if self.opt.lambda_identity > 0:
+        if self.opt.alg_cyclegan_lambda_identity > 0:
             self.idt_A = self.netG_A(self.real_B)
             self.idt_B = self.netG_B(self.real_A)
 
@@ -220,7 +219,7 @@ class CycleGANModel(BaseModel):
         self.loss_D_A = self.compute_D_loss_generic(self.netD_A,"B",self.D_loss)
         self.loss_D_B = self.compute_D_loss_generic(self.netD_B,"A",self.D_loss)
 
-        if self.opt.netD_global != "none":
+        if self.opt.D_netD_global != "none":
             self.loss_D_A_global = self.compute_D_loss_generic(self.netD_A_global,"B",self.D_global_loss)
             self.loss_D_B_global = self.compute_D_loss_generic(self.netD_B_global,"A",self.D_global_loss)
         
@@ -228,9 +227,9 @@ class CycleGANModel(BaseModel):
 
     def compute_G_loss(self):
         """Calculate the loss for generators G_A and G_B"""
-        lambda_idt = self.opt.lambda_identity
-        lambda_A = self.opt.lambda_A
-        lambda_B = self.opt.lambda_B
+        lambda_idt = self.opt.alg_cyclegan_lambda_identity
+        lambda_A = self.opt.alg_cyclegan_lambda_A
+        lambda_B = self.opt.alg_cyclegan_lambda_B
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
@@ -242,7 +241,7 @@ class CycleGANModel(BaseModel):
         self.loss_G_A = self.compute_G_loss_GAN_generic(self.netD_A,"B",self.D_loss)
         self.loss_G_B = self.compute_G_loss_GAN_generic(self.netD_B,"A",self.D_loss)
 
-        if self.opt.netD_global != "none":
+        if self.opt.D_netD_global != "none":
             self.loss_G_A_global = self.compute_G_loss_GAN_generic(self.netD_A_global,"B",self.D_global_loss)
             self.loss_G_B_global = self.compute_G_loss_GAN_generic(self.netD_B_global,"A",self.D_global_loss)
         

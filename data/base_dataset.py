@@ -74,7 +74,7 @@ class BaseDataset(data.Dataset, ABC):
             A_label_path = None
 
         if hasattr(self,'B_img_paths') :
-            if self.opt.serial_batches:   # make sure index is within then range
+            if self.opt.data_serial_batches:   # make sure index is within then range
                 index_B = index % self.B_size
             else:   # randomize the index for domain B to avoid fixed pairs.
                 index_B = random.randint(0, self.B_size - 1)
@@ -88,7 +88,7 @@ class BaseDataset(data.Dataset, ABC):
         else:
             B_img_path=None
 
-        if self.opt.relative_paths:
+        if self.opt.data_relative_paths:
             A_img_path = os.path.join(self.root,A_img_path)
             if A_label_path is not None:
                 A_label_path = os.path.join(self.root,A_label_path)
@@ -116,7 +116,7 @@ class BaseDataset(data.Dataset, ABC):
             if len(return_A_list) >=size :
                 break
             
-            if self.opt.relative_paths:
+            if self.opt.data_relative_paths:
                 A_img_path = os.path.join(self.root,A_img_path)
             if A_label_path is not None:
                 A_label_path = os.path.join(self.root,A_label_path)
@@ -140,14 +140,14 @@ def get_params(opt, size):
     w, h = size
     new_h = h
     new_w = w
-    if opt.preprocess == 'resize_and_crop':
-        new_h = new_w = opt.load_size
-    elif opt.preprocess == 'scale_width_and_crop':
-        new_w = opt.load_size
-        new_h = opt.load_size * h // w
+    if opt.data_preprocess == 'resize_and_crop':
+        new_h = new_w = opt.data_load_size
+    elif opt.data_preprocess == 'scale_width_and_crop':
+        new_w = opt.data_load_size
+        new_h = opt.data_load_size * h // w
 
-    x = random.randint(0, np.maximum(0, new_w - opt.crop_size))
-    y = random.randint(0, np.maximum(0, new_h - opt.crop_size))
+    x = random.randint(0, np.maximum(0, new_w - opt.data_crop_size))
+    y = random.randint(0, np.maximum(0, new_h - opt.data_crop_size))
 
     flip = random.random() > 0.5
 
@@ -158,37 +158,37 @@ def get_transform(opt, params=None, grayscale=False, method=InterpolationMode.BI
     transform_list = []
     if grayscale:
         transform_list.append(transforms.Grayscale(1))
-    if 'resize' in opt.preprocess:
-        osize = [opt.load_size, opt.load_size]
+    if 'resize' in opt.data_preprocess:
+        osize = [opt.data_load_size, opt.data_load_size]
         transform_list.append(transforms.Resize(osize, interpolation=method))
-    elif 'scale_width' in opt.preprocess:
-        transform_list.append(transforms.Lambda(lambda img: __scale_width(img, opt.load_size, method)))
+    elif 'scale_width' in opt.data_preprocess:
+        transform_list.append(transforms.Lambda(lambda img: __scale_width(img, opt.data_load_size, method)))
 
-    if 'crop' in opt.preprocess and crop:
+    if 'crop' in opt.data_preprocess and crop:
         if params is None:
-            transform_list.append(transforms.RandomCrop(opt.crop_size))
+            transform_list.append(transforms.RandomCrop(opt.data_crop_size))
         else:
-            transform_list.append(transforms.Lambda(lambda img: __crop(img, params['crop_pos'], opt.crop_size)))
+            transform_list.append(transforms.Lambda(lambda img: __crop(img, params['crop_pos'], opt.data_crop_size)))
 
-    if opt.preprocess == 'none':
+    if opt.data_preprocess == 'none':
         transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method)))
 
-    if not opt.no_flip:
+    if not opt.dataaug_no_flip:
         if params is None:
             transform_list.append(transforms.RandomHorizontalFlip())
         elif params['flip']:
             transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
 
-    if not opt.no_rotate:
+    if not opt.dataaug_no_rotate:
         transform_list.append(transforms.RandomRotation([-90,180]))
 
-    if opt.affine:
-        transform_list.append(transforms.RandomAffine(0,(opt.affine_translate, opt.affine_translate),
-                                                      (opt.affine_scale_min, opt.affine_scale_max),
-                                                      (-opt.affine_shear, opt.affine_shear)))
+    if opt.dataaug_affine:
+        transform_list.append(transforms.RandomAffine(0,(opt.dataaug_affine_translate, opt.dataaug_affine_translate),
+                                                      (opt.dataaug_affine_scale_min, opt.dataaug_affine_scale_max),
+                                                      (-opt.dataaug_affine_shear, opt.dataaug_affine_shear)))
 
 
-    if opt.imgaug and not grayscale:
+    if opt.dataaug_imgaug and not grayscale:
         transform_list.append(RandomImgAug(with_mask=False))
     
     if convert:
@@ -254,28 +254,28 @@ def get_transform_seg(opt, params=None, grayscale=False, method=InterpolationMod
     if grayscale:
         transform_list.append(GrayscaleMask(1))
 
-    if 'resize' in opt.preprocess:
-        osize = [opt.load_size, opt.load_size]
+    if 'resize' in opt.data_preprocess:
+        osize = [opt.data_load_size, opt.data_load_size]
         transform_list.append(ResizeMask(osize, interpolation=method))
         
-    if 'crop' in opt.preprocess:
-        transform_list.append(RandomCropMask(opt.crop_size))
+    if 'crop' in opt.data_preprocess:
+        transform_list.append(RandomCropMask(opt.data_crop_size))
 
-    if opt.imgaug:
+    if opt.dataaug_imgaug:
         if not grayscale:
             transform_list.append(RandomImgAug())
         
-    if not opt.no_flip:
+    if not opt.dataaug_no_flip:
         transform_list.append(RandomHorizontalFlipMask())
 
-    if not opt.no_rotate:
+    if not opt.dataaug_no_rotate:
         transform_list.append(RandomRotationMask(degrees=0))
 
-    if opt.affine:
+    if opt.dataaug_affine:
         raff = RandomAffineMask(degrees=0)
-        raff.set_params(opt.affine,opt.affine_translate,
-                        opt.affine_scale_min,opt.affine_scale_max,
-                        opt.affine_shear)
+        raff.set_params(opt.dataaug_affine,opt.dataaug_affine_translate,
+                        opt.dataaug_affine_scale_min,opt.dataaug_affine_scale_max,
+                        opt.dataaug_affine_shear)
         transform_list.append(raff)
         
     transform_list += [ToTensorMask()]
@@ -626,24 +626,24 @@ def get_transform_list(opt, params=None, grayscale=False, method=InterpolationMo
     if grayscale:
         transform_list.append(GrayscaleMaskList(1))
 
-    if 'resize' in opt.preprocess:
-        osize = [opt.load_size, opt.load_size]
+    if 'resize' in opt.data_preprocess:
+        osize = [opt.data_load_size, opt.data_load_size]
         transform_list.append(ResizeMaskList(osize, interpolation=method))
         
-    if 'crop' in opt.preprocess:
-        transform_list.append(RandomCropMaskList(opt.crop_size))
+    if 'crop' in opt.data_preprocess:
+        transform_list.append(RandomCropMaskList(opt.data_crop_size))
 
-    if not opt.no_flip:
+    if not opt.dataaug_no_flip:
         transform_list.append(RandomHorizontalFlipMaskList())
 
-    if not opt.no_rotate:
+    if not opt.dataaug_no_rotate:
         transform_list.append(RandomRotationMaskList(degrees=0))
 
-    if opt.affine:
+    if opt.dataaug_affine:
         raff = RandomAffineMaskList(degrees=0)
-        raff.set_params(opt.affine,opt.affine_translate,
-                        opt.affine_scale_min,opt.affine_scale_max,
-                        opt.affine_shear)
+        raff.set_params(opt.dataaug_affine,opt.dataaug_affine_translate,
+                        opt.dataaug_affine_scale_min,opt.dataaug_affine_scale_max,
+                        opt.dataaug_affine_shear)
         transform_list.append(raff)
         
     transform_list += [ToTensorMaskList()]

@@ -28,7 +28,7 @@ class PatchNCELoss(nn.Module):
         # However, for single-image translation, the minibatch consists of
         # crops from the "same" high-resolution image.
         # Therefore, we will include the negatives from the entire minibatch.
-        if self.opt.nce_includes_all_negatives_from_minibatch:
+        if self.opt.alg_cut_nce_includes_all_negatives_from_minibatch:
             # reshape features as if they are all negatives of minibatch of size 1.
             batch_dim_for_bmm = 1
         else:
@@ -45,7 +45,7 @@ class PatchNCELoss(nn.Module):
         l_neg_curbatch.masked_fill_(diagonal, -10.0)
         l_neg = l_neg_curbatch.view(-1, npatches)
 
-        out = torch.cat((l_pos, l_neg), dim=1) / self.opt.nce_T
+        out = torch.cat((l_pos, l_neg), dim=1) / self.opt.alg_cut_nce_T
 
         loss = self.cross_entropy_loss(out, torch.zeros(out.size(0), dtype=torch.long,
                                                         device=feat_q.device))

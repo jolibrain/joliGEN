@@ -31,31 +31,31 @@ class UnalignedLabeledDataset(BaseDataset):
         self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
 
         if not os.path.isfile(self.dir_A+'/paths.txt'):
-            self.A_img_paths, self.A_label = make_labeled_dataset(self.dir_A, opt.max_dataset_size)   # load images from '/path/to/data/trainA' as well as labels
+            self.A_img_paths, self.A_label = make_labeled_dataset(self.dir_A, opt.data_max_dataset_size)   # load images from '/path/to/data/trainA' as well as labels
             self.A_label = np.array(self.A_label)
         else:
-            self.A_img_paths, self.A_label = make_labeled_path_dataset(self.dir_A,'/paths.txt', opt.max_dataset_size)   # load images from '/path/to/data/trainA/paths.txt' as well as labels
+            self.A_img_paths, self.A_label = make_labeled_path_dataset(self.dir_A,'/paths.txt', opt.data_max_dataset_size)   # load images from '/path/to/data/trainA/paths.txt' as well as labels
             self.A_label = np.array(self.A_label,dtype=np.float32)
             
         
         #print('A_label',self.A_label)
-        if opt.use_label_B:
+        if opt.train_sem_use_label_B:
             if not os.path.isfile(self.dir_B+'/paths.txt'):
-                self.B_img_paths, self.B_label = make_labeled_dataset(self.dir_B, opt.max_dataset_size)
+                self.B_img_paths, self.B_label = make_labeled_dataset(self.dir_B, opt.data_max_dataset_size)
                 self.B_label = np.array(self.B_label)
             else:
-                self.B_img_paths, self.B_label = make_labeled_path_dataset(self.dir_B,'/paths.txt', opt.max_dataset_size)    # load images from '/path/to/data/trainB'
+                self.B_img_paths, self.B_label = make_labeled_path_dataset(self.dir_B,'/paths.txt', opt.data_max_dataset_size)    # load images from '/path/to/data/trainB'
                 self.B_label = np.array(self.B_label,dtype=np.float32)
            
                 
         else:
-            self.B_img_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
+            self.B_img_paths = sorted(make_dataset(self.dir_B, opt.data_max_dataset_size))    # load images from '/path/to/data/trainB'
             
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
         self.B_size = len(self.B_img_paths)  # get the size of dataset B
-        btoA = self.opt.direction == 'BtoA'
-        input_nc = self.opt.output_nc if btoA else self.opt.input_nc       # get the number of channels of input image
-        output_nc = self.opt.input_nc if btoA else self.opt.output_nc      # get the number of channels of output image
+        btoA = self.opt.data_direction == 'BtoA'
+        input_nc = self.opt.model_output_nc if btoA else self.opt.model_input_nc       # get the number of channels of input image
+        output_nc = self.opt.model_input_nc if btoA else self.opt.model_output_nc      # get the number of channels of output image
         self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
         self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
 

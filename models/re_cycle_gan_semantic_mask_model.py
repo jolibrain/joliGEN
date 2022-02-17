@@ -13,28 +13,22 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
 
     def modify_commandline_options(parser, is_train=True):
         parser = CycleGANSemanticMaskModel.modify_commandline_options(parser,is_train)
-        parser.add_argument('--adversarial_loss_p',action='store_true',help='if True, also train the prediction model with an adversarial loss')
-        parser.add_argument('--nuplet_size', type=int, default=3,help='Number of frames loaded')
-        parser.add_argument('--netP', type=str, default='unet_128', help='specify P architecture [resnet_9blocks | resnet_6blocks | resnet_attn | unet_256 | unet_128]')
-        parser.add_argument('--no_train_P_fake_images',action='store_true',help='if True, P wont be trained over fake images projections')
-        parser.add_argument('--projection_threshold',default=1.0,type=float,help='threshold of the real images projection loss below with fake projection and fake reconstruction losses are applied')
-        parser.add_argument('--P_lr', type=float, default=0.0002, help='initial learning rate for P networks')
         return parser
 
 
     def __init__(self, opt):
         super().__init__(opt)
 
-        if self.opt.adversarial_loss_p:
+        if self.opt.alg_re_adversarial_loss_p:
             self.loss_names_G += ["proj_fake_A_adversarial","proj_fake_B_adversarial"]
         self.loss_names_G += ["recycle_A","recycle_B","proj_real_A","proj_real_B"]
         self.loss_names_P = ["proj_real_A","proj_real_B"]
-        if self.opt.adversarial_loss_p:
+        if self.opt.alg_re_adversarial_loss_p:
             self.loss_names_P += ["proj_real_A_adversarial","proj_real_B_adversarial"]
 
         self.loss_names = self.loss_names_G + self.loss_names_f_s + self.loss_names_D + self.loss_names_P
 
-        if self.opt.iter_size > 1 :
+        if self.opt.train_iter_size > 1 :
             self.iter_calculator = IterCalculator(self.loss_names)
             for i,cur_loss in enumerate(self.loss_names):
                     self.loss_names[i] = cur_loss + '_avg'
@@ -42,14 +36,14 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
 
         self.visual_names += [["real_A_last","proj_real_A","rec_proj_A","proj_fake_B"] , ["real_B_last","proj_real_B","rec_proj_B","proj_fake_A"]]
         
-        self.netP_A = networks.define_G((self.opt.nuplet_size-1) * opt.input_nc, opt.output_nc,opt.ngf, opt.netP, opt.norm, not opt.no_dropout, opt.G_spectral, opt.init_type, opt.init_gain,self.gpu_ids,padding_type=opt.G_padding_type,opt=self.opt)
-        self.netP_B = networks.define_G((self.opt.nuplet_size-1) * opt.input_nc, opt.output_nc,opt.ngf, opt.netP, opt.norm, not opt.no_dropout, opt.G_spectral, opt.init_type, opt.init_gain,self.gpu_ids,padding_type=opt.G_padding_type,opt=self.opt)
+        self.netP_A = networks.define_G((self.opt.alg_re_nuplet_size-1) * opt.model_input_nc, opt.model_output_nc, opt.G_ngf, opt.alg_re_netP, opt.G_norm, opt.G_dropout, opt.G_spectral, opt.model_init_type, opt.model_init_gain,self.gpu_ids, padding_type=opt.G_padding_type, opt=self.opt)
+        self.netP_B = networks.define_G((self.opt.alg_re_nuplet_size-1) * opt.model_input_nc, opt.model_output_nc, opt.G_ngf, opt.alg_re_netP, opt.G_norm, opt.G_dropout, opt.G_spectral, opt.model_init_type, opt.model_init_gain,self.gpu_ids, padding_type=opt.G_padding_type, opt=self.opt)
         self.model_names += ["P_A","P_B"]
 
-        self.optimizer_P = torch.optim.Adam(itertools.chain(self.netP_A.parameters(), self.netP_B.parameters()),lr=opt.P_lr, betas=(opt.beta1, 0.999))
+        self.optimizer_P = torch.optim.Adam(itertools.chain(self.netP_A.parameters(), self.netP_B.parameters()),lr=opt.alg_re_P_lr, betas=(opt.train_beta1, opt.train_beta2))
         self.optimizers.append(self.optimizer_P)
 
-        if self.opt.no_train_P_fake_images:
+        if self.opt.alg_re_no_train_P_fake_images:
             self.group_P = NetworkGroup(networks_to_optimize=["P_A","P_B"],forward_functions=["forward_P"],backward_functions=["compute_P_loss"],loss_names_list=["loss_names_P"],optimizer=["optimizer_P"],loss_backward=["loss_P"])
         else: # P and G networks will be trained in the same time
             self.group_G = NetworkGroup(networks_to_optimize=["G_A","G_B","P_A","P_B"],forward_functions=["forward","forward_P"],backward_functions=["compute_G_loss","compute_P_loss"],loss_names_list=["loss_names_G","loss_names_P"],optimizer=["optimizer_G","optimizer_P"],loss_backward=["loss_G","loss_P"],network_to_ema=["G_A","G_B"])
@@ -89,7 +83,7 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
         super().compute_G_loss()
 
         ## GAN loss over fake images projection for G (and P if no_train_P_fake_images is False)
-        if self.opt.adversarial_loss_p:
+        if self.opt.alg_re_adversarial_loss_p:
             self.loss_proj_fake_B_adversarial = self.compute_G_loss_GAN_generic(self.netD_A,"B",self.D_loss,fake_name="proj_fake_B")
             self.loss_proj_fake_A_adversarial = self.compute_G_loss_GAN_generic(self.netD_B,"A",self.D_loss,fake_name="proj_fake_A")
         else:
@@ -97,14 +91,14 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
             self.loss_proj_fake_A_adversarial = 0
         
         ## Recycle loss between fake images projection reconstruction and ground truth
-        if not hasattr(self, 'loss_proj_real_A') or (self.loss_proj_real_A + self.loss_proj_real_B)/2 > self.opt.projection_threshold: #if P networks aren't accurate enough on real images, we don't use them on fake images:
+        if not hasattr(self, 'loss_proj_real_A') or (self.loss_proj_real_A + self.loss_proj_real_B)/2 > self.opt.alg_re_projection_threshold: #if P networks aren't accurate enough on real images, we don't use them on fake images:
             self.loss_recycle_A = 0
             self.loss_recycle_B = 0
             self.loss_proj_fake_B_adversarial = 0
             self.loss_proj_fake_A_adversarial = 0
         else:
-            self.loss_recycle_A = self.criterionCycle(self.rec_proj_A, self.real_A_last) * self.opt.lambda_A
-            self.loss_recycle_B = self.criterionCycle(self.rec_proj_B, self.real_B_last) * self.opt.lambda_B
+            self.loss_recycle_A = self.criterionCycle(self.rec_proj_A, self.real_A_last) * self.opt.alg_cyclegan_lambda_A
+            self.loss_recycle_B = self.criterionCycle(self.rec_proj_B, self.real_B_last) * self.opt.alg_cyclegan_lambda_B
                 
         self.loss_G += self.loss_proj_fake_A_adversarial + self.loss_proj_fake_B_adversarial + self.loss_recycle_A + self.loss_recycle_B
 
@@ -115,11 +109,11 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
 
     def compute_P_loss(self):
         ## Pixel to pixel loss between real images projection and ground truth
-        self.loss_proj_real_A = self.criterionCycle(self.proj_real_A, self.real_A_last) * self.opt.lambda_A
-        self.loss_proj_real_B = self.criterionCycle(self.proj_real_B, self.real_B_last) * self.opt.lambda_B
+        self.loss_proj_real_A = self.criterionCycle(self.proj_real_A, self.real_A_last) * self.opt.alg_cyclegan_lambda_A
+        self.loss_proj_real_B = self.criterionCycle(self.proj_real_B, self.real_B_last) * self.opt.alg_cyclegan_lambda_B
 
         ## GAN loss over real images projection for P
-        if self.opt.adversarial_loss_p:
+        if self.opt.alg_re_adversarial_loss_p:
             self.loss_proj_real_A_adversarial=self.compute_G_loss_GAN_generic(self.netD_B,"A",self.D_loss,fake_name="proj_real_A")
             self.loss_proj_real_B_adversarial=self.compute_G_loss_GAN_generic(self.netD_A,"B",self.D_loss,fake_name="proj_real_B")
         else:
@@ -138,7 +132,7 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
         self.loss_D_A += self.compute_D_loss_generic(self.netD_A,"B",self.D_loss,real_name="real_B_last",fake_name="proj_real_B")
         self.loss_D_B += self.compute_D_loss_generic(self.netD_B,"A",self.D_loss,real_name="real_A_last",fake_name="proj_real_A")
 
-        if self.opt.netD_global != "none":
+        if self.opt.D_netD_global != "none":
             ## GAN loss over fake images projections for D_global
             self.loss_D_A_global += self.compute_D_loss_generic(self.netD_A_global,"B",self.D_global_loss,real_name="real_B_last",fake_name="proj_fake_B")
             self.loss_D_B_global += self.compute_D_loss_generic(self.netD_B_global,"A",self.D_global_loss,real_name="real_A_last",fake_name="proj_fake_A")

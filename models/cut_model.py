@@ -23,21 +23,22 @@ class CUTModel(BaseModel):
     def modify_commandline_options(parser, is_train=True):
         """  Configures options specific for CUT model
         """
-        parser.add_argument('--lambda_GAN', type=float, default=1.0, help='weight for GAN loss：GAN(G(X))')
-        parser.add_argument('--lambda_NCE', type=float, default=1.0, help='weight for NCE loss: NCE(G(X), X)')
-        parser.add_argument('--nce_idt', type=util.str2bool, nargs='?', const=True, default=True, help='use NCE loss for identity mapping: NCE(G(Y), Y))')
-        parser.add_argument('--nce_layers', type=str, default='0,4,8,12,16', help='compute NCE loss on which layers')
-        parser.add_argument('--nce_includes_all_negatives_from_minibatch',
+        parser.add_argument('--alg_cut_lambda_GAN', type=float, default=1.0, help='weight for GAN loss：GAN(G(X))')
+        parser.add_argument('--alg_cut_lambda_NCE', type=float, default=1.0, help='weight for NCE loss: NCE(G(X), X)')
+        parser.add_argument('--alg_cut_nce_idt', type=util.str2bool, nargs='?', const=True, default=True, help='use NCE loss for identity mapping: NCE(G(Y), Y))')
+        parser.add_argument('--alg_cut_nce_layers', type=str, default='0,4,8,12,16', help='compute NCE loss on which layers')
+        parser.add_argument('--alg_cut_nce_includes_all_negatives_from_minibatch',
                             type=util.str2bool, nargs='?', const=True, default=False,
                             help='(used for single image translation) If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. Please see models/patchnce.py for more details.')
-        parser.add_argument('--netF', type=str, default='mlp_sample', choices=['sample', 'mlp_sample'], help='how to downsample the feature map')
-        parser.add_argument('--netF_nc', type=int, default=256)
-        parser.add_argument('--nce_T', type=float, default=0.07, help='temperature for NCE loss')
-        parser.add_argument('--num_patches', type=int, default=256, help='number of patches per layer')
-        parser.add_argument('--flip_equivariance',
+        parser.add_argument('--alg_cut_netF', type=str, default='mlp_sample', choices=['sample', 'mlp_sample'], help='how to downsample the feature map')
+        parser.add_argument('--alg_cut_netF_nc', type=int, default=256)
+        parser.add_argument('--alg_cut_netF_norm', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for F')
+        parser.add_argument('--alg_cut_netF_dropout', action='store_true', help='whether to use dropout with F')
+        parser.add_argument('--alg_cut_nce_T', type=float, default=0.07, help='temperature for NCE loss')
+        parser.add_argument('--alg_cut_num_patches', type=int, default=256, help='number of patches per layer')
+        parser.add_argument('--alg_cut_flip_equivariance',
                             type=util.str2bool, nargs='?', const=True, default=False,
                             help="Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT")
-        parser.add_argument('--use_label_B', action='store_true', help='if true domain B has labels too')
 
         return parser
 
@@ -48,9 +49,9 @@ class CUTModel(BaseModel):
         # The training/test scripts will call <BaseModel.get_current_losses>
         losses_G = ['G_GAN', 'G', 'NCE']
         losses_D= ['D_tot','D']
-        if opt.nce_idt and self.isTrain:
+        if opt.alg_cut_nce_idt and self.isTrain:
             losses_G += ['NCE_Y']
-        if opt.netD_global != "none":
+        if opt.D_netD_global != "none":
             losses_D += ['D_global']
             losses_G += ['G_GAN_global']
 
@@ -64,66 +65,66 @@ class CUTModel(BaseModel):
 
         
         
-        self.nce_layers = [int(i) for i in self.opt.nce_layers.split(',')]
+        self.nce_layers = [int(i) for i in self.opt.alg_cut_nce_layers.split(',')]
 
-        if opt.nce_idt and self.isTrain:
+        if opt.alg_cut_nce_idt and self.isTrain:
             visual_names_B += ['idt_B']
         self.visual_names.insert(0,visual_names_A)
         self.visual_names.insert(1,visual_names_B)
 
-        if self.opt.diff_aug_policy != '':
+        if self.opt.dataaug_diff_aug_policy != '':
             self.visual_names.append(['fake_B_aug'])
             self.visual_names.append(['real_B_aug'])
         
         if self.isTrain:
             self.model_names = ['G', 'F', 'D']
-            if opt.netD_global != "none":
+            if opt.D_netD_global != "none":
                 self.model_names += ['D_global']
         
         else:  # during test time, only load G
             self.model_names = ['G']
 
         # define networks (both generator and discriminator)
-        self.netG =networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.G_spectral, opt.init_type, opt.init_gain, self.gpu_ids,opt=self.opt)
-        self.netF = networks.define_F(opt.input_nc, opt.netF, opt.normG, not opt.no_dropout, opt.init_type, opt.init_gain, opt.no_antialias, self.gpu_ids, opt)
+        self.netG =networks.define_G(opt.model_input_nc, opt.model_output_nc, opt.G_ngf, opt.G_netG, opt.G_norm,
+                                        opt.G_dropout, opt.G_spectral, opt.model_init_type, opt.model_init_gain, self.gpu_ids,opt=self.opt)
+        self.netF = networks.define_F(opt.model_input_nc, opt.alg_cut_netF, opt.alg_cut_netF_norm, opt.alg_cut_netF_dropout, opt.model_init_type, opt.model_init_gain, self.gpu_ids, opt)
         self.netF.set_device(self.device)
         if self.isTrain:
-            self.netD = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,opt)
-            if opt.netD_global != "none":
-                self.netD_global = networks.define_D(opt.output_nc, opt.ndf, opt.netD_global,
-                                            opt.n_layers_D, opt.norm, opt.D_dropout, opt.D_spectral, opt.init_type, opt.init_gain,opt.no_antialias, self.gpu_ids,opt)
+            self.netD = networks.define_D(opt.model_output_nc, opt.D_ndf, opt.D_netD,
+                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,opt)
+            if opt.D_netD_global != "none":
+                self.netD_global = networks.define_D(opt.model_output_nc, opt.D_ndf, opt.D_netD_global,
+                                                     opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,opt)
 
 
             # define loss functions
-            self.criterionGAN = loss.GANLoss(opt.gan_mode).to(self.device)
+            self.criterionGAN = loss.GANLoss(opt.train_gan_mode).to(self.device)
             self.criterionNCE = []
 
             for nce_layer in self.nce_layers:
                 self.criterionNCE.append(PatchNCELoss(opt).to(self.device))
 
-            self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
-            if opt.netD_global== "none":
-                self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
+            self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.train_G_lr, betas=(opt.train_beta1, opt.train_beta2))
+            if opt.D_netD_global== "none":
+                self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.train_D_lr, betas=(opt.train_beta1, opt.train_beta2))
             else:
-                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD.parameters(),self.netD_global.parameters()), lr=opt.lr, betas=(opt.beta1, opt.beta2))
+                self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD.parameters(),self.netD_global.parameters()), lr=opt.train_D_lr, betas=(opt.train_beta1, opt.train_beta2))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
-            if self.opt.iter_size > 1 :
+            if self.opt.train_iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
                 for i,cur_loss in enumerate(self.loss_names):
                     self.loss_names[i] = cur_loss + '_avg'
                     setattr(self, "loss_" + self.loss_names[i], 0)
 
-            if opt.netD_global == "none":
+            if opt.D_netD_global == "none":
                 self.loss_D_global=0
                 self.loss_G_GAN_global=0
  
             ###Making groups
             discriminators=["netD"]
-            if opt.netD_global != "none":
+            if opt.D_netD_global != "none":
                 discriminators += ["netD_global"]
                 self.D_global_loss=loss.DiscriminatorGANLoss(opt,self.netD_global,self.device,gan_mode="lsgan")
             self.networks_groups = []
@@ -132,26 +133,26 @@ class CUTModel(BaseModel):
             self.networks_groups.append(self.group_G)
 
             D_to_optimize = ["D"]
-            if opt.netD_global != "none":
+            if opt.D_netD_global != "none":
                 D_to_optimize.append("D_global")
             self.group_D = NetworkGroup(networks_to_optimize=D_to_optimize,forward_functions=None,backward_functions=["compute_D_loss"],loss_names_list=["loss_names_D"],optimizer=["optimizer_D"],loss_backward=["loss_D_tot"])
             self.networks_groups.append(self.group_D) 
 
 
-        if self.opt.use_contrastive_loss_D:
+        if self.opt.train_use_contrastive_loss_D:
             self.D_loss=loss.DiscriminatorContrastiveLoss(opt,self.netD,self.device)
         else:
             self.D_loss=loss.DiscriminatorGANLoss(opt,self.netD,self.device)
 
         self.objects_to_update.append(self.D_loss)
 
-        if self.opt.display_diff_fake_real:
+        if self.opt.output_display_diff_fake_real:
             self.visual_names.append(['diff_real_A_fake_B'])
 
 
     def set_input_first_gpu(self,data):
         self.set_input(data)
-        self.bs_per_gpu = self.real_A.size(0) #// max(len(self.opt.gpu_ids), 1)
+        self.bs_per_gpu = self.real_A.size(0)
         self.real_A = self.real_A[:self.bs_per_gpu]
         self.real_B = self.real_B[:self.bs_per_gpu]
             
@@ -168,8 +169,8 @@ class CUTModel(BaseModel):
         self.set_input_first_gpu(data)
         if self.opt.isTrain:
             self.optimize_parameters()
-            if self.opt.lambda_NCE > 0.0 and not self.opt.netF == 'sample':
-                self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, self.opt.beta2))
+            if self.opt.alg_cut_lambda_NCE > 0.0 and not self.opt.alg_cut_netF == 'sample':
+                self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.train_G_lr, betas=(self.opt.train_beta1, self.opt.train_beta2))
                 self.optimizers.append(self.optimizer_F)
 
         for optimizer in self.optimizers:
@@ -181,7 +182,7 @@ class CUTModel(BaseModel):
             input (dict): include the data itself and its metadata information.
         The option 'direction' can be used to swap domain A and domain B.
         """
-        AtoB = self.opt.direction == 'AtoB'
+        AtoB = self.opt.data_direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_img_paths' if AtoB else 'B_img_paths']
@@ -190,20 +191,20 @@ class CUTModel(BaseModel):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         super().forward()
 
-        self.real = torch.cat((self.real_A, self.real_B), dim=0) if self.opt.nce_idt and self.opt.isTrain else self.real_A
-        if self.opt.flip_equivariance:
+        self.real = torch.cat((self.real_A, self.real_B), dim=0) if self.opt.alg_cut_nce_idt and self.opt.isTrain else self.real_A
+        if self.opt.alg_cut_flip_equivariance:
             self.flipped_for_equivariance = self.opt.isTrain and (np.random.random() < 0.5)
             if self.flipped_for_equivariance:
                 self.real = torch.flip(self.real, [3])
 
         self.fake = self.netG(self.real)
         self.fake_B = self.fake[:self.real_A.size(0)]
-        if self.opt.nce_idt:
+        if self.opt.alg_cut_nce_idt:
             self.idt_B = self.fake[self.real_A.size(0):]
 
-        if self.opt.D_noise > 0.0:
-            self.fake_B_noisy = gaussian(self.fake_B, self.opt.D_noise)
-            self.real_B_noisy = gaussian(self.real_B, self.opt.D_noise)
+        if self.opt.dataaug_D_noise > 0.0:
+            self.fake_B_noisy = gaussian(self.fake_B, self.opt.dataaug_D_noise)
+            self.real_B_noisy = gaussian(self.real_B, self.opt.dataaug_D_noise)
 
         self.diff_real_A_fake_B = self.real_A - self.fake_B
             
@@ -211,7 +212,7 @@ class CUTModel(BaseModel):
         """Calculate GAN loss for both discriminators"""
         self.loss_D = self.compute_D_loss_generic(self.netD,"B",self.D_loss)
 
-        if self.opt.netD_global != "none":
+        if self.opt.D_netD_global != "none":
             self.loss_D_global = self.compute_D_loss_generic(self.netD_global,"B",self.D_global_loss)
         
         self.loss_D_tot = self.loss_D + self.loss_D_global
@@ -220,17 +221,17 @@ class CUTModel(BaseModel):
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
         # First, G(A) should fake the discriminator
-        if self.opt.lambda_GAN > 0.0:
+        if self.opt.alg_cut_lambda_GAN > 0.0:
             self.loss_G_GAN = self.compute_G_loss_GAN_generic(self.netD,"B",self.D_loss)
-            if self.opt.netD_global != "none":
+            if self.opt.D_netD_global != "none":
                 self.loss_G_GAN_global = self.compute_G_loss_GAN_generic(self.netD_global,"B",self.D_global_loss)
 
-        if self.opt.lambda_NCE > 0.0:
+        if self.opt.alg_cut_lambda_NCE > 0.0:
             self.loss_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
         else:
             self.loss_NCE, self.loss_NCE_bd = 0.0, 0.0
 
-        if self.opt.nce_idt and self.opt.lambda_NCE > 0.0:
+        if self.opt.alg_cut_nce_idt and self.opt.alg_cut_lambda_NCE > 0.0:
             self.loss_NCE_Y = self.calculate_NCE_loss(self.real_B, self.idt_B)
             loss_NCE_both = (self.loss_NCE + self.loss_NCE_Y) * 0.5
         else:
@@ -242,16 +243,16 @@ class CUTModel(BaseModel):
         n_layers = len(self.nce_layers)
         feat_q = self.netG(tgt, self.nce_layers, True)
 
-        if self.opt.flip_equivariance and self.flipped_for_equivariance:
+        if self.opt.alg_cut_flip_equivariance and self.flipped_for_equivariance:
             feat_q = [torch.flip(fq, [3]) for fq in feat_q]
 
         feat_k = self.netG(src, self.nce_layers, True)
 
-        feat_k_pool, sample_ids = self.netF(feat_k, self.opt.num_patches, None)
-        feat_q_pool, _ = self.netF(feat_q, self.opt.num_patches, sample_ids)
+        feat_k_pool, sample_ids = self.netF(feat_k, self.opt.alg_cut_num_patches, None)
+        feat_q_pool, _ = self.netF(feat_q, self.opt.alg_cut_num_patches, sample_ids)
         total_nce_loss = 0.0
         for f_q, f_k, crit, nce_layer in zip(feat_q_pool, feat_k_pool, self.criterionNCE, self.nce_layers):
-            loss = crit(f_q, f_k,current_batch=src.shape[0]) * self.opt.lambda_NCE
+            loss = crit(f_q, f_k,current_batch=src.shape[0]) * self.opt.alg_cut_lambda_NCE
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers

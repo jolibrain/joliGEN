@@ -62,16 +62,16 @@ class Visualizer():
         Step 4: create a logging file to store training losses
         """
         self.opt = opt  # cache the option
-        self.display_id = opt.display_id
-        self.use_html = opt.isTrain and not opt.no_html
-        self.win_size = opt.display_winsize
+        self.display_id = opt.output_display_id
+        self.use_html = opt.isTrain and not opt.output_no_html
+        self.win_size = opt.output_display_winsize
         self.name = opt.name
-        self.port = opt.display_port
+        self.port = opt.output_display_port
         self.saved = False
         if self.display_id > 0:  # connect to a visdom server given <display_port> and <display_server>
             import visdom
-            self.ncols = opt.display_ncols
-            self.vis = visdom.Visdom(server=opt.display_server, port=opt.display_port, env=opt.display_env)
+            self.ncols = opt.output_display_ncols
+            self.vis = visdom.Visdom(server=opt.output_display_server, port=opt.output_display_port, env=opt.output_display_env)
             if not self.vis.check_connection():
                 self.create_visdom_connections()
 

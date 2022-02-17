@@ -46,15 +46,11 @@ class BaseModel(ABC):
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
-        if hasattr(opt, 'disc_in_mask'):
-            self.disc_in_mask = opt.disc_in_mask
-        else:
-            self.disc_in_mask = False
         if hasattr(opt,'fs_light'):
             self.fs_light = opt.fs_light
         self.device = torch.device('cuda:{}'.format(self.gpu_ids[rank]) if self.gpu_ids else torch.device('cpu'))  # get device name: CPU or GPU
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)  # save all the checkpoints to save_dir
-        if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
+        if opt.data_preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
             torch.backends.cudnn.benchmark = True
             torch.backends.cudnn.deterministic = False
         self.loss_names = []
@@ -66,34 +62,34 @@ class BaseModel(ABC):
         self.image_paths = []
         self.metric = 0  # used for learning rate policy 'plateau'
 
-        self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
-        self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
-        self.real_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
-        self.real_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
+        self.fake_A_pool = ImagePool(opt.train_pool_size)  # create image buffer to store previously generated images
+        self.fake_B_pool = ImagePool(opt.train_pool_size)  # create image buffer to store previously generated images
+        self.real_A_pool = ImagePool(opt.train_pool_size)  # create image buffer to store previously generated images
+        self.real_B_pool = ImagePool(opt.train_pool_size)  # create image buffer to store previously generated images
 
 
-        if opt.compute_fid:
-            self.transform = get_transform(opt, grayscale=(opt.input_nc == 1))
+        if opt.train_compute_fid:
+            self.transform = get_transform(opt, grayscale=(opt.model_input_nc == 1))
             dims=2048
             batch=1
             self.netFid=networks.define_inception(self.gpu_ids[0],dims)
             pathA=opt.dataroot + '/trainA'
             if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_A.npz'):
-                self.realmA,self.realsA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.nb_img_max_fid)
+                self.realmA,self.realsA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
                 np.savez(opt.checkpoints_dir+'fid_mu_sigma_A.npz', mu=self.realmA, sigma=self.realsA)
             else:
 
                 print('Mu and sigma loaded for domain A')
-                self.realmA,self.realsA=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_A.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.nb_img_max_fid)
+                self.realmA,self.realsA=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_A.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
                 
             pathB=opt.dataroot + '/trainB'
             if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_B.npz'):
-                self.realmB,self.realsB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.nb_img_max_fid)
+                self.realmB,self.realsB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
                 np.savez(opt.checkpoints_dir+'fid_mu_sigma_B.npz', mu=self.realmB, sigma=self.realsB)
             else:
 
                 print('Mu and sigma loaded for domain B')
-                self.realmB,self.realsB=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.nb_img_max_fid)
+                self.realmB,self.realsB=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
                 
             pathA=self.save_dir + '/fakeA/'
             if not os.path.exists(pathA):
@@ -105,22 +101,22 @@ class BaseModel(ABC):
             self.fidA=0
             self.fidB=0
             
-        if opt.diff_aug_policy !="":
-            self.diff_augment = DiffAugment(opt.diff_aug_policy,opt.diff_aug_proba)
+        if opt.dataaug_diff_aug_policy !="":
+            self.diff_augment = DiffAugment(opt.dataaug_diff_aug_policy,opt.dataaug_diff_aug_proba)
             
         self.niter=0
 
         self.objects_to_update = []
 
-        if self.opt.APA:
+        if self.opt.dataaug_APA:
             self.visual_names.append(['APA_img'])
 
-        if opt.display_attention_masks:
-            for i in range (opt.nb_mask_attn):
+        if opt.output_display_G_attention_masks:
+            for i in range (opt.G_attn_nb_mask_attn):
                 temp_visual_names_attn=[]
                 temp_visual_names_attn += ["attention_"+str(i)]
                 temp_visual_names_attn += ["output_"+str(i)]
-                if i < opt.nb_mask_attn - opt.nb_mask_input:
+                if i < opt.G_attn_nb_mask_attn - opt.G_attn_nb_mask_input:
                     temp_visual_names_attn += ["image_"+str(i)]
 
                 self.visual_names.append(temp_visual_names_attn)
@@ -160,7 +156,7 @@ class BaseModel(ABC):
         else:
             netG= self.netG_A
         
-        if self.opt.display_attention_masks :
+        if self.opt.output_display_G_attention_masks :
             images,attentions,outputs=netG.get_attention_masks(self.real_A)
             for i,cur_mask in enumerate(attentions):
                 setattr(self,"attention_"+str(i),cur_mask)
@@ -187,11 +183,11 @@ class BaseModel(ABC):
         """
         if self.isTrain:
             self.schedulers = [get_scheduler(optimizer, opt) for optimizer in self.optimizers]
-        if not self.isTrain or opt.continue_train:
-            load_suffix = 'iter_%d' % opt.load_iter if opt.load_iter > 0 else opt.epoch
+        if not self.isTrain or opt.train_continue:
+            load_suffix = 'iter_%d' % opt.train_load_iter if opt.train_load_iter > 0 else opt.train_epoch
             self.load_networks(load_suffix)
         if self.rank==0:
-            self.print_networks(opt.verbose)
+            self.print_networks(opt.output_verbose)
 
     def parallelize(self,rank):
         for name in self.model_names:
@@ -235,7 +231,7 @@ class BaseModel(ABC):
     def update_learning_rate(self):
         """Update learning rates for all the networks; called at the end of every epoch"""
         for scheduler in self.schedulers:
-            if self.opt.lr_policy == 'plateau':
+            if self.opt.train_lr_policy == 'plateau':
                 scheduler.step(self.metric)
             else:
                 scheduler.step()
@@ -396,7 +392,7 @@ class BaseModel(ABC):
             os.mkdir(pathA)
         for i,temp_fake_A in enumerate(self.fake_A_pool.get_all()):
             save_image(tensor2im(temp_fake_A), pathA+'/'+str(i)+'.png', aspect_ratio=1.0)
-        self.fakemA,self.fakesA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.nb_img_max_fid)
+        self.fakemA,self.fakesA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.train_nb_img_max_fid)
             
         pathB=self.save_dir + '/fakeB/'+str(n_iter)+'_' +str(n_epoch)
         if not os.path.exists(pathB):
@@ -404,7 +400,7 @@ class BaseModel(ABC):
             
         for j,temp_fake_B in enumerate(self.fake_B_pool.get_all()):
             save_image(tensor2im(temp_fake_B), pathB+'/'+str(j)+'.png', aspect_ratio=1.0)
-        self.fakemB,self.fakesB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.nb_img_max_fid)
+        self.fakemB,self.fakesB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.train_nb_img_max_fid)
 
         self.fidA=calculate_frechet_distance(self.realmA, self.realsA,self.fakemA,self.fakesA)
         self.fidB=calculate_frechet_distance(self.realmB, self.realsB,self.fakemB,self.fakesB)
@@ -488,23 +484,23 @@ class BaseModel(ABC):
     def compute_step(self,optimizers,loss_names):
         if not isinstance(optimizers,list):
             optimizers = [optimizers]
-        if self.niter % self.opt.iter_size ==0:
+        if self.niter % self.opt.train_iter_size ==0:
             for optimizer in optimizers:
                 optimizer.step()
                 optimizer.zero_grad()
-            if self.opt.iter_size > 1:
+            if self.opt.train_iter_size > 1:
                 self.iter_calculator.compute_last_step(loss_names)
                 for loss_name in loss_names:
                     setattr(self, "loss_" + loss_name + "_avg", getattr(self.iter_calculator, "loss_" + loss_name ))               
-        elif self.opt.iter_size > 1:
+        elif self.opt.train_iter_size > 1:
             for loss_name in loss_names:
-                value=getattr(self, "loss_" + loss_name)/self.opt.iter_size
+                value=getattr(self, "loss_" + loss_name)/self.opt.train_iter_size
                 if torch.is_tensor(value):
                     value = value.detach()                    
                 self.iter_calculator.compute_step(loss_name,value)
 
     def ema_step(self, network_name):
-        ema_beta = self.opt.ema_beta
+        ema_beta = self.opt.train_G_ema_beta
         network = getattr(self,"net"+network_name)
         network_ema = getattr(self,"net"+network_name+"_ema",None)
         #- first iteration create the EMA + add to self.model_names + new X_ema to self.visual_names
@@ -541,12 +537,12 @@ class BaseModel(ABC):
                 getattr(self,backward)()
 
             for loss in group.loss_backward:
-                (getattr(self,loss)/self.opt.iter_size).backward()
+                (getattr(self,loss)/self.opt.train_iter_size).backward()
             
             for optimizer, loss_names in zip(group.optimizer, group.loss_names_list):
                 self.compute_step(getattr(self,optimizer),getattr(self,loss_names))
 
-            if self.opt.G_ema:
+            if self.opt.train_G_ema:
                 for network in self.model_names:
                     if network in group.networks_to_ema:
                         self.ema_step(network)
@@ -557,7 +553,7 @@ class BaseModel(ABC):
 
     def compute_D_loss_generic(self,netD,domain_img,loss,real_name=None,fake_name=None):
         noisy=""
-        if self.opt.D_noise > 0.0:
+        if self.opt.dataaug_D_noise > 0.0:
             noisy="_noisy"
 
         if fake_name is None :
@@ -565,7 +561,7 @@ class BaseModel(ABC):
         else:
             fake = getattr(self,fake_name)
 
-        if self.opt.APA:
+        if self.opt.dataaug_APA:
             fake_2 = getattr(self,"fake_"+domain_img+"_pool").get_random(fake.shape[0])
             self.APA_img = fake_2
         else:

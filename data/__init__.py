@@ -45,7 +45,7 @@ def get_option_setter(dataset_name):
 
 
 def create_dataset(opt):
-    dataset_class = find_dataset_using_name(opt.dataset_mode)
+    dataset_class = find_dataset_using_name(opt.data_dataset_mode)
     dataset = dataset_class(opt)
     return dataset
 
@@ -80,17 +80,17 @@ class CustomDatasetDataLoader():
             sampler=data.distributed.DistributedSampler(self.dataset,
                                                         num_replicas=world_size,
                                                         rank=rank,
-                                                        shuffle=not opt.serial_batches)
+                                                        shuffle=not opt.data_serial_batches)
             shuffle=False
         else:
             sampler=None
-            shuffle=not opt.serial_batches
+            shuffle=not opt.data_serial_batches
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
-            batch_size=opt.batch_size,
+            batch_size=opt.train_batch_size,
             sampler=sampler,
             shuffle=shuffle,
-            num_workers=int(opt.num_threads),
+            num_workers=int(opt.data_num_threads),
             collate_fn=collate_fn)
 
     def load_data(self):
@@ -98,13 +98,13 @@ class CustomDatasetDataLoader():
 
     def __len__(self):
         """Return the number of data in the dataset"""
-        return min(len(self.dataset), self.opt.max_dataset_size)
+        return min(len(self.dataset), self.opt.data_max_dataset_size)
 
     def __iter__(self):
         """Return a batch of data"""
         for i, data in enumerate(self.dataloader):
             if data is None:
                 continue
-            if i * self.opt.batch_size >= self.opt.max_dataset_size:
+            if i * self.opt.train_batch_size >= self.opt.data_max_dataset_size:
                 break
             yield data

@@ -11,7 +11,7 @@ class Segformer(nn.Module):
     def __init__(self,opt,num_classes=10,final_conv=False):
         super().__init__()
         self.opt = opt
-        cfg = mmcv.Config.fromfile(os.path.join(self.opt.jg_dir,self.opt.config_segformer))
+        cfg = mmcv.Config.fromfile(os.path.join(self.opt.jg_dir,self.opt.G_config_segformer))
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
         cfg.model.decode_head.num_classes = num_classes
@@ -42,12 +42,12 @@ class SegformerGenerator_attn(nn.Module):
     def __init__(self,opt=None,final_conv=False): #nb_attn : total number of attention masks, nb_mask_input :number of attention mask applied to input img directly
         super(SegformerGenerator_attn, self).__init__()
         self.opt = opt
-        self.nb_attn = self.opt.nb_mask_attn
-        self.nb_mask_input = self.opt.nb_mask_input
+        self.nb_attn = self.opt.G_attn_nb_mask_attn
+        self.nb_mask_input = self.opt.G_attn_nb_mask_input
         self.use_final_conv = final_conv
         self.tanh = nn.Tanh()
 
-        cfg = mmcv.Config.fromfile(os.path.join(self.opt.jg_dir,self.opt.config_segformer))
+        cfg = mmcv.Config.fromfile(os.path.join(self.opt.jg_dir,self.opt.G_config_segformer))
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
         cfg.model.auxiliary_head = cfg.model.decode_head.copy()

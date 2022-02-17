@@ -144,7 +144,7 @@ class DiscriminatorLoss(nn.Module):
         super().__init__()
         self.opt=opt
         self.device=device
-        self.adaptive_pseudo_augmentation_p = opt.APA_p
+        self.adaptive_pseudo_augmentation_p = opt.dataaug_APA_p
         self.adjust = 0
 
     def adaptive_pseudo_augmentation(self, real, fake):
@@ -160,8 +160,8 @@ class DiscriminatorLoss(nn.Module):
 
     def update_adaptive_pseudo_augmentation_p(self):
         loss_sign_real = torch.logit(torch.sigmoid(self.pred_real)).sign().mean()
-        self.adjust = torch.sign(loss_sign_real - self.opt.APA_target)
-        lambda_adjust = self.adjust* (self.opt.batch_size * self.opt.APA_every) / (self.opt.APA_nimg * 1000)
+        self.adjust = torch.sign(loss_sign_real - self.opt.dataaug_APA_target)
+        lambda_adjust = self.adjust* (self.opt.train_batch_size * self.opt.dataaug_APA_every) / (self.opt.dataaug_APA_nimg * 1000)
         self.adaptive_pseudo_augmentation_p = (self.adaptive_pseudo_augmentation_p + lambda_adjust)
         if self.adaptive_pseudo_augmentation_p < 0:
             self.adaptive_pseudo_augmentation_p = self.adaptive_pseudo_augmentation_p * 0
@@ -170,7 +170,7 @@ class DiscriminatorLoss(nn.Module):
             self.adaptive_pseudo_augmentation_p = 1
     
     def compute_loss_D(self,netD,real,fake,fake_2=None):
-        if self.opt.APA:
+        if self.opt.dataaug_APA:
             self.real = self.adaptive_pseudo_augmentation(real,fake_2)
         else:
             self.real = real
@@ -181,20 +181,20 @@ class DiscriminatorLoss(nn.Module):
         self.fake = fake
 
     def update(self,niter):
-        if self.opt.APA and niter % self.opt.APA_every < self.opt.batch_size:
+        if self.opt.dataaug_APA and niter % self.opt.dataaug_APA_every < self.opt.train_batch_size:
             self.update_adaptive_pseudo_augmentation_p()
 
 class DiscriminatorGANLoss(DiscriminatorLoss):
     def __init__(self,opt,netD,device,gan_mode=None):
         super().__init__(opt,netD,device)
-        if opt.D_label_smooth:
+        if opt.dataaug_D_label_smooth:
             target_real_label = 0.9
         else:
             target_real_label = 1.0
         if not gan_mode is None:
             self.gan_mode = gan_mode
         else:
-            self.gan_mode = opt.gan_mode
+            self.gan_mode = opt.train_gan_mode
         self.criterionGAN = GANLoss(self.gan_mode,target_real_label=target_real_label).to(self.device)
         
     def compute_loss_D(self,netD,real,fake,fake_2):
@@ -227,7 +227,7 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
 class DiscriminatorContrastiveLoss(DiscriminatorLoss):
     def __init__(self,opt,netD,device):
         super().__init__(opt,netD,device)
-        self.nb_preds=int(torch.prod(torch.tensor(netD(torch.zeros([1,opt.input_nc,opt.crop_size,opt.crop_size], dtype=torch.float)).shape)))
+        self.nb_preds=int(torch.prod(torch.tensor(netD(torch.zeros([1,opt.model_input_nc,opt.train_crop_size,opt.train_crop_size], dtype=torch.float)).shape)))
         self.criterionContrastive = ContrastiveLoss(self.nb_preds)
         
     def compute_loss_D(self,netD,real,fake,fake_2):

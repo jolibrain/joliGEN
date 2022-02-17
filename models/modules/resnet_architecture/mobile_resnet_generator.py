@@ -238,9 +238,9 @@ class MobileResnetGenerator_attn(nn.Module):
         self.output_nc = output_nc
         self.ngf = ngf
         self.nb = n_blocks
-        self.nb_mask_attn = self.opt.nb_mask_attn
+        self.nb_mask_attn = self.opt.G_attn_nb_mask_attn
         self.padding_type = padding_type
-        self.nb_mask_input = self.opt.nb_mask_input
+        self.nb_mask_input = self.opt.G_attn_nb_mask_input
         self.conv1 = spectral_norm(nn.Conv2d(input_nc, ngf, 7, 1, 0),use_spectral)
         self.conv1_norm = nn.InstanceNorm2d(ngf)
         self.conv2 = spectral_norm(nn.Conv2d(ngf, ngf * 2, 3, 2, 1),use_spectral)
