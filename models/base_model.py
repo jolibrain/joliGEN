@@ -199,7 +199,7 @@ class BaseModel(ABC):
                 net = getattr(self, 'net' + name).to(self.gpu_ids[rank])
                 self.set_requires_grad(net, True)
                 net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
-                setattr(self, 'net' + name, torch.nn.parallel.DistributedDataParallel(net, device_ids=[self.gpu_ids[rank]]))
+                setattr(self, 'net' + name, torch.nn.parallel.DistributedDataParallel(net, device_ids=[self.gpu_ids[rank]],broadcast_buffers=False))
 
     def single_gpu(self):
         for name in self.model_names:
