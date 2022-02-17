@@ -76,6 +76,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--train_mask_lambda_out_mask', type=float, default=10.0, help='weight for loss out mask')
         parser.add_argument('--train_mask_loss_out_mask', type=str, default='L1', help='loss for mask, L1, MSE or Charbonnier')
         parser.add_argument('--train_mask_charbonnier_eps', type=float, default=1e-6, help='Charbonnier loss epsilon value')
+        parser.add_argument('--train_mask_disjoint_f_s',action='store_true', help='whether to use a disjoint f_s with the same exact structure')
 
         # train with re-(cycle/cut)
         parser.add_argument('--alg_re_adversarial_loss_p',action='store_true',help='if True, also train the prediction model with an adversarial loss')
