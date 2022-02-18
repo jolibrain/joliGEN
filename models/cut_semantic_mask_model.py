@@ -20,20 +20,9 @@ class CUTSemanticMaskModel(CUTModel):
     """
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
-        """  Configures options specific for CUT model
+        """  Configures options specific for CUT semantic mask model
         """
         parser = CUTModel.modify_commandline_options(parser, is_train=True)
-        parser.add_argument('--train_f_s_B', action='store_true', help='if true f_s will be trained not only on domain A but also on domain B')
-        parser.add_argument('--no_train_f_s_A', action='store_true', help='if true f_s wont be trained on domain A')
-        parser.add_argument('--fs_light',action='store_true', help='whether to use a light (unet) network for f_s')
-        parser.add_argument('--lr_f_s', type=float, default=0.0002, help='f_s learning rate')        
-        parser.add_argument('--out_mask', action='store_true', help='use loss out mask')
-        parser.add_argument('--lambda_out_mask', type=float, default=10.0, help='weight for loss out mask')
-        parser.add_argument('--loss_out_mask', type=str, default='L1', help='loss mask')
-
-        parser.add_argument('--contrastive_noise', type=float, default=0.0, help='noise on constrastive classifier')
-        parser.add_argument('--lambda_sem', type=float, default=1.0, help='weight for semantic loss')
-
         return parser
         
     def __init__(self, opt,rank):
@@ -42,7 +31,7 @@ class CUTSemanticMaskModel(CUTModel):
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
         losses_G = ['sem']
-        if opt.out_mask:
+        if opt.train_mask_out_mask:
             losses_G += ['out_mask']
 
         losses_f_s = ['f_s']
@@ -54,9 +43,9 @@ class CUTSemanticMaskModel(CUTModel):
             
         # define networks (both generator and discriminator)
         if self.isTrain:
-            self.netf_s = networks.define_f(opt.input_nc, nclasses=opt.semantic_nclasses, 
-                                            init_type=opt.init_type, init_gain=opt.init_gain,
-                                            gpu_ids=self.gpu_ids, fs_light=opt.fs_light)
+            self.netf_s = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
+                                            init_type=opt.model_init_type, init_gain=opt.model_init_gain,
+                                            gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
 
             self.model_names += ['f_s']
 
@@ -64,18 +53,18 @@ class CUTSemanticMaskModel(CUTModel):
             # define loss functions
             self.criterionf_s = torch.nn.modules.CrossEntropyLoss()
             
-            if opt.out_mask:
-                if opt.loss_out_mask == 'L1':
+            if opt.train_mask_out_mask:
+                if opt.train_mask_loss_out_mask == 'L1':
                     self.criterionMask = torch.nn.L1Loss()
-                elif opt.loss_out_mask == 'MSE':
+                elif opt.train_mask_loss_out_mask == 'MSE':
                     self.criterionMask = torch.nn.MSELoss()
-                elif opt.loss_out_mask == 'Charbonnier':
-                    self.criterionMask = L1_Charbonnier_loss(opt.charbonnier_eps)
+                elif opt.train_mask_loss_out_mask == 'Charbonnier':
+                    self.criterionMask = L1_Charbonnier_loss(opt.train_mask_charbonnier_eps)
            
-            self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.lr_f_s, betas=(opt.beta1, 0.999))
+            self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
             self.optimizers.append(self.optimizer_f_s)
 
-            if self.opt.iter_size > 1 :
+            if self.opt.train_iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
                 for i,cur_loss in enumerate(self.loss_names):
                     self.loss_names[i] = cur_loss + '_avg'
@@ -110,7 +99,7 @@ class CUTSemanticMaskModel(CUTModel):
 
         self.visual_names += [visual_names_seg_A,visual_names_seg_B]
         
-        if self.opt.out_mask and self.isTrain:
+        if self.opt.train_mask_out_mask and self.isTrain:
             visual_names_out_mask_A = ['real_A_out_mask','fake_B_out_mask']
             self.visual_names += [visual_names_out_mask_A]
         
@@ -123,7 +112,7 @@ class CUTSemanticMaskModel(CUTModel):
         super().set_input(input)
         if 'A_label' in input :
             self.input_A_label = input['A_label'].to(self.device).squeeze(1)
-        if self.opt.train_f_s_B and 'B_label' in input:
+        if self.opt.train_mask_f_s_B and 'B_label' in input:
             self.input_B_label = input['B_label'].to(self.device).squeeze(1)
 
         
@@ -154,23 +143,23 @@ class CUTSemanticMaskModel(CUTModel):
         """Calculate GAN and NCE loss for the generator"""
         super().compute_G_loss()
         
-        self.loss_sem = self.opt.lambda_sem*self.criterionf_s(self.pfB, self.input_A_label)
-        if not hasattr(self, 'loss_f_s') or self.loss_f_s > self.opt.semantic_threshold:
+        self.loss_sem = self.opt.train_sem_lambda * self.criterionf_s(self.pfB, self.input_A_label)
+        if not hasattr(self, 'loss_f_s') or self.loss_f_s > self.opt.f_s_semantic_threshold:
             self.loss_sem = 0 * self.loss_sem
         self.loss_G += self.loss_sem
 
         if hasattr(self,'criterionMask'):
-            self.loss_out_mask = self.criterionMask( self.real_A_out_mask, self.fake_B_out_mask) * self.opt.lambda_out_mask
+            self.loss_out_mask = self.criterionMask( self.real_A_out_mask, self.fake_B_out_mask) * self.opt.train_mask_lambda_out_mask
             self.loss_G += self.loss_out_mask
 
     def compute_f_s_loss(self):
         self.loss_f_s = 0
-        if not self.opt.no_train_f_s_A:
+        if not self.opt.train_mask_no_train_f_s_A:
             label_A = self.input_A_label
             # forward only real source image through semantic classifier
             pred_A = self.netf_s(self.real_A) 
             self.loss_f_s += self.criterionf_s(pred_A, label_A)#.squeeze(1))
-        if self.opt.train_f_s_B:
+        if self.opt.train_mask_f_s_B:
             label_B = self.input_B_label
             pred_B = self.netf_s(self.real_B) 
             self.loss_f_s += self.criterionf_s(pred_B, label_B)#.squeeze(1))

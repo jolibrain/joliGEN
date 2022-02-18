@@ -150,9 +150,9 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False,
     elif netD in model_classes : # load torchvision model
         nclasses=1
         template=netD
-        net = torch_model(input_nc, ndf, nclasses,opt.crop_size, template, pretrained=False)
+        net = torch_model(input_nc, ndf, nclasses,opt.data_crop_size, template, pretrained=False)
     elif netD == 'projected_d': # D in projected feature space
-        net = ProjectedDiscriminator(interp=224 if opt.crop_size < 224 else opt.D_projected_interp)
+        net = ProjectedDiscriminator(interp=224 if opt.data_crop_size < 224 else opt.D_projected_interp)
         return net # no init since custom frozen backbone
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
@@ -181,17 +181,13 @@ def define_inception(device,dims):
     model = InceptionV3([block_idx]).to(device)
     return model
 
-def define_F(input_nc, netF, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, no_antialias=False, gpu_ids=[], opt=None):
+def define_F(input_nc, netF, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[], opt=None):
     if netF == 'global_pool':
         net = PoolingF()
-    #elif netF == 'reshape':
-    #    net = ReshapeF()
     elif netF == 'sample':
-        net = PatchSampleF(use_mlp=False, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.netF_nc)
+        net = PatchSampleF(use_mlp=False, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.alg_cut_netF_nc)
     elif netF == 'mlp_sample':
-        net = PatchSampleF(use_mlp=True, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.netF_nc)
-    #elif netF == 'strided_conv':
-    #    net = StridedConvF(init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
+        net = PatchSampleF(use_mlp=True, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.alg_cut_netF_nc)
     else:
         raise NotImplementedError('projection model name [%s] is not recognized' % netF)
     return init_net(net, init_type, init_gain, gpu_ids)

@@ -25,92 +25,81 @@ class BaseOptions():
         # basic parameters
         parser.add_argument('--dataroot', required=True, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
         parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment. It decides where to store samples and models')
+        parser.add_argument('--suffix', default='', type=str, help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}')
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
+        parser.add_argument('--phase', type=str, default='train', help='train, val, test, etc')
+        parser.add_argument('--ddp_port', type=str, default='12355')
+        
         # model parameters
-        parser.add_argument('--model', type=str, default='cycle_gan', help='chooses which model to use. [' + " | ".join(models.get_models_names()) + ']')
-        parser.add_argument('--input_nc', type=int, default=3, help='# of input image channels: 3 for RGB and 1 for grayscale')
-        parser.add_argument('--output_nc', type=int, default=3, help='# of output image channels: 3 for RGB and 1 for grayscale')
-        parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in the last conv layer')
-        parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
-        parser.add_argument('--netD', type=str, default='basic', help='specify discriminator architecture [basic | n_layers | pixel] or any torchvision model [resnet18...]. The basic model is a 70x70 PatchGAN. n_layers allows you to specify the layers in the discriminator')
-        parser.add_argument('--netD_global', type=str, default='none', help='specify discriminator architecture, any torchvision model can be used [resnet18...]. By default no global discriminator will be used.')
-        parser.add_argument('--netG', type=str, default='resnet_9blocks', help='specify generator architecture [resnet_9blocks | resnet_6blocks | resnet_attn | unet_256 | unet_128 | stylegan2 | smallstylegan2]')
-        parser.add_argument('--n_layers_D', type=int, default=3, help='only used if netD==n_layers')
-        parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization [instance | batch | none]')
-        parser.add_argument('--init_type', type=str, default='normal', help='network initialization [normal | xavier | kaiming | orthogonal]')
-        parser.add_argument('--init_gain', type=float, default=0.02, help='scaling factor for normal, xavier and orthogonal.')
-        parser.add_argument('--no_dropout', action='store_true', help='no dropout for the generator')
-        parser.add_argument('--D_dropout', action='store_true', help='whether to use dropout in the discriminator')
-        parser.add_argument('--D_spectral', action='store_true', help='whether to use spectral norm in the discriminator')
+        parser.add_argument('--model_type', type=str, default='cycle_gan', help='chooses which model to use. [' + " | ".join(models.get_models_names()) + ']')
+        parser.add_argument('--model_input_nc', type=int, default=3, help='# of input image channels: 3 for RGB and 1 for grayscale')
+        parser.add_argument('--model_output_nc', type=int, default=3, help='# of output image channels: 3 for RGB and 1 for grayscale')
+        parser.add_argument('--model_init_type', type=str, default='normal', help='network initialization [normal | xavier | kaiming | orthogonal]')
+        parser.add_argument('--model_init_gain', type=float, default=0.02, help='scaling factor for normal, xavier and orthogonal.')
+        
+        # generator
+        parser.add_argument('--G_ngf', type=int, default=64, help='# of gen filters in the last conv layer')
+        parser.add_argument('--G_netG', type=str, default='resnet_attn', help='specify generator architecture [resnet_9blocks | resnet_6blocks | resnet_3blocks | resnet_12blocks | mobile_resnet_9blocks | mobile_resnet_3blocks | resnet_attn | mobile_resnet_attn | unet_256 | unet_128 | stylegan2 | smallstylegan2 | segformer_attn_conv | segformer_conv]')
+        parser.add_argument('--G_dropout', action='store_true', help='dropout for the generator')
         parser.add_argument('--G_spectral', action='store_true', help='whether to use spectral norm in the generator')
         parser.add_argument('--G_padding_type', type=str, help='whether to use padding in the generator, zeros or reflect', default='reflect')
-        parser.add_argument('--D_projected_interp', type=int, default=-1, help='whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation')
-        parser.add_argument('--G_ema', action='store_true', help='whether to build G via exponential moving average')
-        parser.add_argument('--ema_beta', type=float, default=0.999, help='exponential decay for ema')
-        
-        # dataset parameters
-        parser.add_argument('--dataset_mode', type=str, default='unaligned', help='chooses how datasets are loaded. [unaligned | aligned | single | colorization]')
-        parser.add_argument('--direction', type=str, default='AtoB', help='AtoB or BtoA')
-        parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
-        parser.add_argument('--num_threads', default=4, type=int, help='# threads for loading data')
-        parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
-        parser.add_argument('--load_size', type=int, default=286, help='scale images to this size')
-        parser.add_argument('--crop_size', type=int, default=256, help='then crop to this size')
-        parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
-        parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
-        parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data augmentation')
-        parser.add_argument('--no_rotate', action='store_true', help='if specified, do not rotate the images for data augmentation')
-        parser.add_argument('--affine', type=float, default=0.0, help='if specified, apply random affine transforms to the images for data augmentation')
-        parser.add_argument('--affine_translate', type=float, default=0.2, help='if random affine specified, translation range (-value*img_size,+value*img_size) value')
-        parser.add_argument('--affine_scale_min', type=float, default=0.8, help='if random affine specified, min scale range value')
-        parser.add_argument('--affine_scale_max', type=float, default=1.2, help='if random affine specified, max scale range value')
-        parser.add_argument('--affine_shear', type=int, default=45, help='if random affine specified, shear range (0,value)')
-        parser.add_argument('--imgaug', action='store_true', help='whether to apply random image augmentation')
-        parser.add_argument('--display_winsize', type=int, default=256, help='display window size for both visdom and HTML')
-        # additional parameters
-        parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
-        parser.add_argument('--load_iter', type=int, default='0', help='which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]')
-        parser.add_argument('--verbose', action='store_true', help='if specified, print more debugging information')
-        parser.add_argument('--suffix', default='', type=str, help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}')
-        parser.add_argument('--semantic_nclasses',default=10,type=int,help='number of classes of the semantic loss classifier')
-        parser.add_argument('--semantic_threshold',default=1.0,type=float,help='threshold of the semantic classifier loss below with semantic loss is applied')
-        parser.add_argument('--display_networks', action='store_true',help='Set True if you want to display networks on port 8000')
-        parser.add_argument('--compute_fid', action='store_true')
-        parser.add_argument('--fid_every', type=int, default=1000)
-
-        #CUT options
-        parser.add_argument('--normG', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for G')
-        parser.add_argument('--normD', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for D')
-        parser.add_argument('--no_antialias', action='store_true', help='if specified, use stride=2 convs instead of antialiased-downsampling (sad)')
-        parser.add_argument('--no_antialias_up', action='store_true', help='if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv]')
-
-        parser.add_argument('--stylegan2_G_num_downsampling',
+        parser.add_argument('--G_norm', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for G')
+        parser.add_argument('--G_stylegan2_num_downsampling',
                             default=1, type=int,
                             help='Number of downsampling layers used by StyleGAN2Generator')
-
-        parser.add_argument('--D_label_smooth', action='store_true', help='whether to use one-sided label smoothing with discriminator')
-        parser.add_argument('--D_noise', type=float, default=0.0, help='whether to add instance noise to discriminator inputs')
-
-        #Online dataset creation options
-        parser.add_argument('--online_creation_crop_size_A', type=int, default=512, help='crop to this size during online creation, it needs to be greater than bbox size for domain A')
-        parser.add_argument('--online_creation_crop_delta_A', type=int, default=50, help='size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain A')
-        parser.add_argument('--online_creation_mask_delta_A', type=int, default=0, help='mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain A')
-        parser.add_argument('--online_creation_mask_square_A', action='store_true', help='whether masks should be squared for domain A')
-
-        parser.add_argument('--online_creation_crop_size_B', type=int, default=512, help='crop to this size during online creation, it needs to be greater than bbox size for domain B')
-        parser.add_argument('--online_creation_crop_delta_B', type=int, default=50, help='size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain B')
-        parser.add_argument('--online_creation_mask_delta_B', type=int, default=0, help='mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B')
-        parser.add_argument('--online_creation_mask_square_B', action='store_true', help='whether masks should be squared for domain B')
-
-        parser.add_argument('--sanitize_paths',action='store_true',help='if true, wrong images or labels paths will be removed before training')
-        parser.add_argument('--sanitize_paths_vebose',action='store_true',help='if true, wrong images or labels paths will be printed')
-        parser.add_argument('--relative_paths',action='store_true',help='whether paths to images are relative to dataroot')
+        parser.add_argument('--G_config_segformer',type=str,default='models/configs/segformer/segformer_config_b0.py',help='path to segforme configuration file')
+        parser.add_argument('--G_attn_nb_mask_attn',default=10)
+        parser.add_argument('--G_attn_nb_mask_input',default=1)
         
-        #D accuracy
-        parser.add_argument('--compute_D_accuracy', action='store_true')
-        parser.add_argument('--D_accuracy_every', type=int, default=1000)
+        # discriminator
+        parser.add_argument('--D_ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
+        parser.add_argument('--D_netD', type=str, default='basic', help='specify discriminator architecture [basic | n_layers | pixel] or any torchvision model [resnet18...]. The basic model is a 70x70 PatchGAN. n_layers allows you to specify the layers in the discriminator')
+        parser.add_argument('--D_netD_global', type=str, default='none', help='specify discriminator architecture, any torchvision model can be used [resnet18...]. By default no global discriminator will be used.')
+        parser.add_argument('--D_n_layers', type=int, default=3, help='only used if netD==n_layers')
+        parser.add_argument('--D_norm', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for D')
+        parser.add_argument('--D_dropout', action='store_true', help='whether to use dropout in the discriminator')
+        parser.add_argument('--D_spectral', action='store_true', help='whether to use spectral norm in the discriminator')
+        parser.add_argument('--D_projected_interp', type=int, default=-1, help='whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation')
+        parser.add_argument('--D_no_antialias', action='store_true', help='if specified, use stride=2 convs instead of antialiased-downsampling (sad)')
+        parser.add_argument('--D_no_antialias_up', action='store_true', help='if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv]')
+        
+        # semantic network
+        parser.add_argument('--f_s_light',action='store_true', help='whether to use a light (unet) network for f_s')
+        parser.add_argument('--f_s_dropout', action='store_true', help='dropout for the semantic network')
+        parser.add_argument('--f_s_semantic_nclasses',default=2,type=int,help='number of classes of the semantic loss classifier')
+        parser.add_argument('--f_s_semantic_threshold',default=1.0,type=float,help='threshold of the semantic classifier loss below with semantic loss is applied')
+        parser.add_argument('--f_s_all_classes_as_one',action='store_true',help='if true, all classes will be considered as the same one (ie foreground vs background)')
+        parser.add_argument('--f_s_nf', type=int, default=64, help='# of filters in the first conv layer of classifier')
 
+        # dataset parameters
+        parser.add_argument('--data_dataset_mode', type=str, default='unaligned', help='chooses how datasets are loaded. [unaligned | aligned | single | colorization]')
+        parser.add_argument('--data_direction', type=str, default='AtoB', help='AtoB or BtoA')
+        parser.add_argument('--data_serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
+        parser.add_argument('--data_num_threads', default=4, type=int, help='# threads for loading data')
+
+        parser.add_argument('--data_load_size', type=int, default=286, help='scale images to this size')
+        parser.add_argument('--data_crop_size', type=int, default=256, help='then crop to this size')
+        parser.add_argument('--data_max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
+        parser.add_argument('--data_preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
+
+
+
+
+        # Online dataset creation options
+        parser.add_argument('--data_online_creation_crop_size_A', type=int, default=512, help='crop to this size during online creation, it needs to be greater than bbox size for domain A')
+        parser.add_argument('--data_online_creation_crop_delta_A', type=int, default=50, help='size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain A')
+        parser.add_argument('--data_online_creation_mask_delta_A', type=int, default=0, help='mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain A')
+        parser.add_argument('--data_online_creation_mask_square_A', action='store_true', help='whether masks should be squared for domain A')
+
+        parser.add_argument('--data_online_creation_crop_size_B', type=int, default=512, help='crop to this size during online creation, it needs to be greater than bbox size for domain B')
+        parser.add_argument('--data_online_creation_crop_delta_B', type=int, default=50, help='size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain B')
+        parser.add_argument('--data_online_creation_mask_delta_B', type=int, default=0, help='mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B')
+        parser.add_argument('--data_online_creation_mask_square_B', action='store_true', help='whether masks should be squared for domain B')
+
+        parser.add_argument('--data_sanitize_paths',action='store_true',help='if true, wrong images or labels paths will be removed before training')
+        parser.add_argument('--data_relative_paths',action='store_true',help='whether paths to images are relative to dataroot')
+        
         self.initialized = True
         return parser
 
@@ -128,13 +117,13 @@ class BaseOptions():
         opt, _ = parser.parse_known_args()
 
         # modify model-related parser options
-        model_name = opt.model
+        model_name = opt.model_type
         model_option_setter = models.get_option_setter(model_name)
         parser = model_option_setter(parser, self.isTrain)
         opt, _ = parser.parse_known_args()  # parse again with new defaults
 
         # modify dataset-related parser options
-        dataset_name = opt.dataset_mode
+        dataset_name = opt.data_dataset_mode
         dataset_option_setter = data.get_option_setter(dataset_name)
         parser = dataset_option_setter(parser, self.isTrain)
 

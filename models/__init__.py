@@ -75,7 +75,7 @@ def create_model(opt,rank):
         >>> from models import create_model
         >>> model = create_model(opt)
     """
-    model = find_model_using_name(opt.model)
+    model = find_model_using_name(opt.model_type)
     instance = model(opt,rank)
     if rank==0:
         print("model [%s] was created" % type(instance).__name__)

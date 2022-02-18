@@ -57,12 +57,12 @@ nclasses='10'
 
 python3 "${current_dir}/../train.py"\
 	--dataroot "${src}" --checkpoints_dir "${checkpoints_dir}" --name $name\
-	--display_env $display_env  --display_freq ${display_freq} --print_freq ${print_freq}\
+	--output_display_env $display_env  --output_display_freq ${display_freq} --output_print_freq ${print_freq}\
 	--gpu ${gpu}\
-	--lambda_A ${lambda_A} --lambda_B ${lambda_B} --lambda_identity ${lambda_identity}\
-	--lr ${lr} --D_lr ${d_lr} --batch_size ${batch}\
-	--crop_size ${crop} --load_size ${load} --dataset_mode ${dataset_mode}\
-	--input_nc ${input_nc} --output_nc ${output_nc}\
-	--model ${model} --netG $netG\
-	--semantic_nclasses $nclasses\
-	--no_flip --no_rotate
+	--alg_cyclegan_lambda_A ${lambda_A} --alg_cyclegan_lambda_B ${lambda_B} --alg_cyclegan_lambda_identity ${lambda_identity}\
+	--G_lr ${lr} --D_lr ${d_lr} --train_batch_size ${batch}\
+	--data_crop_size ${crop} --data_load_size ${load} --data_dataset_mode ${dataset_mode}\
+	--model_input_nc ${input_nc} --model_output_nc ${output_nc}\
+	--model_type ${model} --G_netG $netG\
+	--f_s_semantic_nclasses $nclasses\
+	--dataaug_no_flip --dataaug_no_rotate

@@ -72,13 +72,12 @@ fid_every=1000
 #CUDA_VISIBLE_DEVICES=${gpu}
 python3 "${current_dir}/../train.py" \
     --dataroot "${src}" --checkpoints_dir "${checkpoints_dir}" --name $name\
-    --display_env $name  --display_freq ${display_freq} --print_freq ${print_freq}\
-    --gpu ${gpu} --lambda_A ${lambda_A} --lambda_B ${lambda_B} --lambda_identity ${lambda_identity}\
-    --lr ${lr} --D_lr ${d_lr}\
-    --crop_size ${crop} --load_size ${load}\
-    --dataset_mode ${dataset_mode}\
-    --model ${model} --netG $netG\
-    --batch_size ${batch} --lambda_identity ${lambda_identity} \
-    --decoder_size $decoder_size --wplus\
-    --input_nc ${input_nc} --output_nc ${output_nc}\
-    --d_reg_every ${d_reg_every}  --g_reg_every ${g_reg_every} --fs_light\
+    --output_display_env $name  --output_display_freq ${display_freq} --output_print_freq ${print_freq}\
+    --gpu ${gpu} --alg_cyclegan_lambda_A ${lambda_A} --alg_cyclegan_lambda_B ${lambda_B} --alg_cyclegan_lambda_identity ${lambda_identity}\
+    --G_lr ${lr} --D_lr ${d_lr}\
+    --data_crop_size ${crop} --data_load_size ${load}\
+    --data_dataset_mode ${dataset_mode}\
+    --model_type ${model} --G_netG $netG\
+    --train_batch_size ${batch} --alg_cyclegan_lambda_identity ${lambda_identity} \
+    --model_input_nc ${input_nc} --model_output_nc ${output_nc}\
+    --fs_light

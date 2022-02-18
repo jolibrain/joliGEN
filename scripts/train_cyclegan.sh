@@ -12,4 +12,4 @@ fi
 
 echo "Data root = $1"
 
-python3 "${current_dir}/../train.py" --dataroot "$1" --model cycle_gan --pool_size 50 --no_dropout
+python3 "${current_dir}/../train.py" --dataroot "$1" --model_type cycle_gan --train_pool_size 50
