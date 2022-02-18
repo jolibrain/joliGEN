@@ -1,8 +1,8 @@
 from mmseg.models.utils import nlc_to_nchw
 from mmseg.ops import resize
 
-def configure_new_forward_mit(obj):
-    def new_forward_mit(x, extract_layer_ids=[]):
+def configure_compute_feat_mit(obj):
+    def compute_feat_mit(x, extract_layer_ids=[]):
         outs = []
         feats = []
 
@@ -17,60 +17,50 @@ def configure_new_forward_mit(obj):
             if i in extract_layer_ids:
                 feats.append(x)
 
-        if len(feats)>0:
-            return outs,feats
-        else:
-            return outs
+        return outs,feats
 
-    obj.forward = new_forward_mit
+    obj.compute_feat = compute_feat_mit
 
 
 def configure_new_extract_feat_encoder_encoder(obj):
     def new_extract_feat_encoder_encoder(img,extract_layer_ids=[]):
         """Extract features from images."""
-        x = obj.backbone(img,extract_layer_ids)
-        if len(extract_layer_ids)>0:
-            x,feats = x
-            return x,feats
+        x = obj.backbone.compute_feat(img,extract_layer_ids)
+        x,feats = x
         if obj.with_neck:
             x = obj.neck(x)
-        return x
+        return x,feats
     obj.extract_feat = new_extract_feat_encoder_encoder
 
-def configure_new_encode_decode_encoder_encoder(obj):
-    def new_encode_decode_encoder_encoder(img, img_metas, extract_layer_ids=[],use_resize=True):
+def configure_decode_encoder_encoder(obj):
+    def decode_encoder_encoder(outs,use_resize=True):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
-        x = obj.extract_feat(img,extract_layer_ids=extract_layer_ids)
-        if len(extract_layer_ids)>0:
-            x,feats = x
-        out = obj._decode_head_forward_test(x, img_metas)
+        out = obj._decode_head_forward_test(outs, img_metas=None)
         if use_resize:
             out = resize(
                 input=out,
-                size=img.shape[2:],
+                size=obj.img_size,
                 mode='bilinear',
                 align_corners=obj.align_corners)
 
-        if hasattr(obj,'auxiliary_head'):
-            out2 = obj._auxiliary_head_forward_test(x, img_metas)
-            out2 = resize(
-                input=out2,
-                size=img.shape[2:],
-                mode='bilinear',
-                align_corners=obj.align_corners)
-            if len(extract_layer_ids)>0:
-                return out, out2,feats
-            else:
-                return out, out2, None
+        return out
 
-        if len(extract_layer_ids)>0:
-            return out,feats
-        else:
-            return out, None
+    obj.decode = decode_encoder_encoder
 
-    obj.encode_decode = new_encode_decode_encoder_encoder
-
+def configure_decode_2_encoder_encoder(obj):
+    def decode_2_encoder_encoder(outs,use_resize=True):
+        """Encode images with backbone and decode into a semantic segmentation
+        map of the same size as input."""
+        out2 = obj._auxiliary_head_forward_test(outs, img_metas=None)
+        out2 = resize(
+            input=out2,
+            size=obj.img_size,
+            mode='bilinear',
+            align_corners=obj.align_corners)
+        return out2
+    
+    obj.decode_2 = decode_2_encoder_encoder
 
 def configure_new_auxiliary_head_forward_test_encoder_decoder(obj):
     def new_auxiliary_head_forward_test(x, img_metas):
@@ -82,5 +72,9 @@ def configure_new_auxiliary_head_forward_test_encoder_decoder(obj):
 
 def configure_encoder_decoder(obj):
     configure_new_extract_feat_encoder_encoder(obj)
-    configure_new_encode_decode_encoder_encoder(obj)
+    configure_decode_encoder_encoder(obj)
+    configure_decode_2_encoder_encoder(obj)
     configure_new_auxiliary_head_forward_test_encoder_decoder(obj)
+
+def configure_mit(obj):
+    configure_compute_feat_mit(obj)
