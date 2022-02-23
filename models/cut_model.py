@@ -241,12 +241,16 @@ class CUTModel(BaseModel):
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
-        feat_q = self.netG(tgt, self.nce_layers, True)
+        if hasattr(self.netG,'module'):
+            netG = self.netG.module
+        else:
+            netG= self.netG
+        feat_q = netG.get_feats(tgt, self.nce_layers)
 
         if self.opt.alg_cut_flip_equivariance and self.flipped_for_equivariance:
             feat_q = [torch.flip(fq, [3]) for fq in feat_q]
 
-        feat_k = self.netG(src, self.nce_layers, True)
+        feat_k = netG.get_feats(src, self.nce_layers)
 
         feat_k_pool, sample_ids = self.netF(feat_k, self.opt.alg_cut_num_patches, None)
         feat_q_pool, _ = self.netF(feat_q, self.opt.alg_cut_num_patches, sample_ids)

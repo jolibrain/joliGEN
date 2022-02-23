@@ -1,15 +1,16 @@
 import functools
-
 from torch import nn
 import torch
 from ..utils import spectral_norm,normal_init,init_net,init_weights
 import torch.nn.functional as F
 import math
+from models.modules.attn_network import BaseGenerator_attn
+from models.modules.mobile_modules import SeparableConv2d
 
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
 
-    def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias, use_spectral=False):
+    def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias, use_spectral=False,conv=nn.Conv2d):
         """Initialize the Resnet block
 
         A resnet block is a conv block with skip connections
@@ -18,6 +19,7 @@ class ResnetBlock(nn.Module):
         Original Resnet paper: https://arxiv.org/pdf/1512.03385.pdf
         """
         super(ResnetBlock, self).__init__()
+        self.conv = conv
         self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, use_dropout, use_bias, use_spectral)
 
     def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias, use_spectral):
@@ -43,7 +45,7 @@ class ResnetBlock(nn.Module):
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
 
-        conv_block += [spectral_norm(nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias),use_spectral), norm_layer(dim), nn.ReLU(True)]
+        conv_block += [spectral_norm(self.conv(dim, dim, kernel_size=3, padding=p, bias=use_bias),use_spectral), norm_layer(dim), nn.ReLU(True)]
         if use_dropout:
             conv_block += [nn.Dropout(0.5)]
 
@@ -56,7 +58,7 @@ class ResnetBlock(nn.Module):
             p = 1
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-        conv_block += [spectral_norm(nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias),use_spectral), norm_layer(dim)]
+        conv_block += [spectral_norm(self.conv(dim, dim, kernel_size=3, padding=p, bias=use_bias),use_spectral), norm_layer(dim)]
 
         return nn.Sequential(*conv_block)
 
@@ -84,11 +86,18 @@ class ResnetGenerator(nn.Module):
         """
         assert(n_blocks >= 0)
         super(ResnetGenerator, self).__init__()
-
         self.opt=opt
 
-        self.encoder=ResnetEncoder(input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks, padding_type, use_spectral)
+        if "mobile" in self.opt.netG:
+            self.conv = SeparableConv2d
+        else:
+            self.conv = nn.Conv2d
+
+        self.encoder=ResnetEncoder(input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks, padding_type, use_spectral,self.conv)
         self.decoder=ResnetDecoder(input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks, padding_type, use_spectral)
+
+    def get_feats(self, input, extract_layer_ids=[]):
+        return self.encoder.get_feats(input, extract_layer_ids)
         
     def forward(self, input):
         """Standard forward"""
@@ -101,7 +110,7 @@ class ResnetEncoder(nn.Module):
 
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False):
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False,conv=nn.Conv2d):
         """Construct a Resnet-based encoder
 
         Parameters:
@@ -138,15 +147,32 @@ class ResnetEncoder(nn.Module):
 
         mult = 2 ** n_downsampling
         for i in range(n_blocks):       # add ResNet blocks
-            resblockl = [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+            resblockl = [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias,conv=conv)]
             model += resblockl
 
         self.model = nn.Sequential(*model)
+
+    def compute_feats(self, input, extract_layer_ids=[]):
+        if -1 in extract_layer_ids:
+            extract_layer_ids.append(len(self.encoder))
+        feat = input
+        feats = []
+        for layer_id, layer in enumerate(self.model):
+            
+            feat = layer(feat)
+            if layer_id in extract_layer_ids:
+                feats.append(feat)
+        return feat, feats  # return both output and intermediate features
         
     def forward(self, input):
         """Standard forward"""
-        output = self.model(input)
+        output,_ = self.compute_feats(input)
         return output
+
+    def get_feats(self, input, extract_layer_ids=[]):
+        _,feats = self.compute_feats(input, extract_layer_ids)
+        return feats
+
 
 class ResnetDecoder(nn.Module):
     """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
@@ -195,16 +221,16 @@ class ResnetDecoder(nn.Module):
         return output
 
 class resnet_block_attn(nn.Module):
-    def __init__(self, channel, kernel, stride, padding_type):
+    def __init__(self, channel, kernel, stride, padding_type,conv=nn.Conv2d):
         super(resnet_block_attn, self).__init__()
         self.channel = channel
         self.kernel = kernel
         self.stride = stride
         self.padding = 1
         self.padding_type = padding_type
-        self.conv1 = nn.Conv2d(channel, channel, kernel, stride, padding=self.padding, padding_mode=self.padding_type)
+        self.conv1 = conv(channel, channel, kernel, stride, padding=self.padding, padding_mode=self.padding_type)
         self.conv1_norm = nn.InstanceNorm2d(channel)
-        self.conv2 = nn.Conv2d(channel, channel, kernel, stride, padding=self.padding, padding_mode=self.padding_type)
+        self.conv2 = conv(channel, channel, kernel, stride, padding=self.padding, padding_mode=self.padding_type)
         self.conv2_norm = nn.InstanceNorm2d(channel)
 
     # weight_init
@@ -217,17 +243,19 @@ class resnet_block_attn(nn.Module):
         x = self.conv2_norm(self.conv2(x))
         return input + x
 
-class ResnetGenerator_attn(nn.Module):
+class ResnetGenerator_attn(BaseGenerator_attn):
     # initializers
-    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False,size=128, padding_type='reflect',opt=None): #nb_mask_attn : nombre de masques d'attention, nb_mask_input : nb de masques d'attention qui vont etre appliqués a l'input
-        super(ResnetGenerator_attn, self).__init__()
-        self.opt = opt
+    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False,size=128, padding_type='reflect',opt=None):
+        super(ResnetGenerator_attn, self).__init__(opt)
+        if "mobile" in self.opt.netG:
+            conv = SeparableConv2d
+        else:
+            conv = nn.Conv2d
+
         self.input_nc = input_nc
         self.output_nc = output_nc
         self.ngf = ngf
         self.nb = n_blocks
-        self.nb_mask_attn = self.opt.G_attn_nb_mask_attn
-        self.nb_mask_input = self.opt.G_attn_nb_mask_input
         self.padding_type = padding_type
         self.conv1 = spectral_norm(nn.Conv2d(input_nc, ngf, 7, 1, 0),use_spectral)
         self.conv1_norm = nn.InstanceNorm2d(ngf)
@@ -238,7 +266,7 @@ class ResnetGenerator_attn(nn.Module):
 
         self.resnet_blocks = []
         for i in range(n_blocks):
-            self.resnet_blocks.append(resnet_block_attn(ngf * 4, 3, 1, self.padding_type))
+            self.resnet_blocks.append(resnet_block_attn(ngf * 4, 3, 1, self.padding_type,conv=conv))
             self.resnet_blocks[i].weight_init(0, 0.02)
 
         self.resnet_blocks = nn.Sequential(*self.resnet_blocks)
@@ -247,7 +275,7 @@ class ResnetGenerator_attn(nn.Module):
         self.deconv1_norm_content = nn.InstanceNorm2d(ngf * 2)
         self.deconv2_content = spectral_norm(nn.ConvTranspose2d(ngf * 2, ngf, 3, 2, 1, 1),use_spectral)
         self.deconv2_norm_content = nn.InstanceNorm2d(ngf)        
-        self.deconv3_content = spectral_norm(nn.Conv2d(ngf, self.input_nc * (self.nb_mask_attn-self.nb_mask_input), 7, 1, 0),use_spectral)#self.nb_mask_attn-nb_mask_input: nombre d'images générées ou les masques d'attention vont etre appliqués
+        self.deconv3_content = spectral_norm(nn.Conv2d(ngf, self.input_nc * (self.nb_mask_attn-self.nb_mask_input), 7, 1, 0),use_spectral)
 
         self.deconv1_attention = spectral_norm(nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, 2, 1, 1),use_spectral)
         self.deconv1_norm_attention = nn.InstanceNorm2d(ngf * 2)
@@ -262,8 +290,7 @@ class ResnetGenerator_attn(nn.Module):
         for m in self._modules:
             normal_init(self._modules[m], mean, std)
 
-    # forward method
-    def forward(self, input, extract_layer_ids=[], encode_only=False,get_attention_masks=False):
+    def compute_feats(self, input, extract_layer_ids=[]):
         if self.padding_type == 'reflect':
             x = F.pad(input, (3, 3, 3, 3), 'reflect')
         else:
@@ -274,19 +301,17 @@ class ResnetGenerator_attn(nn.Module):
         
         if -1 in extract_layer_ids: #if -1 is in extract_layer_ids, the output of the encoder will be returned (features just after the last layer) 
             extract_layer_ids.append(len(self.resnet_blocks))
-        if len(extract_layer_ids) > 0:
-            feat=x
-            feats=[]
-            for layer_id, layer in enumerate(self.resnet_blocks):
-                feat = layer(feat)
-                if layer_id in extract_layer_ids:
-                    feats.append(feat)
-            if encode_only:
-                return feats
-            else:
-                x=feat
-        else:
-            x = self.resnet_blocks(x)
+        feat=x
+        feats=[]
+        for layer_id, layer in enumerate(self.resnet_blocks):
+            feat = layer(feat)
+            if layer_id in extract_layer_ids:
+                feats.append(feat)
+
+        return feat,feats
+
+    def compute_attention_content(self,feat):
+        x = self.resnet_blocks(feat)
         
         x_content = F.relu(self.deconv1_norm_content(self.deconv1_content(x)))
         x_content = F.relu(self.deconv2_norm_content(self.deconv2_content(x_content)))
@@ -314,20 +339,4 @@ class ResnetGenerator_attn(nn.Module):
         for i in range(self.nb_mask_attn):
             attentions.append(attention[:, i:i+1, :, :].repeat(1, self.input_nc, 1, 1))
 
-        outputs = []
-        
-        for i in range(self.nb_mask_attn-self.nb_mask_input):
-            outputs.append(images[i]*attentions[i])
-        for i in range(self.nb_mask_attn-self.nb_mask_input,self.nb_mask_attn):
-            outputs.append(input * attentions[i])
-
-        if get_attention_masks:
-            return images,attentions,outputs
-            
-        o = outputs[0]
-        for i in range(1,self.nb_mask_attn):
-            o += outputs[i]
-        return o
-
-    def get_attention_masks(self,input):
-        return self.forward(input,get_attention_masks=True)
+        return attentions,images
