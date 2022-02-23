@@ -260,7 +260,7 @@ class BaseOptions():
         opt = argparse.Namespace()
         self._json_parse_known_args(parser, opt, json_args)
 
-        model_name = opt.model
+        model_name = opt.model_type
         model_option_setter = models.get_option_setter(model_name)
         parser = model_option_setter(parser, self.isTrain)
         self._json_parse_known_args(parser, opt, json_args)
