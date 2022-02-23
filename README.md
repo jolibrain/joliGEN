@@ -100,6 +100,12 @@ Then run server:
 server/run.sh --host localhost --port 8000
 ```
 
+## Tests
+To launch tests before new commits :
+```
+bash scripts/run_tests.sh /path/to/dir
+```
+
 ## Authors
 
 **JoliGAN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).

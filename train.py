@@ -142,10 +142,10 @@ def train_gpu(rank,world_size,opt,dataset):
             print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.train_n_epochs + opt.train_n_epochs_decay, time.time() - epoch_start_time))    
         model.update_learning_rate()                     # update learning rates at the end of every epoch.
 
-
-if __name__ == '__main__':
+def launch_training(opt=None):
     signal.signal(signal.SIGINT, signal_handler) #to really kill the process
-    opt = TrainOptions().parse()   # get training options
+    if opt is None :
+        opt = TrainOptions().parse()   # get training options
     opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-1]))
     world_size=len(opt.gpu_ids)
 
@@ -156,3 +156,6 @@ if __name__ == '__main__':
              args=(world_size,opt,dataset,),
              nprocs=world_size,
              join=True)
+    
+if __name__ == '__main__':
+    launch_training()
