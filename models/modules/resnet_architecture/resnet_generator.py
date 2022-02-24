@@ -247,7 +247,7 @@ class ResnetGenerator_attn(BaseGenerator_attn):
     # initializers
     def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False,size=128, padding_type='reflect',opt=None):
         super(ResnetGenerator_attn, self).__init__(opt)
-        if "mobile" in self.opt.netG:
+        if "mobile" in self.opt.G_netG:
             conv = SeparableConv2d
         else:
             conv = nn.Conv2d
