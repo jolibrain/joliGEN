@@ -5,7 +5,7 @@ import json
 
 import torch.multiprocessing as mp
 
-from utils.train import train_gpu
+from train import train_gpu
 from options.train_options import TrainOptions
 from data import create_dataset
 from enum import Enum
