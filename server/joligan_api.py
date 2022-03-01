@@ -9,7 +9,7 @@ from train import train_gpu
 from options.train_options import TrainOptions
 from data import create_dataset
 from enum import Enum
-from pydantic import create_model, BaseModel
+from pydantic import create_model, BaseModel, Field
 
 
 description = """This is the JoliGAN server API documentation.
@@ -21,20 +21,36 @@ app = FastAPI(
 )
 
 # Additional schema
-TrainOptionsSchema = TrainOptions().get_schema()
+class ServerTrainOptions(BaseModel):
+    sync : bool = Field(
+        False,
+        description = "if false, the call returns immediately and train process "
+            "is executed in the background. If true, the call returns only "
+            "when training process is finished"
+    )
+
+class TrainBody(BaseModel):
+    server : ServerTrainOptions = ServerTrainOptions()
+
+TrainBodySchema = TrainBody.schema()
+TrainBodySchema["properties"]["train_options"] = TrainOptions().get_schema()
+
 # Ensure schema is valid at startup
 json.dumps(
-    TrainOptionsSchema,
+    TrainBodySchema,
     ensure_ascii=False,
     indent=None,
     separators=(",", ":"),
 ).encode("utf-8")
 
+
 generic_openapi = app.openapi
 def custom_openapi():
     if not app.openapi_schema:
         app.openapi_schema = generic_openapi()
-        app.openapi_schema["components"]["schemas"]["TrainOptions"] = TrainOptionsSchema
+        app.openapi_schema["components"]["schemas"]["TrainOptions"] = TrainBodySchema
+        app.openapi_schema["definitions"] = {}
+        app.openapi_schema["definitions"]["ServerTrainOptions"] = ServerTrainOptions.schema()
     return app.openapi_schema
 app.openapi = custom_openapi
 
@@ -75,10 +91,14 @@ def is_alive(context):
     }
 )
 async def train(name : str, request : Request):
-    train_options = await request.json()
+    train_body = await request.json()
 
     try:
-        opt = TrainOptions().parse_json(train_options)
+        opt = TrainOptions().parse_json(train_body["train_options"])
+
+        # Parse the remaining options
+        del train_body["train_options"]
+        train_body = TrainBody.parse_obj(train_body)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=400, detail="{0}".format(e))
@@ -90,7 +110,17 @@ async def train(name : str, request : Request):
                         args=(world_size,opt,dataset,),
                         nprocs=world_size,
                         join=False)
-    return { "message": "ok", "name" : name }
+
+    if (train_body.server.sync):
+        try:
+            # XXX could be awaited
+            ctx[name].join()
+        except Exception as e:
+            return {"name": name, "message": str(e), "status": "error" }
+        del ctx[name]
+        return { "message": "ok", "name" : name, "status": "stopped" }
+
+    return { "message": "ok", "name" : name, "status": "running" }
 
 @app.get("/train/{name}", status_code=200, summary="Get the status of a training process")
 async def get_train(name : str):
