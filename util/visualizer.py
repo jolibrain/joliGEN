@@ -68,6 +68,7 @@ class Visualizer():
         self.name = opt.name
         self.port = opt.output_display_port
         self.saved = False
+        self.metrics_dict = {}
         if self.display_id > 0:  # connect to a visdom server given <display_port> and <display_server>
             import visdom
             self.ncols = opt.output_display_ncols
@@ -261,6 +262,43 @@ class Visualizer():
         img_name=img_path.split('/')[-1].split('.')[0]
         self.vis.image(im,opts=dict(title=self.name + ' ' + img_name))
 
+    def plot_metrics_dict(self, name, epoch, counter_ratio, metrics, title, ylabel, win_id) :
+        """Update a dict of metrics: labels and values and display it on visdom display
+
+        Parameters:
+            name (str)            -- identifier of the plot
+            epoch (int)           -- current epoch
+            counter_ratio (float) -- progress (percentage) in the current epoch, between 0 to 1
+            metrics (OrderedDict) -- metrics stored in format (name, float)
+            title (str)           -- Plot title
+            ylabel (str)          -- y label
+            window_id (int)       -- Visdom window id
+        """
+        if name not in self.metrics_dict:
+            self.metrics_dict[name] = {'X': [], 'Y': [], 'legend': list(metrics.keys())}
+        plot_metrics = self.metrics_dict[name]
+        plot_metrics['X'].append(epoch + counter_ratio)
+        plot_metrics['Y'].append([metrics[k] for k in plot_metrics['legend']])
+        X=np.stack([np.array(plot_metrics['X'])] * len(plot_metrics['legend']), 1)
+        Y=np.array(plot_metrics['Y'])
+        try:
+            # Resize needed due to a bug in visdom 0.1.8.9
+            if Y.shape[1] == 1:
+                X = X.reshape(X.shape[:1])
+                Y = Y.reshape(Y.shape[:1])
+
+            self.vis.line(
+                Y,
+                X,
+                opts={
+                    'title': self.name + ' ' + title,
+                    'legend': plot_metrics['legend'],
+                    'xlabel': 'epoch',
+                    'ylabel': ylabel},
+                win=self.display_id + win_id)
+        except VisdomExceptionBase:
+            self.create_visdom_connections()
+
     def plot_current_fid(self, epoch, counter_ratio, fids):
         """display the current fid values on visdom display: dictionary of fid labels and values
 
@@ -269,73 +307,32 @@ class Visualizer():
             counter_ratio (float) -- progress (percentage) in the current epoch, between 0 to 1
             fids (OrderedDict)  -- training fid values stored in the format of (name, float) pairs
         """
-        if not hasattr(self, 'plot_fid'):
-            self.plot_fid = {'X': [], 'Y': [], 'legend': list(fids.keys())}
-        self.plot_fid['X'].append(epoch + counter_ratio)
-        self.plot_fid['Y'].append([fids[k] for k in self.plot_fid['legend']])
-        X=np.stack([np.array(self.plot_fid['X'])] * len(self.plot_fid['legend']), 1)
-        Y=np.array(self.plot_fid['Y'])
-        try:
-            self.vis.line(
-                Y,
-                X,
-                opts={
-                    'title': self.name + ' fid over time',
-                    'legend': self.plot_fid['legend'],
-                    'xlabel': 'epoch',
-                    'ylabel': 'fid'},
-                win=self.display_id+4)
-        except VisdomExceptionBase:
-            self.create_visdom_connections()
-
+        self.plot_metrics_dict("fid", epoch, counter_ratio, fids,
+                               title = "fid over time",
+                               ylabel = "fid",
+                               win_id = 4)
+        
     def plot_current_D_accuracies(self, epoch, counter_ratio, accuracies):
         """display the current fid values on visdom display: dictionary of fid labels and values
 
         Parameters:
             epoch (int)           -- current epoch
             counter_ratio (float) -- progress (percentage) in the current epoch, between 0 to 1
-            fids (OrderedDict)  -- training fid values stored in the format of (name, float) pairs
+            accuracies (OrderedDict)  -- accuracy values stored in the format of (name, float) pairs
         """
-        if not hasattr(self, 'plot_accuracy'):
-            self.plot_accuracy = {'X': [], 'Y': [], 'legend': list(accuracies.keys())}
-        self.plot_accuracy['X'].append(epoch + counter_ratio)
-        self.plot_accuracy['Y'].append([accuracies[k] for k in self.plot_accuracy['legend']])
-        X=np.stack([np.array(self.plot_accuracy['X'])] * len(self.plot_accuracy['legend']), 1)
-        Y=np.array(self.plot_accuracy['Y'])
-        try:
-            self.vis.line(
-                Y,
-                X,
-                opts={
-                    'title': self.name + ' accuracy over time',
-                    'legend': self.plot_accuracy['legend'],
-                    'xlabel': 'epoch',
-                    'ylabel': 'accuracy'},
-                win=self.display_id+5)
-        except VisdomExceptionBase:
-            self.create_visdom_connections()
-        
+        self.plot_metrics_dict("D_accuracy", epoch, counter_ratio, fids,
+                               title = "accuracy over time",
+                               ylabel = "accuracy",
+                               win_id = 5)
+
     def plot_current_APA_prob(self, epoch, counter_ratio, p):
-        if not hasattr(self, 'plot_APA_prob'):
-            self.plot_APA_prob = {'X': [], 'Y': [], 'legend': list(p.keys())}
-        self.plot_APA_prob['X'].append(epoch + counter_ratio)
-        self.plot_APA_prob['Y'].append([p[k] for k in self.plot_APA_prob['legend']])
-        X=np.stack([np.array(self.plot_APA_prob['X'])] * len(self.plot_APA_prob['legend']), 1)
-        Y=np.array(self.plot_APA_prob['Y'])
+        self.plot_metrics_dict("APA_prob", epoch, counter_ratio, p,
+                               title = "APA params over time",
+                               ylabel = "prob APA",
+                               win_id = 6)
 
-        if X.shape[1]==1:
-            X = X.squeeze(1)
-            Y = Y.squeeze(1)
-
-        try:
-            self.vis.line(
-                Y,
-                X,
-                opts={
-                    'title': self.name + ' APA params over time',
-                    'legend': self.plot_APA_prob['legend'],
-                    'xlabel': 'epoch',
-                    'ylabel': 'prob APA'},
-                win=self.display_id+6)
-        except VisdomExceptionBase:
-            self.create_visdom_connections()
+    def plot_eval(self, epoch, counter_ratio, eval_metrics):
+        self.plot_metrics_dict("eval", epoch, counter_ratio, eval_metrics,
+                               title = "evaluation metrics",
+                               ylabel = "dice score",
+                               win_id = 7)
