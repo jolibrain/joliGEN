@@ -18,6 +18,9 @@ from util.diff_aug import DiffAugment
 from util.image_pool import ImagePool
 import torch.nn.functional as F
 
+#for metrics
+from torchmetrics.functional import dice_score
+
 class BaseModel(ABC):
     """This class is an abstract base class (ABC) for models.
     To create a subclass, you need to implement the following five functions:
@@ -121,7 +124,8 @@ class BaseModel(ABC):
 
                 self.visual_names.append(temp_visual_names_attn)
 
-
+        self.supervised_evaluators = {}
+        self.supervised_metrics = {}
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -383,6 +387,31 @@ class BaseModel(ABC):
             self.display_param.append(param)
         self.display_param.sort()
 
+    def evaluate_supervised_fakes(self, n_epoch, n_iter):
+        score = 0
+        count = self.real_B_val.shape[0]
+
+        for eval_name, evaluator in self.supervised_evaluators.items():
+            for i in range(count):
+                real_B_val = self.real_B_val[i].unsqueeze(0)
+                real_B_label_val = self.real_B_label_val[i].unsqueeze(0)
+                self.curr_real_B_val = real_B_val
+                self.curr_real_B_label_val = real_B_label_val
+
+                if "segmentation" in eval_name:
+                    # test value
+                    out_mask = evaluator(real_B_val)
+                    score += dice_score(out_mask, real_B_label_val.squeeze(1))
+                    self.real_B_val_out_mask = F.log_softmax(out_mask, dim=1).argmax(dim=1)
+                # elif "detection" in eval_name:
+                else:
+                    raise NotImplementedError("Evaluator not recognized")
+
+            self.supervised_metrics[eval_name] = score / count
+
+    def get_supervised_fakes_metrics(self):
+        metrics = {k : float(v) for k,v in self.supervised_metrics.items()}
+        return metrics
 
     def compute_fid(self,n_epoch,n_iter):
         dims=2048

@@ -1,4 +1,5 @@
 import os.path
+import traceback
 from data.base_dataset import BaseDataset, get_transform, get_transform_seg
 from data.image_folder import make_dataset, make_labeled_path_dataset, make_dataset_path
 from data.online_creation import crop_image, sanitize_paths,write_paths_file
@@ -56,6 +57,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             train_sanitized_exist = os.path.exists(os.path.join(self.sv_dir,'paths_sanitized_train_A.txt')) and os.path.exists(os.path.join(self.sv_dir,'paths_sanitized_train_B.txt'))
             validation_is_needed = self.opt.phase == 'train' and self.opt.train_compute_D_accuracy
             validation_sanitized_exist = os.path.exists(os.path.join(self.sv_dir,'paths_sanitized_validation_B.txt')) and os.path.exists(os.path.join(self.sv_dir,'paths_sanitized_validation_A.txt'))
+
             if train_sanitized_exist and (not validation_is_needed or validation_sanitized_exist) :
                 self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(self.sv_dir,'/paths_sanitized_train_A.txt')
                 self.B_img_paths, self.B_label_paths = make_labeled_path_dataset(self.sv_dir,'/paths_sanitized_train_B.txt')

@@ -101,6 +101,8 @@ class BaseDataset(data.Dataset, ABC):
     def get_validation_set(self,size):
         return_A_list = []
         return_B_list = []
+        return_A_label_list = []
+        return_B_label_list = []
         if not hasattr(self,'A_label_paths') :
             A_label_paths = [None for k in range(size)]
         else:
@@ -126,14 +128,21 @@ class BaseDataset(data.Dataset, ABC):
             images=self.get_img(A_img_path,A_label_path,B_img_path,B_label_path)
             if images is not None:
                 return_A_list.append(images['A'].unsqueeze(0))
+                if 'A_label' in images:
+                    return_A_label_list.append(images['A_label'].unsqueeze(0))
                 if 'B' in images:
                     return_B_list.append(images['B'].unsqueeze(0))
+                if 'B_label' in images:
+                    return_B_label_list.append(images['B_label'].unsqueeze(0))
 
         return_A_list = torch.cat(return_A_list)
+        return_A_label_list = torch.cat(return_A_label_list)
+
         if return_B_list[0] is not None:
             return_B_list = torch.cat(return_B_list)
+            return_B_label_list = torch.cat(return_B_label_list)
 
-        return return_A_list,return_B_list
+        return return_A_list,return_B_list, return_A_label_list, return_B_label_list
 
 
 def get_params(opt, size):

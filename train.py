@@ -66,8 +66,8 @@ def train_gpu(rank,world_size,opt,dataset):
     total_iters = 0                # the total number of training iterations
 
     if rank == 0:
-        model.real_A_val,model.real_B_val = dataset.get_validation_set(opt.train_pool_size)
-        model.real_A_val,model.real_B_val=model.real_A_val.to(model.device),model.real_B_val.to(model.device)
+        model.real_A_val,model.real_B_val,model.real_A_label_val,model.real_B_label_val = dataset.get_validation_set(opt.pool_size)
+        model.real_A_val,model.real_B_val,model.real_A_label_val,model.real_B_label_val=model.real_A_val.to(model.device),model.real_B_val.to(model.device), model.real_A_label_val.to(model.device), model.real_B_label_val.to(model.device)
         
     if rank==0 and opt.output_display_networks:
         data=next(iter(dataloader))
@@ -82,7 +82,7 @@ def train_gpu(rank,world_size,opt,dataset):
             visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
 
         for i, data in enumerate(dataloader):  # inner loop (minibatch) within one epoch
-            
+
             iter_start_time = time.time()  # timer for computation per iteration
             t_data_mini_batch = iter_start_time - iter_data_time
             
@@ -96,6 +96,14 @@ def train_gpu(rank,world_size,opt,dataset):
             epoch_iter += batch_size
 
             if rank == 0:
+                epoch_rate = float(epoch_iter) / dataset_size
+                do_supervised_eval = opt.supervised_eval_fakes or opt.supervised_eval_f_s
+                if total_iters % opt.supervised_eval_every < batch_size and do_supervised_eval:
+                    model.evaluate_supervised_fakes(epoch, total_iters)
+                    if opt.display_id > 0:
+                        supervised_metrics = model.get_supervised_fakes_metrics()
+                        visualizer.plot_eval(epoch, epoch_rate, supervised_metrics)
+
                 if total_iters % opt.output_display_freq < batch_size:   # display images on visdom and save images to a HTML file
                     save_result = total_iters % opt.output_update_html_freq == 0
                     model.compute_visuals()
@@ -116,7 +124,7 @@ def train_gpu(rank,world_size,opt,dataset):
                     model.compute_fid(epoch,total_iters)
                     if opt.output_display_id > 0:
                         fids=model.get_current_fids()
-                        visualizer.plot_current_fid(epoch, float(epoch_iter) / dataset_size, fids)
+                        visualizer.plot_current_fid(epoch, epoch_rate, fids)
 
                 if total_iters % opt.train_D_accuracy_every < batch_size and opt.train_compute_D_accuracy:
                     model.compute_D_accuracy()
@@ -129,7 +137,6 @@ def train_gpu(rank,world_size,opt,dataset):
                         p=model.get_current_APA_prob()
                         visualizer.plot_current_APA_prob(epoch, float(epoch_iter) / dataset_size, p)
                     
-    
                 iter_data_time = time.time()
             
         if epoch % opt.train_save_epoch_freq == 0:              # cache our model every <save_epoch_freq> epochs

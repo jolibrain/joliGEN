@@ -96,10 +96,15 @@ class BaseOptions():
         parser.add_argument('--data_online_creation_crop_delta_B', type=int, default=50, help='size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain B')
         parser.add_argument('--data_online_creation_mask_delta_B', type=int, default=0, help='mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B')
         parser.add_argument('--data_online_creation_mask_square_B', action='store_true', help='whether masks should be squared for domain B')
-
         parser.add_argument('--data_sanitize_paths',action='store_true',help='if true, wrong images or labels paths will be removed before training')
         parser.add_argument('--data_relative_paths',action='store_true',help='whether paths to images are relative to dataroot')
         
+        #Evaluate model
+        # TODO new option names
+        parser.add_argument('--supervised_eval_fakes', action='store_true', help="Train a supervised model on fakes and evaluate it on test set")
+        parser.add_argument('--supervised_eval_gpuid', type=int, default=-1, help="GPU id to train evaluation model, -1 to use same as GAN")
+        parser.add_argument('--supervised_eval_every', type=int, default=10, help="Number of iterations between test")
+
         self.initialized = True
         return parser
 

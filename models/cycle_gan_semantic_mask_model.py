@@ -96,11 +96,17 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                     self.loss_names[i] = cur_loss + '_avg'
                     setattr(self, "loss_" + self.loss_names[i], 0)
 
-
             ###Making groups
             discriminators = ["D_A","D_B"]
             
-            self.group_f_s= NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward=["loss_f_s"])
+            self.group_f_s= NetworkGroup(
+                    networks_to_optimize=["f_s"],
+                    forward_functions=None,
+                    backward_functions=["compute_f_s_loss"],
+                    loss_names_list=["loss_names_f_s"],
+                    optimizer=["optimizer_f_s"],
+                    loss_backward=["loss_f_s"]
+            )
             self.networks_groups.append(self.group_f_s)
 
             

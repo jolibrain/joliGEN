@@ -35,23 +35,29 @@ class CUTSemanticMaskModel(CUTModel):
             losses_G += ['out_mask']
 
         losses_f_s = ['f_s']
+        losses_f_t = ['f_t']
 
         self.loss_names_G += losses_G
         self.loss_names_f_s = losses_f_s
+        self.loss_names_f_t = losses_f_t
 
-        self.loss_names = self.loss_names_G + self.loss_names_D + self.loss_names_f_s
+        self.loss_names = self.loss_names_G + self.loss_names_D + self.loss_names_f_s + self.loss_names_f_t
             
         # define networks (both generator and discriminator)
         if self.isTrain:
             self.netf_s = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
                                             init_type=opt.model_init_type, init_gain=opt.model_init_gain,
                                             gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
+            self.netf_t = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
+                                            init_type=opt.model_init_type, init_gain=opt.model_init_gain,
+                                            gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
 
             self.model_names += ['f_s']
-
+            self.model_names += ['f_s', 'f_t']
 
             # define loss functions
             self.criterionf_s = torch.nn.modules.CrossEntropyLoss()
+            self.criterionf_t = torch.nn.modules.CrossEntropyLoss()
             
             if opt.train_mask_out_mask:
                 if opt.train_mask_loss_out_mask == 'L1':
@@ -62,7 +68,9 @@ class CUTSemanticMaskModel(CUTModel):
                     self.criterionMask = L1_Charbonnier_loss(opt.train_mask_charbonnier_eps)
            
             self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
+            self.optimizer_f_t = torch.optim.Adam(self.netf_t.parameters(), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
             self.optimizers.append(self.optimizer_f_s)
+            self.optimizers += [self.optimizer_f_s, self.optimizer_f_t]
 
             if self.opt.train_iter_size > 1 :
                 self.iter_calculator = IterCalculator(self.loss_names)
@@ -71,8 +79,18 @@ class CUTSemanticMaskModel(CUTModel):
                     setattr(self, "loss_" + self.loss_names[i], 0)
 
             ###Making groups
-            self.group_f_s = NetworkGroup(networks_to_optimize=["f_s"],forward_functions=None,backward_functions=["compute_f_s_loss"],loss_names_list=["loss_names_f_s"],optimizer=["optimizer_f_s"],loss_backward=["loss_f_s"])
+            self.group_f_s = NetworkGroup(
+                    networks_to_optimize=["f_s", "f_t"],
+                    forward_functions=None,
+                    backward_functions=["compute_f_s_loss", "compute_f_t_loss"],
+                    loss_names_list=["loss_names_f_s","loss_names_f_t"],
+                    optimizer=["optimizer_f_s","optimizer_f_t"],
+                    loss_backward=["loss_f_s","loss_f_t"]
+            )
             self.networks_groups.append(self.group_f_s)
+
+            # add evaluator
+            self.supervised_evaluators["segmentation"] = self.netf_t
 
     def set_input_first_gpu(self,data):
         super().set_input_first_gpu(data)
@@ -102,6 +120,10 @@ class CUTSemanticMaskModel(CUTModel):
         if self.opt.train_mask_out_mask and self.isTrain:
             visual_names_out_mask_A = ['real_A_out_mask','fake_B_out_mask']
             self.visual_names += [visual_names_out_mask_A]
+
+        if self.opt.supervised_eval_fakes and self.isTrain:
+            visual_names_eval_B = ['curr_real_B_val', 'curr_real_B_label_val', 'real_B_val_out_mask']
+            self.visual_names += [visual_names_eval_B]
         
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -121,7 +143,7 @@ class CUTSemanticMaskModel(CUTModel):
         super().forward()
         
         d = 1
-        self.pred_real_A = self.netf_s(self.real_A)    
+        self.pred_real_A = self.netf_s(self.real_A)
         self.gt_pred_A = F.log_softmax(self.pred_real_A,dim= d).argmax(dim=d)
 
         self.pred_real_B = self.netf_s(self.real_B)
@@ -163,3 +185,11 @@ class CUTSemanticMaskModel(CUTModel):
             label_B = self.input_B_label
             pred_B = self.netf_s(self.real_B) 
             self.loss_f_s += self.criterionf_s(pred_B, label_B)#.squeeze(1))
+
+    def compute_f_t_loss(self):
+        self.loss_f_t = 0
+
+        if self.opt.supervised_eval_fakes:
+            label_fake_B = self.input_A_label
+            pred_B = self.netf_t(self.fake_B.detach())
+            self.loss_f_t += self.criterionf_t(pred_B, label_fake_B)
