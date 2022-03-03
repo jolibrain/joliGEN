@@ -28,6 +28,7 @@ import os
 import torch.distributed as dist
 import signal
 import torch
+import json
 
 def setup(rank, world_size,port):
     os.environ['MASTER_ADDR'] = 'localhost'
@@ -141,6 +142,17 @@ def train_gpu(rank,world_size,opt,dataset):
         if rank == 0:
             print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.train_n_epochs + opt.train_n_epochs_decay, time.time() - epoch_start_time))    
         model.update_learning_rate()                     # update learning rates at the end of every epoch.
+
+    ###Let's compute final FID
+    if rank == 0:
+        cur_fid = model.compute_fid_val()
+
+        with open(opt.checkpoints_dir +"/" + opt.name + "/eval_results.json" , 'r') as loadfile:
+            data = json.load(loadfile)
+
+        with open(opt.checkpoints_dir +"/" + opt.name + "/eval_results.json" , 'w+') as outfile:
+            data['fid_%s_img_%s_epochs'%(opt.data_max_dataset_size,epoch)] = cur_fid
+            json.dump(data, outfile)
 
 def launch_training(opt=None):
     signal.signal(signal.SIGINT, signal_handler) #to really kill the process
