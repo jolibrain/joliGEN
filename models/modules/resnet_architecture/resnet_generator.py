@@ -88,7 +88,7 @@ class ResnetGenerator(nn.Module):
         super(ResnetGenerator, self).__init__()
         self.opt=opt
 
-        if "mobile" in self.opt.netG:
+        if "mobile" in self.opt.G_netG:
             self.conv = SeparableConv2d
         else:
             self.conv = nn.Conv2d
