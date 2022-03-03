@@ -68,17 +68,17 @@ class BaseModel(ABC):
         self.real_B_pool = ImagePool(opt.train_pool_size)  # create image buffer to store previously generated images
 
 
-        if opt.train_compute_fid:
+        if rank==0 and (opt.train_compute_fid or opt.train_compute_fid_val):
             self.transform = get_transform(opt, grayscale=(opt.model_input_nc == 1))
             dims=2048
             batch=1
             self.netFid=networks.define_inception(self.gpu_ids[0],dims)
+            
             pathA=opt.dataroot + '/trainA'
             if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_A.npz'):
                 self.realmA,self.realsA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
                 np.savez(opt.checkpoints_dir+'fid_mu_sigma_A.npz', mu=self.realmA, sigma=self.realsA)
             else:
-
                 print('Mu and sigma loaded for domain A')
                 self.realmA,self.realsA=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_A.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
                 
@@ -90,7 +90,6 @@ class BaseModel(ABC):
 
                 print('Mu and sigma loaded for domain B')
                 self.realmB,self.realsB=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
-                
             pathA=self.save_dir + '/fakeA/'
             if not os.path.exists(pathA):
                 os.mkdir(pathA)
@@ -100,7 +99,22 @@ class BaseModel(ABC):
                 os.mkdir(pathB)
             self.fidA=0
             self.fidB=0
+
+
+        if rank==0 and opt.train_compute_fid_val:
+            ### For validation
+            pathB=self.save_dir + '/fakeB/'
+            if not os.path.exists(pathB):
+                os.mkdir(pathB)
             
+            pathB=opt.dataroot + '/validationB'
+            if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_B_val.npz'):
+                self.realmB_val,self.realsB_val=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
+                np.savez(opt.checkpoints_dir+'fid_mu_sigma_B_val.npz', mu=self.realmB_val, sigma=self.realsB_val)
+            else:
+                print('Mu and sigma loaded for domain B (validation)')
+                self.realmB_val,self.realsB_val=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B_val.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
+
         if opt.dataaug_diff_aug_policy !="":
             self.diff_augment = DiffAugment(opt.dataaug_diff_aug_policy,opt.dataaug_diff_aug_proba)
             
@@ -120,7 +134,6 @@ class BaseModel(ABC):
                     temp_visual_names_attn += ["image_"+str(i)]
 
                 self.visual_names.append(temp_visual_names_attn)
-
 
 
     @staticmethod
@@ -390,9 +403,10 @@ class BaseModel(ABC):
         pathA=self.save_dir + '/fakeA/'+str(n_iter)+'_' +str(n_epoch)
         if not os.path.exists(pathA):
             os.mkdir(pathA)
-        for i,temp_fake_A in enumerate(self.fake_A_pool.get_all()):
-            save_image(tensor2im(temp_fake_A), pathA+'/'+str(i)+'.png', aspect_ratio=1.0)
-        self.fakemA,self.fakesA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.train_nb_img_max_fid)
+        if len(self.fake_A_pool.get_all())>0:
+            for i,temp_fake_A in enumerate(self.fake_A_pool.get_all()):
+                save_image(tensor2im(temp_fake_A), pathA+'/'+str(i)+'.png', aspect_ratio=1.0)
+            self.fakemA,self.fakesA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.train_nb_img_max_fid)
             
         pathB=self.save_dir + '/fakeB/'+str(n_iter)+'_' +str(n_epoch)
         if not os.path.exists(pathB):
@@ -402,7 +416,8 @@ class BaseModel(ABC):
             save_image(tensor2im(temp_fake_B), pathB+'/'+str(j)+'.png', aspect_ratio=1.0)
         self.fakemB,self.fakesB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.train_nb_img_max_fid)
 
-        self.fidA=calculate_frechet_distance(self.realmA, self.realsA,self.fakemA,self.fakesA)
+        if len(self.fake_A_pool.get_all())>0:
+            self.fidA=calculate_frechet_distance(self.realmA, self.realsA,self.fakemA,self.fakesA)
         self.fidB=calculate_frechet_distance(self.realmB, self.realsB,self.fakemB,self.fakesB)
 
     def get_current_fids(self):
@@ -602,5 +617,26 @@ class BaseModel(ABC):
             
         loss = loss.compute_loss_G(netD, real, fake)
         return loss
-
     
+    def compute_fid_val(self):
+        dims=2048
+        batch=1
+        
+        pathB=self.save_dir + '/fakeB/%s_imgs'%(self.opt.data_max_dataset_size)
+        if not os.path.exists(pathB):
+            os.mkdir(pathB)
+
+        if hasattr(self,'netG_B') :
+            netG=self.netG_B
+        elif hasattr(self,'netG'):
+            netG=self.netG
+
+        self.fake_B_val = self.compute_fake_val(self.real_A_val ,netG)
+        
+        for j,temp_fake_B in enumerate(self.fake_B_val):
+            save_image(tensor2im(temp_fake_B.unsqueeze(0)), pathB+'/'+str(j)+'.png', aspect_ratio=1.0)
+            
+        self.fakemB_val,self.fakesB_val=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],nb_max_img=self.opt.train_nb_img_max_fid)
+
+        self.fidB_val=calculate_frechet_distance(self.realmB_val, self.realsB_val,self.fakemB_val,self.fakesB_val)
+        return self.fidB_val
