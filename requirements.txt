@@ -1,6 +1,10 @@
-torch>=0.4.1
-torchvision>=0.2.1
-dominate>=2.3.1
-visdom>=0.1.8.3
-imgaug>=0.4.0
-# -e git+https://github.com/jolibrain/pytorch-fid
+-f https://download.pytorch.org/whl/cu113/torch_stable.html
+-f https://download.openmmlab.com/mmcv/dist/cu113/torch1.10.1/index.html
+torch==1.10.1+cu113
+numpy==1.19.5
+Pillow==8.4.0
+torchvision==0.11.2+cu113 
+timm==0.5.4
+mmsegmentation==0.21.1
+mmcv-full==1.4.4
+visdom==0.1.8.9
