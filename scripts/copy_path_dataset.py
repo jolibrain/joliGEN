@@ -2,10 +2,11 @@ import os
 import shutil
 import argparse
 import sys
+import tqdm
 
 parser = argparse.ArgumentParser(description='Copies a path-based dataset and all its data')
 parser.add_argument('--path-file',help='input path file')
-parser.add_argument('--dataroot-out-dir',help='output directory, subdirs will be img and bbox')
+parser.add_argument('--dataroot-out-dir',help='output directory, subdirs will be img and bbox in domain dir')
 parser.add_argument('--domain-dir', help='output domain dir, must be one-level inside dataroot-out-dir')
 args = parser.parse_args()
 
@@ -23,7 +24,7 @@ except:
 out_fp = open(args.dataroot_out_dir + '/' + args.domain_dir + '/paths.txt','w+')
 
 with open(args.path_file,'r') as fp:
-    for line in fp:
+    for line in tqdm.tqdm(fp):
         elts = line.split()
         img_path = elts[0]
         img_dest_path = img_dir + os.path.basename(img_path)
