@@ -3,6 +3,7 @@ import torch
 import numpy as np
 sys.path.append('../')
 from models import networks
+from options.train_options import TrainOptions
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -28,10 +29,14 @@ ngf = 64
 use_dropout = False
 decoder = True
 img_size = args.img_size
+opt = TrainOptions()
+opt.G_attn_nb_mask_attn = 10
+opt.G_attn_nb_mask_input = 1
+opt.G_netG = args.model_type
 model = networks.define_G(input_nc,output_nc,ngf,args.model_type,'instance',use_dropout,
                           decoder=decoder,
                           img_size=args.img_size,
-                          img_size_dec=args.img_size)
+                          img_size_dec=args.img_size,opt=opt)
 if not args.cpu:
     model = model.cuda()
     
