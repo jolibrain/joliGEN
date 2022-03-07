@@ -66,9 +66,9 @@ def train_gpu(rank,world_size,opt,dataset):
         visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     total_iters = 0                # the total number of training iterations
 
-    if rank == 0:
+    if rank == 0 and opt.train_compute_fid_val:
         model.real_A_val,model.real_B_val = dataset.get_validation_set(opt.train_pool_size)
-        model.real_A_val,model.real_B_val=model.real_A_val.to(model.device),model.real_B_val.to(model.device)
+        model.real_A_val,model.real_B_val = model.real_A_val.to(model.device),model.real_B_val.to(model.device)
         
     if rank==0 and opt.output_display_networks:
         data=next(iter(dataloader))
@@ -142,17 +142,19 @@ def train_gpu(rank,world_size,opt,dataset):
         if rank == 0:
             print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.train_n_epochs + opt.train_n_epochs_decay, time.time() - epoch_start_time))    
         model.update_learning_rate()                     # update learning rates at the end of every epoch.
-
+        
     ###Let's compute final FID
-    if rank == 0:
+    if rank == 0 and opt.train_compute_fid_val:
         cur_fid = model.compute_fid_val()
-
         with open(opt.checkpoints_dir +"/" + opt.name + "/eval_results.json" , 'r') as loadfile:
             data = json.load(loadfile)
-
+            
         with open(opt.checkpoints_dir +"/" + opt.name + "/eval_results.json" , 'w+') as outfile:
             data['fid_%s_img_%s_epochs'%(opt.data_max_dataset_size,epoch)] = cur_fid
             json.dump(data, outfile)
+
+    if rank == 0:
+        print('End of training')
 
 def launch_training(opt=None):
     signal.signal(signal.SIGINT, signal_handler) #to really kill the process

@@ -68,7 +68,7 @@ class BaseModel(ABC):
         self.real_B_pool = ImagePool(opt.train_pool_size)  # create image buffer to store previously generated images
 
 
-        if rank==0 and (opt.train_compute_fid):
+        if rank==0 and (opt.train_compute_fid or opt.train_compute_fid_val):
             self.transform = get_transform(opt, grayscale=(opt.model_input_nc == 1))
             dims=2048
             batch=1
@@ -101,7 +101,7 @@ class BaseModel(ABC):
             self.fidB=0
 
 
-        if rank==0 and opt.train_compute_fid:
+        if rank==0 and opt.train_compute_fid_val:
             ### For validation
             pathB=self.save_dir + '/fakeB/'
             if not os.path.exists(pathB):
