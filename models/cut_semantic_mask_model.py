@@ -46,20 +46,20 @@ class CUTSemanticMaskModel(CUTModel):
         # define networks (both generator and discriminator)
         if self.isTrain:
             networks_f_s=[]
-            if self.opt.disjoint_f_s:
+            if self.opt.train_mask_disjoint_f_s:
                 self.opt.train_f_s_B = True
                 
                 self.netf_s_A = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
-                                                  init_type=opt.model_init_type, init_gain=opt.model_init_gai,
+                                                  init_type=opt.model_init_type, init_gain=opt.model_init_gain,
                                                   gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
                 networks_f_s.append('f_s_A')
                 self.netf_s_B = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
-                                                  init_type=opt.model_init_type, init_gain=opt.model_init_gai,
+                                                  init_type=opt.model_init_type, init_gain=opt.model_init_gain,
                                                   gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)                
                 networks_f_s.append('f_s_B')
             else:
                 self.netf_s = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
-                                                  init_type=opt.model_init_type, init_gain=opt.model_init_gai,
+                                                  init_type=opt.model_init_type, init_gain=opt.model_init_gain,
                                                   gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
 
                 networks_f_s.append('f_s')
@@ -78,10 +78,10 @@ class CUTSemanticMaskModel(CUTModel):
                 elif opt.train_mask_loss_out_mask == 'Charbonnier':
                     self.criterionMask = L1_Charbonnier_loss(opt.train_mask_charbonnier_eps)
 
-            if self.opt.disjoint_f_s:
-                self.optimizer_f_s = torch.optim.Adam(itertools.chain(self.netf_s_A.parameters(),self.netf_s_B.parameters()), lr=opt.lr_f_s,betas=(opt.train_beta1, opt.train_beta2))
+            if self.opt.train_mask_disjoint_f_s:
+                self.optimizer_f_s = torch.optim.Adam(itertools.chain(self.netf_s_A.parameters(),self.netf_s_B.parameters()), lr=opt.train_sem_lr_f_s,betas=(opt.train_beta1, opt.train_beta2))
             else:
-                self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
+                self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
 
             self.optimizers.append(self.optimizer_f_s)
 
@@ -143,7 +143,7 @@ class CUTSemanticMaskModel(CUTModel):
         
         d = 1
 
-        if self.opt.disjoint_f_s:
+        if self.opt.train_mask_disjoint_f_s:
             f_s = self.netf_s_A
         else:
             f_s = self.netf_s
@@ -152,7 +152,7 @@ class CUTSemanticMaskModel(CUTModel):
         self.pred_real_A = f_s(self.real_A)    
         self.gt_pred_A = F.log_softmax(self.pred_real_A,dim= d).argmax(dim=d)
 
-        if self.opt.disjoint_f_s:
+        if self.opt.train_mask_disjoint_f_s:
             f_s = self.netf_s_B
         else:
             f_s = self.netf_s
@@ -190,7 +190,7 @@ class CUTSemanticMaskModel(CUTModel):
         if not self.opt.train_mask_no_train_f_s_A:
             label_A = self.input_A_label
             # forward only real source image through semantic classifier
-            if self.opt.disjoint_f_s:
+            if self.opt.train_mask_disjoint_f_s:
                 f_s = self.netf_s_A
             else:
                 f_s = self.netf_s

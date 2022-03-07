@@ -60,7 +60,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
 
         networks_f_s=[]
-        if self.opt.disjoint_f_s:
+        if self.opt.train_mask_disjoint_f_s:
             self.netf_s_A = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
                                         init_type=opt.model_init_type, init_gain=opt.model_init_gain,
                                         gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
@@ -101,7 +101,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                 self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
                                                 lr=opt.train_D_lr, betas=(opt.train_beta1, opt.train_beta2))
                     
-                if self.opt.disjoint_f_s:
+                if self.opt.train_mask_disjoint_f_s:
                     self.optimizer_f_s = torch.optim.Adam(itertools.chain(self.netf_s_A.parameters(),self.netf_s_B.parameters()), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
                 else:
                     self.optimizer_f_s = torch.optim.Adam(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s, betas=(opt.train_beta1, opt.train_beta2))
@@ -112,7 +112,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                                                 lr=opt.train_D_lr)
                 self.optimizers[0]=self.optimizer_G
                 self.optimizers[1]=self.optimizer_D
-                if self.opt.disjoint_f_s:
+                if self.opt.train_mask_disjoint_f_s:
                     self.optimizer_f_s = MADGRAD(itertools.chain(self.netf_s_A.parameters(),self.netf_s_B.parameters()), lr=opt.train_sem_lr_f_s)
                 else:
                     self.optimizer_f_s = MADGRAD(self.netf_s.parameters(), lr=opt.train_sem_lr_f_s)
@@ -170,7 +170,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
     def forward(self):
         super().forward()
         d=1
-        if self.opt.disjoint_f_s:
+        if self.opt.train_mask_disjoint_f_s:
             f_s = self.netf_s_A
         else:
             f_s = self.netf_s
@@ -181,7 +181,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
 
             self.pred_fake_A = f_s(self.fake_A)
             
-            if self.opt.disjoint_f_s:
+            if self.opt.train_mask_disjoint_f_s:
                 f_s = self.netf_s_B
             else:
                 f_s = self.netf_s
@@ -210,7 +210,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                     
                     self.real_B_out_mask = self.real_B *label_B_inv
                     self.fake_A_out_mask = self.fake_A *label_B_inv
-        if self.opt.disjoint_f_s:
+        if self.opt.train_mask_disjoint_f_s:
             f_s = self.netf_s_B
         else:
             f_s = self.netf_s
@@ -225,7 +225,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         if not self.opt.train_mask_no_train_f_s_A:
             label_A = self.input_A_label
             # forward only real source image through semantic classifier
-            if self.opt.disjoint_f_s:
+            if self.opt.train_mask_disjoint_f_s:
                 f_s = self.netf_s_A
             else:
                 f_s = self.netf_s
@@ -234,7 +234,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             self.loss_f_s += self.criterionf_s(pred_A, label_A)#.squeeze(1))
         if self.opt.train_mask_f_s_B:
             label_B = self.input_B_label
-            if self.opt.disjoint_f_s:
+            if self.opt.train_mask_disjoint_f_s:
                 f_s = self.netf_s_B
             else:
                 f_s = self.netf_s
