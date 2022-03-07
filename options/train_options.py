@@ -40,6 +40,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--train_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
         parser.add_argument('--train_load_iter', type=int, default='0', help='which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]')
         parser.add_argument('--train_compute_fid', action='store_true')
+        parser.add_argument('--train_compute_fid_val', action='store_true')
         parser.add_argument('--train_fid_every', type=int, default=1000)
         parser.add_argument('--train_G_ema', action='store_true', help='whether to build G via exponential moving average')
         parser.add_argument('--train_G_ema_beta', type=float, default=0.999, help='exponential decay for ema')

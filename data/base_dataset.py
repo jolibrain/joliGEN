@@ -112,18 +112,18 @@ class BaseDataset(data.Dataset, ABC):
         else:
             B_label_paths_val = self.B_label_paths_val
 
-        for A_img_path,A_label_path,B_img_path,B_label_path in zip(self.A_img_paths_val,A_label_paths_val,self.B_img_paths_val,B_label_paths_val):
+        for index,(A_img_path,A_label_path,B_img_path,B_label_path) in enumerate(zip(self.A_img_paths_val,A_label_paths_val,self.B_img_paths_val,B_label_paths_val)):
             if len(return_A_list) >=size :
                 break
             
             if self.opt.data_relative_paths:
                 A_img_path = os.path.join(self.root,A_img_path)
-            if A_label_path is not None:
-                A_label_path = os.path.join(self.root,A_label_path)
-            B_img_path = os.path.join(self.root,B_img_path)
-            if B_label_path is not None:
-                B_label_path = os.path.join(self.root,B_label_path)
-            images=self.get_img(A_img_path,A_label_path,B_img_path,B_label_path)
+                if A_label_path is not None:
+                    A_label_path = os.path.join(self.root,A_label_path)
+                B_img_path = os.path.join(self.root,B_img_path)
+                if B_label_path is not None:
+                    B_label_path = os.path.join(self.root,B_label_path)
+            images=self.get_img(A_img_path,A_label_path,B_img_path,B_label_path,index)
             if images is not None:
                 return_A_list.append(images['A'].unsqueeze(0))
                 if 'B' in images:
