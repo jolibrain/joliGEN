@@ -49,8 +49,8 @@ class BaseOptions():
                             default=1, type=int,
                             help='Number of downsampling layers used by StyleGAN2Generator')
         parser.add_argument('--G_config_segformer',type=str,default='models/configs/segformer/segformer_config_b0.py',help='path to segforme configuration file')
-        parser.add_argument('--G_attn_nb_mask_attn',default=10)
-        parser.add_argument('--G_attn_nb_mask_input',default=1)
+        parser.add_argument('--G_attn_nb_mask_attn',default=10,type=int)
+        parser.add_argument('--G_attn_nb_mask_input',default=1,type=int)
         
         # discriminator
         parser.add_argument('--D_ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
