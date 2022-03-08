@@ -146,11 +146,15 @@ def train_gpu(rank,world_size,opt,dataset):
     ###Let's compute final FID
     if rank == 0 and opt.train_compute_fid_val:
         cur_fid = model.compute_fid_val()
-        with open(opt.checkpoints_dir +"/" + opt.name + "/eval_results.json" , 'r') as loadfile:
-            data = json.load(loadfile)
+        path_json = os.path.join(opt.checkpoints_dir, opt.name , "eval_results.json")
+
+        if os.path.exists(path_json):
+            with open(path_json, 'r') as loadfile:
+                data = json.load(loadfile)
             
-        with open(opt.checkpoints_dir +"/" + opt.name + "/eval_results.json" , 'w+') as outfile:
-            data['fid_%s_img_%s_epochs'%(opt.data_max_dataset_size,epoch)] = cur_fid
+        with open(path_json, 'w+') as outfile:
+            data = {}
+            data['fid_%s_img_%s_epochs'%(opt.data_max_dataset_size,epoch)] = float(cur_fid.item())
             json.dump(data, outfile)
 
     if rank == 0:

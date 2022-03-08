@@ -75,21 +75,23 @@ class BaseModel(ABC):
             self.netFid=networks.define_inception(self.gpu_ids[0],dims)
             
             pathA=opt.dataroot + '/trainA'
-            if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_A.npz'):
+            path_sv_A = os.path.join(opt.checkpoints_dir,opt.name,'fid_mu_sigma_A.npz')
+            if not os.path.isfile(path_sv_A):
                 self.realmA,self.realsA=_compute_statistics_of_path(pathA, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
-                np.savez(opt.checkpoints_dir+'fid_mu_sigma_A.npz', mu=self.realmA, sigma=self.realsA)
+                np.savez(path_sv_A, mu=self.realmA, sigma=self.realsA)
             else:
                 print('Mu and sigma loaded for domain A')
-                self.realmA,self.realsA=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_A.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
+                self.realmA,self.realsA=_compute_statistics_of_path(path_sv_A, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
                 
             pathB=opt.dataroot + '/trainB'
-            if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_B.npz'):
+            path_sv_B = os.path.join(opt.checkpoints_dir,opt.name,'fid_mu_sigma_B.npz')
+            if not os.path.isfile(path_sv_B):
                 self.realmB,self.realsB=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
-                np.savez(opt.checkpoints_dir+'fid_mu_sigma_B.npz', mu=self.realmB, sigma=self.realsB)
+                np.savez(path_sv_B, mu=self.realmB, sigma=self.realsB)
             else:
 
                 print('Mu and sigma loaded for domain B')
-                self.realmB,self.realsB=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
+                self.realmB,self.realsB=_compute_statistics_of_path(path_sv_B, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
             pathA=self.save_dir + '/fakeA/'
             if not os.path.exists(pathA):
                 os.mkdir(pathA)
@@ -108,12 +110,13 @@ class BaseModel(ABC):
                 os.mkdir(pathB)
             
             pathB=opt.dataroot + '/validationB'
-            if not os.path.isfile(opt.checkpoints_dir+'fid_mu_sigma_B_val.npz'):
+            path_sv = os.path.join(opt.checkpoints_dir,opt.name,'fid_mu_sigma_B_val.npz')
+            if not os.path.isfile(path_sv):
                 self.realmB_val,self.realsB_val=_compute_statistics_of_path(pathB, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
-                np.savez(opt.checkpoints_dir+'fid_mu_sigma_B_val.npz', mu=self.realmB_val, sigma=self.realsB_val)
+                np.savez(path_sv, mu=self.realmB_val, sigma=self.realsB_val)
             else:
                 print('Mu and sigma loaded for domain B (validation)')
-                self.realmB_val,self.realsB_val=_compute_statistics_of_path(opt.checkpoints_dir+'fid_mu_sigma_B_val.npz', self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
+                self.realmB_val,self.realsB_val=_compute_statistics_of_path(path_sv, self.netFid, batch, dims, self.gpu_ids[0],self.transform,nb_max_img=opt.train_nb_img_max_fid)
 
         if opt.dataaug_diff_aug_policy !="":
             self.diff_augment = DiffAugment(opt.dataaug_diff_aug_policy,opt.dataaug_diff_aug_proba)
