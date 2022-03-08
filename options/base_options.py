@@ -8,6 +8,9 @@ import models
 import data
 from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
 from util.util import MAX_INT
+import json
+
+TRAIN_JSON_FILENAME = "train_config.json"
 
 class BaseOptions():
     """This class defines options used during both training and test time.
@@ -194,12 +197,19 @@ class BaseOptions():
             torch.cuda.set_device(opt.gpu_ids[0])
 
         self.opt = opt
+        
         return self.opt
+
+    def save_options_json(self):
+        with open(os.path.join(self.opt.checkpoints_dir , self.opt.name , TRAIN_JSON_FILENAME) , 'w+') as outfile:
+            json.dump(self.to_json(), outfile)
 
     def parse(self):
         """Parse our options, create checkpoints directory suffix, and set up gpu device."""
         opt = self.gather_options()
-        return self._after_parse(opt)
+        opt = self._after_parse(opt)
+        self.save_options_json()
+        return opt
 
     def _json_parse_known_args(self, parser, opt, json_args):
         for action_group in parser._action_groups:
