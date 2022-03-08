@@ -1,5 +1,5 @@
 from .base_options import BaseOptions
-
+from util.util import MAX_INT
 
 class TrainOptions(BaseOptions):
     """This class includes training options.
@@ -38,7 +38,7 @@ class TrainOptions(BaseOptions):
         # training parameters
         parser.add_argument('--train_batch_size', type=int, default=1, help='input batch size')
         parser.add_argument('--train_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
-        parser.add_argument('--train_load_iter', type=int, default='0', help='which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]')
+        parser.add_argument('--train_load_iter', type=int, default=0, help='which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]')
         parser.add_argument('--train_compute_fid', action='store_true')
         parser.add_argument('--train_compute_fid_val', action='store_true')
         parser.add_argument('--train_fid_every', type=int, default=1000)
@@ -55,7 +55,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--train_pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
         parser.add_argument('--train_lr_policy', type=str, default='linear', help='learning rate policy. [linear | step | plateau | cosine]')
         parser.add_argument('--train_lr_decay_iters', type=int, default=50, help='multiply by a gamma every lr_decay_iters iterations')
-        parser.add_argument('--train_nb_img_max_fid', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used.')
+        parser.add_argument('--train_nb_img_max_fid', type=int, default=MAX_INT, help='Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used.')
         parser.add_argument('--train_iter_size', type=int, default=1, help='backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size*iter_size')
         parser.add_argument('--train_beta2', type=float, default=0.999, help='momentum term of adam')
         parser.add_argument('--train_use_contrastive_loss_D', action='store_true')
@@ -63,7 +63,7 @@ class TrainOptions(BaseOptions):
         # train with semantics
         parser.add_argument('--train_sem_use_label_B', action='store_true', help='if true domain B has labels too')
         parser.add_argument('--train_sem_cls_B', action='store_true', help='if true cls will be trained not only on domain A but also on domain B')
-        parser.add_argument('--train_sem_cls_template', help='classifier/regressor model type, from torchvision (resnet18, ...), default is custom simple model', default='basic')
+        parser.add_argument('--train_sem_cls_template', type=str, help='classifier/regressor model type, from torchvision (resnet18, ...), default is custom simple model', default='basic')
         parser.add_argument('--train_sem_cls_pretrained', action='store_true', help='whether to use a pretrained model, available for non "basic" model only')    
         parser.add_argument('--train_sem_lr_f_s', type=float, default=0.0002, help='f_s learning rate')
         parser.add_argument('--train_sem_regression', action='store_true', help='if true cls will be a regressor and not a classifier')

@@ -7,7 +7,7 @@ import torch
 import models
 import data
 from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
-
+from util.util import MAX_INT
 
 class BaseOptions():
     """This class defines options used during both training and test time.
@@ -23,7 +23,7 @@ class BaseOptions():
     def initialize(self, parser):
         """Define the common options that are used in both training and test."""
         # basic parameters
-        parser.add_argument('--dataroot', required=True, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
+        parser.add_argument('--dataroot', type=str, required=True, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
         parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment. It decides where to store samples and models')
         parser.add_argument('--suffix', default='', type=str, help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}')
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
@@ -80,7 +80,7 @@ class BaseOptions():
 
         parser.add_argument('--data_load_size', type=int, default=286, help='scale images to this size')
         parser.add_argument('--data_crop_size', type=int, default=256, help='then crop to this size')
-        parser.add_argument('--data_max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
+        parser.add_argument('--data_max_dataset_size', type=int, default=MAX_INT, help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
         parser.add_argument('--data_preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
 
 
@@ -297,10 +297,6 @@ class BaseOptions():
             if json_vals[k] is None:
                 json_vals[k] = "None"
             if not allow_nan:
-                if json_vals[k] == float("inf"):
-                    json_vals[k] = 1e100
-                if json_vals[k] == float("-inf"):
-                    json_vals[k] = -1e100
                 if type(json_vals[k]) == float and math.isnan(json_vals[k]):
                     json_vals[k] = 0
 

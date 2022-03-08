@@ -174,3 +174,5 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+MAX_INT = 1000000000
