@@ -129,7 +129,7 @@ class CUTModel(BaseModel):
                 self.D_global_loss=loss.DiscriminatorGANLoss(opt,self.netD_global,self.device,gan_mode="lsgan")
             self.networks_groups = []
 
-            self.group_G = NetworkGroup(networks_to_optimize=["G","F"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G"],loss_backward=["loss_G"],networks_to_ema=["G"])
+            self.group_G = NetworkGroup(networks_to_optimize=["G","F"],forward_functions=["forward"],backward_functions=["compute_G_loss"],loss_names_list=["loss_names_G"],optimizer=["optimizer_G","optimizer_F"],loss_backward=["loss_G"],networks_to_ema=["G"])
             self.networks_groups.append(self.group_G)
 
             D_to_optimize = ["D"]
@@ -163,12 +163,12 @@ class CUTModel(BaseModel):
         initialized at the first feedforward pass with some input images.
         Please also see PatchSampleF.create_mlp(), which is called at the first forward() call.
         """
-        for net in self.model_names:
-            setattr(self,"net" + net,getattr(self,"net" + net).to(self.device))
-
+        
         self.set_input_first_gpu(data)
         if self.opt.isTrain:
-            self.optimize_parameters()
+            feat_temp = self.netG.get_feats(self.real_A.cpu(), self.nce_layers)
+            self.netF.data_dependent_initialize(feat_temp)
+
             if self.opt.alg_cut_lambda_NCE > 0.0 and not self.opt.alg_cut_netF == 'sample':
                 self.optimizer_F = torch.optim.Adam(self.netF.parameters(), lr=self.opt.train_G_lr, betas=(self.opt.train_beta1, self.opt.train_beta2))
                 self.optimizers.append(self.optimizer_F)

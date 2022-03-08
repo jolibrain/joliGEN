@@ -37,7 +37,7 @@ class PatchNCELoss(nn.Module):
         feat_q = feat_q.view(batch_dim_for_bmm, -1, dim)
         feat_k = feat_k.view(batch_dim_for_bmm, -1, dim)
         npatches = feat_q.size(1)
-        l_neg_curbatch = torch.bmm(feat_q, feat_k.transpose(2, 1))
+        l_neg_curbatch = torch.bmm(feat_q, feat_k.transpose(2, 1).contiguous())
 
         # diagonal entries are similarity between same features, and hence meaningless.
         # just fill the diagonal with very small number, which is exp(-10) and almost zero
