@@ -230,7 +230,9 @@ class BaseOptions():
                     if name in json_args:
                         val = json_args[name]
 
-                        if not isinstance(val, check_type):
+                        if type(val)==int and check_type==float: #int are considered as float
+                            val = float(val)
+                        elif not isinstance(val, check_type):
                             raise ValueError("%s: Bad type" % (name,))
 
                         del json_args[name]
@@ -267,7 +269,8 @@ class BaseOptions():
         self.parser = parser
 
         if len(json_args) != 0:
-            raise ValueError("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
+            #raise ValueError("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
+            print("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
 
         return self._after_parse(opt)
 
