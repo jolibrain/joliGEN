@@ -16,6 +16,10 @@ class PatchSampleF(nn.Module):
     def set_device(self,device):
         self.device=device
 
+    def data_dependent_initialize(self,feats):
+        if self.use_mlp and not self.mlp_init:
+            self.create_mlp(feats)
+
     def create_mlp(self, feats):
         for mlp_id, feat in enumerate(feats):
             input_nc = feat.shape[1]
@@ -29,8 +33,7 @@ class PatchSampleF(nn.Module):
     def forward(self, feats, num_patches=64, patch_ids=None):
         return_ids = []
         return_feats = []
-        if self.use_mlp and not self.mlp_init:
-            self.create_mlp(feats)
+
         for feat_id, feat in enumerate(feats):
             B, H, W = feat.shape[0], feat.shape[2], feat.shape[3]
             feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)

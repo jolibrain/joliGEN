@@ -183,11 +183,6 @@ class BaseModel(ABC):
         
         pass
 
-    @abstractmethod
-    def optimize_parameters(self):
-        """Calculate losses, gradients, and update network weights; called in every training iteration"""
-        pass
-
     def setup(self, opt):
         """Load and print networks; create schedulers
 
@@ -496,9 +491,12 @@ class BaseModel(ABC):
    
         return current_APA_prob
 
-    def compute_step(self,optimizers,loss_names):
-        if not isinstance(optimizers,list):
-            optimizers = [optimizers]
+    def compute_step(self,optimizers_names,loss_names): #loss_names are only use to compute average values over iter_size
+        
+        optimizers=[]
+        for optimizer_name in optimizers_names:
+            optimizers.append(getattr(self,optimizer_name))
+        
         if self.niter % self.opt.train_iter_size ==0:
             for optimizer in optimizers:
                 optimizer.step()
@@ -553,9 +551,11 @@ class BaseModel(ABC):
 
             for loss in group.loss_backward:
                 (getattr(self,loss)/self.opt.train_iter_size).backward()
-            
-            for optimizer, loss_names in zip(group.optimizer, group.loss_names_list):
-                self.compute_step(getattr(self,optimizer),getattr(self,loss_names))
+
+            loss_names = []
+            for temp in group.loss_names_list:
+                loss_names += getattr(self,temp)
+            self.compute_step(group.optimizer,loss_names)
 
             if self.opt.train_G_ema:
                 for network in self.model_names:
