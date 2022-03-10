@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
-import timm
 from .blocks import FeatureFusionBlock
-
+import os
 
 def _make_scratch_ccm(scratch, in_channels, cout, expand=False):
     # shapes
@@ -38,6 +37,15 @@ def _make_efficientnet(model):
     pretrained.layer3 = nn.Sequential(*model.blocks[5:9])
     return pretrained
 
+def configure_forward_network(net):
+    def forward(x):
+        out0 = net.layer0(x)
+        out1 = net.layer1(out0)
+        out2 = net.layer2(out1)
+        out3 = net.layer3(out2)
+        return out0,out1,out2,out3
+
+    net.forward = forward    
 
 def calc_channels(pretrained, inp_res=224):
     channels = []
@@ -55,21 +63,62 @@ def calc_channels(pretrained, inp_res=224):
 
     return channels
 
+def create_timm_model(model_name,config_path,weight_path):
+    import timm
+    model = timm.create_model(model_name, pretrained=True)
+    return model
 
-def _make_projector(im_res, cout, proj_type, expand=False):
+def create_segformer_model(model_name,config_path,weight_path):
+    from mmseg.models import build_segmentor
+    import mmcv
+    cfg = mmcv.Config.fromfile(config_path)
+    cfg.model.train_cfg = None
+    segformer = build_segmentor(cfg.model, train_cfg=None, test_cfg=cfg.get('test_cfg'))
+    mmcv.runner.load_checkpoint(
+        segformer, weight_path,
+        map_location='cpu',
+    )
+
+    model = segformer.backbone
+    
+    return model
+
+projector_models = {
+    "efficientnet": {
+        "model_name" : 'tf_efficientnet_lite0',
+        "create_model_function":create_timm_model,
+        "make_function" : _make_efficientnet
+    },
+    "segformer":{
+        "model_name" : '', #unused
+        "create_model_function":create_segformer_model,
+        "make_function" : None #unused
+    },
+
+}
+def _make_projector(projector_model,im_res, cout, proj_type, expand, config_path, weight_path):
     assert proj_type in [0, 1, 2], "Invalid projection type"
 
     ### Build pretrained feature network
-    model = timm.create_model('tf_efficientnet_lite0', pretrained=True)
-    pretrained = _make_efficientnet(model)
+    projector_gen=projector_models[projector_model]
+    model = projector_gen["create_model_function"](projector_gen["model_name"],config_path,weight_path)
+    if projector_model == "segformer":
+        pretrained = model
+    else:
+        pretrained = projector_gen['make_function'](model)
 
     # determine resolution of feature maps, this is later used to calculate the number
     # of down blocks in the discriminators. Interestingly, the best results are achieved
     # by fixing this to 256, ie., we use the same number of down blocks per discriminator
     # independent of the dataset resolution
-    im_res = 256
-    pretrained.RESOLUTIONS = [im_res//4, im_res//8, im_res//16, im_res//32]
-    pretrained.CHANNELS = calc_channels(pretrained)
+    
+    if projector_model == 'segformer' :
+        pretrained.CHANNELS = [32,64,160,256]
+        pretrained.RESOLUTIONS = [64,32,16,8]
+    else:
+        configure_forward_network(pretrained)
+        pretrained.RESOLUTIONS = [im_res//4, im_res//8, im_res//16, im_res//32]
+        pretrained.CHANNELS = calc_channels(pretrained)
 
     if proj_type == 0: return pretrained, None
 
@@ -90,14 +139,18 @@ def _make_projector(im_res, cout, proj_type, expand=False):
     return pretrained, scratch
 
 
-class F_RandomProj(nn.Module):
+class Proj(nn.Module):
     def __init__(
         self,
+        projector_model,
         im_res=256,
         cout=64,
         expand=True,
         proj_type=2,  # 0 = no projection, 1 = cross channel mixing, 2 = cross scale mixing
-        **kwargs,
+        config_path='',
+        weight_path='',
+
+        **kwargs
     ):
         super().__init__()
         self.proj_type = proj_type
@@ -105,17 +158,16 @@ class F_RandomProj(nn.Module):
         self.expand = expand
 
         # build pretrained feature network and random decoder (scratch)
-        self.pretrained, self.scratch = _make_projector(im_res=im_res, cout=self.cout, proj_type=self.proj_type, expand=self.expand)
+        self.pretrained, self.scratch = _make_projector(projector_model=projector_model,im_res=im_res, cout=self.cout, proj_type=self.proj_type, expand=self.expand,config_path=config_path,weight_path=weight_path)
+
         self.CHANNELS = self.pretrained.CHANNELS
         self.RESOLUTIONS = self.pretrained.RESOLUTIONS
 
     def forward(self, x):
         # predict feature maps
-        out0 = self.pretrained.layer0(x)
-        out1 = self.pretrained.layer1(out0)
-        out2 = self.pretrained.layer2(out1)
-        out3 = self.pretrained.layer3(out2)
 
+        out0,out1,out2,out3 = self.pretrained(x)
+        
         # start enumerating at the lowest layer (this is where we put the first discriminator)
         out = {
             '0': out0,
