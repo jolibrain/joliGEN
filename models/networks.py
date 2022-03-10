@@ -1,3 +1,4 @@
+import os
 import torch.nn as nn
 import functools
 from torch.optim import lr_scheduler
@@ -149,8 +150,9 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False,
         template=netD
         net = torch_model(input_nc, ndf, nclasses,opt.data_crop_size, template, pretrained=False)
     elif netD == 'projected_d': # D in projected feature space
-        net = ProjectedDiscriminator(interp=224 if opt.data_crop_size < 224 else opt.D_projected_interp)
+        net = ProjectedDiscriminator(opt.D_proj_network_type,interp=224 if opt.data_crop_size < 224 else opt.D_proj_interp,config_path=os.path.join(opt.jg_dir,opt.D_proj_config_segformer),weight_path=os.path.join(opt.jg_dir,opt.D_proj_weight_segformer))
         return net # no init since custom frozen backbone
+
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
     return init_net(net, init_type, init_gain, gpu_ids,init_weight= 'stylegan2' not in netD)

@@ -63,9 +63,13 @@ class BaseOptions():
         parser.add_argument('--D_norm', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for D')
         parser.add_argument('--D_dropout', action='store_true', help='whether to use dropout in the discriminator')
         parser.add_argument('--D_spectral', action='store_true', help='whether to use spectral norm in the discriminator')
-        parser.add_argument('--D_projected_interp', type=int, default=-1, help='whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation')
+        parser.add_argument('--D_proj_interp', type=int, default=-1, help='whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation')
+        parser.add_argument('--D_proj_network_type', type=str, default='efficientnet',choices=['efficientnet','segformer'])
         parser.add_argument('--D_no_antialias', action='store_true', help='if specified, use stride=2 convs instead of antialiased-downsampling (sad)')
         parser.add_argument('--D_no_antialias_up', action='store_true', help='if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv]')
+        parser.add_argument('--D_proj_config_segformer',type=str,default='models/configs/segformer/segformer_config_b0.py',help='path to segformer configuration file')
+        parser.add_argument('--D_proj_weight_segformer',type=str,default='models/configs/segformer/pretrain/segformer_mit-b0.pth',help='path to segformer weight')
+
         
         # semantic network
         parser.add_argument('--f_s_light',action='store_true', help='whether to use a light (unet) network for f_s')
@@ -74,6 +78,7 @@ class BaseOptions():
         parser.add_argument('--f_s_semantic_threshold',default=1.0,type=float,help='threshold of the semantic classifier loss below with semantic loss is applied')
         parser.add_argument('--f_s_all_classes_as_one',action='store_true',help='if true, all classes will be considered as the same one (ie foreground vs background)')
         parser.add_argument('--f_s_nf', type=int, default=64, help='# of filters in the first conv layer of classifier')
+        
 
         # dataset parameters
         parser.add_argument('--data_dataset_mode', type=str, default='unaligned', help='chooses how datasets are loaded. [unaligned | aligned | single | colorization]')

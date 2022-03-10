@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .blocks import DownBlock, DownBlockPatch, conv2d
-from .projector import F_RandomProj
 #from pg_modules.diffaug import DiffAugment
+from .projector import Proj
 
 
 class SingleDisc(nn.Module):
@@ -150,14 +150,19 @@ class MultiScaleD(nn.Module):
 class ProjectedDiscriminator(torch.nn.Module):
     def __init__(
         self,
+        projector_model,
         interp=-1,
         backbone_kwargs={'cout': 64, 'expand': True},
+        config_path='',
+        weight_path='',
         **kwargs
     ):
         super().__init__()
         self.interp = interp
-        self.freeze_feature_network = F_RandomProj(**backbone_kwargs)
+
+        self.freeze_feature_network = Proj(projector_model,config_path = config_path,weight_path = weight_path,**backbone_kwargs)            
         self.freeze_feature_network.requires_grad_(False)
+        
         self.discriminator = MultiScaleD(
             channels=self.freeze_feature_network.CHANNELS,
             resolutions=self.freeze_feature_network.RESOLUTIONS,
