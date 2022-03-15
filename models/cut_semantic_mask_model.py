@@ -175,8 +175,11 @@ class CUTSemanticMaskModel(CUTModel):
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
         super().compute_G_loss()
-        
-        self.loss_sem = self.opt.train_sem_lambda * self.criterionf_s(self.pfB, self.input_A_label)
+        if self.opt.train_mask_for_removal:
+            label_fake_B = torch.zeros_like(self.input_A_label)
+        else:
+            label_fake_B = self.input_A_label
+        self.loss_sem = self.opt.train_sem_lambda * self.criterionf_s(self.pfB, label_fake_B)
         if not hasattr(self, 'loss_f_s') or self.loss_f_s > self.opt.f_s_semantic_threshold:
             self.loss_sem = 0 * self.loss_sem
         self.loss_G += self.loss_sem
