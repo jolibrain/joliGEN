@@ -73,14 +73,19 @@ def create_segformer_model(model_name,config_path,weight_path):
     import mmcv
     cfg = mmcv.Config.fromfile(config_path)
     cfg.model.train_cfg = None
+    try:
+        weights = torch.jit.load(weight_path).state_dict()
+        print("Torch script weights are detected and loaded in %s"%weight_path)
+    except:
+        weights = torch.load(weight_path)
+        
     segformer = build_segmentor(cfg.model, train_cfg=None, test_cfg=cfg.get('test_cfg'))
-    mmcv.runner.load_checkpoint(
-        segformer, weight_path,
-        map_location='cpu',
-    )
-
     model = segformer.backbone
-    
+
+    weights = { key.replace("backbone.",""):value for (key,value) in weights.items() if "backbone." in key}
+
+    model.load_state_dict(weights, strict=True)
+
     return model
 
 projector_models = {
