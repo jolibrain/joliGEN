@@ -18,6 +18,66 @@ class BaseOptions():
     It also implements several helper functions such as parsing, printing, and saving the options.
     It also gathers additional options defined in <modify_commandline_options> functions in both dataset class and model class.
     """
+    opt_schema = {
+        "properties": {
+            "D": {
+                "description": "Discriminator"
+            },
+            "G": {
+                "description": "Generator"
+            },
+            "alg": {
+                "description": "Algorithm-specific",
+                "properties": {
+                    "cut": {
+                        "description": "CUT model"
+                    },
+                    "cyclegan": {
+                        "description": "CycleGAN model"
+                    },
+                    "re": {
+                        "description": "ReCUT / ReCycleGAN"
+                    }
+                }
+            },
+            "data": {
+                "description": "Datasets",
+                "properties": {
+                    "online_creation": {
+                        "description": "Online created datasets" 
+                    }
+                }
+            },
+            "f_s": {
+                "description": "Semantic network"
+            },
+            "output": {
+                "description": "Output",
+                "properties": {
+                    "display": {
+                        "description": "Visdom display"
+                    }
+                }
+            },
+            "model": {
+                "description": "Model parameters"
+            },
+            "train": {
+                "description": "Parameters used during training",
+                "properties": {
+                    "sem": {
+                        "description": "semantic training parameters"
+                    },
+                    "mask": {
+                        "description": "Parameters for semantic training with masks"
+                    }
+                }
+            },
+            "dataaug": {
+                "description": "Data augmentation"
+            }
+        }
+    }
 
     def __init__(self):
         """Reset the class; indicates the class hasn't been initialized"""
@@ -164,6 +224,19 @@ class BaseOptions():
             opt_file.write(message)
             opt_file.write('\n')
 
+    def _split_key(self, key, schema):
+        """
+        Converts argparse option key to json path
+        (ex: data_online_creation_crop_delta_A will be converted to
+        ("data", "online_creation", "delta_A")
+        """
+        if "properties" in schema:
+            for prop in schema["properties"]:
+                if key.startswith(prop + "_"):
+                    nested_keys = self._split_key(key[len(prop)+1:], schema["properties"][prop])
+                    return (prop, *nested_keys)
+        return (key,)
+
     def to_json(self, ignore_default=False):
         """
         Converts an argparse namespace to a json-like dict containing the same arguments.
@@ -172,14 +245,26 @@ class BaseOptions():
         Parameters
             ignore_default Add only non-default options to json
         """
-        json_args = dict()
+        def schema_to_json(schema):
+            json_args = {}
+            if "properties" in schema:
+                for key in schema["properties"]:
+                    json_args[key] = schema_to_json(schema["properties"][key])
+            return json_args
+
+        json_args = schema_to_json(self.opt_schema)
 
         for k, v in sorted(vars(self.opt).items()):
             default = self.parser.get_default(k)
-            if v != default or not ignore_default:
-                json_args[k] = v
 
-        return json_args
+            if v != default or not ignore_default:
+                path = self._split_key(k, self.opt_schema)
+                parent = json_args
+                for cat in path[:-1]:
+                    parent = parent[cat]
+                parent[path[-1]] = v
+
+        return dict(json_args)
 
     def _after_parse(self, opt):
         opt.isTrain = self.isTrain   # train or test
@@ -217,6 +302,9 @@ class BaseOptions():
         return opt
 
     def _json_parse_known_args(self, parser, opt, json_args):
+        """
+        json_args: flattened json of train options
+        """
         for action_group in parser._action_groups:
             for action in action_group._group_actions:
                 if isinstance(action, _HelpAction):
@@ -274,18 +362,28 @@ class BaseOptions():
             parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
             parser = self.initialize(parser)
 
+        def flatten_json(src_json, flat_json = {}, prefix = ""):
+            for key in src_json:
+                if isinstance(src_json[key], dict):
+                    flatten_json(src_json[key], flat_json, prefix + key + "_")
+                else:
+                    flat_json[prefix + key] = src_json[key]
+            return flat_json
+        
+        flat_json = flatten_json(json_args)
+
         opt = argparse.Namespace()
-        self._json_parse_known_args(parser, opt, json_args)
+        self._json_parse_known_args(parser, opt, flat_json)
 
         model_name = opt.model_type
         model_option_setter = models.get_option_setter(model_name)
         parser = model_option_setter(parser, self.isTrain)
-        self._json_parse_known_args(parser, opt, json_args)
+        self._json_parse_known_args(parser, opt, flat_json)
         self.parser = parser
 
-        if len(json_args) != 0:
+        if len(flat_json) != 0:
             #raise ValueError("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
-            print("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
+            print("%d remaining keys in json args: %s" % (len(flat_json), ",".join(flat_json.keys())))
 
         return self._after_parse(opt)
 
@@ -299,7 +397,7 @@ class BaseOptions():
         
         named_parsers = {"": parser}
         for model_name in models.get_models_names():
-            if self.isTrain and model_name in ["test"]:
+            if self.isTrain and model_name in ["test", "template"]:
                 continue
             setter = models.get_option_setter(model_name)
             model_parser = argparse.ArgumentParser()
@@ -311,17 +409,29 @@ class BaseOptions():
         self.parser = parser
         json_vals = self.to_json()
 
-        for k in json_vals:
-            if json_vals[k] is None:
-                json_vals[k] = "None"
-            if not allow_nan:
-                if type(json_vals[k]) == float and math.isnan(json_vals[k]):
-                    json_vals[k] = 0
-
         from pydantic import create_model
-        schema = create_model(type(self).__name__, **json_vals).schema()
-        
-        option_tags = defaultdict(list)
+        def json_to_schema(name, json_vals, schema_tmplate):
+            for k in json_vals:
+                if json_vals[k] is None:
+                    json_vals[k] = "None"
+                if not allow_nan:
+                    if type(json_vals[k]) == float and math.isnan(json_vals[k]):
+                        json_vals[k] = 0
+
+            schema = create_model(name, **json_vals).schema()
+
+            if "description" in schema_tmplate:
+                schema["description"] = schema_tmplate["description"]
+            if "properties" in schema_tmplate:
+                for prop in schema_tmplate["properties"]:
+                    schema["properties"][prop] = json_to_schema(
+                            prop,
+                            json_vals[prop],
+                            schema_tmplate["properties"][prop])
+
+            return schema
+
+        schema = json_to_schema(type(self).__name__, json_vals, self.opt_schema)
 
         for parser_name in named_parsers:
             current_parser = named_parsers[parser_name]
@@ -331,20 +441,20 @@ class BaseOptions():
                     if isinstance(action, _HelpAction):
                         continue
 
-                    if len(parser_name) > 0:
-                        option_tags[action.dest].append(parser_name)
+                    path = self._split_key(action.dest, self.opt_schema)
+                    field = schema
+                    for cat in path:
+                        if "properties" not in field or cat not in field["properties"]:
+                            field = None
+                            break
+                        field = field["properties"][cat]
 
-                    if action.dest in schema["properties"]:
-                        field = schema["properties"][action.dest]
+                    if field is not None:
                         description = action.help if action.help is not None else ""
                         for c in "#*<>":
                             description = description.replace(c, "\\" + c)
                         field["description"] = description
                         if "title" in field:
                             del field["title"]
-
-        for tagged in option_tags:
-            tags = " | ".join(option_tags[tagged])
-            schema["properties"][tagged]["description"] = "[" + tags + "]\n\n" + schema["properties"][tagged]["description"]
 
         return schema
