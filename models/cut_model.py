@@ -5,6 +5,7 @@ from . import networks
 from .patchnce import PatchNCELoss
 import util.util as util
 from .modules import loss
+from .modules.clip import clip_encode
 from util.util import gaussian
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
@@ -95,6 +96,7 @@ class CUTModel(BaseModel):
             default=False,
             help="Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT",
         )
+        parser.add_argument('--clip_txt', default=None, help='clip text input sentence')
 
         return parser
 
@@ -113,7 +115,8 @@ class CUTModel(BaseModel):
         if opt.D_temporal:
             losses_D += ["D_temporal"]
             losses_G += ["G_temporal"]
-
+        losses_G += ['clip']
+            
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
 
@@ -126,6 +129,8 @@ class CUTModel(BaseModel):
             self.opt.alg_cut_nce_layers = "0,1,2,3"
         self.nce_layers = [int(i) for i in self.opt.alg_cut_nce_layers.split(",")]
 
+        ##TODO: if netG is segformer, auto set alg_cut_nce_layers to 0,1,2,3
+        
         if opt.alg_cut_nce_idt and self.isTrain:
             visual_names_B += ["idt_B"]
         self.visual_names.insert(0, visual_names_A)
@@ -153,6 +158,9 @@ class CUTModel(BaseModel):
         self.netF = networks.define_F(**vars(opt))
 
         self.netF.set_device(self.device)
+
+        self.clip_encoder = clip_encode.ClipEncoder()
+        
         if self.isTrain:
             self.netD = networks.define_D(netD=opt.D_netD, **vars(opt))
             if opt.D_netD_global != "none":
@@ -214,7 +222,8 @@ class CUTModel(BaseModel):
                         lr=opt.train_D_lr,
                         betas=(opt.train_beta1, opt.train_beta2),
                     )
-
+            self.criterionClip = torch.nn.modules.MSELoss()
+                    
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
@@ -231,7 +240,9 @@ class CUTModel(BaseModel):
             if not opt.D_temporal:
                 self.loss_D_temporal = 0
                 self.loss_G_temporal = 0
-
+                
+            self.clip_txt = 0
+ 
             ###Making groups
             discriminators = ["netD"]
             if opt.D_netD_global != "none":
@@ -366,6 +377,11 @@ class CUTModel(BaseModel):
         if self.opt.data_online_context_pixels > 0:
             self.compute_fake_with_context(fake_name="fake_B", real_name="real_A")
 
+        if self.opt.clip_txt:
+            self.fake_clip, self.txt_clip = self.clip_encoder(self.fake, self.opt.clip_txt)
+            self.real_clip, self.txt_clip = self.clip_encoder(self.real, self.opt.clip_txt)
+            self.clip_target = 0.5*self.real_clip + 0.5*self.txt_clip
+            
         if self.opt.alg_cut_nce_idt:
             self.idt_B = self.fake[self.real_A.size(0) :]
 
@@ -439,11 +455,16 @@ class CUTModel(BaseModel):
         else:
             loss_NCE_both = self.loss_NCE
 
+        if self.opt.clip_txt:
+            #self.loss_clip = self.criterionClip(self.fake_clip, self.txt_clip)
+            self.loss_clip = self.criterionClip(self.fake_clip, self.clip_target)
+            
         self.loss_G = (
             self.loss_G_GAN
             + self.loss_G_GAN_global
             + self.loss_G_temporal
             + loss_NCE_both
+            + self.loss_clip
         )
 
     def calculate_NCE_loss(self, src, tgt):
