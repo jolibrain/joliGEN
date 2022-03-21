@@ -693,14 +693,15 @@ class ResBlock(nn.Module):
 
 
 class StyleGAN2Discriminator(nn.Module):
-    def __init__(self, input_nc, ndf=64, n_layers=3, no_antialias=False, size=None, opt=None):
+    def __init__(self, input_nc, ndf=64, n_layers=3, no_antialias=False, size=None,img_size=256,netD='stylegan2',D_patch_size=None):
         super().__init__()
-        self.opt = opt
+        self.netD = netD
+        self.D_patch_size = D_patch_size
         self.stddev_group = 16
         if size is None:
-            size = 2 ** int((np.rint(np.log2(min(opt.load_size, opt.crop_size)))))
-            if "patch" in self.opt.netD and self.opt.D_patch_size is not None:
-                size = 2 ** int(np.log2(self.opt.D_patch_size))
+            size = 2 ** int((np.rint(np.log2(img_size))))
+            if "patch" in netD and D_patch_size is not None:
+                size = 2 ** int(np.log2(self.D_patch_size))
 
         blur_kernel = [1, 3, 3, 1]
         channel_multiplier = ndf / 64
@@ -722,9 +723,9 @@ class StyleGAN2Discriminator(nn.Module):
 
         in_channel = channels[size]
 
-        if "smallpatch" in self.opt.netD:
+        if "smallpatch" in netD:
             final_res_log2 = 4
-        elif "patch" in self.opt.netD:
+        elif "patch" in netD:
             final_res_log2 = 3
         else:
             final_res_log2 = 2
@@ -738,23 +739,23 @@ class StyleGAN2Discriminator(nn.Module):
 
         self.convs = nn.Sequential(*convs)
 
-        if False and "tile" in self.opt.netD:
+        if "tile" in netD:
             in_channel += 1
         self.final_conv = ConvLayer(in_channel, channels[4], 3)
-        if "patch" in self.opt.netD:
+        if "patch" in netD:
             self.final_linear = ConvLayer(channels[4], 1, 3, bias=False, activate=False)
         else:
             self.final_linear = nn.Sequential(
-                EqualLinear(channels[4] * 4 * 4, channels[4], activation='fused_lrelu'),
+                EqualLinear(channels[4] * 5 * 5, channels[4], activation='fused_lrelu'),
                 EqualLinear(channels[4], 1),
             )
 
     def forward(self, input, get_minibatch_features=False):
-        if "patch" in self.opt.netD and self.opt.D_patch_size is not None:
+        if "patch" in self.netD and self.D_patch_size is not None:
             h, w = input.size(2), input.size(3)
-            y = torch.randint(h - self.opt.D_patch_size, ())
-            x = torch.randint(w - self.opt.D_patch_size, ())
-            input = input[:, :, y:y + self.opt.D_patch_size, x:x + self.opt.D_patch_size]
+            y = torch.randint(h - self.D_patch_size, ())
+            x = torch.randint(w - self.D_patch_size, ())
+            input = input[:, :, y:y + self.D_patch_size, x:x + self.D_patch_size]
         out = input
         for i, conv in enumerate(self.convs):
             out = conv(out)
@@ -763,7 +764,7 @@ class StyleGAN2Discriminator(nn.Module):
 
         batch, channel, height, width = out.shape
 
-        if False and "tile" in self.opt.netD:
+        if False and "tile" in self.netD:
             group = min(batch, self.stddev_group)
             stddev = out.view(
                 group, -1, 1, channel // 1, height, width
@@ -774,10 +775,10 @@ class StyleGAN2Discriminator(nn.Module):
             out = torch.cat([out, stddev], 1)
 
         out = self.final_conv(out)
-        # print(out.abs().mean())
-
-        if "patch" not in self.opt.netD:
+        
+        if "patch" not in self.netD:
             out = out.view(batch, -1)
+
         out = self.final_linear(out)
 
         return out
@@ -795,10 +796,8 @@ class TileStyleGAN2Discriminator(StyleGAN2Discriminator):
 
 
 class StyleGAN2Encoder(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf=64, use_dropout=False, n_blocks=6, padding_type='reflect', no_antialias=False, opt=None):
+    def __init__(self, input_nc, output_nc, ngf=64, use_dropout=False, n_blocks=6, padding_type='reflect', no_antialias=False,stylegan2_num_downsampling=None,img_size=256):
         super().__init__()
-        assert opt is not None
-        self.opt = opt
         channel_multiplier = ngf / 32
         channels = {
             4: min(512, int(round(4096 * channel_multiplier))),
@@ -814,11 +813,11 @@ class StyleGAN2Encoder(nn.Module):
 
         blur_kernel = [1, 3, 3, 1]
 
-        cur_res = 2 ** int((np.rint(np.log2(min(opt.load_size, opt.crop_size)))))
+        cur_res = 2 ** int((np.rint(np.log2(img_size))))
         convs = [nn.Identity(),
                  ConvLayer(3, channels[cur_res], 1)]
 
-        num_downsampling = self.opt.stylegan2_G_num_downsampling
+        num_downsampling = stylegan2_num_downsampling
         for i in range(num_downsampling):
             in_channel = channels[cur_res]
             out_channel = channels[cur_res // 2]
@@ -849,10 +848,8 @@ class StyleGAN2Encoder(nn.Module):
 
 
 class StyleGAN2Decoder(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf=64, use_dropout=False, n_blocks=6, padding_type='reflect', no_antialias=False, opt=None):
+    def __init__(self, input_nc, output_nc, ngf=64, use_dropout=False, n_blocks=6, padding_type='reflect', no_antialias=False,img_size=256,stylegan2_num_downsampling=None):
         super().__init__()
-        assert opt is not None
-        self.opt = opt
 
         blur_kernel = [1, 3, 3, 1]
 
@@ -869,8 +866,8 @@ class StyleGAN2Decoder(nn.Module):
             1024: int(round(16 * channel_multiplier)),
         }
 
-        num_downsampling = self.opt.stylegan2_G_num_downsampling
-        cur_res = 2 ** int((np.rint(np.log2(min(opt.load_size, opt.crop_size))))) // (2 ** num_downsampling)
+        num_downsampling = stylegan2_num_downsampling
+        cur_res = 2 ** int((np.rint(np.log2(img_size)))) // (2 ** num_downsampling)
         convs = []
 
         for i in range(n_blocks // 2):
@@ -880,7 +877,7 @@ class StyleGAN2Decoder(nn.Module):
         for i in range(num_downsampling):
             in_channel = channels[cur_res]
             out_channel = channels[cur_res * 2]
-            inject_noise = "small" not in self.opt.netG
+            inject_noise = n_blocks > 2 #True if it's a small stylegan
             convs.append(
                 StyledConv(in_channel, out_channel, 3, upsample=True, blur_kernel=blur_kernel, inject_noise=inject_noise)
             )
@@ -895,11 +892,10 @@ class StyleGAN2Decoder(nn.Module):
 
 
 class StyleGAN2Generator(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf=64, use_dropout=False, n_blocks=6, padding_type='reflect', no_antialias=False, opt=None):
+    def __init__(self, input_nc, output_nc, ngf=64, use_dropout=False, n_blocks=6, padding_type='reflect', no_antialias=False,stylegan2_num_downsampling=None,img_size=256):
         super().__init__()
-        self.opt = opt
-        self.encoder = StyleGAN2Encoder(input_nc, output_nc, ngf, use_dropout, n_blocks, padding_type, no_antialias, opt)
-        self.decoder = StyleGAN2Decoder(input_nc, output_nc, ngf, use_dropout, n_blocks, padding_type, no_antialias, opt)
+        self.encoder = StyleGAN2Encoder(input_nc, output_nc, ngf, use_dropout, n_blocks, padding_type, no_antialias,stylegan2_num_downsampling=stylegan2_num_downsampling,img_size=img_size)
+        self.decoder = StyleGAN2Decoder(input_nc, output_nc, ngf, use_dropout, n_blocks, padding_type, no_antialias,stylegan2_num_downsampling=stylegan2_num_downsampling,img_size=img_size)
 
     def forward(self, input, layers=[], encode_only=False):
         feat, feats = self.encoder(input, layers, True)

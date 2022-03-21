@@ -5,6 +5,7 @@ sys.path.append('../')
 from models import networks
 from options.train_options import TrainOptions
 import argparse
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model-in-file',help='file path to generator model to export (.pth file)',required=True)
@@ -26,19 +27,17 @@ if args.bw:
 else:
     input_nc = output_nc = 3
 
-ngf = 64
-use_dropout = False
-decoder = True
-img_size = args.img_size
-opt = TrainOptions()
+opt = TrainOptions().parse_json({})
+opt.data_crop_size = args.img_size
+opt.data_load_size = args.img_size
 opt.G_attn_nb_mask_attn = 10
 opt.G_attn_nb_mask_input = 1
 opt.G_netG = args.model_type
-model = networks.define_G(input_nc,output_nc,ngf,args.model_type,'instance',use_dropout,
-                          decoder=decoder,
-                          img_size=args.img_size,
-                          img_size_dec=args.img_size,
-                          padding_type=args.padding_type, opt=opt)
+opt.model_input_nc = input_nc
+opt.model_output_nc = output_nc
+opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-2]))
+model = networks.define_G(**vars(opt))
+
 if not args.cpu:
     model = model.cuda()
     

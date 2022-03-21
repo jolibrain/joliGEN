@@ -72,7 +72,7 @@ class ResnetGenerator(nn.Module):
 
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False,opt=None):
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', use_spectral=False,mobile=False):
         """Construct a Resnet-based generator
 
         Parameters:
@@ -86,9 +86,8 @@ class ResnetGenerator(nn.Module):
         """
         assert(n_blocks >= 0)
         super(ResnetGenerator, self).__init__()
-        self.opt=opt
 
-        if "mobile" in self.opt.G_netG:
+        if mobile:
             self.conv = SeparableConv2d
         else:
             self.conv = nn.Conv2d
@@ -245,9 +244,9 @@ class resnet_block_attn(nn.Module):
 
 class ResnetGenerator_attn(BaseGenerator_attn):
     # initializers
-    def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9, use_spectral=False,size=128, padding_type='reflect',opt=None):
-        super(ResnetGenerator_attn, self).__init__(opt)
-        if "mobile" in self.opt.G_netG:
+    def __init__(self, input_nc, output_nc, nb_mask_attn, nb_mask_input, ngf=64, n_blocks=9, use_spectral=False,size=128, padding_type='reflect',mobile=False):
+        super(ResnetGenerator_attn, self).__init__(nb_mask_attn=nb_mask_attn,nb_mask_input=nb_mask_input)
+        if mobile:
             conv = SeparableConv2d
         else:
             conv = nn.Conv2d

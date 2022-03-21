@@ -9,17 +9,16 @@ from .utils import configure_encoder_decoder,configure_mit
 from models.modules.mobile_modules import SeparableConv2d
 
 class Segformer(nn.Module):
-    def __init__(self,opt,num_classes=10,final_conv=False):
+    def __init__(self,jg_dir,G_config_segformer,img_size,num_classes=10,final_conv=False):
         super().__init__()
-        self.opt = opt
-        cfg = mmcv.Config.fromfile(os.path.join(self.opt.jg_dir,self.opt.G_config_segformer))
+        cfg = mmcv.Config.fromfile(os.path.join(jg_dir,G_config_segformer))
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
         cfg.model.decode_head.num_classes = num_classes
         self.net = build_segmentor(cfg.model, train_cfg=None, test_cfg=cfg.get('test_cfg'))
 
         configure_encoder_decoder(self.net)
-        self.net.img_size = self.opt.data_crop_size
+        self.net.img_size = img_size
         configure_mit(self.net.backbone)
 
         self.use_final_conv = final_conv
@@ -44,12 +43,12 @@ class Segformer(nn.Module):
 
 class SegformerGenerator_attn(BaseGenerator_attn):
     # initializers
-    def __init__(self,opt=None,final_conv=False): #nb_mask_attn : total number of attention masks, nb_mask_input :number of attention mask applied to input img directly
-        super(SegformerGenerator_attn, self).__init__(opt)
+    def __init__(self,jg_dir,G_config_segformer,img_size,nb_mask_attn,nb_mask_input,final_conv=False): #nb_mask_attn : total number of attention masks, nb_mask_input :number of attention mask applied to input img directly
+        super(SegformerGenerator_attn, self).__init__(nb_mask_attn,nb_mask_input)
         self.use_final_conv = final_conv
         self.tanh = nn.Tanh()
 
-        cfg = mmcv.Config.fromfile(os.path.join(self.opt.jg_dir,self.opt.G_config_segformer))
+        cfg = mmcv.Config.fromfile(os.path.join(jg_dir,G_config_segformer))
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
         cfg.model.auxiliary_head = cfg.model.decode_head.copy()
@@ -64,7 +63,7 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         self.softmax_ = nn.Softmax(dim=1)
 
         configure_encoder_decoder(self.segformer)
-        self.segformer.img_size = self.opt.data_crop_size
+        self.segformer.img_size = img_size
         configure_mit(self.segformer.backbone)
 
         self.use_final_conv = final_conv

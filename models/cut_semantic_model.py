@@ -23,6 +23,7 @@ class CUTSemanticModel(CUTModel):
     def modify_commandline_options(parser, is_train=True):
         """  Configures options specific for CUT semantic model
         """
+        parser = CUTModel.modify_commandline_options(parser, is_train=True)
         return parser
 
     def __init__(self, opt,rank):
@@ -41,9 +42,7 @@ class CUTSemanticModel(CUTModel):
 
         # define networks (both generator and discriminator)
         if self.isTrain:
-            self.netCLS = networks.define_C(opt.model_output_nc, opt.f_s_nf,opt.data_crop_size,
-                                            init_type=opt.model_init_type, init_gain=opt.model_init_gain,
-                                            gpu_ids=self.gpu_ids, nclasses=opt.f_s_semantic_nclasses)
+            self.netCLS = networks.define_C(**vars(opt))
 
             self.model_names += ["CLS"]
  
@@ -119,6 +118,7 @@ class CUTSemanticModel(CUTModel):
             self.loss_sem = self.criterionCLS(self.pred_fake_B.squeeze(1), self.input_A_label)
         if not hasattr(self, 'loss_CLS') or self.loss_CLS > self.opt.f_s_semantic_threshold:
             self.loss_sem = 0 * self.loss_sem
+        self.loss_sem *= self.opt.train_sem_lambda
         self.loss_G += self.loss_sem
     
     def compute_CLS_loss(self):
