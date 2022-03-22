@@ -10,18 +10,16 @@ from torch.optim import lr_scheduler
 #Fonctions used for networks initialisation
 ##########################################################
 
-def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[],init_weight=True):
+def init_net(net, init_type='normal', init_gain=0.02):
     """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
     Parameters:
         net (network)      -- the network to be initialized
         init_type (str)    -- the name of an initialization method: normal | xavier | kaiming | orthogonal
         gain (float)       -- scaling factor for normal, xavier and orthogonal.
-        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
 
     Return an initialized network.
     """
-    if init_weight:
-        init_weights(net, init_type, init_gain=init_gain)
+    init_weights(net, init_type, init_gain=init_gain)
     return net
 
 def init_weights(net, init_type='normal', init_gain=0.02):

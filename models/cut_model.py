@@ -62,8 +62,6 @@ class CUTModel(BaseModel):
         
         visual_names_A = ['real_A', 'fake_B']
         visual_names_B = ['real_B']
-
-        
         
         self.nce_layers = [int(i) for i in self.opt.alg_cut_nce_layers.split(',')]
 
@@ -85,17 +83,14 @@ class CUTModel(BaseModel):
             self.model_names = ['G']
 
         # define networks (both generator and discriminator)
-        self.netG =networks.define_G(opt.model_input_nc, opt.model_output_nc, opt.G_ngf, opt.G_netG, opt.G_norm,
-                                        opt.G_dropout, opt.G_spectral, opt.model_init_type, opt.model_init_gain, self.gpu_ids,opt=self.opt)
-        self.netF = networks.define_F(opt.model_input_nc, opt.alg_cut_netF, opt.alg_cut_netF_norm, opt.alg_cut_netF_dropout, opt.model_init_type, opt.model_init_gain, self.gpu_ids, opt)
+        self.netG = networks.define_G(**vars(opt))
+        self.netF = networks.define_F(**vars(opt))
+        
         self.netF.set_device(self.device)
         if self.isTrain:
-            self.netD = networks.define_D(opt.model_output_nc, opt.D_ndf, opt.D_netD,
-                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,opt)
+            self.netD = networks.define_D(netD=opt.D_netD,**vars(opt))
             if opt.D_netD_global != "none":
-                self.netD_global = networks.define_D(opt.model_output_nc, opt.D_ndf, opt.D_netD_global,
-                                                     opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,opt)
-
+                self.netD_global = networks.define_D(netD=opt.D_netD_global,**vars(opt))
 
             # define loss functions
             self.criterionGAN = loss.GANLoss(opt.train_gan_mode).to(self.device)

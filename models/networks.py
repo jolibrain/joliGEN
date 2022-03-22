@@ -33,20 +33,19 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, gpu_ids=[], decoder=True, wplus=True, wskip=False, init_weight=True, img_size=128, img_size_dec=128,padding_type='reflect',opt=None):
+def define_G(model_input_nc, model_output_nc, G_ngf, G_netG, G_norm, G_dropout, G_spectral, model_init_type, model_init_gain,G_padding_type,data_crop_size,G_attn_nb_mask_attn,G_attn_nb_mask_input,jg_dir,G_config_segformer,G_stylegan2_num_downsampling,**unused_options):
     """Create a generator
 
     Parameters:
         input_nc (int) -- the number of channels in input images
         output_nc (int) -- the number of channels in output images
         ngf (int) -- the number of filters in the last conv layer
-        netG (str) -- the architecture's name: resnet_9blocks | resnet_6blocks | unet_256 | unet_128
+        G_netG (str) -- the architecture's name: resnet_9blocks | resnet_6blocks | unet_256 | unet_128
         norm (str) -- the name of normalization layers used in the network: batch | instance | none
-        use_dropout (bool) -- if use dropout layers.
-        use_spectral (bool) -- if use spectral norm.
+        G_dropout (bool) -- if use dropout layers.
+        G_spectral (bool) -- if use spectral norm.
         init_type (str)    -- the name of our initialization method.
         init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
-        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
 
     Returns a generator
 
@@ -58,64 +57,62 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, us
         Resnet-based generator consists of several Resnet blocks between a few downsampling/upsampling operations.
         We adapt Torch code from Justin Johnson's neural style transfer project (https://github.com/jcjohnson/fast-neural-style).
 
-
     The generator has been initialized by <init_net>. It uses RELU for non-linearity.
     """
     net = None
-    norm_layer = get_norm_layer(norm_type=norm)
+    norm_layer = get_norm_layer(norm_type=G_norm)
     
-    if netG == 'resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=9, padding_type=padding_type,opt=opt)
-    elif netG == 'resnet_6blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=6, padding_type=padding_type,opt=opt)
-    elif netG == 'resnet_12blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=12, padding_type=padding_type,opt=opt)
-    elif netG == 'resnet_3blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral, n_blocks=3, padding_type=padding_type,opt=opt)
-    elif netG == 'mobile_resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
-                              n_blocks=9,opt=opt)
-    elif netG == 'mobile_resnet_3blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf=ngf, norm_layer=norm_layer,
-                              n_blocks=3,opt=opt)
-    elif netG == 'unet_128':
-        net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    elif netG == 'unet_256':
-        net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    elif netG == 'resnet_attn':
-        net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,padding_type=padding_type,opt=opt)
-    elif netG == 'mobile_resnet_attn':
-        net = ResnetGenerator_attn(input_nc, output_nc, ngf, n_blocks=9, use_spectral=use_spectral,padding_type=padding_type,opt=opt)
-    elif netG == 'stylegan2':
-        net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, opt=opt)
-    elif netG == 'smallstylegan2':
-        net = StyleGAN2Generator(input_nc, output_nc,ngf, use_dropout=use_dropout, n_blocks=2, opt=opt)
+    if G_netG == 'resnet_9blocks':
+        net = ResnetGenerator(model_input_nc, model_output_nc, G_ngf, norm_layer=norm_layer, use_dropout=G_dropout, use_spectral=G_spectral, n_blocks=9, padding_type=G_padding_type)
+    elif G_netG == 'resnet_6blocks':
+        net = ResnetGenerator(model_input_nc, model_output_nc, G_ngf, norm_layer=norm_layer, use_dropout=G_dropout, use_spectral=G_spectral, n_blocks=6, padding_type=G_padding_type)
+    elif G_netG == 'resnet_12blocks':
+        net = ResnetGenerator(model_input_nc, model_output_nc, G_ngf, norm_layer=norm_layer, use_dropout=G_dropout, use_spectral=G_spectral, n_blocks=12, padding_type=G_padding_type)
+    elif G_netG == 'resnet_3blocks':
+        net = ResnetGenerator(model_input_nc, model_output_nc, G_ngf, norm_layer=norm_layer, use_dropout=G_dropout, use_spectral=G_spectral, n_blocks=3, padding_type=G_padding_type)
+    elif G_netG == 'mobile_resnet_9blocks':
+        net = ResnetGenerator(model_input_nc, model_output_nc, ngf=G_ngf, norm_layer=norm_layer,
+                              n_blocks=9,mobile=True)
+    elif G_netG == 'mobile_resnet_3blocks':
+        net = ResnetGenerator(model_input_nc, model_output_nc, ngf=G_ngf, norm_layer=norm_layer,
+                              n_blocks=3,mobile=True)
+    elif G_netG == 'unet_128':
+        net = UnetGenerator(model_input_nc, model_output_nc, 7, G_ngf, norm_layer=norm_layer, use_dropout=G_dropout)
+    elif G_netG == 'unet_256':
+        net = UnetGenerator(model_input_nc, model_output_nc, 8, G_ngf, norm_layer=norm_layer, use_dropout=G_dropout)
+    elif G_netG == 'resnet_attn':
+        net = ResnetGenerator_attn(model_input_nc, model_output_nc,G_attn_nb_mask_attn,G_attn_nb_mask_input, G_ngf, n_blocks=9, use_spectral=G_spectral,padding_type=G_padding_type)
+    elif G_netG == 'mobile_resnet_attn':
+        net = ResnetGenerator_attn(model_input_nc, model_output_nc,G_attn_nb_mask_attn,G_attn_nb_mask_input, G_ngf, n_blocks=9, use_spectral=G_spectral,padding_type=G_padding_type,mobile=True)
+    elif G_netG == 'stylegan2':
+        net = StyleGAN2Generator(model_input_nc, model_output_nc,G_ngf, use_dropout=G_dropout,stylegan2_num_downsampling=G_stylegan2_num_downsampling,img_size=data_crop_size)
         return net
-    elif netG == 'segformer_attn_conv':
-        net = SegformerGenerator_attn(opt=opt,final_conv=True)
+    elif G_netG == 'smallstylegan2':
+        net = StyleGAN2Generator(model_input_nc, model_output_nc,G_ngf, use_dropout=G_dropout, n_blocks=2,stylegan2_num_downsampling=G_stylegan2_num_downsampling,img_size=data_crop_size)
         return net
-    elif netG == 'segformer_conv':
-        net = Segformer(opt=opt,num_classes=256,final_conv=True)
+    elif G_netG == 'segformer_attn_conv':
+        net = SegformerGenerator_attn(jg_dir,G_config_segformer,img_size=data_crop_size,nb_mask_attn=G_attn_nb_mask_attn,nb_mask_input=G_attn_nb_mask_input,final_conv=True)
         return net
-
+    elif G_netG == 'segformer_conv':
+        net = Segformer(jg_dir,G_config_segformer,img_size=data_crop_size,num_classes=256,final_conv=True)
+        return net
     else:
-        raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
-    return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight and ('stylegan2' not in netG))
+        raise NotImplementedError('Generator model name [%s] is not recognized' % G_netG)
+    return init_net(net, model_init_type, model_init_gain)
 
-def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False, use_spectral=False, init_type='normal', init_gain=0.02, no_antialias=False, gpu_ids=[],opt=None):
+def define_D(netD, model_input_nc, D_ndf, D_n_layers, D_norm, D_dropout, D_spectral, model_init_type, model_init_gain, D_no_antialias,data_crop_size,D_proj_network_type,D_proj_interp,D_proj_config_segformer,D_proj_weight_segformer,jg_dir,**unused_options):
     """Create a discriminator
 
     Parameters:
-        input_nc (int)     -- the number of channels in input images
-        ndf (int)          -- the number of filters in the first conv layer
+        model_input_nc (int)     -- the number of channels in input images
+        D_ndf (int)          -- the number of filters in the first conv layer
         netD (str)         -- the architecture's name: basic | n_layers | pixel
-        n_layers_D (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
-        norm (str)         -- the type of normalization layers used in the network.
-        use_dropout (bool) -- whether to use dropout layers
-        use_spectral(bool) -- whether to use spectral norm
-        init_type (str)    -- the name of the initialization method.
-        init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
-        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
+        D_n_layers (int)   -- the number of conv layers in the discriminator; effective when D_netD=='n_layers'
+        D_norm (str)         -- the type of normalization layers used in the network.
+        D_dropout (bool) -- whether to use dropout layers
+        D_spectral(bool) -- whether to use spectral norm
+        model_init_type (str)    -- the name of the initialization method.
+        model_init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
 
     Returns a discriminator
 
@@ -127,7 +124,7 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False,
         in a fully convolutional fashion.
 
         [n_layers]: With this mode, you can specify the number of conv layers in the discriminator
-        with the parameter <n_layers_D> (default=3 as used in [basic] (PatchGAN).)
+        with the parameter <D_n_layers> (default=3 as used in [basic] (PatchGAN).)
 
         [pixel]: 1x1 PixelGAN discriminator can classify whether a pixel is real or not.
         It encourages greater color diversity but has no effect on spatial statistics.
@@ -135,59 +132,60 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', use_dropout=False,
     The discriminator has been initialized by <init_net>. It uses Leakly RELU for non-linearity.
     """
     net = None
-    norm_layer = get_norm_layer(norm_type=norm)
+    norm_layer = get_norm_layer(norm_type=D_norm)
 
     if netD == 'basic':  # default PatchGAN classifier
-        net = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral)
+        net = NLayerDiscriminator(model_input_nc, D_ndf, n_layers=3, norm_layer=norm_layer, use_dropout=D_dropout, use_spectral=D_spectral)
     elif netD == 'n_layers':  # more options
-        net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_dropout=use_dropout, use_spectral=use_spectral)
+        net = NLayerDiscriminator(model_input_nc, D_ndf, D_n_layers, norm_layer=norm_layer, use_dropout=D_dropout, use_spectral=D_spectral)
     elif netD == 'pixel':     # classify if each pixel is real or fake
-        net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
+        net = PixelDiscriminator(model_input_nc, D_ndf, norm_layer=norm_layer)
     elif 'stylegan2' in netD: # global D from sty2 repo
-        net = StyleGAN2Discriminator(input_nc, ndf, n_layers_D, no_antialias=no_antialias, opt=opt)
+        net = StyleGAN2Discriminator(model_input_nc, D_ndf, D_n_layers, no_antialias=D_no_antialias, img_size=data_crop_size,netD=netD)
     elif netD in model_classes : # load torchvision model
         nclasses=1
         template=netD
-        net = torch_model(input_nc, ndf, nclasses,opt.data_crop_size, template, pretrained=False)
+        net = torch_model(model_input_nc, D_ndf, nclasses,opt.data_crop_size, template, pretrained=False)
+        return net
     elif netD == 'projected_d': # D in projected feature space
-        net = ProjectedDiscriminator(opt.D_proj_network_type,interp=224 if opt.data_crop_size < 224 else opt.D_proj_interp,config_path=os.path.join(opt.jg_dir,opt.D_proj_config_segformer),weight_path=os.path.join(opt.jg_dir,opt.D_proj_weight_segformer))
+        net = ProjectedDiscriminator(D_proj_network_type,interp=224 if data_crop_size < 224 else D_proj_interp,config_path=os.path.join(jg_dir,D_proj_config_segformer),weight_path=os.path.join(jg_dir,D_proj_weight_segformer))
         return net # no init since custom frozen backbone
-
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
-    return init_net(net, init_type, init_gain, gpu_ids,init_weight= 'stylegan2' not in netD)
+    return init_net(net, model_init_type, model_init_gain)
 
-def define_C(input_nc, ndf,img_size, init_type='normal', init_gain=0.02, gpu_ids=[], nclasses=10, template='basic', pretrained=False):
-    if template == 'basic':
-        netC = Classifier(input_nc, ndf, nclasses,img_size)
+def define_C(model_output_nc, f_s_nf,data_crop_size, f_s_semantic_nclasses, train_sem_cls_template, model_init_type, model_init_gain, train_sem_cls_pretrained,**unused_options):
+    img_size = data_crop_size
+    if train_sem_cls_template == 'basic':
+        netC = Classifier(model_output_nc, f_s_nf, f_s_semantic_nclasses,img_size)
     else:
-        netC = torch_model(input_nc, ndf, nclasses, img_size, template, pretrained)
-    return init_net(netC, init_type, init_gain, gpu_ids)
+        netC = torch_model(model_output_nc, f_s_nf, f_s_semantic_nclasses, img_size, train_sem_cls_template, train_sem_cls_pretrained)
+    return init_net(netC, model_init_type, model_init_gain)
 
-def define_f(input_nc, nclasses, init_type='normal', init_gain=0.02, gpu_ids=[], fs_light=False):
-    if not fs_light:
-        net = VGG16_FCN8s(nclasses,pretrained = False, weights_init =None,output_last_ft=False)
+def define_f(model_input_nc, f_s_semantic_nclasses, f_s_light, model_init_type, model_init_gain,**unused_options):
+    if not f_s_light:
+        net = VGG16_FCN8s(f_s_semantic_nclasses,pretrained = False, weights_init =None,output_last_ft=False)
     else:
-        net = UNet(classes=nclasses,input_nc=input_nc)
-    return init_net(net, init_type, init_gain, gpu_ids)
+        net = UNet(classes=f_s_semantic_nclasses,input_nc=model_input_nc)
+    return init_net(net, model_init_type, model_init_gain)
 
-def define_classifier_w(pretrained=False, weights_init='', init_type='normal', init_gain=0.02, gpu_ids=[],init_weight=True,img_size_dec=256):
+def define_classifier_w(pretrained=False, weights_init='', init_type='normal', init_gain=0.02,init_weight=True,img_size_dec=256):
     net = Classifier_w(img_size_dec=img_size_dec)
-    return init_net(net, init_type, init_gain, gpu_ids,init_weight=init_weight)
+    return init_net(net, init_type, init_gain)
 
 def define_inception(device,dims):
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
     model = InceptionV3([block_idx]).to(device)
     return model
 
-def define_F(input_nc, netF, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[], opt=None):
-    if netF == 'global_pool':
+def define_F(alg_cut_netF_nc,alg_cut_netF, alg_cut_netF_norm, alg_cut_netF_dropout, model_init_type, model_init_gain,**unused_options):
+    if alg_cut_netF == 'global_pool':
         net = PoolingF()
-    elif netF == 'sample':
-        net = PatchSampleF(use_mlp=False, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.alg_cut_netF_nc)
-    elif netF == 'mlp_sample':
-        net = PatchSampleF(use_mlp=True, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.alg_cut_netF_nc)
+    elif alg_cut_netF == 'sample':
+        net = PatchSampleF(use_mlp=False, init_type=model_init_type, init_gain=model_init_gain, nc=alg_cut_netF_nc)
+    elif alg_cut_netF == 'mlp_sample':
+        net = PatchSampleF(use_mlp=True, init_type=model_init_type, init_gain=model_init_gain, nc=alg_cut_netF_nc)
     else:
         raise NotImplementedError('projection model name [%s] is not recognized' % netF)
-    return init_net(net, init_type, init_gain, gpu_ids)
+    return init_net(net, model_init_type, model_init_gain)
 

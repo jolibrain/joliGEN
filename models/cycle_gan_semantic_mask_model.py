@@ -61,22 +61,13 @@ class CycleGANSemanticMaskModel(CycleGANModel):
 
         networks_f_s=[]
         if self.opt.train_mask_disjoint_f_s:
-            self.netf_s_A = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
-                                        init_type=opt.model_init_type, init_gain=opt.model_init_gain,
-                                        gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
-
+            self.netf_s_A = networks.define_f(**vars(opt))
             networks_f_s.append('f_s_A')
-            self.netf_s_B = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
-                                        init_type=opt.model_init_type, init_gain=opt.model_init_gain,
-                                        gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
-
+            self.netf_s_B = networks.define_f(**vars(opt))
             networks_f_s.append('f_s_B')
             
         else:
-            self.netf_s = networks.define_f(opt.model_input_nc, nclasses=opt.f_s_semantic_nclasses, 
-                                        init_type=opt.model_init_type, init_gain=opt.model_init_gain,
-                                        gpu_ids=self.gpu_ids, fs_light=opt.f_s_light)
-
+            self.netf_s = networks.define_f(**vars(opt))
             networks_f_s.append('f_s')
  
         if self.isTrain:

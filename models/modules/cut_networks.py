@@ -3,7 +3,7 @@ from .utils import init_net
 import torch
 
 class PatchSampleF(nn.Module):
-    def __init__(self, use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[]):
+    def __init__(self, use_mlp=False, init_type='normal', init_gain=0.02, nc=256):
         # potential issues: currently, we use the same patch_ids for multiple images in the batch
         super(PatchSampleF, self).__init__()
         self.use_mlp = use_mlp
@@ -11,7 +11,6 @@ class PatchSampleF(nn.Module):
         self.mlp_init = False
         self.init_type = init_type
         self.init_gain = init_gain
-        self.gpu_ids = gpu_ids
 
     def set_device(self,device):
         self.device=device
@@ -25,7 +24,7 @@ class PatchSampleF(nn.Module):
             input_nc = feat.shape[1]
             mlp = nn.Sequential(*[nn.Linear(input_nc, self.nc), nn.ReLU(), nn.Linear(self.nc, self.nc)])
             setattr(self, 'mlp_%d' % mlp_id, mlp)
-        init_net(self, self.init_type, self.init_gain, self.gpu_ids)
+        init_net(self, self.init_type, self.init_gain)
         for mlp_id in range(len(feats)):
             setattr(self, 'mlp_%d' % mlp_id, getattr(self, 'mlp_%d' % mlp_id).to(self.device))
         self.mlp_init = True

@@ -95,22 +95,16 @@ class CycleGANModel(BaseModel):
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks.define_G(opt.model_input_nc, opt.model_output_nc, opt.G_ngf, opt.G_netG, opt.G_norm,
-                                        opt.G_dropout, opt.G_spectral, opt.model_init_type, opt.model_init_gain, self.gpu_ids,padding_type=opt.G_padding_type,opt=self.opt)
-        self.netG_B = networks.define_G(opt.model_output_nc, opt.model_input_nc, opt.G_ngf, opt.G_netG, opt.G_norm,
-                                        opt.G_dropout, opt.G_spectral, opt.model_init_type, opt.model_init_gain, self.gpu_ids,padding_type=opt.G_padding_type,opt=self.opt)
+        self.netG_A = networks.define_G(**vars(opt))
+        self.netG_B = networks.define_G(**vars(opt))
 
         if self.isTrain:  # define discriminators
-            self.netD_A = networks.define_D(opt.model_output_nc, opt.D_ndf, opt.D_netD,
-                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,self.opt)
-            self.netD_B = networks.define_D(opt.model_input_nc, opt.D_ndf, opt.D_netD,
-                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,self.opt)
+            self.netD_A = networks.define_D(netD=opt.D_netD,**vars(opt))
+            self.netD_B = networks.define_D(netD=opt.D_netD,**vars(opt))
 
             if opt.D_netD_global != "none":
-                self.netD_A_global = networks.define_D(opt.model_output_nc, opt.D_ndf, opt.D_netD_global,
-                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,self.opt)
-                self.netD_B_global = networks.define_D(opt.model_input_nc, opt.D_ndf, opt.D_netD_global,
-                                            opt.D_n_layers, opt.D_norm, opt.D_dropout, opt.D_spectral, opt.model_init_type, opt.model_init_gain,opt.D_no_antialias, self.gpu_ids,self.opt)
+                self.netD_A_global = networks.define_D(netD=opt.D_netD_global,**vars(opt))
+                self.netD_B_global = networks.define_D(netD=opt.D_netD_global,**vars(opt))
 
             if self.opt.alg_cyclegan_lambda_identity == 0.0:
                 self.loss_idt_A = 0

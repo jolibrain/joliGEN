@@ -2,11 +2,10 @@ from torch import nn
 
 class BaseGenerator_attn(nn.Module):
     # initializers
-    def __init__(self,opt=None):
+    def __init__(self,nb_mask_attn,nb_mask_input):
         super(BaseGenerator_attn, self).__init__()
-        self.opt = opt
-        self.nb_mask_attn = self.opt.G_attn_nb_mask_attn
-        self.nb_mask_input = self.opt.G_attn_nb_mask_input
+        self.nb_mask_attn = nb_mask_attn
+        self.nb_mask_input = nb_mask_input
 
     def compute_outputs(self ,input,attentions,images):
         outputs = []

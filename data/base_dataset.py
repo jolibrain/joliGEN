@@ -123,6 +123,7 @@ class BaseDataset(data.Dataset, ABC):
                 B_img_path = os.path.join(self.root,B_img_path)
                 if B_label_path is not None:
                     B_label_path = os.path.join(self.root,B_label_path)
+
             images=self.get_img(A_img_path,A_label_path,B_img_path,B_label_path,index)
             if images is not None:
                 return_A_list.append(images['A'].unsqueeze(0))

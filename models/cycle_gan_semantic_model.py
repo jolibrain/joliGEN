@@ -17,7 +17,6 @@ class CycleGANSemanticModel(CycleGANModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         parser = CycleGANModel.modify_commandline_options(parser,is_train)
-        if is_train:
         return parser
     
     def __init__(self, opt,rank):
@@ -37,10 +36,7 @@ class CycleGANSemanticModel(CycleGANModel):
             self.model_names += ['CLS']
             
         if self.isTrain:
-            self.netCLS = networks.define_C(opt.model_output_nc, opt.f_s_nf,opt.data_crop_size,
-                                            init_type=opt.model_init_type, init_gain=opt.model_init_gain,
-                                            gpu_ids=self.gpu_ids, nclasses=opt.f_s_semantic_nclasses,
-                                            template=opt.train_sem_cls_template, pretrained=opt.train_sem_cls_pretrained)
+            self.netCLS = networks.define_C(**vars(opt))
  
         if self.isTrain:
             if opt.train_sem_regression:
@@ -141,7 +137,7 @@ class CycleGANSemanticModel(CycleGANModel):
             self.loss_sem_AB = 0 * self.loss_sem_AB 
             self.loss_sem_BA = 0 * self.loss_sem_BA 
 
-        self.loss_sem_AB *= self.opt.train_lambda_sem
-        self.loss_sem_BA *= self.opt.train_lambda_sem
+        self.loss_sem_AB *= self.opt.train_sem_lambda
+        self.loss_sem_BA *= self.opt.train_sem_lambda
             
         self.loss_G += self.loss_sem_BA + self.loss_sem_AB
