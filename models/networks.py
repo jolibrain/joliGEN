@@ -12,7 +12,7 @@ from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.discriminators import NLayerDiscriminator
 from .modules.discriminators import PixelDiscriminator
-from .modules.classifiers import Classifier, VGG16_FCN8s, torch_model,model_classes
+from .modules.classifiers import Classifier, VGG16_FCN8s, torch_model,TORCH_MODEL_CLASSES
 from .modules.UNet_classification import UNet
 from .modules.classifiers import Classifier_w
 from .modules.fid.pytorch_fid.inception import InceptionV3
@@ -142,7 +142,7 @@ def define_D(netD, model_input_nc, D_ndf, D_n_layers, D_norm, D_dropout, D_spect
         net = PixelDiscriminator(model_input_nc, D_ndf, norm_layer=norm_layer)
     elif 'stylegan2' in netD: # global D from sty2 repo
         net = StyleGAN2Discriminator(model_input_nc, D_ndf, D_n_layers, no_antialias=D_no_antialias, img_size=data_crop_size,netD=netD)
-    elif netD in model_classes : # load torchvision model
+    elif netD in TORCH_MODEL_CLASSES: # load torchvision model
         nclasses=1
         template=netD
         net = torch_model(model_input_nc, D_ndf, nclasses,opt.data_crop_size, template, pretrained=False)

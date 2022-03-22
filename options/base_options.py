@@ -9,6 +9,7 @@ import data
 from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
 from util.util import MAX_INT
 import json
+from models.modules.classifiers import TORCH_MODEL_CLASSES
 
 TRAIN_JSON_FILENAME = "train_config.json"
 
@@ -95,18 +96,18 @@ class BaseOptions():
         parser.add_argument('--ddp_port', type=str, default='12355')
         
         # model parameters
-        parser.add_argument('--model_type', type=str, default='cycle_gan', help='chooses which model to use. [' + " | ".join(models.get_models_names()) + ']')
-        parser.add_argument('--model_input_nc', type=int, default=3, help='# of input image channels: 3 for RGB and 1 for grayscale')
-        parser.add_argument('--model_output_nc', type=int, default=3, help='# of output image channels: 3 for RGB and 1 for grayscale')
-        parser.add_argument('--model_init_type', type=str, default='normal', help='network initialization [normal | xavier | kaiming | orthogonal]')
+        parser.add_argument('--model_type', type=str, default='cut',choices=['cycle_gan','cut','cycle_gan_semantic','cut_semantic','cycle_gan_semantic_mask','cut_semantic_mask'], help='chooses which model to use.')
+        parser.add_argument('--model_input_nc', type=int, default=3,choices=[1,3], help='# of input image channels: 3 for RGB and 1 for grayscale')
+        parser.add_argument('--model_output_nc', type=int, default=3,choices=[1,3], help='# of output image channels: 3 for RGB and 1 for grayscale')
+        parser.add_argument('--model_init_type', type=str, default='normal',choices=['normal','xavier','kaiming','orthogonal'], help='network initialization')
         parser.add_argument('--model_init_gain', type=float, default=0.02, help='scaling factor for normal, xavier and orthogonal.')
         
         # generator
         parser.add_argument('--G_ngf', type=int, default=64, help='# of gen filters in the last conv layer')
-        parser.add_argument('--G_netG', type=str, default='resnet_attn', help='specify generator architecture [resnet_9blocks | resnet_6blocks | resnet_3blocks | resnet_12blocks | mobile_resnet_9blocks | mobile_resnet_3blocks | resnet_attn | mobile_resnet_attn | unet_256 | unet_128 | stylegan2 | smallstylegan2 | segformer_attn_conv | segformer_conv]')
+        parser.add_argument('--G_netG', type=str, default='mobile_resnet_attn',choices=['resnet_9blocks', 'resnet_6blocks', 'resnet_3blocks','resnet_12blocks' 'mobile_resnet_9blocks', 'mobile_resnet_3blocks''resnet_attn','mobile_resnet_attn', 'unet_256', 'unet_128','stylegan2','smallstylegan2','segformer_attn_conv' ,'segformer_conv'], help='specify generator architecture')
         parser.add_argument('--G_dropout', action='store_true', help='dropout for the generator')
         parser.add_argument('--G_spectral', action='store_true', help='whether to use spectral norm in the generator')
-        parser.add_argument('--G_padding_type', type=str, help='whether to use padding in the generator, zeros or reflect', default='reflect')
+        parser.add_argument('--G_padding_type', type=str,choices=['reflect','replicate','zero'], help='whether to use padding in the generator', default='reflect')
         parser.add_argument('--G_norm', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for G')
         parser.add_argument('--G_stylegan2_num_downsampling',
                             default=1, type=int,
@@ -116,9 +117,9 @@ class BaseOptions():
         parser.add_argument('--G_attn_nb_mask_input',default=1,type=int)
         
         # discriminator
-        parser.add_argument('--D_ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
-        parser.add_argument('--D_netD', type=str, default='basic', help='specify discriminator architecture [basic | n_layers | pixel] or any torchvision model [resnet18...]. The basic model is a 70x70 PatchGAN. n_layers allows you to specify the layers in the discriminator')
-        parser.add_argument('--D_netD_global', type=str, default='none', help='specify discriminator architecture, any torchvision model can be used [resnet18...]. By default no global discriminator will be used.')
+        parser.add_argument('--D_ndf', type=int, default=64, help='# of discrim filters in the first conv layer')        
+        parser.add_argument('--D_netD', type=str, default='basic',choices=['basic','n_layers','pixel','stylegan2','patchstylegan2','smallpatchstylegan2','projected_d']+ list(TORCH_MODEL_CLASSES.keys()), help='specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator')
+        parser.add_argument('--D_netD_global', type=str, default='none',choices=['none','basic','n_layers','pixel','stylegan2','patchstylegan2','smallpatchstylegan2','projected_d']+ list(TORCH_MODEL_CLASSES.keys()), help='specify discriminator architecture, any torchvision model can be used. By default no global discriminator will be used.')
         parser.add_argument('--D_n_layers', type=int, default=3, help='only used if netD==n_layers')
         parser.add_argument('--D_norm', type=str, default='instance', choices=['instance', 'batch', 'none'], help='instance normalization or batch normalization for D')
         parser.add_argument('--D_dropout', action='store_true', help='whether to use dropout in the discriminator')
@@ -143,17 +144,15 @@ class BaseOptions():
 
 
         # dataset parameters
-        parser.add_argument('--data_dataset_mode', type=str, default='unaligned', help='chooses how datasets are loaded. [unaligned | aligned | single | colorization]')
-        parser.add_argument('--data_direction', type=str, default='AtoB', help='AtoB or BtoA')
+        parser.add_argument('--data_dataset_mode', type=str, default='unaligned',choices=['unaligned','unaligned_labeled','unaligned_labeled_mask','unaligned_labeled_mask_online'], help='chooses how datasets are loaded.')
+        parser.add_argument('--data_direction', type=str, default='AtoB',choices=['AtoB','BtoA'], help='AtoB or BtoA')
         parser.add_argument('--data_serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--data_num_threads', default=4, type=int, help='# threads for loading data')
 
         parser.add_argument('--data_load_size', type=int, default=286, help='scale images to this size')
         parser.add_argument('--data_crop_size', type=int, default=256, help='then crop to this size')
         parser.add_argument('--data_max_dataset_size', type=int, default=MAX_INT, help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
-        parser.add_argument('--data_preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
-
-
+        parser.add_argument('--data_preprocess', type=str, default='resize_and_crop',choices=['resize_and_crop','crop','scale_width','scale_width_and_crop','none'], help='scaling and cropping of images at load time')
 
 
         # Online dataset creation options
