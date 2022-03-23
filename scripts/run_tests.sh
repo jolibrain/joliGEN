@@ -12,7 +12,7 @@ current_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 echo "Current dir is [$current_dir]"
 
-URL=http://efrosgans.eecs.berkeley.edu/cyclegan/datasets/horse2zebra.zip
+URL=https://www.deepdetect.com/joligan/datasets/horse2zebra.zip
 ZIP_FILE=$DIR/horse2zebra.zip
 TARGET_DIR=$DIR/horse2zebra
 wget -N $URL -O $ZIP_FILE
@@ -23,3 +23,6 @@ rm $ZIP_FILE
 export NCCL_P2P_DISABLE=1
 
 pytest -s "${current_dir}/../tests/" --dataroot "$TARGET_DIR"
+
+echo "Deleting target dir $DIR"
+rm -rf $DIR/*
