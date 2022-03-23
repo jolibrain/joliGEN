@@ -10,7 +10,7 @@ json_like_dict={
     'name': 'joligan_utest',
     'G_netG': 'mobile_resnet_attn',
     'output_display_env': 'joligan_utest',
-    'gpu_ids': '0,1',
+    'gpu_ids': '0',
     'data_dataset_mode': 'unaligned',
     'data_load_size': 180,
     'data_crop_size': 180,
