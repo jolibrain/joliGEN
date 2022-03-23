@@ -20,15 +20,15 @@ json_like_dict={
     'data_max_dataset_size': 10,
 }
 
-models_horse2zebra=[
+models_nosemantic=[
     "cycle_gan",
     "cut",
 ]
 
-def test_horse2zebra(dataroot):
+def test_nosemantic(dataroot):
     json_like_dict['dataroot']=dataroot
     json_like_dict['checkpoints_dir']="/".join(dataroot.split("/")[:-1])
-    for model in models_horse2zebra:
+    for model in models_nosemantic:
         json_like_dict['model_type'] = model
         json_like_dict['name'] += '_' + model
         opt = TrainOptions().parse_json(json_like_dict.copy())
