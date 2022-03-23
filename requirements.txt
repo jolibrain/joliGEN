@@ -1,10 +1,13 @@
 -f https://download.pytorch.org/whl/cu113/torch_stable.html
--f https://download.openmmlab.com/mmcv/dist/cu113/torch1.10.1/index.html
-torch==1.10.1+cu113
-numpy==1.19.5
+-f https://download.openmmlab.com/mmcv/dist/cu113/torch1.11/index.html
+torch==1.11.0+cu113
+numpy==1.21
 Pillow==8.4.0
-torchvision==0.11.2+cu113 
+torchvision==0.12.0+cu113 
 timm==0.5.4
-mmsegmentation==0.21.1
-mmcv-full==1.4.4
+mmsegmentation==0.22.1
+mmcv-full==1.4.7
 visdom==0.1.8.9
+torchviz
+imgaug
+dominate
