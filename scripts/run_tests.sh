@@ -22,7 +22,7 @@ rm $ZIP_FILE
 
 export NCCL_P2P_DISABLE=1
 
-pytest -s "${current_dir}/../tests/" --dataroot "$TARGET_DIR"
+python3 -m pytest -s "${current_dir}/../tests/" --dataroot "$TARGET_DIR"
 
 echo "Deleting target dir $DIR"
 rm -rf $DIR/*
