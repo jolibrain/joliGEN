@@ -7,9 +7,9 @@ from options.train_options import TrainOptions
 from data import create_dataset
 
 json_like_dict={
-    'name': 'temp',
+    'name': 'joligan_utest',
     'G_netG': 'mobile_resnet_attn',
-    'output_display_env': 'temp',
+    'output_display_env': 'joligan_utest',
     'gpu_ids': '0,1',
     'data_dataset_mode': 'unaligned',
     'data_load_size': 180,
@@ -29,6 +29,7 @@ def test_horse2zebra(dataroot):
     json_like_dict['checkpoints_dir']="/".join(dataroot.split("/")[:-1])
     for model in models_horse2zebra:
         json_like_dict['model_type'] = model
+        json_like_dict['name'] += '_' + model
         opt = TrainOptions().parse_json(json_like_dict.copy())
         train.launch_training(opt)
 
