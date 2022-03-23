@@ -5,7 +5,7 @@ from torch.optim import lr_scheduler
 import math
 import torchvision.models as models
 
-from .modules.utils import spectral_norm,init_net,init_weights,get_norm_layer
+from .modules.utils import spectral_norm,init_net,init_weights,get_norm_layer,get_weights
 
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator
 from .modules.unet_architecture.unet_generator import UnetGenerator
@@ -162,11 +162,17 @@ def define_C(model_output_nc, f_s_nf,data_crop_size, f_s_semantic_nclasses, trai
         netC = torch_model(model_output_nc, f_s_nf, f_s_semantic_nclasses, img_size, train_sem_cls_template, train_sem_cls_pretrained)
     return init_net(netC, model_init_type, model_init_gain)
 
-def define_f(model_input_nc, f_s_semantic_nclasses, f_s_light, model_init_type, model_init_gain,**unused_options):
-    if not f_s_light:
+def define_f(f_s_net,model_input_nc, f_s_semantic_nclasses, model_init_type, model_init_gain,f_s_config_segformer,f_s_weight_segformer,jg_dir,data_crop_size,**unused_options):
+    if f_s_net == 'vgg':
         net = VGG16_FCN8s(f_s_semantic_nclasses,pretrained = False, weights_init =None,output_last_ft=False)
-    else:
+    elif f_s_net =='unet':
         net = UNet(classes=f_s_semantic_nclasses,input_nc=model_input_nc)
+    elif f_s_net == 'segformer':
+        net = Segformer(jg_dir,f_s_config_segformer,img_size=data_crop_size,num_classes=f_s_semantic_nclasses,final_conv=False)
+        weights = get_weights(os.path.join(jg_dir,f_s_weight_segformer))
+        net.net.load_state_dict(weights,strict=False)
+        return net
+        
     return init_net(net, model_init_type, model_init_gain)
 
 def define_classifier_w(pretrained=False, weights_init='', init_type='normal', init_gain=0.02,init_weight=True,img_size_dec=256):

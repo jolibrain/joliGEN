@@ -55,6 +55,14 @@ def init_weights(net, init_type='normal', init_gain=0.02):
     print('initialize network with %s' % init_type)
     net.apply(init_func)  # apply the initialization function <init_func>
 
+def get_weights(weight_path):
+    try:
+        weights = torch.jit.load(weight_path).state_dict()
+        print("Torch script weights are detected and loaded in %s"%weight_path)
+    except:
+        weights = torch.load(weight_path)
+    return weights
+    
 ##########################################################
 #Fonctions used for networks construction
 ##########################################################

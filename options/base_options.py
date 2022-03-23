@@ -111,7 +111,7 @@ class BaseOptions():
         parser.add_argument('--G_stylegan2_num_downsampling',
                             default=1, type=int,
                             help='Number of downsampling layers used by StyleGAN2Generator')
-        parser.add_argument('--G_config_segformer',type=str,default='models/configs/segformer/segformer_config_b0.py',help='path to segforme configuration file')
+        parser.add_argument('--G_config_segformer',type=str,default='models/configs/segformer/segformer_config_b0.py',help='path to segforme configuration file for G')
         parser.add_argument('--G_attn_nb_mask_attn',default=10,type=int)
         parser.add_argument('--G_attn_nb_mask_input',default=1,type=int)
         
@@ -132,13 +132,15 @@ class BaseOptions():
 
         
         # semantic network
-        parser.add_argument('--f_s_light',action='store_true', help='whether to use a light (unet) network for f_s')
+        parser.add_argument('--f_s_net',type=str,default='vgg',choices=['vgg','unet','segformer'], help='specify f_s network [vgg|unet|segformer]')
         parser.add_argument('--f_s_dropout', action='store_true', help='dropout for the semantic network')
         parser.add_argument('--f_s_semantic_nclasses',default=2,type=int,help='number of classes of the semantic loss classifier')
         parser.add_argument('--f_s_semantic_threshold',default=1.0,type=float,help='threshold of the semantic classifier loss below with semantic loss is applied')
         parser.add_argument('--f_s_all_classes_as_one',action='store_true',help='if true, all classes will be considered as the same one (ie foreground vs background)')
         parser.add_argument('--f_s_nf', type=int, default=64, help='# of filters in the first conv layer of classifier')
-        
+        parser.add_argument('--f_s_config_segformer',type=str,default='models/configs/segformer/segformer_config_b0.py',help='path to segformer configuration file for f_s')
+        parser.add_argument('--f_s_weight_segformer',type=str,default='models/configs/segformer/pretrain/segformer_mit-b0.pth',help='path to segformer weight for f_s')
+
 
         # dataset parameters
         parser.add_argument('--data_dataset_mode', type=str, default='unaligned', help='chooses how datasets are loaded. [unaligned | aligned | single | colorization]')
