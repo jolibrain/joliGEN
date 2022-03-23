@@ -101,9 +101,20 @@ server/run.sh --host localhost --port 8000
 ```
 
 ## Tests
-To launch tests before new commits :
+To launch tests before new commits:
 ```
 bash scripts/run_tests.sh /path/to/dir
+```
+
+## Docker build
+To build a docker for joliGAN server:
+```
+docker build -t jolibrain/joligan_build -f docker/Dockerfile.build .
+docker build -t jolibrain/joligan_server -f docker/Dockerfile.server .
+```
+To run the joliGAN docker:
+```
+nvidia-docker run jolibrain/myjoligan
 ```
 
 ## Authors
