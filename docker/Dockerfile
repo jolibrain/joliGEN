@@ -1,0 +1,16 @@
+FROM nvidia/cuda:11.4.0-devel-ubuntu20.04 AS jolibrain/joligan_build
+
+# add missing apt dependencies
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update -y && apt-get install -y \
+    python3-pip \
+    python3-opencv
+
+RUN mkdir /app
+
+WORKDIR /app
+ADD requirements.txt .
+RUN pip3 install -r requirements.txt
+RUN pip3 install uvicorn fastapi
+
+ADD . /app
