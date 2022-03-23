@@ -4,7 +4,11 @@ FROM nvidia/cuda:11.4.0-devel-ubuntu20.04 AS joligan_build
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update -y && apt-get install -y \
     python3-pip \
-    python3-opencv
+    python3-opencv \
+    python3-pytest \
+    sudo \
+    wget \
+    unzip
 
 RUN mkdir /app
 
