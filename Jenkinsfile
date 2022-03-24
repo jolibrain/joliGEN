@@ -3,6 +3,7 @@ pipeline {
     dockerfile {
       filename 'docker/Dockerfile.build'
       additionalBuildArgs '--no-cache'
+      args '-u root'
     }
 
   }
@@ -11,12 +12,12 @@ pipeline {
       steps {
         sh 'mkdir checkpoints'
         sh '''
-bash ./scripts/run_tests.sh checkpoints/'''
+TORCH_HOME=/app/.cache/ bash ./scripts/run_tests.sh checkpoints/'''
       }
     }
 
   }
   environment {
-    DOCKER_PARAMS = '"--runtime nvidia"'
+    DOCKER_PARAMS = '"--runtime nvidia -u root"'
   }
 }
