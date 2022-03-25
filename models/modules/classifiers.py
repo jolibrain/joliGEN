@@ -195,7 +195,7 @@ class Classifier_w(nn.Module):
         return out
 
 # torchvision models
-model_classes = {
+TORCH_MODEL_CLASSES = {
     "alexnet": models.alexnet,
     "vgg11": models.vgg11,
     "vgg11_bn": models.vgg11_bn,
@@ -235,7 +235,7 @@ model_classes = {
 class torch_model(nn.Module):
     def __init__(self, input_nc, ndf, nclasses, img_size, template, pretrained):
         super().__init__()
-        self.model = model_classes[template](pretrained=pretrained)
+        self.model = TORCH_MODEL_CLASSES[template](pretrained=pretrained)
         self.input_nc = input_nc
         self.model.fc = nn.Linear(512, nclasses)
 
