@@ -124,7 +124,7 @@ class BaseOptions():
         parser.add_argument('--D_dropout', action='store_true', help='whether to use dropout in the discriminator')
         parser.add_argument('--D_spectral', action='store_true', help='whether to use spectral norm in the discriminator')
         parser.add_argument('--D_proj_interp', type=int, default=-1, help='whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation')
-        parser.add_argument('--D_proj_network_type', type=str, default='efficientnet',choices=['efficientnet','segformer'])
+        parser.add_argument('--D_proj_network_type', type=str, default='efficientnet',choices=['efficientnet','segformer','vitbase','vitsmall','vitsmall2'])
         parser.add_argument('--D_no_antialias', action='store_true', help='if specified, use stride=2 convs instead of antialiased-downsampling (sad)')
         parser.add_argument('--D_no_antialias_up', action='store_true', help='if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv]')
         parser.add_argument('--D_proj_config_segformer',type=str,default='models/configs/segformer/segformer_config_b0.py',help='path to segformer configuration file')

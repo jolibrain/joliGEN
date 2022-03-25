@@ -116,6 +116,8 @@ class MultiScaleD(nn.Module):
         self,
         channels,
         resolutions,
+        conv,
+        feats,
         num_discs=4,
         proj_type=2,  # 0 = no projection, 1 = cross channel mixing, 2 = cross scale mixing
         cond=0,
@@ -133,9 +135,18 @@ class MultiScaleD(nn.Module):
         Disc = SingleDiscCond if cond else SingleDisc
 
         mini_discs = []
-        for i, (cin, res) in enumerate(zip(self.disc_in_channels, self.disc_in_res)):
-            start_sz = res if not patch else 16
-            mini_discs += [str(i), Disc(nc=cin, start_sz=start_sz, end_sz=8, separable=separable, patch=patch)],
+
+        if conv:
+            for i, (cin, res) in enumerate(zip(self.disc_in_channels, self.disc_in_res)):
+                start_sz = res if not patch else 16
+                mini_discs += [str(i), Disc(nc=cin, start_sz=start_sz, end_sz=8, separable=separable, patch=patch)],
+        else:
+            for i in range(num_discs):
+                n_feats = channels[i] * resolutions[i]
+                mlp = [nn.Flatten(),nn.Linear(n_feats, 100), nn.ReLU(), nn.Linear(100, 100),nn.ReLU(),nn.Linear(100, 100)]
+                mlp = nn.Sequential(*mlp)
+                mini_discs += [str(i),mlp],
+            
         self.mini_discs = nn.ModuleDict(mini_discs)
 
     def forward(self, features):
@@ -159,13 +170,15 @@ class ProjectedDiscriminator(torch.nn.Module):
     ):
         super().__init__()
         self.interp = interp
-
+        
         self.freeze_feature_network = Proj(projector_model,config_path = config_path,weight_path = weight_path,**backbone_kwargs)            
         self.freeze_feature_network.requires_grad_(False)
         
         self.discriminator = MultiScaleD(
             channels=self.freeze_feature_network.CHANNELS,
             resolutions=self.freeze_feature_network.RESOLUTIONS,
+            feats=self.freeze_feature_network.FEATS,
+            conv = "vit" not in projector_model,
             **backbone_kwargs,
         )
 

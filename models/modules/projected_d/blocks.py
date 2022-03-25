@@ -217,20 +217,18 @@ class ResidualConvUnit(nn.Module):
     def forward(self, x):
         return self.skip_add.add(self.conv(x), x)
 
-
-class FeatureFusionBlock(nn.Module):
-    def __init__(self, features, activation, deconv=False, bn=False, expand=False, align_corners=True, lowest=False):
+class FeatureFusionBlockBase(nn.Module):
+    def __init__(self, features, activation, deconv, bn, expand, align_corners, lowest):
         super().__init__()
 
         self.deconv = deconv
         self.align_corners = align_corners
 
         self.expand = expand
-        out_features = features
+        self.out_features = features
         if self.expand==True:
-            out_features = features//2
-
-        self.out_conv = nn.Conv2d(features, out_features, kernel_size=1, stride=1, padding=0, bias=True, groups=1)
+            self.out_features = features//2
+                        
         self.skip_add = nn.quantized.FloatFunctional()
 
     def forward(self, *xs):
@@ -238,6 +236,18 @@ class FeatureFusionBlock(nn.Module):
 
         if len(xs) == 2:
             output = self.skip_add.add(output, xs[1])
+
+        return output
+    
+
+class FeatureFusionBlockMatrix(FeatureFusionBlockBase):
+    def __init__(self, features, activation, deconv=False, bn=False, expand=False, align_corners=True, lowest=False):
+        super().__init__(features, activation, deconv, bn, expand, align_corners, lowest)
+
+        self.out_conv = nn.Conv2d(features, self.out_features, kernel_size=1, stride=1, padding=0, bias=True, groups=1)            
+
+    def forward(self, *xs):
+        output = super().forward(*xs)
 
         output = nn.functional.interpolate(
             output, scale_factor=2, mode="bilinear", align_corners=self.align_corners
@@ -247,6 +257,18 @@ class FeatureFusionBlock(nn.Module):
 
         return output
 
+class FeatureFusionBlockVector(FeatureFusionBlockBase):
+    def __init__(self, features, activation, deconv=False, bn=False, expand=False, align_corners=True, lowest=False):
+        super().__init__(features, activation, deconv, bn, expand, align_corners, lowest)
+            
+        self.out_conv = nn.Conv1d(features, self.out_features, kernel_size=1, stride=1, padding=0, bias=True, groups=1)
+            
+    def forward(self, *xs):
+        output = super().forward(*xs)
+        
+        output = self.out_conv(output)
+
+        return output
 
 ### Misc
 
