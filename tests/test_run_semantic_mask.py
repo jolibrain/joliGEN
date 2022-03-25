@@ -20,7 +20,7 @@ json_like_dict={
     'data_max_dataset_size': 10,
     'train_mask_out_mask': True,
     'f_s_net': 'unet',
-    'f_s_semantic_classes': 2,
+    'f_s_semantic_nclasses': 2,
     'dataaug_D_noise': 0.001,
     'train_sem_use_label_B': True,
     'data_relative_paths': True,
