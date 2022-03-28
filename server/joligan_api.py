@@ -15,22 +15,21 @@ from pydantic import create_model, BaseModel, Field
 description = """This is the JoliGAN server API documentation.
 """
 
-app = FastAPI(
-    title="JoliGAN server",
-    description = description
-)
+app = FastAPI(title="JoliGAN server", description=description)
 
 # Additional schema
 class ServerTrainOptions(BaseModel):
-    sync : bool = Field(
+    sync: bool = Field(
         False,
-        description = "if false, the call returns immediately and train process "
-            "is executed in the background. If true, the call returns only "
-            "when training process is finished"
+        description="if false, the call returns immediately and train process "
+        "is executed in the background. If true, the call returns only "
+        "when training process is finished",
     )
 
+
 class TrainBody(BaseModel):
-    server : ServerTrainOptions = ServerTrainOptions()
+    server: ServerTrainOptions = ServerTrainOptions()
+
 
 TrainBodySchema = TrainBody.schema()
 TrainBodySchema["properties"]["train_options"] = TrainOptions().get_schema()
@@ -45,18 +44,25 @@ json.dumps(
 
 
 generic_openapi = app.openapi
+
+
 def custom_openapi():
     if not app.openapi_schema:
         app.openapi_schema = generic_openapi()
         app.openapi_schema["components"]["schemas"]["TrainOptions"] = TrainBodySchema
         app.openapi_schema["definitions"] = {}
-        app.openapi_schema["definitions"]["ServerTrainOptions"] = ServerTrainOptions.schema()
+        app.openapi_schema["definitions"][
+            "ServerTrainOptions"
+        ] = ServerTrainOptions.schema()
     return app.openapi_schema
+
+
 app.openapi = custom_openapi
 
 
 # Context variables
 ctx = {}
+
 
 def stop_training(context):
     for process in context.processes:
@@ -67,6 +73,7 @@ def stop_training(context):
     except Exception as e:
         print(e)
 
+
 def is_alive(context):
     alive = True
 
@@ -76,21 +83,23 @@ def is_alive(context):
 
     return alive
 
+
 @app.post(
-    "/train/{name}", status_code=201,
+    "/train/{name}",
+    status_code=201,
     summary="Start a training process with given name.",
     description="The training process will be created using the same options as command line",
     openapi_extra={
         "requestBody": {
             "content": {
                 "application/json": {
-                    "schema": { "$ref": "#/components/schemas/TrainOptions" }
+                    "schema": {"$ref": "#/components/schemas/TrainOptions"}
                 }
             }
         }
-    }
+    },
 )
-async def train(name : str, request : Request):
+async def train(name: str, request: Request):
     train_body = await request.json()
 
     try:
@@ -106,29 +115,39 @@ async def train(name : str, request : Request):
     world_size = len(opt.gpu_ids)
     dataset = create_dataset(opt)
 
-    ctx[name] = mp.spawn(train_gpu,
-                        args=(world_size,opt,dataset,),
-                        nprocs=world_size,
-                        join=False)
+    ctx[name] = mp.spawn(
+        train_gpu,
+        args=(
+            world_size,
+            opt,
+            dataset,
+        ),
+        nprocs=world_size,
+        join=False,
+    )
 
-    if (train_body.server.sync):
+    if train_body.server.sync:
         try:
             # XXX could be awaited
             ctx[name].join()
         except Exception as e:
-            return {"name": name, "message": str(e), "status": "error" }
+            return {"name": name, "message": str(e), "status": "error"}
         del ctx[name]
-        return { "message": "ok", "name" : name, "status": "stopped" }
+        return {"message": "ok", "name": name, "status": "stopped"}
 
-    return { "message": "ok", "name" : name, "status": "running" }
+    return {"message": "ok", "name": name, "status": "running"}
 
-@app.get("/train/{name}", status_code=200, summary="Get the status of a training process")
-async def get_train(name : str):
+
+@app.get(
+    "/train/{name}", status_code=200, summary="Get the status of a training process"
+)
+async def get_train(name: str):
     if name in ctx:
         status = "running" if is_alive(ctx[name]) else "stopped"
-        return {"status" : "running", "name": name}
+        return {"status": "running", "name": name}
     else:
-        raise HTTPException(status_code = 404, detail="Not found")
+        raise HTTPException(status_code=404, detail="Not found")
+
 
 @app.get("/train", status_code=200, summary="Get the status of all training processes")
 async def get_train_processes():
@@ -136,18 +155,19 @@ async def get_train_processes():
     for name in ctx:
         processes.append({"status": "running", "name": name})
 
-    return { "processes": processes }
+    return {"processes": processes}
+
 
 @app.delete(
-    "/train/{name}", status_code=200,
-    summary = "Delete a training process.",
-    description = "If the process is running, it will be stopped."
+    "/train/{name}",
+    status_code=200,
+    summary="Delete a training process.",
+    description="If the process is running, it will be stopped.",
 )
-async def delete_train(name : str):
+async def delete_train(name: str):
     if name in ctx:
         stop_training(ctx[name])
         del ctx[name]
-        return { "message":"ok", "name": name}
+        return {"message": "ok", "name": name}
     else:
-        raise HTTPException(status_code = 404, detail="Not found")
-
+        raise HTTPException(status_code=404, detail="Not found")

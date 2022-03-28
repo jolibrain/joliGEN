@@ -4,6 +4,7 @@ from torch import nn as nn
 import torch.nn.functional as F
 import random
 
+
 class GANLoss(nn.Module):
     """Define different GAN objectives.
 
@@ -12,7 +13,7 @@ class GANLoss(nn.Module):
     """
 
     def __init__(self, gan_mode, target_real_label=1.0, target_fake_label=0.0):
-        """ Initialize the GANLoss class.
+        """Initialize the GANLoss class.
 
         Parameters:
             gan_mode (str) - - the type of GAN objective. It currently supports vanilla, lsgan, and wgangp.
@@ -23,17 +24,17 @@ class GANLoss(nn.Module):
         LSGAN needs no sigmoid. vanilla GANs will handle it with BCEWithLogitsLoss.
         """
         super(GANLoss, self).__init__()
-        self.register_buffer('real_label', torch.tensor(target_real_label))
-        self.register_buffer('fake_label', torch.tensor(target_fake_label))
+        self.register_buffer("real_label", torch.tensor(target_real_label))
+        self.register_buffer("fake_label", torch.tensor(target_fake_label))
         self.gan_mode = gan_mode
-        if gan_mode == 'lsgan':
+        if gan_mode == "lsgan":
             self.loss = nn.MSELoss()
-        elif gan_mode == 'vanilla':
+        elif gan_mode == "vanilla":
             self.loss = nn.BCEWithLogitsLoss()
-        elif gan_mode in ['wgangp','projected']:
+        elif gan_mode in ["wgangp", "projected"]:
             self.loss = None
         else:
-            raise NotImplementedError('gan mode %s not implemented' % gan_mode)
+            raise NotImplementedError("gan mode %s not implemented" % gan_mode)
 
     def get_target_tensor(self, prediction, target_is_real):
         """Create label tensors with the same size as the input.
@@ -62,15 +63,15 @@ class GANLoss(nn.Module):
         Returns:
             the calculated loss.
         """
-        if self.gan_mode in ['lsgan', 'vanilla']:
+        if self.gan_mode in ["lsgan", "vanilla"]:
             target_tensor = self.get_target_tensor(prediction, target_is_real)
             loss = self.loss(prediction, target_tensor)
-        elif self.gan_mode == 'wgangp':
+        elif self.gan_mode == "wgangp":
             if target_is_real:
                 loss = -prediction.mean()
             else:
                 loss = prediction.mean()
-        elif self.gan_mode == 'projected':
+        elif self.gan_mode == "projected":
             if relu:
                 if target_is_real:
                     loss = (F.relu(torch.ones_like(prediction) - prediction)).mean()
@@ -81,7 +82,9 @@ class GANLoss(nn.Module):
         return loss
 
 
-def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', constant=1.0, lambda_gp=10.0):
+def cal_gradient_penalty(
+    netD, real_data, fake_data, device, type="mixed", constant=1.0, lambda_gp=10.0
+):
     """Calculate the gradient penalty loss, used in WGAN-GP paper https://arxiv.org/abs/1704.00028
 
     Arguments:
@@ -96,27 +99,41 @@ def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', const
     Returns the gradient penalty loss
     """
     if lambda_gp > 0.0:
-        if type == 'real':   # either use real images, fake images, or a linear interpolation of two.
+        if (
+            type == "real"
+        ):  # either use real images, fake images, or a linear interpolation of two.
             interpolatesv = real_data
-        elif type == 'fake':
+        elif type == "fake":
             interpolatesv = fake_data
-        elif type == 'mixed':
+        elif type == "mixed":
             alpha = torch.rand(real_data.shape[0], 1, device=device)
-            alpha = alpha.expand(real_data.shape[0], real_data.nelement() // real_data.shape[0]).contiguous().view(*real_data.shape)
+            alpha = (
+                alpha.expand(
+                    real_data.shape[0], real_data.nelement() // real_data.shape[0]
+                )
+                .contiguous()
+                .view(*real_data.shape)
+            )
             interpolatesv = alpha * real_data + ((1 - alpha) * fake_data)
         else:
-            raise NotImplementedError('{} not implemented'.format(type))
+            raise NotImplementedError("{} not implemented".format(type))
         interpolatesv.requires_grad_(True)
         disc_interpolates = netD(interpolatesv)
-        gradients = torch.autograd.grad(outputs=disc_interpolates, inputs=interpolatesv,
-                                        grad_outputs=torch.ones(disc_interpolates.size()).to(device),
-                                        create_graph=True, retain_graph=True, only_inputs=True)
+        gradients = torch.autograd.grad(
+            outputs=disc_interpolates,
+            inputs=interpolatesv,
+            grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )
         gradients = gradients[0].view(real_data.size(0), -1)  # flat the data
-        gradient_penalty = (((gradients + 1e-16).norm(2, dim=1) - constant) ** 2).mean() * lambda_gp        # added eps
+        gradient_penalty = (
+            ((gradients + 1e-16).norm(2, dim=1) - constant) ** 2
+        ).mean() * lambda_gp  # added eps
         return gradient_penalty, gradients
     else:
         return 0.0, None
-
 
 
 class ContrastiveLoss(nn.Module):
@@ -129,21 +146,31 @@ class ContrastiveLoss(nn.Module):
     def __init__(self, nb_preds=1):
         super().__init__()
         self.nb_preds = nb_preds
-        self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
+        self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction="none")
 
-    def __call__(self, pred_true,pred_false):
-        current_batch_size=pred_true.shape[0]
-        temp=torch.cat((pred_true.flatten().unsqueeze(1),pred_false.flatten().unsqueeze(0).repeat(self.nb_preds*current_batch_size,1)),dim=1)
-        loss= self.cross_entropy_loss(temp,torch.zeros(temp.shape[0], dtype=torch.long,device=temp.device))
-        
+    def __call__(self, pred_true, pred_false):
+        current_batch_size = pred_true.shape[0]
+        temp = torch.cat(
+            (
+                pred_true.flatten().unsqueeze(1),
+                pred_false.flatten()
+                .unsqueeze(0)
+                .repeat(self.nb_preds * current_batch_size, 1),
+            ),
+            dim=1,
+        )
+        loss = self.cross_entropy_loss(
+            temp, torch.zeros(temp.shape[0], dtype=torch.long, device=temp.device)
+        )
+
         return loss.mean()
 
 
 class DiscriminatorLoss(nn.Module):
-    def __init__(self,opt,netD,device):
+    def __init__(self, opt, netD, device):
         super().__init__()
-        self.opt=opt
-        self.device=device
+        self.opt = opt
+        self.device = device
         self.adaptive_pseudo_augmentation_p = opt.dataaug_APA_p
         self.adjust = 0
 
@@ -151,42 +178,58 @@ class DiscriminatorLoss(nn.Module):
         # Apply Adaptive Pseudo Augmentation (APA)
         batch_size = real.shape[0]
         pseudo_flag = torch.ones([batch_size, 1, 1, 1], device=self.device)
-        pseudo_flag = torch.where(torch.rand([batch_size, 1, 1, 1], device=self.device) < self.adaptive_pseudo_augmentation_p,
-                                  pseudo_flag, torch.zeros_like(pseudo_flag))
+        pseudo_flag = torch.where(
+            torch.rand([batch_size, 1, 1, 1], device=self.device)
+            < self.adaptive_pseudo_augmentation_p,
+            pseudo_flag,
+            torch.zeros_like(pseudo_flag),
+        )
         if torch.allclose(pseudo_flag, torch.zeros_like(pseudo_flag)):
             return real
         else:
-            return fake * pseudo_flag + real* (1 - pseudo_flag)
+            return fake * pseudo_flag + real * (1 - pseudo_flag)
 
     def update_adaptive_pseudo_augmentation_p(self):
         loss_sign_real = torch.logit(torch.sigmoid(self.pred_real)).sign().mean()
         self.adjust = torch.sign(loss_sign_real - self.opt.dataaug_APA_target)
-        lambda_adjust = self.adjust* (self.opt.train_batch_size * self.opt.dataaug_APA_every) / (self.opt.dataaug_APA_nimg * 1000)
-        self.adaptive_pseudo_augmentation_p = (self.adaptive_pseudo_augmentation_p + lambda_adjust)
+        lambda_adjust = (
+            self.adjust
+            * (self.opt.train_batch_size * self.opt.dataaug_APA_every)
+            / (self.opt.dataaug_APA_nimg * 1000)
+        )
+        self.adaptive_pseudo_augmentation_p = (
+            self.adaptive_pseudo_augmentation_p + lambda_adjust
+        )
         if self.adaptive_pseudo_augmentation_p < 0:
-            self.adaptive_pseudo_augmentation_p = self.adaptive_pseudo_augmentation_p * 0
-            
+            self.adaptive_pseudo_augmentation_p = (
+                self.adaptive_pseudo_augmentation_p * 0
+            )
+
         if self.adaptive_pseudo_augmentation_p > 1:
             self.adaptive_pseudo_augmentation_p = 1
-    
-    def compute_loss_D(self,netD,real,fake,fake_2=None):
+
+    def compute_loss_D(self, netD, real, fake, fake_2=None):
         if self.opt.dataaug_APA:
-            self.real = self.adaptive_pseudo_augmentation(real,fake_2)
+            self.real = self.adaptive_pseudo_augmentation(real, fake_2)
         else:
             self.real = real
         self.fake = fake
-    
-    def compute_loss_G(self,netD,real,fake):
+
+    def compute_loss_G(self, netD, real, fake):
         self.real = real
         self.fake = fake
 
-    def update(self,niter):
-        if self.opt.dataaug_APA and niter % self.opt.dataaug_APA_every < self.opt.train_batch_size:
+    def update(self, niter):
+        if (
+            self.opt.dataaug_APA
+            and niter % self.opt.dataaug_APA_every < self.opt.train_batch_size
+        ):
             self.update_adaptive_pseudo_augmentation_p()
 
+
 class DiscriminatorGANLoss(DiscriminatorLoss):
-    def __init__(self,opt,netD,device,gan_mode=None):
-        super().__init__(opt,netD,device)
+    def __init__(self, opt, netD, device, gan_mode=None):
+        super().__init__(opt, netD, device)
         if opt.dataaug_D_label_smooth:
             target_real_label = 0.9
         else:
@@ -195,9 +238,11 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
             self.gan_mode = gan_mode
         else:
             self.gan_mode = opt.train_gan_mode
-        self.criterionGAN = GANLoss(self.gan_mode,target_real_label=target_real_label).to(self.device)
-        
-    def compute_loss_D(self,netD,real,fake,fake_2):
+        self.criterionGAN = GANLoss(
+            self.gan_mode, target_real_label=target_real_label
+        ).to(self.device)
+
+    def compute_loss_D(self, netD, real, fake, fake_2):
         """Calculate GAN loss for the discriminator
         Parameters:
             netD (network)      -- the discriminator D
@@ -206,45 +251,62 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
         Return the discriminator loss.
         We also call loss_D.backward() to calculate the gradients.
         """
-        super().compute_loss_D(netD,real,fake,fake_2)
+        super().compute_loss_D(netD, real, fake, fake_2)
         # Real
         self.pred_real = netD(self.real)
         loss_D_real = self.criterionGAN(self.pred_real, True)
         # Fake
-        lambda_loss=0.5
+        lambda_loss = 0.5
         pred_fake = netD(self.fake.detach())
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake) * lambda_loss
         return loss_D
 
-    def compute_loss_G(self,netD,real,fake):
-        super().compute_loss_G(netD,real,fake)
+    def compute_loss_G(self, netD, real, fake):
+        super().compute_loss_G(netD, real, fake)
         pred_fake = netD(self.fake)
-        loss_D_fake = self.criterionGAN(pred_fake,True,relu=False)
+        loss_D_fake = self.criterionGAN(pred_fake, True, relu=False)
         return loss_D_fake
-        
+
+
 class DiscriminatorContrastiveLoss(DiscriminatorLoss):
-    def __init__(self,opt,netD,device):
-        super().__init__(opt,netD,device)
-        self.nb_preds=int(torch.prod(torch.tensor(netD(torch.zeros([1,opt.model_input_nc,opt.train_crop_size,opt.train_crop_size], dtype=torch.float)).shape)))
+    def __init__(self, opt, netD, device):
+        super().__init__(opt, netD, device)
+        self.nb_preds = int(
+            torch.prod(
+                torch.tensor(
+                    netD(
+                        torch.zeros(
+                            [
+                                1,
+                                opt.model_input_nc,
+                                opt.train_crop_size,
+                                opt.train_crop_size,
+                            ],
+                            dtype=torch.float,
+                        )
+                    ).shape
+                )
+            )
+        )
         self.criterionContrastive = ContrastiveLoss(self.nb_preds)
-        
-    def compute_loss_D(self,netD,real,fake,fake_2):
+
+    def compute_loss_D(self, netD, real, fake, fake_2):
         """Calculate contrastive GAN loss for the discriminator"""
-        super().compute_loss_D(netD,real,fake,fake_2)
+        super().compute_loss_D(netD, real, fake, fake_2)
         # Fake; stop backprop to the generator by detaching fake_B
         fake = fake.detach()
         pred_fake = netD(self.fake)
         # Real
         self.pred_real = netD(self.real)
-        
-        loss_D_real = self.criterionContrastive(self.pred_real,pred_fake)
-        loss_D_fake = self.criterionContrastive(-pred_fake,-self.pred_real)
-        
+
+        loss_D_real = self.criterionContrastive(self.pred_real, pred_fake)
+        loss_D_fake = self.criterionContrastive(-pred_fake, -self.pred_real)
+
         # combine loss and calculate gradients
         return (loss_D_fake + loss_D_real) * 0.5
 
-    def compute_loss_G(self,netD,real,fake):
-        loss_G = self.criterionContrastive(-netD(self.real),-netD(self.fake))
+    def compute_loss_G(self, netD, real, fake):
+        loss_G = self.criterionContrastive(-netD(self.real), -netD(self.fake))
         return loss_G

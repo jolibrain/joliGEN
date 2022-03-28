@@ -15,6 +15,7 @@ import torch.utils.data
 from data.base_dataset import BaseDataset
 from torch.utils import data
 
+
 def find_dataset_using_name(dataset_name):
     """Import the module "data/[dataset_name]_dataset.py".
 
@@ -26,14 +27,16 @@ def find_dataset_using_name(dataset_name):
     datasetlib = importlib.import_module(dataset_filename)
 
     dataset = None
-    target_dataset_name = dataset_name.replace('_', '') + 'dataset'
+    target_dataset_name = dataset_name.replace("_", "") + "dataset"
     for name, cls in datasetlib.__dict__.items():
-        if name.lower() == target_dataset_name.lower() \
-           and issubclass(cls, BaseDataset):
+        if name.lower() == target_dataset_name.lower() and issubclass(cls, BaseDataset):
             dataset = cls
 
     if dataset is None:
-        raise NotImplementedError("In %s.py, there should be a subclass of BaseDataset with class name that matches %s in lowercase." % (dataset_filename, target_dataset_name))
+        raise NotImplementedError(
+            "In %s.py, there should be a subclass of BaseDataset with class name that matches %s in lowercase."
+            % (dataset_filename, target_dataset_name)
+        )
 
     return dataset
 
@@ -49,8 +52,9 @@ def create_dataset(opt):
     dataset = dataset_class(opt)
     return dataset
 
-def create_dataloader(opt,rank,dataset):
-    data_loader = CustomDatasetDataLoader(opt,rank,dataset)
+
+def create_dataloader(opt, rank, dataset):
+    data_loader = CustomDatasetDataLoader(opt, rank, dataset)
     dataset = data_loader.load_data()
     return dataset
 
@@ -61,11 +65,12 @@ def collate_fn(batch):
         return torch.utils.data.dataloader.default_collate(batch)
     else:
         return None
-    
-class CustomDatasetDataLoader():
+
+
+class CustomDatasetDataLoader:
     """Wrapper class of Dataset class that performs multi-threaded data loading"""
 
-    def __init__(self, opt,rank,dataset):
+    def __init__(self, opt, rank, dataset):
         """Initialize this class
 
         Step 1: create a dataset instance given the name [dataset_mode]
@@ -73,25 +78,28 @@ class CustomDatasetDataLoader():
         """
         self.opt = opt
         self.dataset = dataset
-        if rank==0:
+        if rank == 0:
             print("dataset [%s] was created" % type(self.dataset).__name__)
-        if len(opt.gpu_ids)>1:
-            world_size=len(opt.gpu_ids)
-            sampler=data.distributed.DistributedSampler(self.dataset,
-                                                        num_replicas=world_size,
-                                                        rank=rank,
-                                                        shuffle=not opt.data_serial_batches)
-            shuffle=False
+        if len(opt.gpu_ids) > 1:
+            world_size = len(opt.gpu_ids)
+            sampler = data.distributed.DistributedSampler(
+                self.dataset,
+                num_replicas=world_size,
+                rank=rank,
+                shuffle=not opt.data_serial_batches,
+            )
+            shuffle = False
         else:
-            sampler=None
-            shuffle=not opt.data_serial_batches
+            sampler = None
+            shuffle = not opt.data_serial_batches
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=opt.train_batch_size,
             sampler=sampler,
             shuffle=shuffle,
             num_workers=int(opt.data_num_threads),
-            collate_fn=collate_fn)
+            collate_fn=collate_fn,
+        )
 
     def load_data(self):
         return self
