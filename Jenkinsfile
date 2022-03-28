@@ -3,7 +3,7 @@ pipeline {
     dockerfile {
       filename 'docker/Dockerfile.build'
       additionalBuildArgs '--no-cache'
-      args '-u root'
+      args '-u jenkins'
     }
 
   }
@@ -18,6 +18,6 @@ TORCH_HOME=/app/.cache/ bash ./scripts/run_tests.sh checkpoints/'''
 
   }
   environment {
-    DOCKER_PARAMS = '"--runtime nvidia -u root"'
+    DOCKER_PARAMS = '"--runtime nvidia -u jenkins"'
   }
 }
