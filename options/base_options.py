@@ -384,7 +384,7 @@ class BaseOptions():
 
         if len(flat_json) != 0:
             #raise ValueError("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
-            print("%d remaining keys in json args: %s" % (len(flat_json), ",".join(flat_json.keys())))
+            print("%d remaining keys in json args: %s" % (len(flat_json), ",".join(flat_json.keys()))) # it's not an error anymore because server launching is done with all of the options even those from other models, raising an error will lead to a server crash 
 
         return self._after_parse(opt)
 
