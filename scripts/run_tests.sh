@@ -12,6 +12,7 @@ current_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 echo "Current dir is [$current_dir]"
 
+export PYTHONDONTWRITEBYTECODE=1
 export NCCL_P2P_DISABLE=1
 
 ####### no sem tests
