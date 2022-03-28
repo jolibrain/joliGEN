@@ -1,9 +1,9 @@
 # model settings
 model = dict(
-    type='EncoderDecoder',
+    type="EncoderDecoder",
     pretrained=None,
     backbone=dict(
-        type='MixVisionTransformer',
+        type="MixVisionTransformer",
         in_channels=3,
         embed_dims=32,
         num_stages=4,
@@ -16,15 +16,18 @@ model = dict(
         qkv_bias=True,
         drop_rate=0.0,
         attn_drop_rate=0.0,
-        drop_path_rate=0.1),
+        drop_path_rate=0.1,
+    ),
     decode_head=dict(
-        type='SegformerHead',
+        type="SegformerHead",
         in_channels=[32, 64, 160, 256],
         in_index=[0, 1, 2, 3],
         channels=256,
         dropout_ratio=0.1,
         num_classes=10,
-        align_corners=False),
+        align_corners=False,
+    ),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode="whole"),
+)

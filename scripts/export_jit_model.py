@@ -2,22 +2,31 @@ import os
 import sys
 import torch
 import numpy as np
-sys.path.append('../')
+
+sys.path.append("../")
 from models import networks
 from options.train_options import TrainOptions
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model-in-file',help='file path to generator model to export (.pth file)',required=True)
-parser.add_argument('--model-out-file',help='file path to exported model (.pt file)')
-parser.add_argument('--model-type',default='mobile_resnet_9blocks',help='model type, e.g. mobile_resnet_9blocks')
-parser.add_argument('--img-size',default=256,type=int,help='square image size')
-parser.add_argument('--cpu',action='store_true',help='whether to export for CPU')
-parser.add_argument('--bw',action='store_true',help='whether input/output is bw')
+parser.add_argument(
+    "--model-in-file",
+    help="file path to generator model to export (.pth file)",
+    required=True,
+)
+parser.add_argument("--model-out-file", help="file path to exported model (.pt file)")
+parser.add_argument(
+    "--model-type",
+    default="mobile_resnet_9blocks",
+    help="model type, e.g. mobile_resnet_9blocks",
+)
+parser.add_argument("--img-size", default=256, type=int, help="square image size")
+parser.add_argument("--cpu", action="store_true", help="whether to export for CPU")
+parser.add_argument("--bw", action="store_true", help="whether input/output is bw")
 args = parser.parse_args()
 
 if not args.model_out_file:
-    model_out_file = args.model_in_file.replace('.pth','.pt')
+    model_out_file = args.model_in_file.replace(".pth", ".pt")
 else:
     model_out_file = args.model_out_file
 
@@ -39,14 +48,14 @@ model = networks.define_G(**vars(opt))
 
 if not args.cpu:
     model = model.cuda()
-    
+
 model.eval()
 model.load_state_dict(torch.load(args.model_in_file))
 
 if args.cpu:
-    device = 'cpu'
+    device = "cpu"
 else:
-    device = 'cuda'
+    device = "cuda"
 dummy_input = torch.randn(1, input_nc, args.img_size, args.img_size, device=device)
 jit_model = torch.jit.trace(model, dummy_input)
 jit_model.save(model_out_file)

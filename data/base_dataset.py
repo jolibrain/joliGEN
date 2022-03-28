@@ -16,6 +16,7 @@ import imgaug as ia
 import imgaug.augmenters as iaa
 import os
 
+
 class BaseDataset(data.Dataset, ABC):
     """This class is an abstract base class (ABC) for datasets.
 
@@ -67,83 +68,96 @@ class BaseDataset(data.Dataset, ABC):
             B_paths (str)    -- image paths
             A_label (tensor) -- mask label of image A
         """
-        A_img_path = self.A_img_paths[index % self.A_size]  # make sure index is within then range
-        if hasattr(self,'A_label_paths') :
+        A_img_path = self.A_img_paths[
+            index % self.A_size
+        ]  # make sure index is within then range
+        if hasattr(self, "A_label_paths"):
             A_label_path = self.A_label_paths[index % self.A_size]
         else:
             A_label_path = None
 
-        if hasattr(self,'B_img_paths') :
-            if self.opt.data_serial_batches:   # make sure index is within then range
+        if hasattr(self, "B_img_paths"):
+            if self.opt.data_serial_batches:  # make sure index is within then range
                 index_B = index % self.B_size
-            else:   # randomize the index for domain B to avoid fixed pairs.
+            else:  # randomize the index for domain B to avoid fixed pairs.
                 index_B = random.randint(0, self.B_size - 1)
-            
+
             B_img_path = self.B_img_paths[index_B]
 
-            if hasattr(self,'B_label_paths') and len(self.B_label_paths) > 0: # B label is optional
+            if (
+                hasattr(self, "B_label_paths") and len(self.B_label_paths) > 0
+            ):  # B label is optional
                 B_label_path = self.B_label_paths[index_B]
             else:
                 B_label_path = None
         else:
-            B_img_path=None
+            B_img_path = None
 
         if self.opt.data_relative_paths:
-            A_img_path = os.path.join(self.root,A_img_path)
+            A_img_path = os.path.join(self.root, A_img_path)
             if A_label_path is not None:
-                A_label_path = os.path.join(self.root,A_label_path)
-            B_img_path = os.path.join(self.root,B_img_path)
+                A_label_path = os.path.join(self.root, A_label_path)
+            B_img_path = os.path.join(self.root, B_img_path)
             if B_label_path is not None:
-                B_label_path = os.path.join(self.root,B_label_path)
+                B_label_path = os.path.join(self.root, B_label_path)
 
-        return self.get_img(A_img_path,A_label_path,B_img_path,B_label_path,index)
+        return self.get_img(A_img_path, A_label_path, B_img_path, B_label_path, index)
 
-    def get_validation_set(self,size):
+    def get_validation_set(self, size):
         return_A_list = []
         return_B_list = []
-        if not hasattr(self,'A_label_paths_val') :
+        if not hasattr(self, "A_label_paths_val"):
             A_label_paths_val = [None for k in range(size)]
         else:
             A_label_paths_val = self.A_label_paths_val
-        if not hasattr(self,'B_img_paths_val') :
+        if not hasattr(self, "B_img_paths_val"):
             self.B_img_paths_val = [None for k in range(size)]
-        if not hasattr(self,'B_label_paths_val') :
+        if not hasattr(self, "B_label_paths_val"):
             B_label_paths_val = [None for k in range(size)]
         else:
             B_label_paths_val = self.B_label_paths_val
 
-        for index,(A_img_path,A_label_path,B_img_path,B_label_path) in enumerate(zip(self.A_img_paths_val,A_label_paths_val,self.B_img_paths_val,B_label_paths_val)):
-            if len(return_A_list) >=size :
+        for index, (A_img_path, A_label_path, B_img_path, B_label_path) in enumerate(
+            zip(
+                self.A_img_paths_val,
+                A_label_paths_val,
+                self.B_img_paths_val,
+                B_label_paths_val,
+            )
+        ):
+            if len(return_A_list) >= size:
                 break
-            
-            if self.opt.data_relative_paths:
-                A_img_path = os.path.join(self.root,A_img_path)
-                if A_label_path is not None:
-                    A_label_path = os.path.join(self.root,A_label_path)
-                B_img_path = os.path.join(self.root,B_img_path)
-                if B_label_path is not None:
-                    B_label_path = os.path.join(self.root,B_label_path)
 
-            images=self.get_img(A_img_path,A_label_path,B_img_path,B_label_path,index)
+            if self.opt.data_relative_paths:
+                A_img_path = os.path.join(self.root, A_img_path)
+                if A_label_path is not None:
+                    A_label_path = os.path.join(self.root, A_label_path)
+                B_img_path = os.path.join(self.root, B_img_path)
+                if B_label_path is not None:
+                    B_label_path = os.path.join(self.root, B_label_path)
+
+            images = self.get_img(
+                A_img_path, A_label_path, B_img_path, B_label_path, index
+            )
             if images is not None:
-                return_A_list.append(images['A'].unsqueeze(0))
-                if 'B' in images:
-                    return_B_list.append(images['B'].unsqueeze(0))
+                return_A_list.append(images["A"].unsqueeze(0))
+                if "B" in images:
+                    return_B_list.append(images["B"].unsqueeze(0))
 
         return_A_list = torch.cat(return_A_list)
         if return_B_list[0] is not None:
             return_B_list = torch.cat(return_B_list)
 
-        return return_A_list,return_B_list
+        return return_A_list, return_B_list
 
 
 def get_params(opt, size):
     w, h = size
     new_h = h
     new_w = w
-    if opt.data_preprocess == 'resize_and_crop':
+    if opt.data_preprocess == "resize_and_crop":
         new_h = new_w = opt.data_load_size
-    elif opt.data_preprocess == 'scale_width_and_crop':
+    elif opt.data_preprocess == "scale_width_and_crop":
         new_w = opt.data_load_size
         new_h = opt.data_load_size * h // w
 
@@ -152,46 +166,69 @@ def get_params(opt, size):
 
     flip = random.random() > 0.5
 
-    return {'crop_pos': (x, y), 'flip': flip}
+    return {"crop_pos": (x, y), "flip": flip}
 
 
-def get_transform(opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC, convert=True,crop=True):
+def get_transform(
+    opt,
+    params=None,
+    grayscale=False,
+    method=InterpolationMode.BICUBIC,
+    convert=True,
+    crop=True,
+):
     transform_list = []
     if grayscale:
         transform_list.append(transforms.Grayscale(1))
-    if 'resize' in opt.data_preprocess:
+    if "resize" in opt.data_preprocess:
         osize = [opt.data_load_size, opt.data_load_size]
         transform_list.append(transforms.Resize(osize, interpolation=method))
-    elif 'scale_width' in opt.data_preprocess:
-        transform_list.append(transforms.Lambda(lambda img: __scale_width(img, opt.data_load_size, method)))
+    elif "scale_width" in opt.data_preprocess:
+        transform_list.append(
+            transforms.Lambda(
+                lambda img: __scale_width(img, opt.data_load_size, method)
+            )
+        )
 
-    if 'crop' in opt.data_preprocess and crop:
+    if "crop" in opt.data_preprocess and crop:
         if params is None:
             transform_list.append(transforms.RandomCrop(opt.data_crop_size))
         else:
-            transform_list.append(transforms.Lambda(lambda img: __crop(img, params['crop_pos'], opt.data_crop_size)))
+            transform_list.append(
+                transforms.Lambda(
+                    lambda img: __crop(img, params["crop_pos"], opt.data_crop_size)
+                )
+            )
 
-    if opt.data_preprocess == 'none':
-        transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method)))
+    if opt.data_preprocess == "none":
+        transform_list.append(
+            transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method))
+        )
 
     if not opt.dataaug_no_flip:
         if params is None:
             transform_list.append(transforms.RandomHorizontalFlip())
-        elif params['flip']:
-            transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
+        elif params["flip"]:
+            transform_list.append(
+                transforms.Lambda(lambda img: __flip(img, params["flip"]))
+            )
 
     if not opt.dataaug_no_rotate:
-        transform_list.append(transforms.RandomRotation([-90,180]))
+        transform_list.append(transforms.RandomRotation([-90, 180]))
 
     if opt.dataaug_affine:
-        transform_list.append(transforms.RandomAffine(0,(opt.dataaug_affine_translate, opt.dataaug_affine_translate),
-                                                      (opt.dataaug_affine_scale_min, opt.dataaug_affine_scale_max),
-                                                      (-opt.dataaug_affine_shear, opt.dataaug_affine_shear)))
-
+        transform_list.append(
+            transforms.RandomAffine(
+                0,
+                (opt.dataaug_affine_translate, opt.dataaug_affine_translate),
+                (opt.dataaug_affine_scale_min, opt.dataaug_affine_scale_max),
+                (-opt.dataaug_affine_shear, opt.dataaug_affine_shear),
+            )
+        )
 
     if opt.dataaug_imgaug and not grayscale:
         transform_list.append(RandomImgAug(with_mask=False))
-    
+
     if convert:
         transform_list += [transforms.ToTensor()]
         if grayscale:
@@ -214,7 +251,7 @@ def __make_power_2(img, base, method=InterpolationMode.BICUBIC):
 
 def __scale_width(img, target_width, method=InterpolationMode.BICUBIC):
     ow, oh = img.size
-    if (ow == target_width):
+    if ow == target_width:
         return img
     w = target_width
     h = int(target_width * oh / ow)
@@ -225,7 +262,7 @@ def __crop(img, pos, size):
     ow, oh = img.size
     x1, y1 = pos
     tw = th = size
-    if (ow > tw or oh > th):
+    if ow > tw or oh > th:
         return img.crop((x1, y1, x1 + tw, y1 + th))
     return img
 
@@ -238,34 +275,37 @@ def __flip(img, flip):
 
 def __print_size_warning(ow, oh, w, h):
     """Print warning information about image size(only print once)"""
-    if not hasattr(__print_size_warning, 'has_printed'):
-        print("The image size needs to be a multiple of 4. "
-              "The loaded image size was (%d, %d), so it was adjusted to "
-              "(%d, %d). This adjustment will be done to all images "
-              "whose sizes are not multiples of 4" % (ow, oh, w, h))
+    if not hasattr(__print_size_warning, "has_printed"):
+        print(
+            "The image size needs to be a multiple of 4. "
+            "The loaded image size was (%d, %d), so it was adjusted to "
+            "(%d, %d). This adjustment will be done to all images "
+            "whose sizes are not multiples of 4" % (ow, oh, w, h)
+        )
         __print_size_warning.has_printed = True
 
 
+def get_transform_seg(
+    opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC
+):
 
-def get_transform_seg(opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC):
-    
     transform_list = []
-    print('method seg',method)
-    
+    print("method seg", method)
+
     if grayscale:
         transform_list.append(GrayscaleMask(1))
 
-    if 'resize' in opt.data_preprocess:
+    if "resize" in opt.data_preprocess:
         osize = [opt.data_load_size, opt.data_load_size]
         transform_list.append(ResizeMask(osize, interpolation=method))
-        
-    if 'crop' in opt.data_preprocess:
+
+    if "crop" in opt.data_preprocess:
         transform_list.append(RandomCropMask(opt.data_crop_size))
 
     if opt.dataaug_imgaug:
         if not grayscale:
             transform_list.append(RandomImgAug())
-        
+
     if not opt.dataaug_no_flip:
         transform_list.append(RandomHorizontalFlipMask())
 
@@ -274,18 +314,22 @@ def get_transform_seg(opt, params=None, grayscale=False, method=InterpolationMod
 
     if opt.dataaug_affine:
         raff = RandomAffineMask(degrees=0)
-        raff.set_params(opt.dataaug_affine,opt.dataaug_affine_translate,
-                        opt.dataaug_affine_scale_min,opt.dataaug_affine_scale_max,
-                        opt.dataaug_affine_shear)
+        raff.set_params(
+            opt.dataaug_affine,
+            opt.dataaug_affine_translate,
+            opt.dataaug_affine_scale_min,
+            opt.dataaug_affine_scale_max,
+            opt.dataaug_affine_shear,
+        )
         transform_list.append(raff)
-        
+
     transform_list += [ToTensorMask()]
-    
+
     if grayscale:
         transform_list += [NormalizeMask((0.5,), (0.5,))]
     else:
         transform_list += [NormalizeMask((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-        
+
     return ComposeMask(transform_list)
 
 
@@ -302,10 +346,10 @@ class ComposeMask(transforms.Compose):
         >>> ])
     """
 
-    def __call__(self, img,mask):
+    def __call__(self, img, mask):
         for t in self.transforms:
-            img,mask = t(img,mask)
-        return img,mask
+            img, mask = t(img, mask)
+        return img, mask
 
 
 class GrayscaleMask(transforms.Grayscale):
@@ -332,10 +376,12 @@ class GrayscaleMask(transforms.Grayscale):
         Returns:
             PIL Image: Randomly grayscaled image.
         """
-        return F.to_grayscale(img, num_output_channels=self.num_output_channels),mask
+        return F.to_grayscale(img, num_output_channels=self.num_output_channels), mask
 
     def __repr__(self):
-        return self.__class__.__name__ + '(num_output_channels={0})'.format(self.num_output_channels)
+        return self.__class__.__name__ + "(num_output_channels={0})".format(
+            self.num_output_channels
+        )
 
 
 class ResizeMask(transforms.Resize):
@@ -350,7 +396,8 @@ class ResizeMask(transforms.Resize):
         interpolation (int, optional): Desired interpolation. Default is
             ``PIL.Image.BILINEAR``
     """
-    def __call__(self, img,mask):
+
+    def __call__(self, img, mask):
         """
         Args:
             img (PIL Image): Image to be scaled.
@@ -358,7 +405,9 @@ class ResizeMask(transforms.Resize):
         Returns:
             PIL Image: Rescaled image.
         """
-        return F.resize(img, self.size, interpolation=self.interpolation),F.resize(mask, self.size, interpolation=InterpolationMode.NEAREST)
+        return F.resize(img, self.size, interpolation=self.interpolation), F.resize(
+            mask, self.size, interpolation=InterpolationMode.NEAREST
+        )
 
 
 class RandomCropMask(transforms.RandomCrop):
@@ -396,7 +445,8 @@ class RandomCropMask(transforms.RandomCrop):
                 will result in [2, 1, 1, 2, 3, 4, 4, 3]
 
     """
-    def __call__(self, img,mask):
+
+    def __call__(self, img, mask):
         """
         Args:
             img (PIL Image): Image to be cropped.
@@ -409,14 +459,18 @@ class RandomCropMask(transforms.RandomCrop):
 
         # pad the width if needed
         if self.pad_if_needed and img.size[0] < self.size[1]:
-            img = F.pad(img, (self.size[1] - img.size[0], 0), self.fill, self.padding_mode)
+            img = F.pad(
+                img, (self.size[1] - img.size[0], 0), self.fill, self.padding_mode
+            )
         # pad the height if needed
         if self.pad_if_needed and img.size[1] < self.size[0]:
-            img = F.pad(img, (0, self.size[0] - img.size[1]), self.fill, self.padding_mode)
+            img = F.pad(
+                img, (0, self.size[0] - img.size[1]), self.fill, self.padding_mode
+            )
 
         i, j, h, w = self.get_params(img, self.size)
 
-        return F.crop(img, i, j, h, w),F.crop(mask, i, j, h, w)
+        return F.crop(img, i, j, h, w), F.crop(mask, i, j, h, w)
 
 
 class RandomHorizontalFlipMask(transforms.RandomHorizontalFlip):
@@ -435,8 +489,9 @@ class RandomHorizontalFlipMask(transforms.RandomHorizontalFlip):
             PIL Image: Randomly flipped image.
         """
         if random.random() < self.p:
-            return F.hflip(img),F.hflip(mask)
-        return img,mask
+            return F.hflip(img), F.hflip(mask)
+        return img, mask
+
 
 class ToTensorMask(transforms.ToTensor):
     """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor.
@@ -449,7 +504,7 @@ class ToTensorMask(transforms.ToTensor):
     In the other cases, tensors are returned without scaling.
     """
 
-    def __call__(self, img,mask):
+    def __call__(self, img, mask):
         """
         Args:
             pic (PIL Image or numpy.ndarray): Image to be converted to tensor.
@@ -457,7 +512,10 @@ class ToTensorMask(transforms.ToTensor):
         Returns:
             Tensor: Converted image.
         """
-        return F.to_tensor(img),torch.from_numpy(np.array(mask,dtype=np.int64)).unsqueeze(0)
+        return F.to_tensor(img), torch.from_numpy(
+            np.array(mask, dtype=np.int64)
+        ).unsqueeze(0)
+
 
 class RandomRotationMask(transforms.RandomRotation):
     """Rotate the image by angle.
@@ -482,6 +540,7 @@ class RandomRotationMask(transforms.RandomRotation):
     .. _filters: https://pillow.readthedocs.io/en/latest/handbook/concepts.html#filters
 
     """
+
     @staticmethod
     def get_params(degrees):
         """Get parameters for ``rotate`` for a random rotation.
@@ -493,7 +552,7 @@ class RandomRotationMask(transforms.RandomRotation):
 
         return angle
 
-    def __call__(self, img,mask):
+    def __call__(self, img, mask):
         """
         Args:
             img (PIL Image): Image to be rotated.
@@ -501,9 +560,10 @@ class RandomRotationMask(transforms.RandomRotation):
         Returns:
             PIL Image: Rotated image.
         """
-        angle = random.choice([0,90,180,270])
-        
-        return F.rotate(img, angle),F.rotate(mask, angle,fill=(0,))
+        angle = random.choice([0, 90, 180, 270])
+
+        return F.rotate(img, angle), F.rotate(mask, angle, fill=(0,))
+
 
 class NormalizeMask(transforms.Normalize):
     """Normalize a tensor image with mean and standard deviation.
@@ -521,7 +581,7 @@ class NormalizeMask(transforms.Normalize):
 
     """
 
-    def __call__(self, tensor_img,tensor_mask):
+    def __call__(self, tensor_img, tensor_mask):
         """
         Args:
             tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
@@ -529,86 +589,120 @@ class NormalizeMask(transforms.Normalize):
         Returns:
             Tensor: Normalized Tensor image.
         """
-        return F.normalize(tensor_img, self.mean, self.std, self.inplace),tensor_mask
-
+        return F.normalize(tensor_img, self.mean, self.std, self.inplace), tensor_mask
 
     def __repr__(self):
-        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+        return self.__class__.__name__ + "(mean={0}, std={1})".format(
+            self.mean, self.std
+        )
 
 
 class RandomAffineMask(transforms.RandomAffine):
-    """Apply random affine transform
-    """
+    """Apply random affine transform"""
 
-    def set_params(self,p,translate,scale_min,scale_max,shear):
+    def set_params(self, p, translate, scale_min, scale_max, shear):
         self.p = p
         self.translate = translate
         self.scale_min = scale_min
         self.scale_max = scale_max
         self.shear = shear
-    
+
     def __call__(self, img, mask):
 
-        if random.random() > 1.0-self.p:
-            affine_params = self.get_params((0, 0), (self.translate, self.translate),
-                                            (self.scale_min, self.scale_max), (-self.shear, self.shear),
-                                            img.size)
+        if random.random() > 1.0 - self.p:
+            affine_params = self.get_params(
+                (0, 0),
+                (self.translate, self.translate),
+                (self.scale_min, self.scale_max),
+                (-self.shear, self.shear),
+                img.size,
+            )
             return F.affine(img, *affine_params), F.affine(mask, *affine_params)
         else:
             return img, mask
 
+
 def sometimes(aug):
     return iaa.Sometimes(0.5, aug)
-    
-class RandomImgAug():
 
-    def __init__(self,with_mask=True):
+
+class RandomImgAug:
+    def __init__(self, with_mask=True):
         self.with_mask = with_mask
         self.seq = iaa.Sequential(
             [
-            iaa.SomeOf((0, 5),
-                [
-                    sometimes(iaa.Superpixels(p_replace=(0, 0.5), n_segments=(100, 200))), # convert images into their superpixel representation
-                    iaa.OneOf([
-                        iaa.GaussianBlur((0, 3.0)), # blur images with a sigma between 0 and 3.0
-                        iaa.AverageBlur(k=(2, 7)), # blur image using local means with kernel sizes between 2 and 7
-                        iaa.MedianBlur(k=(3, 11)), # blur image using local medians with kernel sizes between 2 and 7
-                    ]),
-                    iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.5)), # sharpen images
-                    iaa.Emboss(alpha=(0, 1.0), strength=(0, 2.0)), # emboss images
-                    # search either for all edges or for directed edges,
-                    # blend the result with the original image using a blobby mask
-                    iaa.SimplexNoiseAlpha(iaa.OneOf([
-                        iaa.EdgeDetect(alpha=(0.5, 1.0)),
-                        iaa.DirectedEdgeDetect(alpha=(0.5, 1.0), direction=(0.0, 1.0)),
-                    ])),
-                    iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05*255), per_channel=0.5), # add gaussian noise to images
-                    #iaa.OneOf([
-                    #    iaa.Dropout((0.01, 0.1), per_channel=0.5), # randomly remove up to 10% of the pixels
-                    #    iaa.CoarseDropout((0.03, 0.15), size_percent=(0.02, 0.05), per_channel=0.2),
-                    #]),
-                    iaa.Invert(0.05, per_channel=True), # invert color channels
-                    iaa.Add((-5, 5), per_channel=0.5), # change brightness of images
-                    iaa.AddToHueAndSaturation((-20, 20)), # change hue and saturation
-                    # either change the brightness of the whole image (sometimes
-                    # per channel) or change the brightness of subareas
-                    iaa.OneOf([
-                        iaa.Multiply((0.5, 1.5), per_channel=0.5),
-                        iaa.FrequencyNoiseAlpha(
-                            exponent=(-4, 0),
-                            first=iaa.Multiply((0.5, 1.5), per_channel=True),
-                            second=iaa.LinearContrast((0.5, 2.0))
-                        )
-                    ]),
-                    iaa.LinearContrast((0.5, 2.0), per_channel=0.5), # improve or worsen the contrast
-                    iaa.Grayscale(alpha=(0.0, 1.0))
-                ],
-                random_order=True
-            )
-        ],
-        random_order=True
-    )
-    
+                iaa.SomeOf(
+                    (0, 5),
+                    [
+                        sometimes(
+                            iaa.Superpixels(p_replace=(0, 0.5), n_segments=(100, 200))
+                        ),  # convert images into their superpixel representation
+                        iaa.OneOf(
+                            [
+                                iaa.GaussianBlur(
+                                    (0, 3.0)
+                                ),  # blur images with a sigma between 0 and 3.0
+                                iaa.AverageBlur(
+                                    k=(2, 7)
+                                ),  # blur image using local means with kernel sizes between 2 and 7
+                                iaa.MedianBlur(
+                                    k=(3, 11)
+                                ),  # blur image using local medians with kernel sizes between 2 and 7
+                            ]
+                        ),
+                        iaa.Sharpen(
+                            alpha=(0, 1.0), lightness=(0.75, 1.5)
+                        ),  # sharpen images
+                        iaa.Emboss(alpha=(0, 1.0), strength=(0, 2.0)),  # emboss images
+                        # search either for all edges or for directed edges,
+                        # blend the result with the original image using a blobby mask
+                        iaa.SimplexNoiseAlpha(
+                            iaa.OneOf(
+                                [
+                                    iaa.EdgeDetect(alpha=(0.5, 1.0)),
+                                    iaa.DirectedEdgeDetect(
+                                        alpha=(0.5, 1.0), direction=(0.0, 1.0)
+                                    ),
+                                ]
+                            )
+                        ),
+                        iaa.AdditiveGaussianNoise(
+                            loc=0, scale=(0.0, 0.05 * 255), per_channel=0.5
+                        ),  # add gaussian noise to images
+                        # iaa.OneOf([
+                        #    iaa.Dropout((0.01, 0.1), per_channel=0.5), # randomly remove up to 10% of the pixels
+                        #    iaa.CoarseDropout((0.03, 0.15), size_percent=(0.02, 0.05), per_channel=0.2),
+                        # ]),
+                        iaa.Invert(0.05, per_channel=True),  # invert color channels
+                        iaa.Add(
+                            (-5, 5), per_channel=0.5
+                        ),  # change brightness of images
+                        iaa.AddToHueAndSaturation(
+                            (-20, 20)
+                        ),  # change hue and saturation
+                        # either change the brightness of the whole image (sometimes
+                        # per channel) or change the brightness of subareas
+                        iaa.OneOf(
+                            [
+                                iaa.Multiply((0.5, 1.5), per_channel=0.5),
+                                iaa.FrequencyNoiseAlpha(
+                                    exponent=(-4, 0),
+                                    first=iaa.Multiply((0.5, 1.5), per_channel=True),
+                                    second=iaa.LinearContrast((0.5, 2.0)),
+                                ),
+                            ]
+                        ),
+                        iaa.LinearContrast(
+                            (0.5, 2.0), per_channel=0.5
+                        ),  # improve or worsen the contrast
+                        iaa.Grayscale(alpha=(0.0, 1.0)),
+                    ],
+                    random_order=True,
+                )
+            ],
+            random_order=True,
+        )
+
     def __call__(self, img, mask):
         tarr = self.seq(image=np.array(img))
         nimg = Image.fromarray(tarr)
@@ -616,22 +710,26 @@ class RandomImgAug():
             return nimg, mask
         else:
             return nimg
-        
+
+
 ################################################################
 
-def get_transform_list(opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC):
-    
+
+def get_transform_list(
+    opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC
+):
+
     transform_list = []
-    print('method seg',method)
-    
+    print("method seg", method)
+
     if grayscale:
         transform_list.append(GrayscaleMaskList(1))
 
-    if 'resize' in opt.data_preprocess:
+    if "resize" in opt.data_preprocess:
         osize = [opt.data_load_size, opt.data_load_size]
         transform_list.append(ResizeMaskList(osize, interpolation=method))
-        
-    if 'crop' in opt.data_preprocess:
+
+    if "crop" in opt.data_preprocess:
         transform_list.append(RandomCropMaskList(opt.data_crop_size))
 
     if not opt.dataaug_no_flip:
@@ -642,11 +740,15 @@ def get_transform_list(opt, params=None, grayscale=False, method=InterpolationMo
 
     if opt.dataaug_affine:
         raff = RandomAffineMaskList(degrees=0)
-        raff.set_params(opt.dataaug_affine,opt.dataaug_affine_translate,
-                        opt.dataaug_affine_scale_min,opt.dataaug_affine_scale_max,
-                        opt.dataaug_affine_shear)
+        raff.set_params(
+            opt.dataaug_affine,
+            opt.dataaug_affine_translate,
+            opt.dataaug_affine_scale_min,
+            opt.dataaug_affine_scale_max,
+            opt.dataaug_affine_shear,
+        )
         transform_list.append(raff)
-        
+
     transform_list += [ToTensorMaskList()]
 
     if grayscale:
@@ -670,10 +772,10 @@ class ComposeMaskList(transforms.Compose):
         >>> ])
     """
 
-    def __call__(self, imgs,masks=None):
+    def __call__(self, imgs, masks=None):
         for t in self.transforms:
-            imgs,masks = t(imgs,masks)
-        return imgs,masks
+            imgs, masks = t(imgs, masks)
+        return imgs, masks
 
 
 class GrayscaleMaskList(transforms.Grayscale):
@@ -700,14 +802,18 @@ class GrayscaleMaskList(transforms.Grayscale):
         Returns:
             PIL Image: Randomly grayscaled image.
         """
-        return_imgs=[]
+        return_imgs = []
         for img in imgs:
-            return_imgs.append(F.to_grayscale(img, num_output_channels=self.num_output_channels))
-            
-        return return_imgs,masks
+            return_imgs.append(
+                F.to_grayscale(img, num_output_channels=self.num_output_channels)
+            )
+
+        return return_imgs, masks
 
     def __repr__(self):
-        return self.__class__.__name__ + '(num_output_channels={0})'.format(self.num_output_channels)
+        return self.__class__.__name__ + "(num_output_channels={0})".format(
+            self.num_output_channels
+        )
 
 
 class ResizeMaskList(transforms.Resize):
@@ -722,7 +828,8 @@ class ResizeMaskList(transforms.Resize):
         interpolation (int, optional): Desired interpolation. Default is
             ``PIL.Image.BILINEAR``
     """
-    def __call__(self, imgs,masks):
+
+    def __call__(self, imgs, masks):
         """
         Args:
             img (PIL Image): Image to be scaled.
@@ -730,17 +837,21 @@ class ResizeMaskList(transforms.Resize):
         Returns:
             PIL Image: Rescaled image.
         """
-        return_imgs=[]
-        return_masks=[]
-        
+        return_imgs = []
+        return_masks = []
+
         for img in imgs:
-            return_imgs.append(F.resize(img, self.size, interpolation=self.interpolation))
+            return_imgs.append(
+                F.resize(img, self.size, interpolation=self.interpolation)
+            )
         if masks is None:
             return masks
         else:
             for mask in masks:
-                return_masks.append(F.resize(mask, self.size, interpolation=InterpolationMode.NEAREST))
-            return return_imgs,return_masks
+                return_masks.append(
+                    F.resize(mask, self.size, interpolation=InterpolationMode.NEAREST)
+                )
+            return return_imgs, return_masks
 
 
 class RandomCropMaskList(transforms.RandomCrop):
@@ -778,7 +889,8 @@ class RandomCropMaskList(transforms.RandomCrop):
                 will result in [2, 1, 1, 2, 3, 4, 4, 3]
 
     """
-    def __call__(self, imgs,masks):
+
+    def __call__(self, imgs, masks):
         """
         Args:
             img (PIL Image): Image to be cropped.
@@ -786,28 +898,31 @@ class RandomCropMaskList(transforms.RandomCrop):
         Returns:
             PIL Image: Cropped image.
         """
-        return_imgs,return_masks=[],[]
+        return_imgs, return_masks = [], []
         for img in imgs:
             if self.padding is not None:
                 img = F.pad(img, self.padding, self.fill, self.padding_mode)
-                
+
             # pad the width if needed
             if self.pad_if_needed and img.size[0] < self.size[1]:
-                img = F.pad(img, (self.size[1] - img.size[0], 0), self.fill, self.padding_mode)
+                img = F.pad(
+                    img, (self.size[1] - img.size[0], 0), self.fill, self.padding_mode
+                )
             # pad the height if needed
             if self.pad_if_needed and img.size[1] < self.size[0]:
-                img = F.pad(img, (0, self.size[0] - img.size[1]), self.fill, self.padding_mode)
+                img = F.pad(
+                    img, (0, self.size[0] - img.size[1]), self.fill, self.padding_mode
+                )
 
             i, j, h, w = self.get_params(img, self.size)
 
-            
             return_imgs.append(F.crop(img, i, j, h, w))
         if masks is None:
             return_masks = None
         else:
             for mask in masks:
                 return_masks.append(F.crop(mask, i, j, h, w))
-        return return_imgs,return_masks
+        return return_imgs, return_masks
 
 
 class RandomHorizontalFlipMaskList(transforms.RandomHorizontalFlip):
@@ -826,7 +941,7 @@ class RandomHorizontalFlipMaskList(transforms.RandomHorizontalFlip):
             PIL Image: Randomly flipped image.
         """
         if random.random() < self.p:
-            return_imgs,return_masks=[],[]
+            return_imgs, return_masks = [], []
             for img in imgs:
                 return_imgs.append(F.hflip(img))
             if masks is not None:
@@ -834,10 +949,11 @@ class RandomHorizontalFlipMaskList(transforms.RandomHorizontalFlip):
                     return_masks.append(F.hflip(mask))
             else:
                 return_masks = None
-                    
-            return return_imgs,return_masks
+
+            return return_imgs, return_masks
         else:
-            return imgs,masks
+            return imgs, masks
+
 
 class ToTensorMaskList(transforms.ToTensor):
     """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor.
@@ -850,7 +966,7 @@ class ToTensorMaskList(transforms.ToTensor):
     In the other cases, tensors are returned without scaling.
     """
 
-    def __call__(self, imgs,masks):
+    def __call__(self, imgs, masks):
         """
         Args:
             pic (PIL Image or numpy.ndarray): Image to be converted to tensor.
@@ -858,15 +974,18 @@ class ToTensorMaskList(transforms.ToTensor):
         Returns:
             Tensor: Converted image.
         """
-        return_imgs,return_masks=[],[]
+        return_imgs, return_masks = [], []
         for img in imgs:
             return_imgs.append(F.to_tensor(img))
         if masks is not None:
             for mask in masks:
-                return_masks.append(torch.from_numpy(np.array(mask,dtype=np.int64)).unsqueeze(0))
+                return_masks.append(
+                    torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
+                )
         else:
             return_masks = None
-        return return_imgs,return_masks
+        return return_imgs, return_masks
+
 
 class RandomRotationMaskList(transforms.RandomRotation):
     """Rotate the image by angle.
@@ -891,6 +1010,7 @@ class RandomRotationMaskList(transforms.RandomRotation):
     .. _filters: https://pillow.readthedocs.io/en/latest/handbook/concepts.html#filters
 
     """
+
     @staticmethod
     def get_params(degrees):
         """Get parameters for ``rotate`` for a random rotation.
@@ -902,7 +1022,7 @@ class RandomRotationMaskList(transforms.RandomRotation):
 
         return angle
 
-    def __call__(self, imgs,masks):
+    def __call__(self, imgs, masks):
         """
         Args:
             img (PIL Image): Image to be rotated.
@@ -910,18 +1030,19 @@ class RandomRotationMaskList(transforms.RandomRotation):
         Returns:
             PIL Image: Rotated image.
         """
-        angle = random.choice([0,90,180,270])
+        angle = random.choice([0, 90, 180, 270])
 
-        return_imgs,return_masks=[],[]
+        return_imgs, return_masks = [], []
         for img in imgs:
             return_imgs.append(F.rotate(img, angle))
         if masks is not None:
             for mask in masks:
-                return_masks.append(F.rotate(mask, angle,fill=(0,)))
+                return_masks.append(F.rotate(mask, angle, fill=(0,)))
         else:
             return_masks = None
 
-        return return_imgs,return_masks
+        return return_imgs, return_masks
+
 
 class NormalizeMaskList(transforms.Normalize):
     """Normalize a tensor image with mean and standard deviation.
@@ -939,7 +1060,7 @@ class NormalizeMaskList(transforms.Normalize):
 
     """
 
-    def __call__(self, tensor_imgs,tensor_masks):
+    def __call__(self, tensor_imgs, tensor_masks):
         """
         Args:
             tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
@@ -948,35 +1069,41 @@ class NormalizeMaskList(transforms.Normalize):
             Tensor: Normalized Tensor image.
         """
 
-        return_imgs,return_masks=[],[]
+        return_imgs, return_masks = [], []
         for tensor_img in tensor_imgs:
-            return_imgs.append(F.normalize(tensor_img, self.mean, self.std, self.inplace))
-        
-        return return_imgs,tensor_masks
+            return_imgs.append(
+                F.normalize(tensor_img, self.mean, self.std, self.inplace)
+            )
 
+        return return_imgs, tensor_masks
 
     def __repr__(self):
-        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+        return self.__class__.__name__ + "(mean={0}, std={1})".format(
+            self.mean, self.std
+        )
 
 
 class RandomAffineMaskList(transforms.RandomAffine):
-    """Apply random affine transform
-    """
+    """Apply random affine transform"""
 
-    def set_params(self,p,translate,scale_min,scale_max,shear):
+    def set_params(self, p, translate, scale_min, scale_max, shear):
         self.p = p
         self.translate = translate
         self.scale_min = scale_min
         self.scale_max = scale_max
         self.shear = shear
-    
+
     def __call__(self, imgs, masks):
 
-        if random.random() > 1.0-self.p:
-            affine_params = self.get_params((0, 0), (self.translate, self.translate),
-                                            (self.scale_min, self.scale_max), (-self.shear, self.shear),
-                                            img.size)
-            return_imgs,return_masks=[],[]
+        if random.random() > 1.0 - self.p:
+            affine_params = self.get_params(
+                (0, 0),
+                (self.translate, self.translate),
+                (self.scale_min, self.scale_max),
+                (-self.shear, self.shear),
+                img.size,
+            )
+            return_imgs, return_masks = [], []
             for img in imgs:
                 return_imgs.append(F.affine(img, *affine_params))
             if masks is not None:
@@ -984,7 +1111,7 @@ class RandomAffineMaskList(transforms.RandomAffine):
                     return_masks.append(F.affine(mask, *affine_params))
             else:
                 return_masks = None
-                
+
             return return_imgs, return_masks
         else:
             return imgs, masks

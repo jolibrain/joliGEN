@@ -5,62 +5,62 @@ import numpy as np
 from PIL import Image
 import os
 
+
 def display_mask(mask):
-    dict_col =np.array(
+    dict_col = np.array(
         [
-            [0,0,0],
-            [0,255,0],
-            [255,0,0],
-            [0,0,255],
-            [255,255,255],
-            [96,96,96],
-            [253,96,96],
-            [255,255,0],
-            [237,127,16],
-            [102,0,153],
+            [0, 0, 0],
+            [0, 255, 0],
+            [255, 0, 0],
+            [0, 0, 255],
+            [255, 255, 255],
+            [96, 96, 96],
+            [253, 96, 96],
+            [255, 255, 0],
+            [237, 127, 16],
+            [102, 0, 153],
         ]
     )
 
-    dict_col =np.array(
+    dict_col = np.array(
         [
-            [0,0,0], #black        
-            [0,255,0],#green
-            [255,0,0],#red
-            [0,0,255],#blue
-            [0,255,255],#cyan
-            [255,255,255],#white
-            [96,96,96], #grey
-            [255,255,0],#yellow
-            [237,127,16],#orange
-            [102,0,153],#purple
-            [88,41,0], #brown
-            [253,108,158],#pink
-            [128,0,0],#maroon
-            [255,0,255],
-            [255,0,127],
-            [0,128,255],
-            [0,102,51],#17
-            [192,192,192],
-            [128,128,0],
-            [84, 151, 120]
-
+            [0, 0, 0],  # black
+            [0, 255, 0],  # green
+            [255, 0, 0],  # red
+            [0, 0, 255],  # blue
+            [0, 255, 255],  # cyan
+            [255, 255, 255],  # white
+            [96, 96, 96],  # grey
+            [255, 255, 0],  # yellow
+            [237, 127, 16],  # orange
+            [102, 0, 153],  # purple
+            [88, 41, 0],  # brown
+            [253, 108, 158],  # pink
+            [128, 0, 0],  # maroon
+            [255, 0, 255],
+            [255, 0, 127],
+            [0, 128, 255],
+            [0, 102, 51],  # 17
+            [192, 192, 192],
+            [128, 128, 0],
+            [84, 151, 120],
         ]
     )
-    
-    try :
-        len(mask.shape)==2
+
+    try:
+        len(mask.shape) == 2
     except AssertionError:
-        print('Mask\'s shape is not 2')
-    mask_dis = np.zeros((mask.shape[0],mask.shape[1],3))
-    #print('mask_dis shape',mask_dis.shape)
+        print("Mask's shape is not 2")
+    mask_dis = np.zeros((mask.shape[0], mask.shape[1], 3))
+    # print('mask_dis shape',mask_dis.shape)
     for i in range(mask.shape[0]):
         for j in range(mask.shape[0]):
-            mask_dis[i,j,:] = dict_col[mask[i,j]]
+            mask_dis[i, j, :] = dict_col[mask[i, j]]
     return mask_dis
 
 
 def tensor2im(input_image, imtype=np.uint8):
-    """"Converts a Tensor array into a numpy image array.
+    """ "Converts a Tensor array into a numpy image array.
 
     Parameters:
         input_image (tensor) --  the input image tensor array
@@ -71,13 +71,17 @@ def tensor2im(input_image, imtype=np.uint8):
             image_tensor = input_image.data
         else:
             return input_image
-        image_numpy = image_tensor[0].cpu().float().numpy()  # convert it into a numpy array nb : the first image of the batch is displayed
+        image_numpy = (
+            image_tensor[0].cpu().float().numpy()
+        )  # convert it into a numpy array nb : the first image of the batch is displayed
         if image_numpy.shape[0] == 1:  # grayscale to RGB
             image_numpy = np.tile(image_numpy, (3, 1, 1))
-        if len(image_numpy.shape)!=2: # it is an image
-            image_numpy.clip(-1,1)
-            image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0  # post-processing: transpose and scaling
-        else : # it is  a mask
+        if len(image_numpy.shape) != 2:  # it is an image
+            image_numpy.clip(-1, 1)
+            image_numpy = (
+                (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
+            )  # post-processing: transpose and scaling
+        else:  # it is  a mask
             image_numpy = image_numpy.astype(np.uint8)
             image_numpy = display_mask(image_numpy)
     else:  # if it is a numpy array, do nothing
@@ -85,7 +89,7 @@ def tensor2im(input_image, imtype=np.uint8):
     return image_numpy.astype(imtype)
 
 
-def diagnose_network(net, name='network'):
+def diagnose_network(net, name="network"):
     """Calculate and print the mean of average absolute(gradients)
 
     Parameters:
@@ -131,11 +135,13 @@ def print_numpy(x, val=True, shp=False):
     """
     x = x.astype(np.float64)
     if shp:
-        print('shape,', x.shape)
+        print("shape,", x.shape)
     if val:
         x = x.flatten()
-        print('mean = %3.3f, min = %3.3f, max = %3.3f, median = %3.3f, std=%3.3f' % (
-            np.mean(x), np.min(x), np.max(x), np.median(x), np.std(x)))
+        print(
+            "mean = %3.3f, min = %3.3f, max = %3.3f, median = %3.3f, std=%3.3f"
+            % (np.mean(x), np.min(x), np.max(x), np.median(x), np.std(x))
+        )
 
 
 def mkdirs(paths):
@@ -160,19 +166,23 @@ def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
+
 def gaussian(in_tensor, stddev):
-    noisy_image = torch.normal(0, stddev, size=in_tensor.size()).to(in_tensor.device) + in_tensor
+    noisy_image = (
+        torch.normal(0, stddev, size=in_tensor.size()).to(in_tensor.device) + in_tensor
+    )
     return noisy_image
 
 
 def str2bool(v):
     if isinstance(v, bool):
         return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+    if v.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
 
 MAX_INT = 1000000000

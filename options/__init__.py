@@ -4,6 +4,7 @@ from .base_options import BaseOptions
 from .train_options import TrainOptions
 from models import get_models_names, get_option_setter
 
+
 def get_parser():
     """
     Create parser for documentation
@@ -12,6 +13,7 @@ def get_parser():
     bo = BaseOptions()
     parser = bo.initialize(parser)
     return parser
+
 
 def get_models_parsers():
     """
@@ -31,4 +33,3 @@ def get_models_parsers():
             pass
 
     return model_parsers
-
