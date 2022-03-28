@@ -1,0 +1,33 @@
+name: GitHub Actions Demo
+on: 
+  push:
+    branches: [master]
+jobs:
+  Explore-GitHub-Actions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8 #install the python needed
+      - name : checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+      - name: Update submodules
+        run: git submodule update --init --recursive
+      - name : install req
+        run: pip install -r  ./.github/workflows/requirements_github_actions.txt	
+      - name : update
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+      - name : run script
+        run: python ./scripts/generate_doc.py
+      - name : push
+        run : |
+          git config user.name github-actions-jg
+          git config user.email contact@jolibrain.com
+          git add .
+          git diff-index --quiet HEAD || (git commit -m "doc: options auto update" && git push)
+

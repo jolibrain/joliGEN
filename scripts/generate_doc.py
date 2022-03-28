@@ -6,7 +6,9 @@ import argparse
 from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
 import logging
 
-sys.path.append('../')
+jg_dir=os.path.join("/".join(os.path.abspath(__file__).split("/")[:-2]))
+sys.path.append(jg_dir)
+
 import options as opt
 
 def main():
@@ -36,6 +38,10 @@ Here are all the available options to call with `train.py`
 
     print(options_md)
 
+    path_sv = os.path.join(jg_dir,'docs','options.md')
+    with open(path_sv,'w+') as file:
+        file.writelines(options_md)
+    
 # ====
 
 # inspired by https://github.com/alex-rudakov/sphinx-argparse/blob/master/sphinxarg/parser.py (v0.2.5)

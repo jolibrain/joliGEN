@@ -1,7 +1,5 @@
 import os
-from mmseg.models import build_segmentor
 from torch import nn
-import mmcv
 
 from models.modules.resnet_architecture.resnet_generator import ResnetDecoder
 from models.modules.attn_network import BaseGenerator_attn
@@ -11,10 +9,12 @@ from models.modules.mobile_modules import SeparableConv2d
 class Segformer(nn.Module):
     def __init__(self,jg_dir,G_config_segformer,img_size,num_classes=10,final_conv=False):
         super().__init__()
+        import mmcv
         cfg = mmcv.Config.fromfile(os.path.join(jg_dir,G_config_segformer))
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
         cfg.model.decode_head.num_classes = num_classes
+        from mmseg.models import build_segmentor
         self.net = build_segmentor(cfg.model, train_cfg=None, test_cfg=cfg.get('test_cfg'))
 
         configure_encoder_decoder(self.net)
@@ -48,6 +48,7 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         self.use_final_conv = final_conv
         self.tanh = nn.Tanh()
 
+        import mmcv
         cfg = mmcv.Config.fromfile(os.path.join(jg_dir,G_config_segformer))
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
@@ -58,6 +59,7 @@ class SegformerGenerator_attn(BaseGenerator_attn):
             num_cls = 3*(self.nb_mask_attn-self.nb_mask_input)
         cfg.model.decode_head.num_classes = num_cls
         cfg.model.auxiliary_head.num_classes = self.nb_mask_attn
+        from mmseg.models import build_segmentor
         self.segformer = build_segmentor(cfg.model, train_cfg=None, test_cfg=cfg.get('test_cfg'))
         self.segformer.train()
         self.softmax_ = nn.Softmax(dim=1)
