@@ -33,7 +33,7 @@ json_like_dict={
 }
 
 models_semantic_mask=[
-#    "cycle_gan_semantic_mask",
+    "cycle_gan_semantic_mask",
     "cut_semantic_mask",
 ]
 
