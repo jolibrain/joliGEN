@@ -1,6 +1,3 @@
-from mmseg.models.utils import nlc_to_nchw
-from mmseg.ops import resize
-
 def configure_compute_feat_mit(obj):
     def compute_feat_mit(x, extract_layer_ids=[]):
         outs = []
@@ -11,6 +8,7 @@ def configure_compute_feat_mit(obj):
             for block in layer[1]:
                 x = block(x, hw_shape)
             x = layer[2](x)
+            from mmseg.models.utils import nlc_to_nchw
             x = nlc_to_nchw(x, hw_shape)
             if i in obj.out_indices:
                 outs.append(x)
@@ -38,6 +36,7 @@ def configure_decode_encoder_encoder(obj):
         map of the same size as input."""
         out = obj._decode_head_forward_test(outs, img_metas=None)
         if use_resize:
+            from mmseg.ops import resize
             out = resize(
                 input=out,
                 size=obj.img_size,
@@ -53,6 +52,7 @@ def configure_decode_2_encoder_encoder(obj):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
         out2 = obj._auxiliary_head_forward_test(outs, img_metas=None)
+        from mmseg.ops import resize
         out2 = resize(
             input=out2,
             size=obj.img_size,
