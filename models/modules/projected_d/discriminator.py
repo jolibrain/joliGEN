@@ -260,7 +260,7 @@ class ProjectedDiscriminator(torch.nn.Module):
         )
 
     def train(self, mode=True):
-        self.freeze_feature_network = self.feature_network.train(False)
+        self.freeze_feature_network = self.freeze_feature_network.train(False)
         self.discriminator = self.discriminator.train(mode)
         return self
 
