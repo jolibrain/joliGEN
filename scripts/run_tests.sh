@@ -25,15 +25,15 @@ mkdir $TARGET_NOSEM_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-#python3 -m pytest -s "${current_dir}/../tests/test_run_nosemantic.py" --dataroot "$TARGET_NOSEM_DIR"
-#OUT=$?
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_nosemantic.py" --dataroot "$TARGET_NOSEM_DIR"
+OUT=$?
 
 echo "Deleting target dir $DIR"
 rm -rf $DIR/*
 
-#if [ $OUT != 0 ]; then
-#    exit 1
-#fi
+if [ $OUT != 0 ]; then
+    exit 1
+fi
 
 ####### mask semantics test
 echo "Running mask semantics training tests"
@@ -45,7 +45,7 @@ mkdir $TARGET_MASK_SEM_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-python3 -m pytest -s "${current_dir}/../tests/test_run_semantic_mask.py" --dataroot "$TARGET_MASK_SEM_DIR"
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 echo "Deleting target dir $DIR"
