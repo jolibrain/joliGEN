@@ -776,6 +776,10 @@ class BaseOptions:
                         for c in "#*<>":
                             description = description.replace(c, "\\" + c)
                         field["description"] = description
+
+                        if action.choices:
+                            field["enum"] = action.choices
+
                         if "title" in field:
                             del field["title"]
 
