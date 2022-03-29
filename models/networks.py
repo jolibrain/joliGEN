@@ -249,7 +249,7 @@ def define_G(
 
 
 def define_D(
-    netD,
+    D_netD,
     model_input_nc,
     D_ndf,
     D_n_layers,
@@ -267,12 +267,13 @@ def define_D(
     jg_dir,
     **unused_options
 ):
+
     """Create a discriminator
 
     Parameters:
         model_input_nc (int)     -- the number of channels in input images
         D_ndf (int)          -- the number of filters in the first conv layer
-        netD (str)         -- the architecture's name: basic | n_layers | pixel
+        D_netD (str)         -- the architecture's name: basic | n_layers | pixel
         D_n_layers (int)   -- the number of conv layers in the discriminator; effective when D_netD=='n_layers'
         D_norm (str)         -- the type of normalization layers used in the network.
         D_dropout (bool) -- whether to use dropout layers
@@ -300,7 +301,7 @@ def define_D(
     net = None
     norm_layer = get_norm_layer(norm_type=D_norm)
 
-    if netD == "basic":  # default PatchGAN classifier
+    if D_netD == "basic":  # default PatchGAN classifier
         net = NLayerDiscriminator(
             model_input_nc,
             D_ndf,
@@ -309,7 +310,7 @@ def define_D(
             use_dropout=D_dropout,
             use_spectral=D_spectral,
         )
-    elif netD == "n_layers":  # more options
+    elif D_netD == "n_layers":  # more options
         net = NLayerDiscriminator(
             model_input_nc,
             D_ndf,
@@ -318,20 +319,20 @@ def define_D(
             use_dropout=D_dropout,
             use_spectral=D_spectral,
         )
-    elif netD == "pixel":  # classify if each pixel is real or fake
+    elif D_netD == "pixel":  # classify if each pixel is real or fake
         net = PixelDiscriminator(model_input_nc, D_ndf, norm_layer=norm_layer)
-    elif "stylegan2" in netD:  # global D from sty2 repo
+    elif "stylegan2" in D_netD:  # global D from sty2 repo
         net = StyleGAN2Discriminator(
             model_input_nc,
             D_ndf,
             D_n_layers,
             no_antialias=D_no_antialias,
             img_size=data_crop_size,
-            netD=netD,
+            netD=D_netD,
         )
-    elif netD in TORCH_MODEL_CLASSES:  # load torchvision model
+    elif D_netD in TORCH_MODEL_CLASSES:  # load torchvision model
         nclasses = 1
-        template = netD
+        template = D_netD
         net = torch_model(
             model_input_nc,
             D_ndf,
@@ -341,7 +342,7 @@ def define_D(
             pretrained=False,
         )
         return net
-    elif netD == "projected_d":  # D in projected feature space
+    elif D_netD == "projected_d":  # D in projected feature space
         net = ProjectedDiscriminator(
             D_proj_network_type,
             interp=224 if data_crop_size < 224 else D_proj_interp,
