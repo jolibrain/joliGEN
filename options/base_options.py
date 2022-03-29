@@ -570,7 +570,11 @@ class BaseOptions:
         return dict(json_args)
 
     def _after_parse(self, opt):
-        opt.isTrain = self.isTrain  # train or test
+        if hasattr(self, "isTrain"):
+            opt.isTrain = self.isTrain  # train or test
+        else:
+            opt.isTrain = False
+            self.isTrain = False
 
         # process opt.suffix
         if opt.suffix:
@@ -665,6 +669,9 @@ class BaseOptions:
         }
         ```
         """
+
+        if not hasattr(self, "isTrain"):
+            self.isTrain = False
 
         if not self.initialized:  # check if it has been initialized
             parser = argparse.ArgumentParser(
