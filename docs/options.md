@@ -153,6 +153,24 @@ Here are all the available options to call with `train.py`
 | --madgrad | flag |  | if true madgrad optim will be used |
 
 
+## re_cut_semantic_mask
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| --alg_cut_lambda_GAN | float | 1.0 | weight for GAN loss：GAN(G(X)) |
+| --alg_cut_lambda_NCE | float | 1.0 | weight for NCE loss: NCE(G(X), X) |
+| --alg_cut_nce_idt | str2bool | True | use NCE loss for identity mapping: NCE(G(Y), Y)) |
+| --alg_cut_nce_layers | str | 0,4,8,12,16 | compute NCE loss on which layers |
+| --alg_cut_nce_includes_all_negatives_from_minibatch | str2bool | False | (used for single image translation) If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. Please see models/patchnce.py for more details. |
+| --alg_cut_netF | str | mlp_sample | how to downsample the feature map |
+| --alg_cut_netF_nc | int | 256 |  |
+| --alg_cut_netF_norm | str | instance | instance normalization or batch normalization for F |
+| --alg_cut_netF_dropout | flag |  | whether to use dropout with F |
+| --alg_cut_nce_T | float | 0.07 | temperature for NCE loss |
+| --alg_cut_num_patches | int | 256 | number of patches per layer |
+| --alg_cut_flip_equivariance | str2bool | False | Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT |
+
+
 ## re_cycle_gan_semantic_mask
 
 | Parameter | Type | Default | Description |
