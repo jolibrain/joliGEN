@@ -9,12 +9,17 @@ import logging
 jg_dir = os.path.join("/".join(os.path.abspath(__file__).split("/")[:-2]))
 sys.path.append(jg_dir)
 
-import options as opt
+from options import TrainOptions
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Generate documentation using the different model options"
+    )
+    parser.add_argument(
+        "--save_to",
+        default=os.path.join(jg_dir, "docs", "options.md"),
+        help="Path of file to save",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Set logging level to INFO"
@@ -31,59 +36,58 @@ def main():
 Here are all the available options to call with `train.py`
 
 """
-    options_md += document_parser(opt.get_parser())
-
-    model_parsers = opt.get_models_parsers()
-    model_names = list(model_parsers.keys())
-    model_names.sort()
-
-    for name in model_names:
-        parser = model_parsers[name]
-        options_md += "\n\n## %s\n\n%s" % (name, document_parser(parser))
+    schema = TrainOptions().get_schema()
+    options_md += document_section(schema, 0, "--")
 
     print(options_md)
 
-    path_sv = os.path.join(jg_dir, "docs", "options.md")
-    with open(path_sv, "w+") as file:
-        file.writelines(options_md)
+    if len(args.save_to) != 0:
+        with open(args.save_to, "w+") as file:
+            file.writelines(options_md)
 
 
-# ====
+def document_section(json_schema, level, opt_prefix):
+    help_str = ""
+    other_opt_str = "\n"
 
-# inspired by https://github.com/alex-rudakov/sphinx-argparse/blob/master/sphinxarg/parser.py (v0.2.5)
-def document_parser(parser):
-    help_str = "| Parameter | Type | Default | Description |\n"
-    help_str += "| --- | --- | --- | --- |\n"
+    for field_name in json_schema["properties"]:
+        field = json_schema["properties"][field_name]
 
-    for action in parser._get_positional_actions():
-        if not isinstance(action, _SubParsersAction):
-            continue
-        for name, subaction in action._name_parser_map.items():
-            pass
+        if field["type"] == "object":
+            other_opt_str += ((level + 2) * "#") + " " + field["description"] + "\n\n"
+            other_opt_str += document_section(
+                field, level + 1, opt_prefix + field_name + "_"
+            )
+        else:
+            if len(help_str) == 0:
+                help_str = "| Parameter | Type | Default | Description |\n"
+                help_str += "| --- | --- | --- | --- |\n"
 
-    for action_group in parser._action_groups:
-        for action in action_group._group_actions:
-            if isinstance(action, _HelpAction):
-                continue
+            type_str = field["type"]
+            default_str = str(field["default"])
 
-            name = ",".join(action.option_strings)
-
-            if isinstance(action, _StoreConstAction):
+            if type_str == "boolean":
                 type_str = "flag"
-                default = ""
-            else:
-                type_str = action.type.__name__ if action.type is not None else "str"
-                default = action.default if action.default is not None else ""
+                default_str = ""
+            elif type_str == "number":
+                type_str = "float"
+            elif type_str == "integer":
+                type_str = "int"
 
-            description = action.help if action.help is not None else ""
-            description = description.replace("|", "\\|")
+            description = field["description"]
+            if "enum" in field:
+                description += "<br/><br/>_**Values:** "
+                description += ", ".join([str(c) for c in field["enum"]])
+                description += "_"
 
             help_str += "| %s | %s | %s | %s |\n" % (
-                name,
+                opt_prefix + field_name,
                 type_str,
-                default,
+                default_str,
                 description,
             )
+
+    help_str += other_opt_str
     return help_str
 
 
