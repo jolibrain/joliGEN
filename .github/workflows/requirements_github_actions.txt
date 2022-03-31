@@ -7,3 +7,4 @@ timm==0.5.4
 visdom==0.1.8.9
 torchviz
 imgaug
+pydantic
