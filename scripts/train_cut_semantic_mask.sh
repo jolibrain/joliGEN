@@ -27,13 +27,10 @@ max_dataset_size='10'
 # loss weight params #
 ######################
 lr=0.0002
-d_lr=0.0002
+d_lr=0.0001
 momentum=0.99
 lambda_d=1
 lambda_g=1
-lambda_A=10
-lambda_B=10
-lambda_identity=0.5
 lambda_out_mask=50
 lambda_w_context=100
 
@@ -57,7 +54,7 @@ output_nc='3'
 input_nc='3'
 nclasses='3'
 
-model='cycle_gan_semantic_mask'
+model='cut_semantic_mask'
 netG='mobile_resnet_attn'
 
 #base_model="base_models/${model}-${src}-iter${baseiter}.pth"
@@ -73,11 +70,10 @@ fid_every=1000
 python3 "${current_dir}/../train.py" \
     --dataroot "${src}" --checkpoints_dir "${checkpoints_dir}" --name $name\
     --output_display_env $name  --output_display_freq ${display_freq} --output_print_freq ${print_freq}\
-    --gpu ${gpu} --alg_cyclegan_lambda_A ${lambda_A} --alg_cyclegan_lambda_B ${lambda_B} --alg_cyclegan_lambda_identity ${lambda_identity}\
+    --gpu ${gpu}\
     --G_lr ${lr} --D_lr ${d_lr}\
     --data_crop_size ${crop} --data_load_size ${load}\
     --data_dataset_mode ${dataset_mode}\
     --model_type ${model} --G_netG $netG\
-    --train_batch_size ${batch} --alg_cyclegan_lambda_identity ${lambda_identity} \
+    --train_batch_size ${batch}\
     --model_input_nc ${input_nc} --model_output_nc ${output_nc}\
-    --fs_light

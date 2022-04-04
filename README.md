@@ -65,25 +65,48 @@ For pip users, please type the command `pip install -r requirements.txt`.
 
 With a dataset located in directory `dataroot`:
 
-- Train a [cycleGAN](docs/cyclegan.md) :
+- Train with cut :
  
-You can tune the hyperparameters in `./scripts/train_cyclegan.sh` and then use the following line command.
+You can modify the hyperparameters in `./scripts/train_cut.sh` and then use the following line command.
+```
+bash ./scripts/train_cut.sh dataroot
+```
+<br>
+
+- Train with cut and labels :
+ 
+You can modify the hyperparameters in `./scripts/train_cut_semantic.sh` and then use the following line command.
+```
+bash ./scripts/train_cut_semantic.sh dataroot
+```
+<br>
+
+- Train with cut and mask labels :
+ 
+You can modify the hyperparameters in `./scripts/train_cut_semantic_mask.sh` and then use the following line command.
+```
+bash ./scripts/train_cut_semantic_mask.sh dataroot
+```
+
+- Train with cycleGAN :
+ 
+You can modify the hyperparameters in `./scripts/train_cyclegan.sh` and then use the following line command.
 ```
 bash ./scripts/train_cyclegan.sh dataroot
 ```
 <br>
 
-- Train a [cycleGAN with labels](docs/cyclegan_semantic.md) :
+- Train with cycleGAN and labels :
  
-You can tune the hyperparameters in `./scripts/train_cyclegan_semantic.sh` and then use the following line command.
+You can modify the hyperparameters in `./scripts/train_cyclegan_semantic.sh` and then use the following line command.
 ```
 bash ./scripts/train_cyclegan_semantic.sh dataroot
 ```
 <br>
 
-- Train a [cycleGAN with mask labels](docs/cyclegan_semantic_mask.md) :
+- Train with cycleGAN and mask labels :
  
-You can tune the hyperparameters in `./scripts/train_cyclegan_semantic_mask.sh` and then use the following line command.
+You can modify the hyperparameters in `./scripts/train_cyclegan_semantic_mask.sh` and then use the following line command.
 ```
 bash ./scripts/train_cyclegan_semantic_mask.sh dataroot
 ```
@@ -117,12 +140,6 @@ To run the joliGAN docker:
 nvidia-docker run jolibrain/myjoligan
 ```
 
-## Authors
-
-**JoliGAN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).
-
-Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/taesungp/contrastive-unpaired-translation) and [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN) among others.
-
 ## Code format
 If you want to contribute please use [black](https://github.com/psf/black) code format.
 Install:
@@ -140,3 +157,9 @@ If you want to format the code automatically before every commit :
 pip install pre-commit
 pre-commit install
 ```
+
+## Authors
+
+**JoliGAN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).
+
+Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/taesungp/contrastive-unpaired-translation) and [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN) among others.
