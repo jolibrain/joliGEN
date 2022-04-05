@@ -42,42 +42,86 @@ def _make_scratch_csm(scratch, in_channels, cout, fusion_block, expand):
 
 def _make_efficientnet(model):
     pretrained = nn.Module()
-    pretrained.layer0 = nn.Sequential(
-        model.conv_stem, model.bn1, model.act1, *model.blocks[0:2]
-    )
+    pretrained.layer0 = nn.Sequential(model.conv_stem, model.bn1, *model.blocks[0:2])
     pretrained.layer1 = nn.Sequential(*model.blocks[2:3])
     pretrained.layer2 = nn.Sequential(*model.blocks[3:5])
     pretrained.layer3 = nn.Sequential(*model.blocks[5:9])
+    configure_forward_network(pretrained)
+    pretrained.get_feats = pretrained.forward
     return pretrained
 
 
-def _make_vit(model):
-    pretrained = nn.Module()
-    pretrained.layer0 = nn.Sequential(
-        model.patch_embed, model.pos_drop, *model.blocks[0:2]
-    )
-    pretrained.layer1 = nn.Sequential(*model.blocks[2:5])
-    pretrained.layer2 = nn.Sequential(*model.blocks[5:8])
-    pretrained.layer3 = nn.Sequential(*model.blocks[8:])
-    return pretrained
+def _make_vit_timm(model):
+    configure_get_feats_vit_timm(model)
+    return model
 
 
-def configure_forward_network(net, transpose=False):
+def _make_vit_clip(model):
+    configure_get_feats_vit_clip(model)
+    return model
+
+
+def configure_forward_network(net):
     def forward(x):
         out0 = net.layer0(x)
         out1 = net.layer1(out0)
         out2 = net.layer2(out1)
         out3 = net.layer3(out2)
-        if transpose:
-            out0, out1, out2, out3 = (
-                out0.transpose(2, 1).contiguous(),
-                out1.transpose(2, 1).contiguous(),
-                out2.transpose(2, 1).contiguous(),
-                out3.transpose(2, 1).contiguous(),
-            )
         return out0, out1, out2, out3
 
     net.forward = forward
+
+
+def configure_get_feats_vit_clip(net):
+    num_layers = len(net.transformer.resblocks)
+
+    def get_feats(x):
+        x = net.conv1(x)  # shape = [*, width, grid, grid]
+        x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
+        x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+        x = torch.cat(
+            [
+                net.class_embedding.to(x.dtype)
+                + torch.zeros(
+                    x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device
+                ),
+                x,
+            ],
+            dim=1,
+        )  # shape = [*, grid ** 2 + 1, width]
+        x = x + net.positional_embedding.to(x.dtype)
+        x = net.ln_pre(x)
+
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        outs = []
+        # num_layers = 12
+        for i in range(num_layers):
+            block = net.transformer.resblocks[i]
+            x = block(x)
+            if i in [2, 5, 8]:
+                outs.append(x.permute(1, 0, 2).contiguous())
+        outs.append(x.permute(1, 0, 2).contiguous())
+
+        return outs
+
+    net.get_feats = get_feats
+
+
+def configure_get_feats_vit_timm(net):
+    def get_feats(x):
+        x = net.patch_embed(x)
+        x = torch.cat((net.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
+        x = net.pos_drop(x + net.pos_embed)
+        outs = []
+        for i, block in enumerate(net.blocks):
+            x = block(x)
+            if i in [2, 5, 8]:
+                outs.append(x.transpose(2, 1).contiguous())
+        outs.append(x.transpose(2, 1).contiguous())
+
+        return outs
+
+    net.get_feats = get_feats
 
 
 def calc_channels(pretrained, inp_res=224):
@@ -86,7 +130,7 @@ def calc_channels(pretrained, inp_res=224):
     tmp = torch.zeros(1, 3, inp_res, inp_res)
 
     # forward pass
-    outs = pretrained(tmp)
+    outs = pretrained.get_feats(tmp)
     for out in outs:
         channels.append(out.shape[1])
         feats.append(out.shape[2:])
@@ -99,6 +143,14 @@ def create_timm_model(model_name, config_path, weight_path):
 
     model = timm.create_model(model_name, pretrained=True)
     return model
+
+
+def create_clip_model(model_name, config_path, weight_path):
+    import clip
+
+    model = clip.load(model_name)
+
+    return model[0].visual.float().cpu()
 
 
 def create_segformer_model(model_name, config_path, weight_path):
@@ -141,17 +193,22 @@ projector_models = {
     "vitbase": {
         "model_name": "vit_base_patch16_224",
         "create_model_function": create_timm_model,
-        "make_function": _make_vit,
+        "make_function": _make_vit_timm,
     },
     "vitsmall": {
         "model_name": "vit_small_patch16_224",
         "create_model_function": create_timm_model,
-        "make_function": _make_vit,
+        "make_function": _make_vit_timm,
     },
     "vitsmall2": {
         "model_name": "vit_small_r26_s32_224",
         "create_model_function": create_timm_model,
-        "make_function": _make_vit,
+        "make_function": _make_vit_timm,
+    },
+    "vitclip16": {
+        "model_name": "ViT-B/16",
+        "create_model_function": create_clip_model,
+        "make_function": _make_vit_clip,
     },
 }
 
@@ -168,7 +225,6 @@ def _make_projector(projector_model, cout, proj_type, expand, config_path, weigh
         pretrained = model
     else:
         pretrained = projector_gen["make_function"](model)
-        configure_forward_network(pretrained, transpose="vit" in projector_model)
 
     # determine resolution of feature maps, this is later used to calculate the number
     # of down blocks in the discriminators. Interestingly, the best results are achieved
@@ -176,7 +232,8 @@ def _make_projector(projector_model, cout, proj_type, expand, config_path, weigh
     # independent of the dataset resolution
 
     pretrained.CHANNELS, pretrained.FEATS = calc_channels(pretrained)
-    pretrained.RESOLUTIONS = [feat[0] for feat in pretrained.FEATS]
+    for feat in pretrained.FEATS:
+        pretrained.RESOLUTIONS = [feat[0] for feat in pretrained.FEATS]
 
     if proj_type == 0:
         return pretrained, None
@@ -253,7 +310,7 @@ class Proj(nn.Module):
     def forward(self, x):
         # predict feature maps
 
-        out0, out1, out2, out3 = self.pretrained(x)
+        out0, out1, out2, out3 = self.pretrained.get_feats(x)
 
         # start enumerating at the lowest layer (this is where we put the first discriminator)
         out = {

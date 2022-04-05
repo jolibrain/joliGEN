@@ -279,7 +279,14 @@ class BaseOptions:
             "--D_proj_network_type",
             type=str,
             default="efficientnet",
-            choices=["efficientnet", "segformer", "vitbase", "vitsmall", "vitsmall2"],
+            choices=[
+                "efficientnet",
+                "segformer",
+                "vitbase",
+                "vitsmall",
+                "vitsmall2",
+                "vitclip16",
+            ],
         )
         parser.add_argument(
             "--D_no_antialias",
