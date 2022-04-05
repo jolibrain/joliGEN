@@ -4,11 +4,18 @@ from .base_model import BaseModel
 from . import networks
 from .patchnce import PatchNCELoss
 import util.util as util
-from .modules import loss
+from .modules.loss import loss
 from util.util import gaussian
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 import itertools
+from torch import nn
+import timm
+from .modules.glanet.utils import (
+    configure_get_last_selfattention_vit,
+    configure_get_feats_vgg,
+)
+from .modules.loss import glanet as glanet_loss
 
 
 class CUTModel(BaseModel):
@@ -96,6 +103,69 @@ class CUTModel(BaseModel):
             help="Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT",
         )
 
+        # GLANET
+
+        parser.add_argument(
+            "--glanet_use_local",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--glanet_attn_layers",
+            type=str,
+            default="4, 7, 9",
+            help="compute spatial loss on which layers",
+        )
+        parser.add_argument(
+            "--glanet_patch_nums",
+            type=float,
+            default=256,
+            help="select how many patches for shape consistency, -1 use all",
+        )
+        parser.add_argument(
+            "--glanet_patch_size",
+            type=int,
+            default=64,
+            help="patch size to calculate the attention",
+        )
+        parser.add_argument(
+            "--glanet_loss_mode",
+            type=str,
+            default="cos",
+            help="which loss type is used, cos | l1 | info",
+        )
+        parser.add_argument(
+            "--glanet_use_norm",
+            action="store_true",
+            help="normalize the feature map for FLSeSim",
+        )
+        parser.add_argument(
+            "--glanet_learned_attn",
+            action="store_true",
+            help="use the learnable attention map",
+        )
+        # Option not implemented for now
+        parser.add_argument(
+            "--glanet_augment",
+            action="store_true",
+            help="use data augmentation for contrastive learning",
+        )
+        parser.add_argument(
+            "--glanet_T", type=float, default=0.07, help="temperature for similarity"
+        )
+
+        parser.add_argument(
+            "--glanet_lambda_spatial",
+            type=float,
+            default=10.0,
+            help="weight for spatially-correlative loss",
+        )
+        parser.add_argument(
+            "--glanet_lambda_spatial_idt",
+            type=float,
+            default=0.0,
+            help="weight for idt spatial loss",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
@@ -110,6 +180,11 @@ class CUTModel(BaseModel):
         if opt.D_netD_global != "none":
             losses_D += ["D_global"]
             losses_G += ["G_GAN_global"]
+
+        if self.opt.glanet_use_local:
+            losses_G += ["G_spatial"]
+            if self.opt.glanet_lambda_spatial_idt > 0:
+                losses_G += ["G_spatial_idt"]
 
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
@@ -152,6 +227,19 @@ class CUTModel(BaseModel):
                     netD=opt.D_netD_global, **vars(opt)
                 )
 
+            # glanet networks
+            if self.opt.glanet_use_local:
+                self.netPre = timm.create_model("vgg16")
+                configure_get_feats_vgg(self.netPre)
+                self.model_names.append("Pre")
+
+                self.netDino = timm.create_model(
+                    "vit_small_patch8_224_dino", pretrained=True
+                )
+                self.dino_img_size = 224
+                configure_get_last_selfattention_vit(self.netDino)
+                self.model_names.append("Dino")
+
             # define loss functions
             self.criterionGAN = loss.GANLoss(opt.train_gan_mode).to(self.device)
             self.criterionNCE = []
@@ -183,6 +271,36 @@ class CUTModel(BaseModel):
                 )
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+
+            # glanet losses
+            ### opt.glanet_learned_attn SpatialCorrelativeLoss(use_conv)
+            self.loss_names_F_glanet = []
+            if self.opt.glanet_use_local:
+                self.glanet_attn_layers = [
+                    int(i) for i in self.opt.glanet_attn_layers.split(",")
+                ]
+
+                self.criterionSpatial = glanet_loss.SpatialCorrelativeLoss(
+                    opt.glanet_loss_mode,
+                    opt.glanet_patch_nums,
+                    opt.glanet_patch_size,
+                    opt.glanet_use_norm,
+                    opt.glanet_learned_attn,
+                    gpu_ids=self.gpu_ids,
+                    T=opt.glanet_T,
+                ).to(self.device)
+                self.normalization = glanet_loss.Normalization(self.device)
+                self.spatial_loss = glanet_loss.SpatialLoss(
+                    self.criterionSpatial, self.glanet_attn_layers, self.normalization
+                )
+
+                if opt.glanet_learned_attn:
+                    self.netF_glanet = self.criterionSpatial
+                    self.model_names.append("F_glanet")
+                    self.loss_names_F_glanet = ["spatial"]
+                    self.loss_names += self.loss_names_F_glanet
+
+            # losses avg init for iter_size calculator
 
             if self.opt.train_iter_size > 1:
                 self.iter_calculator = IterCalculator(self.loss_names)
@@ -227,6 +345,23 @@ class CUTModel(BaseModel):
             )
             self.networks_groups.append(self.group_D)
 
+            # glanet
+            # define the contrastive loss
+            if self.opt.glanet_use_local:
+                if opt.glanet_learned_attn:
+                    self.group_glanet = NetworkGroup(
+                        networks_to_optimize=["F_glanet", "netPre"],
+                        forward_functions=None,
+                        backward_functions=["compute_F_glanet_loss"],
+                        loss_names_list=["loss_names_F_glanet"],
+                        optimizer=["optimizer_F_glanet"],
+                        loss_backward=["loss_spatial"],
+                    )
+                    self.networks_groups.append(self.group_glanet)
+
+                else:
+                    self.set_requires_grad([self.netPre], False)
+
         if self.opt.train_use_contrastive_loss_D:
             self.D_loss = loss.DiscriminatorContrastiveLoss(opt, self.netD, self.device)
         else:
@@ -268,6 +403,34 @@ class CUTModel(BaseModel):
                 )
                 self.optimizers.append(self.optimizer_F)
 
+                if self.opt.glanet_use_local and self.opt.glanet_learned_attn:
+
+                    self.optimizer_F_glanet = torch.optim.Adam(
+                        [
+                            {
+                                "params": list(
+                                    filter(
+                                        lambda p: p.requires_grad,
+                                        self.netPre.parameters(),
+                                    )
+                                ),
+                                "lr": self.opt.train_G_lr * 0.0,
+                            },
+                            {
+                                "params": list(
+                                    filter(
+                                        lambda p: p.requires_grad,
+                                        self.netF_glanet.parameters(),
+                                    )
+                                )
+                            },
+                        ],
+                        lr=self.opt.train_G_lr,
+                        betas=(self.opt.train_beta1, self.opt.train_beta2),
+                    )
+                    self.optimizers.append(self.optimizer_F_glanet)
+                    self.optimizer_F_glanet.zero_grad()
+
         for optimizer in self.optimizers:
             optimizer.zero_grad()
 
@@ -300,7 +463,7 @@ class CUTModel(BaseModel):
 
         self.fake = self.netG(self.real)
         self.fake_B = self.fake[: self.real_A.size(0)]
-        if self.opt.alg_cut_nce_idt:
+        if self.opt.alg_cut_nce_idt or self.opt.glanet_lambda_spatial_idt > 0:
             self.idt_B = self.fake[self.real_A.size(0) :]
 
         if self.opt.dataaug_D_noise > 0.0:
@@ -308,6 +471,40 @@ class CUTModel(BaseModel):
             self.real_B_noisy = gaussian(self.real_B, self.opt.dataaug_D_noise)
 
         self.diff_real_A_fake_B = self.real_A - self.fake_B
+
+        # glanet
+        ## add netDino attention
+        if self.opt.glanet_use_local:
+            w_featmap = self.dino_img_size // 8
+            h_featmap = self.dino_img_size // 8
+
+            attentionsrc_src_dino = self.netDino.get_last_selfattention(
+                nn.functional.interpolate(self.real_A, size=224)
+            )
+
+            nh = attentionsrc_src_dino.shape[1]  # number of head
+            attentionsrc_src_dino = attentionsrc_src_dino[0, :, 0, 1:].reshape(nh, -1)
+            # interpolate
+            attentionsrc_src_dino = attentionsrc_src_dino.reshape(
+                nh, w_featmap, h_featmap
+            )
+
+            out_shape = [
+                self.real_A.shape[-2],
+                self.real_A.shape[-1],
+            ]
+
+            mask_ = nn.functional.interpolate(
+                attentionsrc_src_dino.unsqueeze(0),
+                size=out_shape,
+                mode="nearest",
+            )[0]
+
+            ### Regulation
+            mask = mask_[0]
+            mask = (mask - torch.min(mask)) / (torch.max(mask) - torch.min(mask))
+            mask = mask.unsqueeze(0).unsqueeze(0)
+            self.mask = mask.repeat(1, 3, 1, 1).to(self.device)
 
     def compute_D_loss(self):
         """Calculate GAN loss for both discriminators"""
@@ -343,7 +540,46 @@ class CUTModel(BaseModel):
         else:
             loss_NCE_both = self.loss_NCE
 
-        self.loss_G = self.loss_G_GAN + self.loss_G_GAN_global + loss_NCE_both
+        # glanet
+        if self.opt.glanet_use_local:
+            self.loss_G_spatial = (
+                self.spatial_loss(
+                    self.netPre,
+                    self.mask,
+                    self.real_A,
+                    self.fake_B.detach(),
+                    None,
+                )
+                * self.opt.glanet_lambda_spatial
+                if self.opt.glanet_lambda_spatial > 0
+                else 0
+            )  # local
+
+            if self.opt.glanet_lambda_spatial_idt > 0:
+                self.loss_G_spatial_idt_B = (
+                    self.spatial_loss(
+                        self.netPre,
+                        self.mask,
+                        self.real_B,
+                        self.idt_B,
+                        None,
+                    )
+                    * self.opt.glanet_lambda_spatial_idt
+                )
+            else:
+                self.loss_G_spatial_idt_B = 0
+
+        else:
+            self.loss_G_spatial = 0
+            self.loss_G_spatial_idt_B = 0
+
+        self.loss_G = (
+            self.loss_G_GAN
+            + self.loss_G_GAN_global
+            + loss_NCE_both
+            + self.loss_G_spatial
+            + self.loss_G_spatial_idt_B
+        )
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
@@ -370,3 +606,34 @@ class CUTModel(BaseModel):
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers
+
+    def compute_F_glanet_loss(self):
+        """
+        Calculate the contrastive loss for learned spatially-correlative loss
+        """
+        """if self.opt.glanet_augment:
+            norm_aug_A, norm_aug_B = (
+                self.normalization((self.aug_A + 1) * 0.5),
+                self.normalization((self.aug_B + 1) * 0.5),
+            )
+            norm_real_A = torch.cat([norm_real_A, norm_real_A], dim=0)
+            norm_fake_B = torch.cat([norm_fake_B, norm_aug_A], dim=0)
+            norm_real_B = torch.cat([norm_real_B, norm_aug_B], dim=0)"""
+
+        # TODO: implement aug in dataloader
+        if self.opt.glanet_augment:
+            real_A = torch.cat([self.real_A, self.real_A], dim=0)
+            fake_B = torch.cat([self.fake_B, self.aug_A], dim=0)
+            real_B = torch.cat([self.real_B, self.aug_B], dim=0)
+        else:
+            real_A = self.real_A
+            fake_B = self.fake_B
+            real_B = self.real_B
+
+        self.loss_spatial = self.spatial_loss(
+            self.netPre,
+            self.mask,
+            real_A,
+            fake_B.detach(),
+            real_B,
+        )

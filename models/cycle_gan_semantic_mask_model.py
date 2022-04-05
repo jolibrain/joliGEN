@@ -7,7 +7,7 @@ from . import networks
 from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
-from .modules import loss
+from .modules.loss import loss
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 

@@ -5,7 +5,7 @@ from .cycle_gan_model import CycleGANModel
 from . import networks
 from torch.autograd import Variable
 import numpy as np
-from .modules import loss
+from .modules.loss import loss
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 

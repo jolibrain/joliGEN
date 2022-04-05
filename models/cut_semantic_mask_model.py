@@ -4,7 +4,7 @@ from .cut_model import CUTModel
 from . import networks
 from .patchnce import PatchNCELoss
 import util.util as util
-from .modules import loss
+from .modules.loss import loss
 import torch.nn.functional as F
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
@@ -42,7 +42,12 @@ class CUTSemanticMaskModel(CUTModel):
         self.loss_names_G += losses_G
         self.loss_names_f_s = losses_f_s
 
-        self.loss_names = self.loss_names_G + self.loss_names_D + self.loss_names_f_s
+        self.loss_names = (
+            self.loss_names_G
+            + self.loss_names_D
+            + self.loss_names_f_s
+            + self.loss_names_F_glanet
+        )
 
         # define networks (both generator and discriminator)
         if self.isTrain:
@@ -96,7 +101,8 @@ class CUTSemanticMaskModel(CUTModel):
             if self.opt.train_iter_size > 1:
                 self.iter_calculator = IterCalculator(self.loss_names)
                 for i, cur_loss in enumerate(self.loss_names):
-                    self.loss_names[i] = cur_loss + "_avg"
+                    if "_avg" not in cur_loss:
+                        self.loss_names[i] = cur_loss + "_avg"
                     setattr(self, "loss_" + self.loss_names[i], 0)
 
             ###Making groups
