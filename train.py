@@ -76,9 +76,10 @@ def train_gpu(rank, world_size, opt, dataset):
         model.real_A_val, model.real_B_val = dataset.get_validation_set(
             opt.train_pool_size
         )
-        model.real_A_val, model.real_B_val = model.real_A_val.to(
-            model.device
-        ), model.real_B_val.to(model.device)
+        model.real_A_val, model.real_B_val = (
+            model.real_A_val.to(model.device),
+            model.real_B_val.to(model.device),
+        )
 
     if rank == 0 and opt.output_display_networks:
         data = next(iter(dataloader))
