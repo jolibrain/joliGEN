@@ -512,9 +512,10 @@ class ToTensorMask(transforms.ToTensor):
         Returns:
             Tensor: Converted image.
         """
-        return F.to_tensor(img), torch.from_numpy(
-            np.array(mask, dtype=np.int64)
-        ).unsqueeze(0)
+        return (
+            F.to_tensor(img),
+            torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0),
+        )
 
 
 class RandomRotationMask(transforms.RandomRotation):
