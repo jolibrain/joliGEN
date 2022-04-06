@@ -40,7 +40,7 @@ Here are all the available options to call with `train.py`
 | --G_attn_nb_mask_input | int | 1 |  |
 | --G_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segforme configuration file for G |
 | --G_dropout | flag |  | dropout for the generator |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocksmobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv_ |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
 | --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zero_ |
