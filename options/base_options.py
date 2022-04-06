@@ -159,7 +159,7 @@ class BaseOptions:
                 "resnet_6blocks",
                 "resnet_3blocks",
                 "resnet_12blocks" "mobile_resnet_9blocks",
-                "mobile_resnet_3blocks" "resnet_attn",
+                "mobile_resnet_3blocks", "resnet_attn",
                 "mobile_resnet_attn",
                 "unet_256",
                 "unet_128",
