@@ -28,7 +28,7 @@ Here are all the available options to call with `train.py`
 | --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/>_**Values:** instance, batch, none_ |
 | --D_proj_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file |
 | --D_proj_interp | int | -1 | whether to force projected discriminator interpolation to a value \> 224, -1 means no interpolation |
-| --D_proj_network_type | string | efficientnet | <br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2_ |
+| --D_proj_network_type | string | efficientnet | <br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16_ |
 | --D_proj_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight |
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
 
