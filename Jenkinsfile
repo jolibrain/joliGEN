@@ -1,23 +1,23 @@
 pipeline {
   agent {
     dockerfile {
-      filename 'docker/Dockerfile.build'
+      filename 'docker/Dockerfile.devel'
       additionalBuildArgs '--no-cache'
-      args '-u root'
+      args '-u jenkins'
     }
 
   }
   stages {
     stage('Tests') {
       steps {
-        sh 'mkdir checkpoints'
+        sh 'mkdir /home/jenkins/app/checkpoints'
         sh '''
-TORCH_HOME=/app/.cache/ bash ./scripts/run_tests.sh checkpoints/'''
+TORCH_HOME=/home/jenkins/app/.cache/ bash ./scripts/run_tests.sh /home/jenkins/app/checkpoints/'''
       }
     }
 
   }
   environment {
-    DOCKER_PARAMS = '"--runtime nvidia -u root"'
+    DOCKER_PARAMS = '"--runtime nvidia -u jenkins"'
   }
 }
