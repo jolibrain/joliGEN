@@ -183,7 +183,7 @@ class BaseOptions:
         parser.add_argument(
             "--G_padding_type",
             type=str,
-            choices=["reflect", "replicate", "zero"],
+            choices=["reflect", "replicate", "zeros"],
             help="whether to use padding in the generator",
             default="reflect",
         )

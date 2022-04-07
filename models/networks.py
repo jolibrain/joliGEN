@@ -230,6 +230,7 @@ def define_G(
             nb_mask_attn=G_attn_nb_mask_attn,
             nb_mask_input=G_attn_nb_mask_input,
             final_conv=True,
+            padding_type=G_padding_type,
         )
         return net
     elif G_netG == "segformer_conv":
@@ -239,6 +240,7 @@ def define_G(
             img_size=data_crop_size,
             num_classes=256,
             final_conv=True,
+            padding_type=G_padding_type,
         )
         return net
     else:

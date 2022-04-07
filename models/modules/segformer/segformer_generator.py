@@ -4,12 +4,17 @@ from torch import nn
 from models.modules.resnet_architecture.resnet_generator import ResnetDecoder
 from models.modules.attn_network import BaseGenerator_attn
 from .utils import configure_encoder_decoder, configure_mit
-from models.modules.mobile_modules import SeparableConv2d
 
 
 class Segformer(nn.Module):
     def __init__(
-        self, jg_dir, G_config_segformer, img_size, num_classes=10, final_conv=False
+        self,
+        jg_dir,
+        G_config_segformer,
+        img_size,
+        num_classes=10,
+        final_conv=False,
+        padding_type="zeros",
     ):
         super().__init__()
         import mmcv
@@ -31,7 +36,9 @@ class Segformer(nn.Module):
         self.use_final_conv = final_conv
 
         if self.use_final_conv:
-            self.final_conv = ResnetDecoder(num_classes, 3, ngf=64)
+            self.final_conv = ResnetDecoder(
+                num_classes, 3, ngf=64, padding_type=padding_type
+            )
 
     def compute_feats(self, input, extract_layer_ids=[]):
         outs, feats = self.net.extract_feat(input, extract_layer_ids)
@@ -59,6 +66,7 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         nb_mask_attn,
         nb_mask_input,
         final_conv=False,
+        padding_type="zeros",
     ):  # nb_mask_attn : total number of attention masks, nb_mask_input :number of attention mask applied to input img directly
         super(SegformerGenerator_attn, self).__init__(nb_mask_attn, nb_mask_input)
         self.use_final_conv = final_conv
@@ -92,7 +100,10 @@ class SegformerGenerator_attn(BaseGenerator_attn):
 
         if self.use_final_conv:
             self.final_conv = ResnetDecoder(
-                num_cls, 3 * (self.nb_mask_attn - self.nb_mask_input), ngf=64
+                num_cls,
+                3 * (self.nb_mask_attn - self.nb_mask_input),
+                ngf=64,
+                padding_type=padding_type,
             )
 
     def compute_feats(self, input, extract_layer_ids=[]):

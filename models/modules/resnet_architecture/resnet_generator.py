@@ -203,7 +203,7 @@ class ResnetEncoder(nn.Module):
             use_bias = norm_layer == nn.InstanceNorm2d
 
         fl = [
-            nn.ReflectionPad2d(3),
+            # nn.ReflectionPad2d(3),
             spectral_norm(
                 nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
                 use_spectral,
@@ -328,8 +328,16 @@ class ResnetDecoder(nn.Module):
                 norm_layer(int(ngf * mult / 2)),
                 nn.ReLU(True),
             ]
-        model += [nn.ReflectionPad2d(3)]
-        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+        p = 3
+        if padding_type == "reflect":
+            model += [nn.ReflectionPad2d(3)]
+        elif padding_type == "replicate":
+            model += [nn.ReplicationPad2d(3)]
+        elif padding_type == "zeros":
+            p = 3
+        else:
+            raise NotImplementedError("padding [%s] is not implemented" % padding_type)
+        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=p)]
         model += [nn.Tanh()]
         self.model = nn.Sequential(*model)
 
