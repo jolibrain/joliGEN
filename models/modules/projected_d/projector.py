@@ -61,6 +61,11 @@ def _make_vit_clip(model):
     return model
 
 
+def _make_segformer(model):
+    model.get_feats = model.forward
+    return model
+
+
 def configure_forward_network(net):
     def forward(x):
         out0 = net.layer0(x)
@@ -188,7 +193,7 @@ projector_models = {
     "segformer": {
         "model_name": "",  # unused
         "create_model_function": create_segformer_model,
-        "make_function": None,  # unused
+        "make_function": _make_segformer,
     },
     "vitbase": {
         "model_name": "vit_base_patch16_224",
@@ -221,10 +226,8 @@ def _make_projector(projector_model, cout, proj_type, expand, config_path, weigh
     model = projector_gen["create_model_function"](
         projector_gen["model_name"], config_path, weight_path
     )
-    if projector_model == "segformer":
-        pretrained = model
-    else:
-        pretrained = projector_gen["make_function"](model)
+
+    pretrained = projector_gen["make_function"](model)
 
     # determine resolution of feature maps, this is later used to calculate the number
     # of down blocks in the discriminators. Interestingly, the best results are achieved

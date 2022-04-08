@@ -328,7 +328,7 @@ class ResnetDecoder(nn.Module):
                 norm_layer(int(ngf * mult / 2)),
                 nn.ReLU(True),
             ]
-        p = 3
+        p = 0
         if padding_type == "reflect":
             model += [nn.ReflectionPad2d(3)]
         elif padding_type == "replicate":
