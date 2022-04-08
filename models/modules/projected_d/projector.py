@@ -165,6 +165,9 @@ def create_segformer_model(model_name, config_path, weight_path):
     except:
         weights = torch.load(weight_path)
 
+    if "state_dict" in weights:
+        weights = weights["state_dict"]
+
     segformer = build_segmentor(cfg.model, train_cfg=None, test_cfg=cfg.get("test_cfg"))
     model = segformer.backbone
 

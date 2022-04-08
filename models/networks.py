@@ -11,6 +11,7 @@ from .modules.utils import (
     init_weights,
     get_norm_layer,
     get_weights,
+    download_segformer_weight,
 )
 
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator
@@ -345,11 +346,17 @@ def define_D(
         )
         return net
     elif netD == "projected_d":  # D in projected feature space
+        weight_path = os.path.join(jg_dir, D_proj_weight_segformer)
+        if D_proj_network_type == "segformer" and not os.path.exists(weight_path):
+            print(
+                "Downloading pretrained segformer weights for projected D feature extractor."
+            )
+            download_segformer_weight(weight_path)
         net = ProjectedDiscriminator(
             D_proj_network_type,
             interp=224 if data_crop_size < 224 else D_proj_interp,
             config_path=os.path.join(jg_dir, D_proj_config_segformer),
-            weight_path=os.path.join(jg_dir, D_proj_weight_segformer),
+            weight_path=weight_path,
         )
         return net  # no init since custom frozen backbone
     else:
@@ -414,7 +421,12 @@ def define_f(
             num_classes=f_s_semantic_nclasses,
             final_conv=False,
         )
-        weights = get_weights(os.path.join(jg_dir, f_s_weight_segformer))
+        weight_path = os.path.join(jg_dir, f_s_weight_segformer)
+        if not os.path.exists(weight_path):
+            print("Downloading pretrained segformer weights for f_s.")
+            download_segformer_weight(weight_path)
+
+        weights = get_weights(weight_path)
         net.net.load_state_dict(weights, strict=False)
         return net
 
