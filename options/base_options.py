@@ -23,38 +23,34 @@ class BaseOptions:
 
     opt_schema = {
         "properties": {
-            "D": {"description": "Discriminator"},
-            "G": {"description": "Generator"},
+            "D": {"title": "Discriminator"},
+            "G": {"title": "Generator"},
             "alg": {
-                "description": "Algorithm-specific",
+                "title": "Algorithm-specific",
                 "properties": {
-                    "cut": {"description": "CUT model"},
-                    "cyclegan": {"description": "CycleGAN model"},
-                    "re": {"description": "ReCUT / ReCycleGAN"},
+                    "cut": {"title": "CUT model"},
+                    "cyclegan": {"title": "CycleGAN model"},
+                    "re": {"title": "ReCUT / ReCycleGAN"},
                 },
             },
             "data": {
-                "description": "Datasets",
-                "properties": {
-                    "online_creation": {"description": "Online created datasets"}
-                },
+                "title": "Datasets",
+                "properties": {"online_creation": {"title": "Online created datasets"}},
             },
-            "f_s": {"description": "Semantic network"},
+            "f_s": {"title": "Semantic network"},
             "output": {
-                "description": "Output",
-                "properties": {"display": {"description": "Visdom display"}},
+                "title": "Output",
+                "properties": {"display": {"title": "Visdom display"}},
             },
-            "model": {"description": "Model parameters"},
+            "model": {"title": "Model"},
             "train": {
-                "description": "Parameters used during training",
+                "title": "Training",
                 "properties": {
-                    "sem": {"description": "semantic training parameters"},
-                    "mask": {
-                        "description": "Parameters for semantic training with masks"
-                    },
+                    "sem": {"title": "Semantic training"},
+                    "mask": {"title": "Semantic training with masks"},
                 },
             },
-            "dataaug": {"description": "Data augmentation"},
+            "dataaug": {"title": "Data augmentation"},
         }
     }
 
@@ -590,8 +586,6 @@ class BaseOptions:
             suffix = ("_" + opt.suffix.format(**vars(opt))) if opt.suffix != "" else ""
             opt.name = opt.name + suffix
 
-        self.print_options(opt)
-
         # set gpu ids
         str_ids = opt.gpu_ids.split(",")
         opt.gpu_ids = []
@@ -606,18 +600,19 @@ class BaseOptions:
 
         return self.opt
 
-    def save_options_json(self):
+    def save_options(self):
+        self.print_options(self.opt)
         with open(
             os.path.join(self.opt.checkpoints_dir, self.opt.name, TRAIN_JSON_FILENAME),
             "w+",
         ) as outfile:
-            json.dump(self.to_json(), outfile)
+            json.dump(self.to_json(), outfile, indent=4)
 
     def parse(self):
         """Parse our options, create checkpoints directory suffix, and set up gpu device."""
-        opt = self.gather_options()
-        opt = self._after_parse(opt)
-        self.save_options_json()
+        self.opt = self.gather_options()
+        self.save_options()
+        opt = self._after_parse(self.opt)
         return opt
 
     def _json_parse_known_args(self, parser, opt, json_args):
@@ -642,6 +637,8 @@ class BaseOptions:
 
                 if check_type is None:
                     check_type = str
+                elif check_type is util.str2bool:
+                    check_type = bool
 
                 names = {action.dest}
                 for opt_name in action.option_strings:
@@ -657,13 +654,16 @@ class BaseOptions:
                         ):  # int are considered as float
                             val = float(val)
                         elif not isinstance(val, check_type):
-                            raise ValueError("%s: Bad type" % (name,))
+                            raise ValueError(
+                                "%s: Bad type (%s, should be %s)"
+                                % (name, str(type(val)), str(check_type))
+                            )
 
                         del json_args[name]
 
                 setattr(opt, action.dest, val)
 
-    def parse_json(self, json_args):
+    def parse_json(self, json_args, save_config=False):
         """
         Parse a json-like dict using the joliGAN argument parser.
 
@@ -714,6 +714,10 @@ class BaseOptions:
                 % (len(flat_json), ",".join(flat_json.keys()))
             )  # it's not an error anymore because server launching is done with all of the options even those from other models, raising an error will lead to a server crash
 
+        if save_config:
+            self.opt = opt
+            self.save_options()
+
         return self._after_parse(opt)
 
     def get_schema(self, allow_nan=False):
@@ -754,6 +758,8 @@ class BaseOptions:
 
             if "description" in schema_tmplate:
                 schema["description"] = schema_tmplate["description"]
+            if "title" in schema_tmplate:
+                schema["title"] = schema_tmplate["title"]
             if "properties" in schema_tmplate:
                 for prop in schema_tmplate["properties"]:
                     schema["properties"][prop] = json_to_schema(
