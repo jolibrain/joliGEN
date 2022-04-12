@@ -102,8 +102,9 @@ def is_alive(context):
 async def train(name: str, request: Request):
     train_body = await request.json()
 
+    parser = TrainOptions()
     try:
-        opt = TrainOptions().parse_json(train_body["train_options"])
+        opt = parser.parse_json(train_body["train_options"], save_config=True)
 
         # Parse the remaining options
         del train_body["train_options"]
