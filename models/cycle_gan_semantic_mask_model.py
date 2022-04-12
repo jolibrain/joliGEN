@@ -2,7 +2,6 @@ import torch
 import itertools
 from util.image_pool import ImagePool
 from util.losses import L1_Charbonnier_loss
-from util.madgrad import MADGRAD
 from .cycle_gan_model import CycleGANModel
 from . import networks
 from torch.autograd import Variable
@@ -21,12 +20,6 @@ class CycleGANSemanticMaskModel(CycleGANModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         parser = CycleGANModel.modify_commandline_options(parser, is_train)
-        if is_train:
-            parser.add_argument(
-                "--madgrad",
-                action="store_true",
-                help="if true madgrad optim will be used",
-            )
         return parser
 
     def __init__(self, opt, rank):
