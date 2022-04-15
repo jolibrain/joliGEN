@@ -185,7 +185,7 @@ class BaseOptions:
             type=str,
             choices=["reflect", "replicate", "zeros"],
             help="whether to use padding in the generator",
-            default="reflect",
+            default="zeros",
         )
         parser.add_argument(
             "--G_norm",
