@@ -980,6 +980,14 @@ class StyleGAN2Generator(nn.Module):
             img_size=img_size,
         )
 
+    def compute_feats(self, input, extract_layer_ids=[]):
+        feat, feats = self.encoder(input, extract_layer_ids, True)
+        return feat, feats
+
+    def get_feats(self, input, extract_layer_ids=[]):
+        _, feats = self.compute_feats(input, extract_layer_ids)
+        return feats
+
     def forward(self, input, layers=[], encode_only=False):
         feat, feats = self.encoder(input, layers, True)
         if encode_only:
