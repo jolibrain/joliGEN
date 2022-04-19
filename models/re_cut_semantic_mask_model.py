@@ -59,7 +59,8 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
         )
         self.model_names += ["P_B"]
 
-        self.optimizer_P = torch.optim.Adam(
+        self.optimizer_P = opt.optim(
+            opt,
             itertools.chain(self.netP_B.parameters()),
             lr=opt.alg_re_P_lr,
             betas=(opt.train_beta1, opt.train_beta2),
@@ -130,7 +131,8 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
             self.loss_G.backward()  # calculate gradients for G
             self.loss_P.backward()  # calculate gradients for P
             if self.opt.alg_cut_lambda_NCE > 0.0:
-                self.optimizer_F = torch.optim.Adam(
+                self.optimizer_F = opt.optim(
+                    opt,
                     self.netF.parameters(),
                     lr=self.opt.train_G_lr,
                     betas=(self.opt.train_beta1, self.opt.train_beta2),

@@ -50,8 +50,8 @@ class SegmentationModel(BaseModel):
             self.criterionf_s = torch.nn.modules.NLLLoss()
             self.criterionf_s = torch.nn.modules.CrossEntropyLoss()
             # initialize optimizers
-            self.optimizer_f_s = torch.optim.Adam(
-                self.netf_s.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
+            self.optimizer_f_s = opt.optim(
+                opt, self.netf_s.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
             )
             print("f defined")
             self.optimizers = []

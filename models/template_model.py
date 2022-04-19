@@ -74,8 +74,8 @@ class TemplateModel(BaseModel):
             self.criterionLoss = torch.nn.L1Loss()
             # define and initialize optimizers. You can define one optimizer for each network.
             # If two networks are updated at the same time, you can use itertools.chain to group them. See cycle_gan_model.py for an example.
-            self.optimizer = torch.optim.Adam(
-                self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
+            self.optimizer = opt.optim(
+                opt, self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
             )
             self.optimizers = [self.optimizer]
 

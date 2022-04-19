@@ -155,19 +155,22 @@ class CycleGANModel(BaseModel):
             self.criterionIdt = torch.nn.L1Loss()
 
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            self.optimizer_G = torch.optim.Adam(
+            self.optimizer_G = opt.optim(
+                opt,
                 itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
             )
             if opt.D_netD_global == "none":
-                self.optimizer_D = torch.optim.Adam(
+                self.optimizer_D = opt.optim(
+                    opt,
                     itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
                     lr=opt.train_D_lr,
                     betas=(opt.train_beta1, opt.train_beta2),
                 )
             else:
-                self.optimizer_D = torch.optim.Adam(
+                self.optimizer_D = opt.optim(
+                    opt,
                     itertools.chain(
                         self.netD_A.parameters(),
                         self.netD_B.parameters(),
