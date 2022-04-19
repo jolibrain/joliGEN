@@ -398,7 +398,7 @@ class TrainOptions(BaseOptions):
             "--dataaug_diff_aug_policy",
             type=str,
             default="",
-            help="choose the augmentation policy : color randaffine. If you want more than one, please write them separated by a comma with no space (e.g. color,randaffine)",
+            help="choose the augmentation policy : color randaffine randperspective. If you want more than one, please write them separated by a comma with no space (e.g. color,randaffine)",
         )
         parser.add_argument(
             "--dataaug_diff_aug_proba",
