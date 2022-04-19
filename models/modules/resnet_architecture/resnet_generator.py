@@ -484,7 +484,7 @@ class ResnetGenerator_attn(BaseGenerator_attn):
         return feat, feats
 
     def compute_attention_content(self, feat):
-        x = self.resnet_blocks(feat)
+        x = feat
 
         x_content = F.relu(self.deconv1_norm_content(self.deconv1_content(x)))
         x_content = F.relu(self.deconv2_norm_content(self.deconv2_content(x_content)))
