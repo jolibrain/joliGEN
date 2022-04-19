@@ -21,5 +21,14 @@ class DiffAugment:
 
 AUGMENT_FNS = {
     "color": transforms.ColorJitter(),
-    "randaffine": transforms.RandomAffine([-30, 30], (0.05, 0.05), (0.8, 1), (-15, 15)),
+    "randaffine": transforms.RandomAffine(
+        [-30, 30],
+        (0.05, 0.05),
+        (0.8, 1),
+        (-15, 15),
+        interpolation=transforms.InterpolationMode.BILINEAR,
+    ),
+    "randperspective": transforms.RandomPerspective(
+        interpolation=transforms.InterpolationMode.BILINEAR
+    ),
 }
