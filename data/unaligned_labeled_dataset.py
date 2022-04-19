@@ -10,6 +10,7 @@ from data.image_folder import (
 from PIL import Image
 import random
 import numpy as np
+import warnings
 
 
 class UnalignedLabeledDataset(BaseDataset):
@@ -81,6 +82,8 @@ class UnalignedLabeledDataset(BaseDataset):
         self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
         self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
 
+        self.semantic_nclasses = self.opt.f_s_semantic_nclasses
+
     def get_img(
         self, A_img_path, A_label_path, B_img_path=None, B_label_path=None, index=None
     ):
@@ -91,8 +94,21 @@ class UnalignedLabeledDataset(BaseDataset):
         B = self.transform_B(B_img)
         # get labels
         A_label = self.A_label[index % self.A_size]
+        if A_label > self.semantic_nclasses - 1:
+            warnings.warn(
+                "A label is above number of semantic classes for img %s" % (A_img_path)
+            )
+            A_label = self.semantic_nclasses - 1
+
         if hasattr(self, "B_label"):
             B_label = self.B_label[index_B]
+            if B_label > self.semantic_nclasses - 1:
+                warnings.warn(
+                    "A label is above number of semantic classes for img %s"
+                    % (B_img_path)
+                )
+                B_label = self.semantic_nclasses - 1
+
             return {
                 "A": A,
                 "B": B,

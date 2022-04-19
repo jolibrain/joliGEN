@@ -8,6 +8,7 @@ import numpy as np
 import torchvision.transforms as transforms
 import torch
 import torchvision.transforms.functional as F
+import warnings
 
 
 class UnalignedLabeledMaskOnlineDataset(BaseDataset):
@@ -139,6 +140,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
 
         self.opt = opt
 
+        self.semantic_nclasses = self.opt.f_s_semantic_nclasses
+
     def sanitize(self):
         print("--------------")
         print("Sanitizing images and labels paths")
@@ -234,6 +237,14 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             return None
 
         A, A_label = self.transform(A_img, A_label)
+
+        if torch.any(A_label > self.semantic_nclasses - 1):
+            warnings.warn(
+                "A label is above number of semantic classes for img %s and label %s"
+                % (A_img_path, A_label_path)
+            )
+            A_label = torch.clamp(A_label, max=self.semantic_nclasses - 1)
+
         if self.opt.f_s_all_classes_as_one:
             A_label = (A_label >= 1) * 1
 
@@ -250,6 +261,13 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         output_dim=self.opt.data_load_size,
                     )
                     B, B_label = self.transform(B_img, B_label)
+                    if torch.any(B_label > self.semantic_nclasses - 1):
+                        warnings.warn(
+                            "A label is above number of semantic classes for img %s and label %s"
+                            % (B_img_path, B_label_path)
+                        )
+                        B_label = torch.clamp(B_label, max=self.semantic_nclasses - 1)
+
                     if self.opt.f_s_all_classes_as_one:
                         B_label = (B_label >= 1) * 1
 
