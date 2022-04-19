@@ -54,7 +54,7 @@ def document_section(json_schema, level, opt_prefix):
         field = json_schema["properties"][field_name]
 
         if field["type"] == "object":
-            other_opt_str += ((level + 2) * "#") + " " + field["description"] + "\n\n"
+            other_opt_str += ((level + 2) * "#") + " " + field["title"] + "\n\n"
             other_opt_str += document_section(
                 field, level + 1, opt_prefix + field_name + "_"
             )
