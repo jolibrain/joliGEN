@@ -236,7 +236,7 @@ Here are all the available options to call with `train.py`
 | --dataaug_affine_scale_min | float | 0.8 | if random affine specified, min scale range value |
 | --dataaug_affine_shear | int | 45 | if random affine specified, shear range (0,value) |
 | --dataaug_affine_translate | float | 0.2 | if random affine specified, translation range (-value\*img_size,+value\*img_size) value |
-| --dataaug_diff_aug_policy | string |  | choose the augmentation policy : color randaffine. If you want more than one, please write them separated by a comma with no space (e.g. color,randaffine) |
+| --dataaug_diff_aug_policy | string |  | choose the augmentation policy : color randaffine randperspective. If you want more than one, please write them separated by a comma with no space (e.g. color,randaffine) |
 | --dataaug_diff_aug_proba | float | 0.5 | proba of using each transformation |
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
 | --dataaug_no_flip | flag |  | if specified, do not flip the images for data augmentation |
