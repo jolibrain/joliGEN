@@ -131,6 +131,12 @@ class TrainOptions(BaseOptions):
             help="which epoch to load? set to latest to use latest cached model",
         )
         parser.add_argument(
+            "--train_optim",
+            default="adam",
+            choices=["adam", "radam", "adamw"],
+            help="optimizer (adam, radam, adamw, ...)",
+        )
+        parser.add_argument(
             "--train_load_iter",
             type=int,
             default=0,

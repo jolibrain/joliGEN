@@ -73,7 +73,8 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
         )
         self.model_names += ["P_A", "P_B"]
 
-        self.optimizer_P = torch.optim.Adam(
+        self.optimizer_P = opt.optim(
+            opt,
             itertools.chain(self.netP_A.parameters(), self.netP_B.parameters()),
             lr=opt.alg_re_P_lr,
             betas=(opt.train_beta1, opt.train_beta2),

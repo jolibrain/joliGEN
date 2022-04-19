@@ -159,19 +159,22 @@ class CUTModel(BaseModel):
             for nce_layer in self.nce_layers:
                 self.criterionNCE.append(PatchNCELoss(opt).to(self.device))
 
-            self.optimizer_G = torch.optim.Adam(
+            self.optimizer_G = opt.optim(
+                opt,
                 self.netG.parameters(),
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
             )
             if opt.D_netD_global == "none":
-                self.optimizer_D = torch.optim.Adam(
+                self.optimizer_D = opt.optim(
+                    opt,
                     self.netD.parameters(),
                     lr=opt.train_D_lr,
                     betas=(opt.train_beta1, opt.train_beta2),
                 )
             else:
-                self.optimizer_D = torch.optim.Adam(
+                self.optimizer_D = opt.optim(
+                    opt,
                     itertools.chain(
                         self.netD.parameters(), self.netD_global.parameters()
                     ),
@@ -257,7 +260,8 @@ class CUTModel(BaseModel):
                 self.opt.alg_cut_lambda_NCE > 0.0
                 and not self.opt.alg_cut_netF == "sample"
             ):
-                self.optimizer_F = torch.optim.Adam(
+                self.optimizer_F = self.opt.optim(
+                    self.opt,
                     self.netF.parameters(),
                     lr=self.opt.train_G_lr,
                     betas=(self.opt.train_beta1, self.opt.train_beta2),

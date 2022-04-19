@@ -75,7 +75,8 @@ class CUTSemanticMaskModel(CUTModel):
                     )
 
             if self.opt.train_mask_disjoint_f_s:
-                self.optimizer_f_s = torch.optim.Adam(
+                self.optimizer_f_s = opt.optim(
+                    opt,
                     itertools.chain(
                         self.netf_s_A.parameters(), self.netf_s_B.parameters()
                     ),
@@ -83,7 +84,8 @@ class CUTSemanticMaskModel(CUTModel):
                     betas=(opt.train_beta1, opt.train_beta2),
                 )
             else:
-                self.optimizer_f_s = torch.optim.Adam(
+                self.optimizer_f_s = opt.optim(
+                    opt,
                     self.netf_s.parameters(),
                     lr=opt.train_sem_lr_f_s,
                     betas=(opt.train_beta1, opt.train_beta2),

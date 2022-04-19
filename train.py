@@ -39,6 +39,16 @@ def setup(rank, world_size, port):
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
+def optim(opt, params, lr, betas):
+    print("Using ", opt.train_optim, " as optimizer")
+    if opt.train_optim == "adam":
+        return torch.optim.Adam(params, lr, betas)
+    elif opt.train_optim == "radam":
+        return torch.optim.RAdam(params, lr, betas)
+    elif opt.train_optim == "adamw":
+        return torch.optim.AdamW(params, lr, betas)
+
+
 def signal_handler(sig, frame):
     dist.destroy_process_group()
 
@@ -53,6 +63,7 @@ def train_gpu(rank, world_size, opt, dataset):
         opt, rank, dataset
     )  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)  # get the number of images in the dataset.
+    opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
 
     if hasattr(model, "data_dependent_initialize"):
@@ -232,16 +243,7 @@ def launch_training(opt=None):
     dataset = create_dataset(opt)
     print("The number of training images = %d" % len(dataset))
 
-    mp.spawn(
-        train_gpu,
-        args=(
-            world_size,
-            opt,
-            dataset,
-        ),
-        nprocs=world_size,
-        join=True,
-    )
+    mp.spawn(train_gpu, args=(world_size, opt, dataset), nprocs=world_size, join=True)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,8 @@ class CycleGANSemanticModel(CycleGANModel):
                 self.criterionCLS = torch.nn.modules.CrossEntropyLoss()
 
             # initialize optimizers
-            self.optimizer_CLS = torch.optim.Adam(
+            self.optimizer_CLS = opt.optim(
+                opt,
                 self.netCLS.parameters(),
                 lr=opt.train_sem_lr_f_s,
                 betas=(opt.train_beta1, opt.train_beta2),
