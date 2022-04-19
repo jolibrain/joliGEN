@@ -9,7 +9,6 @@ Here are all the available options to call with `train.py`
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
-| --madgrad | flag |  | if true madgrad optim will be used |
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
@@ -43,7 +42,7 @@ Here are all the available options to call with `train.py`
 | --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
-| --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
+| --G_padding_type | string | zeros | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
 | --G_spectral | flag |  | whether to use spectral norm in the generator |
 | --G_stylegan2_num_downsampling | int | 1 | Number of downsampling layers used by StyleGAN2Generator |
 
@@ -152,7 +151,7 @@ Here are all the available options to call with `train.py`
 | --output_display_server | string | http://localhost | visdom server of the web display |
 | --output_display_winsize | int | 256 | display window size for both visdom and HTML |
 
-## Model parameters
+## Model
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -162,7 +161,7 @@ Here are all the available options to call with `train.py`
 | --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale<br/><br/>_**Values:** 1, 3_ |
 | --model_type | string | cut | chooses which model to use.<br/><br/>_**Values:** cycle_gan, cut, cycle_gan_semantic, cut_semantic, cycle_gan_semantic_mask, cut_semantic_mask_ |
 
-## Parameters used during training
+## Training
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -191,11 +190,11 @@ Here are all the available options to call with `train.py`
 | --train_nb_img_max_fid | int | 1000000000 | Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used. |
 | --train_pool_size | int | 50 | the size of image buffer that stores previously generated images |
 | --train_save_by_iter | flag |  | whether saves model by iteration |
-| --train_save_epoch_freq | int | 5 | frequency of saving checkpoints at the end of epochs |
+| --train_save_epoch_freq | int | 1 | frequency of saving checkpoints at the end of epochs |
 | --train_save_latest_freq | int | 5000 | frequency of saving the latest results |
 | --train_use_contrastive_loss_D | flag |  |  |
 
-### semantic training parameters
+### Semantic training
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -208,7 +207,7 @@ Here are all the available options to call with `train.py`
 | --train_sem_regression | flag |  | if true cls will be a regressor and not a classifier |
 | --train_sem_use_label_B | flag |  | if true domain B has labels too |
 
-### Parameters for semantic training with masks
+### Semantic training with masks
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
