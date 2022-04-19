@@ -39,12 +39,6 @@ def crop_image(
             xmax = math.floor(int(bbox[3]))
             ymax = math.floor(int(bbox[4]))
 
-            if i == idx_bbox_ref:
-                x_min_ref = xmin
-                x_max_ref = xmax
-                y_min_ref = ymin
-                y_max_ref = ymax
-
             if (
                 mask_delta > 0
             ):  # increase mask box so that it can fit the reconstructed object (for semantic loss)
@@ -68,6 +62,12 @@ def crop_image(
             ymax = min(ymax, img.shape[0])
 
             mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
+
+            if i == idx_bbox_ref:
+                x_min_ref = xmin
+                x_max_ref = xmax
+                y_min_ref = ymin
+                y_max_ref = ymax
 
     height = y_max_ref - y_min_ref
     width = x_max_ref - x_min_ref
