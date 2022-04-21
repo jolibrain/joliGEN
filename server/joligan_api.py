@@ -2,6 +2,8 @@ from fastapi import Request, FastAPI, HTTPException
 import asyncio
 import traceback
 import json
+import subprocess
+import os
 
 import torch.multiprocessing as mp
 
@@ -12,9 +14,15 @@ from enum import Enum
 from pydantic import create_model, BaseModel, Field
 
 
+git_hash = (
+    subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=os.path.dirname(__file__))
+    .decode("ascii")
+    .strip()
+)
+print("Launching JoliGAN Server\ncommit=%s" % git_hash)
+
 description = """This is the JoliGAN server API documentation.
 """
-
 app = FastAPI(title="JoliGAN server", description=description)
 
 # Additional schema
