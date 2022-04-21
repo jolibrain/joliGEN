@@ -13,13 +13,12 @@ from data import create_dataset
 from enum import Enum
 from pydantic import create_model, BaseModel, Field
 
-
 git_hash = (
     subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=os.path.dirname(__file__))
     .decode("ascii")
     .strip()
 )
-print("Launching JoliGAN Server\ncommit=%s" % git_hash)
+print("Launching JoliGAN Server\ncommit=%s" % git_hash, flush=True)
 
 description = """This is the JoliGAN server API documentation.
 """
