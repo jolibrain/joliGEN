@@ -7,11 +7,13 @@ import os
 
 import torch.multiprocessing as mp
 
-from train import train_gpu
+from train import launch_training
 from options.train_options import TrainOptions
 from data import create_dataset
 from enum import Enum
 from pydantic import create_model, BaseModel, Field
+
+from multiprocessing import Process
 
 git_hash = (
     subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=os.path.dirname(__file__))
@@ -71,24 +73,17 @@ app.openapi = custom_openapi
 ctx = {}
 
 
-def stop_training(context):
-    for process in context.processes:
-        process.terminate()
+def stop_training(process):
+    process.terminate()
 
     try:
-        context.join()
+        process.join()
     except Exception as e:
         print(e)
 
 
-def is_alive(context):
-    alive = True
-
-    for process in context.processes:
-        if not process.is_alive():
-            alive = False
-
-    return alive
+def is_alive(process):
+    return process.is_alive()
 
 
 @app.post(
@@ -120,19 +115,8 @@ async def train(name: str, request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=400, detail="{0}".format(e))
 
-    world_size = len(opt.gpu_ids)
-    dataset = create_dataset(opt)
-
-    ctx[name] = mp.spawn(
-        train_gpu,
-        args=(
-            world_size,
-            opt,
-            dataset,
-        ),
-        nprocs=world_size,
-        join=False,
-    )
+    ctx[name] = Process(target=launch_training, args=(opt,))
+    ctx[name].start()
 
     if train_body.server.sync:
         try:
@@ -152,7 +136,7 @@ async def train(name: str, request: Request):
 async def get_train(name: str):
     if name in ctx:
         status = "running" if is_alive(ctx[name]) else "stopped"
-        return {"status": "running", "name": name}
+        return {"status": status, "name": name}
     else:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -161,7 +145,8 @@ async def get_train(name: str):
 async def get_train_processes():
     processes = []
     for name in ctx:
-        processes.append({"status": "running", "name": name})
+        status = "running" if is_alive(ctx[name]) else "stopped"
+        processes.append({"status": status, "name": name})
 
     return {"processes": processes}
 
