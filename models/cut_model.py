@@ -47,7 +47,7 @@ class CUTModel(BaseModel):
         parser.add_argument(
             "--alg_cut_nce_layers",
             type=str,
-            default="0,4,8,12,16",
+            default="4,8,12,16",
             help="compute NCE loss on which layers",
         )
         parser.add_argument(
