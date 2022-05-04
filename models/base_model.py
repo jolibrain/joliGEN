@@ -713,6 +713,21 @@ class BaseModel(ABC):
         for optimizer_name in optimizers_names:
             optimizers.append(getattr(self, optimizer_name))
 
+        if self.opt.train_iter_size > 1:
+            for loss_name in loss_names:
+                value = (
+                    getattr(self, "loss_" + loss_name).clone()
+                    / self.opt.train_iter_size
+                )
+                if len(self.opt.gpu_ids) > 1:
+                    torch.distributed.all_reduce(
+                        value, op=torch.distributed.ReduceOp.SUM
+                    )  # loss value is summed accross gpus
+                    value = value / len(self.opt.gpu_ids)
+                if torch.is_tensor(value):
+                    value = value.detach()
+                self.iter_calculator.compute_step(loss_name, value)
+
         if self.niter % self.opt.train_iter_size == 0:
             for optimizer in optimizers:
                 optimizer.step()
@@ -725,12 +740,6 @@ class BaseModel(ABC):
                         "loss_" + loss_name + "_avg",
                         getattr(self.iter_calculator, "loss_" + loss_name),
                     )
-        elif self.opt.train_iter_size > 1:
-            for loss_name in loss_names:
-                value = getattr(self, "loss_" + loss_name) / self.opt.train_iter_size
-                if torch.is_tensor(value):
-                    value = value.detach()
-                self.iter_calculator.compute_step(loss_name, value)
 
     def ema_step(self, network_name):
         ema_beta = self.opt.train_G_ema_beta
