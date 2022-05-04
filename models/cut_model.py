@@ -110,6 +110,9 @@ class CUTModel(BaseModel):
         if opt.D_netD_global != "none":
             losses_D += ["D_global"]
             losses_G += ["G_GAN_global"]
+        if opt.D_temporal:
+            losses_D += ["D_temporal"]
+            losses_G += ["G_temporal"]
 
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
@@ -136,7 +139,11 @@ class CUTModel(BaseModel):
             self.model_names = ["G", "F", "D"]
             if opt.D_netD_global != "none":
                 self.model_names += ["D_global"]
+
             self.model_names_export = ["G"]
+
+            if opt.D_temporal:
+                self.model_names += ["D_temporal"]
 
         else:  # during test time, only load G
             self.model_names = ["G"]
@@ -152,6 +159,8 @@ class CUTModel(BaseModel):
                 self.netD_global = networks.define_D(
                     netD=opt.D_netD_global, **vars(opt)
                 )
+            if opt.D_temporal:
+                self.netD_temporal = networks.define_D("temporal", **vars(opt))
 
             # define loss functions
             self.criterionGAN = loss.GANLoss(opt.train_gan_mode).to(self.device)
@@ -167,21 +176,45 @@ class CUTModel(BaseModel):
                 betas=(opt.train_beta1, opt.train_beta2),
             )
             if opt.D_netD_global == "none":
-                self.optimizer_D = opt.optim(
-                    opt,
-                    self.netD.parameters(),
-                    lr=opt.train_D_lr,
-                    betas=(opt.train_beta1, opt.train_beta2),
-                )
+                if opt.D_temporal:
+                    self.optimizer_D = opt.optim(
+                        opt,
+                        itertools.chain(
+                            self.netD.parameters(), self.netD_temporal.parameters()
+                        ),
+                        lr=opt.train_D_lr,
+                        betas=(opt.train_beta1, opt.train_beta2),
+                    )
+                else:
+                    self.optimizer_D = opt.optim(
+                        opt,
+                        self.netD.parameters(),
+                        lr=opt.train_D_lr,
+                        betas=(opt.train_beta1, opt.train_beta2),
+                    )
             else:
-                self.optimizer_D = opt.optim(
-                    opt,
-                    itertools.chain(
-                        self.netD.parameters(), self.netD_global.parameters()
-                    ),
-                    lr=opt.train_D_lr,
-                    betas=(opt.train_beta1, opt.train_beta2),
-                )
+                if opt.D_temporal:
+                    self.optimizer_D = opt.optim(
+                        opt,
+                        itertools.chain(
+                            self.netD.parameters(),
+                            self.netD_global.parameters(),
+                            self.netD_temporal.parameters(),
+                        ),
+                        lr=opt.train_D_lr,
+                        betas=(opt.train_beta1, opt.train_beta2),
+                    )
+                else:
+
+                    self.optimizer_D = opt.optim(
+                        opt,
+                        itertools.chain(
+                            self.netD.parameters(), self.netD_global.parameters()
+                        ),
+                        lr=opt.train_D_lr,
+                        betas=(opt.train_beta1, opt.train_beta2),
+                    )
+
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
@@ -195,6 +228,10 @@ class CUTModel(BaseModel):
                 self.loss_D_global = 0
                 self.loss_G_GAN_global = 0
 
+            if not opt.D_temporal:
+                self.loss_D_temporal = 0
+                self.loss_G_temporal = 0
+
             ###Making groups
             discriminators = ["netD"]
             if opt.D_netD_global != "none":
@@ -202,6 +239,13 @@ class CUTModel(BaseModel):
                 self.D_global_loss = loss.DiscriminatorGANLoss(
                     opt, self.netD_global, self.device, gan_mode="lsgan"
                 )
+
+            if opt.D_temporal:
+                discriminators += ["netD_temporal"]
+                self.D_temporal_loss = loss.DiscriminatorGANLoss(
+                    opt, self.netD_temporal, self.device
+                )
+
             self.networks_groups = []
 
             self.group_G = NetworkGroup(
@@ -218,6 +262,8 @@ class CUTModel(BaseModel):
             D_to_optimize = ["D"]
             if opt.D_netD_global != "none":
                 D_to_optimize.append("D_global")
+            if opt.D_temporal:
+                D_to_optimize.append("D_temporal")
             self.group_D = NetworkGroup(
                 networks_to_optimize=D_to_optimize,
                 forward_functions=None,
@@ -237,6 +283,20 @@ class CUTModel(BaseModel):
 
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_A_fake_B"])
+
+        if self.opt.D_temporal:
+            visual_names_temporal_real_A = []
+            visual_names_temporal_real_B = []
+            visual_names_temporal_fake_B = []
+            for i in range(self.opt.D_temporal_number_frames):
+                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
+                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
+            for i in range(self.opt.D_temporal_number_frames):
+                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
+
+            self.visual_names.append(visual_names_temporal_real_A)
+            self.visual_names.append(visual_names_temporal_real_B)
+            self.visual_names.append(visual_names_temporal_fake_B)
 
     def set_input_first_gpu(self, data):
         self.set_input(data)
@@ -319,7 +379,18 @@ class CUTModel(BaseModel):
                 self.netD_global, "B", self.D_global_loss
             )
 
-        self.loss_D_tot = self.loss_D + self.loss_D_global
+        if self.opt.D_temporal and self.niter % self.opt.D_temporal_every == 0:
+            self.loss_D_temporal = self.compute_D_loss_generic(
+                self.netD_temporal,
+                "B",
+                self.D_temporal_loss,
+                fake_name="temporal_fake_B",
+                real_name="temporal_real_B",
+            )
+        else:
+            self.loss_D_temporal = 0
+
+        self.loss_D_tot = self.loss_D + self.loss_D_global + self.loss_D_temporal
 
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
@@ -332,6 +403,16 @@ class CUTModel(BaseModel):
                 self.loss_G_GAN_global = self.compute_G_loss_GAN_generic(
                     self.netD_global, "B", self.D_global_loss
                 )
+            if self.opt.D_temporal and self.niter % self.opt.D_temporal_every == 0:
+                self.loss_G_temporal = self.compute_G_loss_GAN_generic(
+                    self.netD_temporal,
+                    "B",
+                    self.D_temporal_loss,
+                    fake_name="temporal_fake_B",
+                    real_name="temporal_real_B",
+                )
+            else:
+                self.loss_G_temporal = 0
 
         if self.opt.alg_cut_lambda_NCE > 0.0:
             self.loss_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
@@ -344,7 +425,12 @@ class CUTModel(BaseModel):
         else:
             loss_NCE_both = self.loss_NCE
 
-        self.loss_G = self.loss_G_GAN + self.loss_G_GAN_global + loss_NCE_both
+        self.loss_G = (
+            self.loss_G_GAN
+            + self.loss_G_GAN_global
+            + self.loss_G_temporal
+            + loss_NCE_both
+        )
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
