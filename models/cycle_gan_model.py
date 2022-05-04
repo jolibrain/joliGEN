@@ -115,6 +115,7 @@ class CycleGANModel(BaseModel):
             self.model_names = ["G_A", "G_B", "D_A", "D_B"]
             if opt.D_netD_global != "none":
                 self.model_names += ["D_A_global", "D_B_global"]
+            self.model_names_export = ["G_A"]
         else:  # during test time, only load Gs
             self.model_names = ["G_A", "G_B"]
 

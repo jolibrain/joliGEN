@@ -156,6 +156,7 @@ def train_gpu(rank, world_size, opt, dataset):
                         "iter_%d" % total_iters if opt.train_save_by_iter else "latest"
                     )
                     model.save_networks(save_suffix)
+                    model.export_networks(save_suffix)
 
                 if (
                     total_iters % opt.train_fid_every < batch_size
@@ -201,6 +202,9 @@ def train_gpu(rank, world_size, opt, dataset):
                 )
                 model.save_networks("latest")
                 model.save_networks(epoch)
+
+                model.export_networks("latest")
+                model.export_networks(epoch)
 
         if rank == 0:
             print(

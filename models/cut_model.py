@@ -136,6 +136,7 @@ class CUTModel(BaseModel):
             self.model_names = ["G", "F", "D"]
             if opt.D_netD_global != "none":
                 self.model_names += ["D_global"]
+            self.model_names_export = ["G"]
 
         else:  # during test time, only load G
             self.model_names = ["G"]

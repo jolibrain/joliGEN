@@ -380,6 +380,46 @@ class BaseModel(ABC):
                 else:
                     torch.save(net.state_dict(), save_path)
 
+    def export_networks(self, epoch):
+        """Export chosen networks weights to the disk.
+
+        Parameters:
+            epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
+        """
+        for name in self.model_names_export:
+            if isinstance(name, str):
+                save_filename = "%s_net_%s.pth" % (epoch, name)
+                save_path = os.path.join(self.save_dir, save_filename)
+
+                net = getattr(self, "net" + name)
+
+                dummy_input = torch.randn(
+                    1,
+                    self.opt.model_input_nc,
+                    self.opt.data_crop_size,
+                    self.opt.data_crop_size,
+                    device=self.device,
+                )
+
+                # onnx
+                export_path_onnx = save_path.replace(".pth", ".onnx")
+                if "segformer" in name:
+                    opset_version = 11
+                else:
+                    opset_version = 9
+                torch.onnx.export(
+                    net,
+                    dummy_input,
+                    export_path_onnx,
+                    verbose=False,
+                    opset_version=opset_version,
+                )
+
+                # jit
+                export_path_jit = save_path.replace(".pth", ".pt")
+                jit_model = torch.jit.trace(net, dummy_input)
+                jit_model.save(export_path_jit)
+
     def __patch_instance_norm_state_dict(self, state_dict, module, keys, i=0):
         """Fix InstanceNorm checkpoints incompatibility (prior to 0.4)"""
         key = keys[i]
