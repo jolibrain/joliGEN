@@ -171,7 +171,10 @@ class TrainOptions(BaseOptions):
             help="number of epochs to linearly decay learning rate to zero",
         )
         parser.add_argument(
-            "--train_beta1", type=float, default=0.5, help="momentum term of adam"
+            "--train_beta1", type=float, default=0.9, help="momentum term of adam"
+        )
+        parser.add_argument(
+            "--train_beta2", type=float, default=0.999, help="momentum term of adam"
         )
         parser.add_argument(
             "--train_G_lr",
@@ -222,9 +225,6 @@ class TrainOptions(BaseOptions):
             type=int,
             default=1,
             help="backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size*iter_size",
-        )
-        parser.add_argument(
-            "--train_beta2", type=float, default=0.999, help="momentum term of adam"
         )
         parser.add_argument("--train_use_contrastive_loss_D", action="store_true")
 
