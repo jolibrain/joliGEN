@@ -221,7 +221,9 @@ projector_models = {
 }
 
 
-def _make_projector(projector_model, cout, proj_type, expand, config_path, weight_path):
+def _make_projector(
+    projector_model, cout, proj_type, expand, config_path, weight_path, interp
+):
     assert proj_type in [0, 1, 2], "Invalid projection type"
 
     ### Build pretrained feature network
@@ -237,7 +239,7 @@ def _make_projector(projector_model, cout, proj_type, expand, config_path, weigh
     # by fixing this to 256, ie., we use the same number of down blocks per discriminator
     # independent of the dataset resolution
 
-    pretrained.CHANNELS, pretrained.FEATS = calc_channels(pretrained)
+    pretrained.CHANNELS, pretrained.FEATS = calc_channels(pretrained, inp_res=interp)
     for feat in pretrained.FEATS:
         pretrained.RESOLUTIONS = [feat[0] for feat in pretrained.FEATS]
 
@@ -292,6 +294,7 @@ class Proj(nn.Module):
         proj_type=2,  # 0 = no projection, 1 = cross channel mixing, 2 = cross scale mixing
         config_path="",
         weight_path="",
+        interp=256,
         **kwargs
     ):
         super().__init__()
@@ -307,6 +310,7 @@ class Proj(nn.Module):
             expand=self.expand,
             config_path=config_path,
             weight_path=weight_path,
+            interp=interp,
         )
 
         self.CHANNELS = self.pretrained.CHANNELS

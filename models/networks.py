@@ -34,7 +34,10 @@ from .modules.stylegan_networks import (
     TileStyleGAN2Discriminator,
 )
 from .modules.cut_networks import PatchSampleF
-from .modules.projected_d.discriminator import ProjectedDiscriminator
+from .modules.projected_d.discriminator import (
+    ProjectedDiscriminator,
+    TemporalProjectedDiscriminator,
+)
 from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn
 
 
@@ -268,6 +271,8 @@ def define_D(
     D_proj_config_segformer,
     D_proj_weight_segformer,
     jg_dir,
+    D_temporal_number_frames,
+    D_temporal_frame_step,
     **unused_options
 ):
 
@@ -359,6 +364,24 @@ def define_D(
             weight_path=weight_path,
         )
         return net  # no init since custom frozen backbone
+    elif netD == "temporal":
+        # projected D temporal
+        weight_path = os.path.join(jg_dir, D_proj_weight_segformer)
+        if D_proj_network_type == "segformer" and not os.path.exists(weight_path):
+            print(
+                "Downloading pretrained segformer weights for projected D feature extractor."
+            )
+            download_segformer_weight(weight_path)
+        net = TemporalProjectedDiscriminator(
+            D_proj_network_type,
+            interp=224 if data_crop_size < 224 else D_proj_interp,
+            config_path=os.path.join(jg_dir, D_proj_config_segformer),
+            weight_path=weight_path,
+            D_temporal_number_frames=D_temporal_number_frames,
+            D_temporal_frame_step=D_temporal_frame_step,
+        )
+        return net  # no init since custom frozen backbone
+
     else:
         raise NotImplementedError(
             "Discriminator model name [%s] is not recognized" % netD

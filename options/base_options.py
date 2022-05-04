@@ -306,6 +306,33 @@ class BaseOptions:
             default="models/configs/segformer/pretrain/segformer_mit-b0.pth",
             help="path to segformer weight",
         )
+        parser.add_argument(
+            "--D_temporal",
+            action="store_true",
+            help="if specified, use a temporal discriminator",
+        )
+
+        parser.add_argument(
+            "--D_temporal_number_frames",
+            type=int,
+            default=5,
+            help="how many successive frames use for temporal loss",
+        )
+
+        parser.add_argument(
+            "--D_temporal_frame_step",
+            type=int,
+            default=30,
+            help="how many frames between successive frames selected",
+        )
+
+        parser.add_argument("--D_temporal_every", type=int, default=4)
+        parser.add_argument(
+            "--D_temporal_num_common_char",
+            type=int,
+            default=-1,
+            help="how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used ",
+        )
 
         # semantic network
         parser.add_argument(

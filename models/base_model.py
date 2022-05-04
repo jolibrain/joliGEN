@@ -235,6 +235,14 @@ class BaseModel(ABC):
         """
         pass
 
+    def set_input_temporal(self, input_temporal):
+        AtoB = self.opt.data_direction == "AtoB"
+        self.temporal_real_A = input_temporal["A" if AtoB else "B"].to(self.device)
+        self.temporal_real_B = input_temporal["B" if AtoB else "A"].to(self.device)
+        for i in range(self.opt.D_temporal_number_frames):
+            setattr(self, "temporal_real_A_" + str(i), self.temporal_real_A[:, i])
+            setattr(self, "temporal_real_B_" + str(i), self.temporal_real_B[:, i])
+
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.real_A_pool.query(self.real_A)
@@ -244,6 +252,14 @@ class BaseModel(ABC):
             netG = self.netG
         else:
             netG = self.netG_A
+
+        if self.opt.D_temporal:
+            self.temporal_fake_B = []
+            for i in range(self.opt.D_temporal_number_frames):
+                self.temporal_fake_B.append(self.netG(self.temporal_real_A[:, i]))
+            self.temporal_fake_B = torch.stack(self.temporal_fake_B, dim=1)
+            for i in range(self.opt.D_temporal_number_frames):
+                setattr(self, "temporal_fake_B_" + str(i), self.temporal_fake_B[:, i])
 
         if self.opt.output_display_G_attention_masks:
             images, attentions, outputs = netG.get_attention_masks(self.real_A)

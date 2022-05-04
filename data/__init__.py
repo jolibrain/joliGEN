@@ -59,6 +59,18 @@ def create_dataloader(opt, rank, dataset):
     return dataset
 
 
+def create_dataset_temporal(opt):
+    dataset_class = find_dataset_using_name("temporal")
+    dataset = dataset_class(opt)
+    return dataset
+
+
+def create_iterable_dataloader(opt, rank, dataset):
+    data_loader = IterableCustomDatasetDataLoader(opt, rank, dataset)
+    dataset = data_loader.load_data()
+    return dataset
+
+
 def collate_fn(batch):
     batch = list(filter(lambda x: x is not None, batch))
     if len(batch) > 0:
@@ -115,4 +127,42 @@ class CustomDatasetDataLoader:
                 continue
             if i * self.opt.train_batch_size >= self.opt.data_max_dataset_size:
                 break
+            yield data
+
+
+class IterableCustomDatasetDataLoader:
+    """Wrapper class of Dataset class that performs multi-threaded data loading"""
+
+    def __init__(self, opt, rank, dataset):
+        """Initialize this class
+
+        Step 1: create a dataset instance given the name [dataset_mode]
+        Step 2: create a multi-threaded data loader.
+        """
+        self.opt = opt
+        self.dataset = dataset
+        if rank == 0:
+            print("dataset [%s] was created" % type(self.dataset).__name__)
+        sampler = None
+        shuffle = not opt.data_serial_batches
+        self.dataloader = torch.utils.data.DataLoader(
+            self.dataset,
+            batch_size=opt.train_batch_size,
+            sampler=sampler,
+            num_workers=int(opt.data_num_threads),
+            collate_fn=collate_fn,
+        )
+
+    def load_data(self):
+        return self
+
+    def __len__(self):
+        """Return the number of data in the dataset"""
+        return self.opt.data_max_dataset_size
+
+    def __iter__(self):
+        """Return a batch of data"""
+        for i, data in enumerate(self.dataloader):
+            if data is None:
+                continue
             yield data

@@ -8,7 +8,15 @@ from tqdm import tqdm
 
 
 def crop_image(
-    img_path, bbox_path, mask_delta, crop_delta, mask_square, crop_dim, output_dim
+    img_path,
+    bbox_path,
+    mask_delta,
+    crop_delta,
+    mask_square,
+    crop_dim,
+    output_dim,
+    get_crop_coordinates=False,
+    crop_coordinates=None,
 ):
 
     img = np.array(Image.open(img_path))
@@ -85,6 +93,23 @@ def crop_image(
 
     x_crop = random.randint(x_crop_min, x_crop_max)
     y_crop = random.randint(y_crop_min, y_crop_max)
+
+    if get_crop_coordinates:
+        return x_crop - x_min_ref, y_crop - y_min_ref, crop_size
+
+    if crop_coordinates is not None:
+        x_crop, y_crop, crop_size = crop_coordinates
+        x_crop = x_crop + x_min_ref
+        y_crop = y_crop + y_min_ref
+
+        if x_crop < 0:
+            x_crop = 0
+        if x_crop + crop_size > img.shape[1] - 1:
+            x_crop = img.shape[1] - crop_size
+        if y_crop < 0:
+            y_crop = 0
+        if y_crop + crop_size > img.shape[0] - 1:
+            y_crop = img.shape[0] - crop_size
 
     img = img[y_crop : y_crop + crop_size, x_crop : x_crop + crop_size, :]
     img = Image.fromarray(img)
