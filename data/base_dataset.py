@@ -181,7 +181,10 @@ def get_transform(
     if grayscale:
         transform_list.append(transforms.Grayscale(1))
     if "resize" in opt.data_preprocess:
-        osize = [opt.data_load_size, opt.data_load_size]
+        osize = [
+            opt.data_load_size + opt.data_online_context_pixels * 2,
+            opt.data_load_size + opt.data_online_context_pixels * 2,
+        ]
         transform_list.append(transforms.Resize(osize, interpolation=method))
     elif "scale_width" in opt.data_preprocess:
         transform_list.append(
@@ -192,11 +195,19 @@ def get_transform(
 
     if "crop" in opt.data_preprocess and crop:
         if params is None:
-            transform_list.append(transforms.RandomCrop(opt.data_crop_size))
+            transform_list.append(
+                transforms.RandomCrop(
+                    opt.data_crop_size + opt.data_online_context_pixels * 2
+                )
+            )
         else:
             transform_list.append(
                 transforms.Lambda(
-                    lambda img: __crop(img, params["crop_pos"], opt.data_crop_size)
+                    lambda img: __crop(
+                        img,
+                        params["crop_pos"],
+                        opt.data_crop_size + opt.data_online_context_pixels * 2,
+                    )
                 )
             )
 
@@ -296,11 +307,16 @@ def get_transform_seg(
         transform_list.append(GrayscaleMask(1))
 
     if "resize" in opt.data_preprocess:
-        osize = [opt.data_load_size, opt.data_load_size]
+        osize = [
+            opt.data_load_size + opt.data_online_context_pixels * 2,
+            opt.data_load_size + opt.data_online_context_pixels * 2,
+        ]
         transform_list.append(ResizeMask(osize, interpolation=method))
 
     if "crop" in opt.data_preprocess:
-        transform_list.append(RandomCropMask(opt.data_crop_size))
+        transform_list.append(
+            RandomCropMask(opt.data_crop_size + opt.data_online_context_pixels * 2)
+        )
 
     if opt.dataaug_imgaug:
         if not grayscale:
@@ -727,11 +743,16 @@ def get_transform_list(
         transform_list.append(GrayscaleMaskList(1))
 
     if "resize" in opt.data_preprocess:
-        osize = [opt.data_load_size, opt.data_load_size]
+        osize = [
+            opt.data_load_size + opt.data_online_context_pixels * 2,
+            opt.data_load_size + opt.data_online_context_pixels * 2,
+        ]
         transform_list.append(ResizeMaskList(osize, interpolation=method))
 
     if "crop" in opt.data_preprocess:
-        transform_list.append(RandomCropMaskList(opt.data_crop_size))
+        transform_list.append(
+            RandomCropMaskList(opt.data_crop_size + opt.data_online_context_pixels * 2)
+        )
 
     if not opt.dataaug_no_flip:
         transform_list.append(RandomHorizontalFlipMaskList())

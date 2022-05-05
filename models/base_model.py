@@ -819,7 +819,7 @@ class BaseModel(ABC):
 
         if fake_name is None:
             fake = getattr(self, "fake_" + domain_img + "_pool").query(
-                getattr(self, "fake_" + domain_img + noisy)
+                getattr(self, "fake_" + domain_img + "_with_context" + noisy)
             )
         else:
             fake = getattr(self, fake_name)
@@ -833,7 +833,7 @@ class BaseModel(ABC):
             fake_2 = None
 
         if real_name is None:
-            real = getattr(self, "real_" + domain_img + noisy)
+            real = getattr(self, "real_" + domain_img + "_with_context" + noisy)
         else:
             real = getattr(self, real_name)
 
@@ -844,11 +844,11 @@ class BaseModel(ABC):
         self, netD, domain_img, loss, real_name=None, fake_name=None
     ):
         if fake_name is None:
-            fake = getattr(self, "fake_" + domain_img)
+            fake = getattr(self, "fake_" + domain_img + "_with_context")
         else:
             fake = getattr(self, fake_name)
         if real_name is None:
-            real = getattr(self, "real_" + domain_img)
+            real = getattr(self, "real_" + domain_img + "_with_context")
         else:
             real = getattr(self, real_name)
 

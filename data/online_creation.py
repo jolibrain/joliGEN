@@ -17,6 +17,7 @@ def crop_image(
     output_dim,
     get_crop_coordinates=False,
     crop_coordinates=None,
+    context_pixels,
 ):
 
     img = np.array(Image.open(img_path))
@@ -81,7 +82,9 @@ def crop_image(
     width = x_max_ref - x_min_ref
 
     crop_size_min = max(height, width, crop_dim - crop_delta)
-    crop_size_max = max(height, width, crop_dim + crop_delta)
+    crop_size_max = max(
+        height, width, crop_dim + crop_delta
+    )  # maybe crop_dim + crop_delta
 
     crop_size = random.randint(crop_size_min, crop_size_max)
 
@@ -91,8 +94,8 @@ def crop_image(
     y_crop_min = max(0, y_max_ref - crop_size)
     y_crop_max = min(y_min_ref, img.shape[0] - crop_size)
 
-    x_crop = random.randint(x_crop_min, x_crop_max)
-    y_crop = random.randint(y_crop_min, y_crop_max)
+    x_crop = random.randint(x_crop_min, x_crop_max) - context_pixels
+    y_crop = random.randint(y_crop_min, y_crop_max) - context_pixels
 
     if get_crop_coordinates:
         return x_crop - x_min_ref, y_crop - y_min_ref, crop_size
@@ -111,11 +114,22 @@ def crop_image(
         if y_crop + crop_size > img.shape[0] - 1:
             y_crop = img.shape[0] - crop_size
 
-    img = img[y_crop : y_crop + crop_size, x_crop : x_crop + crop_size, :]
-    img = Image.fromarray(img)
-    img = F.resize(img, output_dim)
+    assert x_crop > 0, x_crop + crop_size + context_pixels <= img.shape[1]
+    assert y_crop > 0, y_crop + crop_size + context_pixels <= img.shape[0]
 
-    mask = mask[y_crop : y_crop + crop_size, x_crop : x_crop + crop_size]
+    img = img[
+        y_crop : y_crop + crop_size + context_pixels,
+        x_crop : x_crop + crop_size + context_pixels,
+        :,
+    ]
+
+    img = Image.fromarray(img)
+    img = F.resize(img, output_dim + context_pixels * 2)
+
+    mask = mask[
+        y_crop : y_crop + crop_size + context_pixels,
+        x_crop : x_crop + crop_size + context_pixels,
+    ]
     mask = Image.fromarray(mask)
     mask = F.resize(mask, output_dim, interpolation=InterpolationMode.NEAREST)
 
