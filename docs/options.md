@@ -30,6 +30,11 @@ Here are all the available options to call with `train.py`
 | --D_proj_network_type | string | efficientnet | <br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16_ |
 | --D_proj_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight |
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
+| --D_temporal | flag |  | if specified, use a temporal discriminator |
+| --D_temporal_every | int | 4 |  |
+| --D_temporal_frame_step | int | 30 | how many frames between successive frames selected |
+| --D_temporal_num_common_char | int | -1 | how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used  |
+| --D_temporal_number_frames | int | 5 | how many successive frames use for temporal loss |
 
 ## Generator
 
