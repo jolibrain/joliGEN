@@ -410,7 +410,7 @@ class CUTModel(BaseModel):
 
         self.mask_context_vis = torch.nn.functional.interpolate(
             self.mask_context, size=self.real_A.shape[2:]
-        )
+        )[:, 0]
 
         self.mask_context[
             :,
