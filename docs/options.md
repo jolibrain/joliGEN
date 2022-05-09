@@ -176,7 +176,7 @@ Here are all the available options to call with `train.py`
 | --train_G_ema_beta | float | 0.999 | exponential decay for ema |
 | --train_G_lr | float | 0.0002 | initial learning rate for generator |
 | --train_batch_size | int | 1 | input batch size |
-| --train_beta1 | float | 0.5 | momentum term of adam |
+| --train_beta1 | float | 0.9 | momentum term of adam |
 | --train_beta2 | float | 0.999 | momentum term of adam |
 | --train_compute_D_accuracy | flag |  |  |
 | --train_compute_fid | flag |  |  |
