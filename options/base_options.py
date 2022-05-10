@@ -54,6 +54,9 @@ class BaseOptions:
         }
     }
 
+    # Options that should stay at the root of the schema
+    general_options = ["model_type"]
+
     def __init__(self):
         """Reset the class; indicates the class hasn't been initialized"""
         self.initialized = False
@@ -562,6 +565,10 @@ class BaseOptions:
         (ex: data_online_creation_crop_delta_A will be converted to
         ("data", "online_creation", "delta_A")
         """
+        # General options are always in the root of the json
+        if key in self.general_options:
+            return (key,)
+
         if "properties" in schema:
             for prop in schema["properties"]:
                 if key.startswith(prop + "_"):
