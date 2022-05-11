@@ -298,6 +298,7 @@ class CUTModel(BaseModel):
             self.visual_names.append(visual_names_temporal_real_B)
             self.visual_names.append(visual_names_temporal_fake_B)
 
+        # _vis because images with context are too large for visualization, so we resize it to fit into visdom windows
         self.context_visual_names = [
             "real_A_with_context_vis",
             "real_B_with_context_vis",
@@ -308,7 +309,8 @@ class CUTModel(BaseModel):
         if self.opt.alg_cut_nce_idt:
             self.context_visual_names.append("idt_B_with_context_vis")
 
-        self.visual_names.append(self.context_visual_names)
+        if self.opt.data_online_context_pixels > 0:
+            self.visual_names.append(self.context_visual_names)
 
     def set_input_first_gpu(self, data):
         self.set_input(data)
@@ -352,24 +354,31 @@ class CUTModel(BaseModel):
         """
         AtoB = self.opt.data_direction == "AtoB"
         self.real_A_with_context = input["A" if AtoB else "B"].to(self.device)
-        self.real_A = self.real_A_with_context[
-            :,
-            :,
-            self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-            self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-        ].clone()
+        self.real_A = self.real_A_with_context.clone()
+        if self.opt.data_online_context_pixels > 0:
+            self.real_A = self.real_A[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ]
 
-        self.real_A_with_context_vis = torch.nn.functional.interpolate(
-            self.real_A_with_context, size=self.real_A.shape[2:]
-        )
+            self.real_A_with_context_vis = torch.nn.functional.interpolate(
+                self.real_A_with_context, size=self.real_A.shape[2:]
+            )
 
         self.real_B_with_context = input["B" if AtoB else "A"].to(self.device)
-        self.real_B = self.real_B_with_context[
-            :,
-            :,
-            self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-            self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-        ].clone()
+
+        self.real_B = self.real_B_with_context.clone()
+
+        if self.opt.data_online_context_pixels > 0:
+            self.real_B = self.real_B[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ]
+
         self.real_B_with_context_vis = torch.nn.functional.interpolate(
             self.real_B_with_context, size=self.real_A.shape[2:]
         )
@@ -408,16 +417,18 @@ class CUTModel(BaseModel):
 
         self.mask_context = torch.ones_like(self.fake_B_with_context)
 
+        if self.opt.data_online_context_pixels > 0:
+
+            self.mask_context[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ] = torch.zeros_like(self.fake_B)
+
         self.mask_context_vis = torch.nn.functional.interpolate(
             self.mask_context, size=self.real_A.shape[2:]
         )[:, 0]
-
-        self.mask_context[
-            :,
-            :,
-            self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-            self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-        ] = torch.zeros_like(self.fake_B)
 
         self.fake_B_with_context = (
             self.fake_B_with_context + self.mask_context * self.real_A_with_context

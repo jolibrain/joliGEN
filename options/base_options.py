@@ -492,7 +492,7 @@ class BaseOptions:
         parser.add_argument(
             "--data_online_context_pixels",
             type=int,
-            default=20,
+            default=0,
             help="context pixel band around the crop, unused for generation, only for disc ",
         )
 

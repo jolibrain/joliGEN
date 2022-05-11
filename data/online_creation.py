@@ -15,9 +15,9 @@ def crop_image(
     mask_square,
     crop_dim,
     output_dim,
+    context_pixels,
     get_crop_coordinates=False,
     crop_coordinates=None,
-    context_pixels,
 ):
 
     img = np.array(Image.open(img_path))
