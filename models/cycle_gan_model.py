@@ -236,28 +236,69 @@ class CycleGANModel(BaseModel):
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_B_fake_A", "diff_real_A_fake_B"])
 
-    def set_input(self, input):
-        """Unpack input data from the dataloader and perform necessary pre-processing steps.
+        if self.opt.data_online_context_pixels > 0:
+            self.context_visual_names_A = [
+                "real_A_with_context_vis",
+                "fake_B_with_context_vis",
+                "mask_context_vis",
+            ]
 
-        Parameters:
-            input (dict): include the data itself and its metadata information.
+            self.context_visual_names_B = [
+                "real_B_with_context_vis",
+                "fake_A_with_context_vis",
+                "mask_context_vis",
+            ]
 
-        The option 'direction' can be used to swap domain A and domain B.
-        """
-        AtoB = self.opt.data_direction == "AtoB"
-        self.real_A = input["A" if AtoB else "B"].to(self.device)
-        self.real_B = input["B" if AtoB else "A"].to(self.device)
-        self.image_paths = input["A_img_paths" if AtoB else "B_img_paths"]
+            self.visual_names.append(self.context_visual_names_A)
+            self.visual_names.append(self.context_visual_names_B)
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         super().forward()
+
+        ### Fake B
+
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
         if self.rec_noise > 0.0:
             self.fake_B_noisy1 = gaussian(self.fake_B, self.rec_noise)
             self.rec_A = self.netG_B(self.fake_B_noisy1)
         else:
             self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
+
+        self.fake_B_with_context = torch.nn.functional.pad(
+            self.fake_B,
+            (
+                self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels,
+            ),
+        )
+
+        self.mask_context = torch.ones_like(self.fake_B_with_context)
+
+        if self.opt.data_online_context_pixels > 0:
+
+            self.mask_context[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ] = torch.zeros_like(self.fake_B)
+
+        self.mask_context_vis = torch.nn.functional.interpolate(
+            self.mask_context, size=self.real_A.shape[2:]
+        )[:, 0]
+
+        self.fake_B_with_context = (
+            self.fake_B_with_context + self.mask_context * self.real_A_with_context
+        )
+
+        self.fake_B_with_context_vis = torch.nn.functional.interpolate(
+            self.fake_B_with_context, size=self.real_A.shape[2:]
+        )
+
+        ### Fake A
 
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
         if self.rec_noise > 0.0:
@@ -266,11 +307,46 @@ class CycleGANModel(BaseModel):
         else:
             self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
 
+        self.fake_A_with_context = torch.nn.functional.pad(
+            self.fake_A,
+            (
+                self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels,
+            ),
+        )
+
+        if self.opt.data_online_context_pixels > 0:
+
+            self.mask_context[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ] = torch.zeros_like(self.fake_A)
+
+        self.fake_A_with_context = (
+            self.fake_A_with_context + self.mask_context * self.real_A_with_context
+        )
+
+        self.fake_A_with_context_vis = torch.nn.functional.interpolate(
+            self.fake_A_with_context, size=self.real_A.shape[2:]
+        )
+
         if self.opt.dataaug_D_noise > 0.0:
-            self.fake_B_noisy = gaussian(self.fake_B, self.opt.dataaug_D_noise)
-            self.real_A_noisy = gaussian(self.real_A, self.opt.dataaug_D_noise)
-            self.fake_A_noisy = gaussian(self.fake_A, self.opt.dataaug_D_noise)
-            self.real_B_noisy = gaussian(self.real_B, self.opt.dataaug_D_noise)
+            self.fake_B_with_context_noisy = gaussian(
+                self.fake_B_with_context, self.opt.dataaug_D_noise
+            )
+            self.real_A_with_context_noisy = gaussian(
+                self.real_A_with_context, self.opt.dataaug_D_noise
+            )
+            self.fake_A_with_context_noisy = gaussian(
+                self.fake_A_with_context, self.opt.dataaug_D_noise
+            )
+            self.real_B_with_context_noisy = gaussian(
+                self.real_B_with_context, self.opt.dataaug_D_noise
+            )
 
         if self.opt.alg_cyclegan_lambda_identity > 0:
             self.idt_A = self.netG_A(self.real_B)

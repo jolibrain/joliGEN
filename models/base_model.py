@@ -229,11 +229,42 @@ class BaseModel(ABC):
     def set_input(self, input):
 
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
-
         Parameters:
-            input (dict): includes the data itself and its metadata information.
+            input (dict): include the data itself and its metadata information.
+        The option 'direction' can be used to swap domain A and domain B.
         """
-        pass
+        AtoB = self.opt.data_direction == "AtoB"
+        self.real_A_with_context = input["A" if AtoB else "B"].to(self.device)
+        self.real_A = self.real_A_with_context.clone()
+        if self.opt.data_online_context_pixels > 0:
+            self.real_A = self.real_A[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ]
+
+            self.real_A_with_context_vis = torch.nn.functional.interpolate(
+                self.real_A_with_context, size=self.real_A.shape[2:]
+            )
+
+        self.real_B_with_context = input["B" if AtoB else "A"].to(self.device)
+
+        self.real_B = self.real_B_with_context.clone()
+
+        if self.opt.data_online_context_pixels > 0:
+            self.real_B = self.real_B[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ]
+
+        self.real_B_with_context_vis = torch.nn.functional.interpolate(
+            self.real_B_with_context, size=self.real_A.shape[2:]
+        )
+
+        self.image_paths = input["A_img_paths" if AtoB else "B_img_paths"]
 
     def set_input_temporal(self, input_temporal):
         AtoB = self.opt.data_direction == "AtoB"

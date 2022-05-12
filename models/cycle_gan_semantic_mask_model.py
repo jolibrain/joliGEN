@@ -124,10 +124,25 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         super().set_input(input)
         if "A_label" in input:
             self.input_A_label = input["A_label"].to(self.device).squeeze(1)
+
+            if self.opt.data_online_context_pixels > 0:
+                self.input_A_label = self.input_A_label[
+                    :,
+                    self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                ]
+
         if "B_label" in input and len(input["B_label"]) > 0:
             self.input_B_label = (
                 input["B_label"].to(self.device).squeeze(1)
             )  # beniz: unused
+
+            if self.opt.data_online_context_pixels > 0:
+                self.input_B_label = self.input_B_label[
+                    :,
+                    self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                ]
 
     def data_dependent_initialize(self, data):
         self.set_input(data)
