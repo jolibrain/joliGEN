@@ -203,7 +203,7 @@ class ResnetEncoder(nn.Module):
             use_bias = norm_layer == nn.InstanceNorm2d
 
         fl = [
-            # nn.ReflectionPad2d(3),
+            nn.ReflectionPad2d(3),
             spectral_norm(
                 nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
                 use_spectral,
