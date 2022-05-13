@@ -206,7 +206,14 @@ class BaseOptions:
             help="path to segforme configuration file for G",
         )
         parser.add_argument("--G_attn_nb_mask_attn", default=10, type=int)
+
         parser.add_argument("--G_attn_nb_mask_input", default=1, type=int)
+
+        parser.add_argument(
+            "--G_backward_compatibility_twice_resnet_blocks",
+            action="store_true",
+            help="if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way).",
+        )
 
         # discriminator
         parser.add_argument(

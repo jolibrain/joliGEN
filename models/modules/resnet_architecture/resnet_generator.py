@@ -399,6 +399,7 @@ class ResnetGenerator_attn(BaseGenerator_attn):
         size=128,
         padding_type="reflect",
         mobile=False,
+        twice_resnet_blocks=False,
     ):
         super(ResnetGenerator_attn, self).__init__(
             nb_mask_attn=nb_mask_attn, nb_mask_input=nb_mask_input
@@ -413,6 +414,8 @@ class ResnetGenerator_attn(BaseGenerator_attn):
         self.ngf = ngf
         self.nb = n_blocks
         self.padding_type = padding_type
+        self.twice_resnet_blocks = twice_resnet_blocks
+
         self.conv1 = spectral_norm(nn.Conv2d(input_nc, ngf, 7, 1, 0), use_spectral)
         self.conv1_norm = nn.InstanceNorm2d(ngf)
         self.conv2 = spectral_norm(nn.Conv2d(ngf, ngf * 2, 3, 2, 1), use_spectral)
@@ -484,7 +487,10 @@ class ResnetGenerator_attn(BaseGenerator_attn):
         return feat, feats
 
     def compute_attention_content(self, feat):
-        x = feat
+        if self.twice_resnet_blocks:
+            x = self.resnet_blocks(feat)
+        else:
+            x = feat
 
         x_content = F.relu(self.deconv1_norm_content(self.deconv1_content(x)))
         x_content = F.relu(self.deconv2_norm_content(self.deconv2_content(x_content)))
