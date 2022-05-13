@@ -72,6 +72,7 @@ def define_G(
     jg_dir,
     G_config_segformer,
     G_stylegan2_num_downsampling,
+    G_backward_compatibility_twice_resnet_blocks,
     **unused_options
 ):
     """Create a generator
@@ -192,6 +193,7 @@ def define_G(
             n_blocks=9,
             use_spectral=G_spectral,
             padding_type=G_padding_type,
+            twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
         )
     elif G_netG == "mobile_resnet_attn":
         net = ResnetGenerator_attn(
@@ -204,6 +206,7 @@ def define_G(
             use_spectral=G_spectral,
             padding_type=G_padding_type,
             mobile=True,
+            twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
         )
     elif G_netG == "stylegan2":
         net = StyleGAN2Generator(
