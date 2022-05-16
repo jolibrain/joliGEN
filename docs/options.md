@@ -103,6 +103,7 @@ Here are all the available options to call with `train.py`
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
 | --data_num_threads | int | 4 | \# threads for loading data |
+| --data_online_context_pixels | int | 0 | context pixel band around the crop, unused for generation, only for disc  |
 | --data_preprocess | string | resize_and_crop | scaling and cropping of images at load time<br/><br/>_**Values:** resize_and_crop, crop, scale_width, scale_width_and_crop, none_ |
 | --data_relative_paths | flag |  | whether paths to images are relative to dataroot |
 | --data_sanitize_paths | flag |  | if true, wrong images or labels paths will be removed before training |
