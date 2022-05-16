@@ -382,7 +382,7 @@ class CUTModel(BaseModel):
                 setattr(
                     self,
                     name + context + "_noisy",
-                    gaussian(getattr(self, name + context, self.opt.dataaug_D_noise)),
+                    gaussian(getattr(self, name + context), self.opt.dataaug_D_noise),
                 )
 
         self.diff_real_A_fake_B = self.real_A - self.fake_B

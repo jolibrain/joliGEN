@@ -296,7 +296,7 @@ class CycleGANModel(BaseModel):
                 setattr(
                     self,
                     name + context + "_noisy",
-                    gaussian(getattr(self, name + context, self.opt.dataaug_D_noise)),
+                    gaussian(getattr(self, name + context), self.opt.dataaug_D_noise),
                 )
 
         if self.opt.alg_cyclegan_lambda_identity > 0:
