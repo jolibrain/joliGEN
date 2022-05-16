@@ -212,6 +212,8 @@ class BaseModel(ABC):
 
                 self.visual_names.append(temp_visual_names_attn)
 
+        self.margin = self.opt.data_online_context_pixels * 2
+
     @staticmethod
     def modify_commandline_options(parser, is_train):
         """Add new model-specific options, and rewrite default values for existing options.
@@ -309,8 +311,8 @@ class BaseModel(ABC):
                 [
                     bs,
                     self.opt.model_input_nc,
-                    self.opt.data_crop_size + self.opt.data_online_context_pixels * 2,
-                    self.opt.data_crop_size + self.opt.data_online_context_pixels * 2,
+                    self.opt.data_crop_size + self.margin,
+                    self.opt.data_crop_size + self.margin,
                 ],
                 device=self.device,
             )

@@ -289,7 +289,7 @@ class CycleGANModel(BaseModel):
         if self.opt.dataaug_D_noise > 0.0:
             context = ""
             if self.opt.data_online_context_pixels > 0:
-                context = "with_context"
+                context = "_with_context"
 
             names = ["fake_B", "real_A", "fake_A", "real_B"]
             for name in names:

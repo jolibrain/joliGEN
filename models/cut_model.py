@@ -119,8 +119,8 @@ class CUTModel(BaseModel):
 
         self.loss_names = self.loss_names_G + self.loss_names_D
 
-        visual_names_A = ["real_A", "real_A", "fake_B"]
-        visual_names_B = ["real_B", "real_B"]
+        visual_names_A = ["real_A", "fake_B"]
+        visual_names_B = ["real_B"]
 
         if "segformer" in self.opt.G_netG:
             self.opt.alg_cut_nce_layers = "0,1,2,3"
@@ -372,7 +372,7 @@ class CUTModel(BaseModel):
         if self.opt.dataaug_D_noise > 0.0:
             context = ""
             if self.opt.data_online_context_pixels > 0:
-                context = "with_context"
+                context = "_with_context"
 
             names = ["fake_B", "real_B"]
             for name in names:

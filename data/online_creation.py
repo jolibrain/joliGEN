@@ -93,23 +93,19 @@ def crop_image(
     # Let's compute crop position
 
     x_crop_min = max(0, x_max_ref - crop_size - context_pixels)
-    x_crop_max = min(
-        x_min_ref - context_pixels, img.shape[1] - crop_size - context_pixels
-    )
+    x_crop_max = min(x_min_ref - context_pixels, img.shape[1] - crop_size - margin)
 
     y_crop_min = max(0, y_max_ref - crop_size - context_pixels)
-    y_crop_max = min(
-        y_min_ref - context_pixels, img.shape[0] - crop_size - context_pixels
-    )
+    y_crop_max = min(y_min_ref - context_pixels, img.shape[0] - crop_size - margin)
 
     x_crop = random.randint(x_crop_min, x_crop_max)
     y_crop = random.randint(y_crop_min, y_crop_max)
 
     if (
         x_crop < 0
-        or x_crop + crop_size + context_pixels >= img.shape[1]
+        or x_crop + crop_size + margin >= img.shape[1]
         or y_crop < 0
-        or y_crop + crop_size + context_pixels >= img.shape[0]
+        or y_crop + crop_size + margin >= img.shape[0]
     ):
         raise ValueError(f"Image {img_path} too small for cropping.")
 
