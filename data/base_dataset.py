@@ -729,7 +729,7 @@ def get_transform_list(
     opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC
 ):
 
-    margin = opt.data_online_context_pixels
+    margin = opt.data_online_context_pixels * 2
 
     transform_list = []
     print("method seg", method)
