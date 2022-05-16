@@ -999,6 +999,6 @@ class BaseModel(ABC):
             self,
             fake_name + "_with_context_vis",
             torch.nn.functional.interpolate(
-                getattr(self, fake_name, "_with_context"), size=self.real_A.shape[2:]
+                getattr(self, fake_name + "_with_context"), size=self.real_A.shape[2:]
             ),
         )

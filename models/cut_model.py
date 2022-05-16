@@ -307,9 +307,6 @@ class CUTModel(BaseModel):
                 "mask_context_vis",
             ]
 
-            if self.opt.alg_cut_nce_idt:
-                self.context_visual_names.append("idt_B_with_context_vis")
-
             self.visual_names.append(self.context_visual_names)
 
     def set_input_first_gpu(self, data):
