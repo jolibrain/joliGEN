@@ -114,8 +114,13 @@ def crop_image(
         if y_crop + crop_size > img.shape[0] - 1:
             y_crop = img.shape[0] - crop_size
 
-    assert x_crop > 0, x_crop + crop_size + context_pixels <= img.shape[1]
-    assert y_crop > 0, y_crop + crop_size + context_pixels <= img.shape[0]
+    if (
+        x_crop < 0
+        or x_crop + crop_size + context_pixels >= img.shape[1]
+        or y_crop < 0
+        or y_crop + crop_size + context_pixels >= img.shape[0]
+    ):
+        raise ValueError(f"Image {img_path} too small for cropping.")
 
     img = img[
         y_crop : y_crop + crop_size + context_pixels,

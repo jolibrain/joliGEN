@@ -299,6 +299,7 @@ def __print_size_warning(ow, oh, w, h):
 def get_transform_seg(
     opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC
 ):
+    margin = opt.data_online_context_pixels
 
     transform_list = []
     print("method seg", method)
@@ -308,15 +309,13 @@ def get_transform_seg(
 
     if "resize" in opt.data_preprocess:
         osize = [
-            opt.data_load_size + opt.data_online_context_pixels * 2,
-            opt.data_load_size + opt.data_online_context_pixels * 2,
+            opt.data_load_size + margin * 2,
+            opt.data_load_size + margin * 2,
         ]
         transform_list.append(ResizeMask(osize, interpolation=method))
 
     if "crop" in opt.data_preprocess:
-        transform_list.append(
-            RandomCropMask(opt.data_crop_size + opt.data_online_context_pixels * 2)
-        )
+        transform_list.append(RandomCropMask(opt.data_crop_size + margin * 2))
 
     if opt.dataaug_imgaug:
         if not grayscale:
@@ -736,6 +735,8 @@ def get_transform_list(
     opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC
 ):
 
+    margin = opt.data_online_context_pixels
+
     transform_list = []
     print("method seg", method)
 
@@ -744,15 +745,13 @@ def get_transform_list(
 
     if "resize" in opt.data_preprocess:
         osize = [
-            opt.data_load_size + opt.data_online_context_pixels * 2,
-            opt.data_load_size + opt.data_online_context_pixels * 2,
+            opt.data_load_size + margin * 2,
+            opt.data_load_size + margin * 2,
         ]
         transform_list.append(ResizeMaskList(osize, interpolation=method))
 
     if "crop" in opt.data_preprocess:
-        transform_list.append(
-            RandomCropMaskList(opt.data_crop_size + opt.data_online_context_pixels * 2)
-        )
+        transform_list.append(RandomCropMaskList(opt.data_crop_size + margin * 2))
 
     if not opt.dataaug_no_flip:
         transform_list.append(RandomHorizontalFlipMaskList())

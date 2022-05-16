@@ -336,7 +336,7 @@ def define_D(
             D_ndf,
             D_n_layers,
             no_antialias=D_no_antialias,
-            img_size=data_crop_size + data_online_context_pixels,
+            img_size=data_crop_size + data_online_context_pixels * 2,
             netD=netD,
         )
     elif netD in TORCH_MODEL_CLASSES:  # load torchvision model
@@ -346,7 +346,7 @@ def define_D(
             model_input_nc,
             D_ndf,
             nclasses,
-            opt.data_crop_size + data_online_context_pixels,
+            opt.data_crop_size + data_online_context_pixels * 2,
             template,
             pretrained=False,
         )
@@ -361,7 +361,7 @@ def define_D(
         net = ProjectedDiscriminator(
             D_proj_network_type,
             interp=224
-            if data_crop_size + data_online_context_pixels < 224
+            if data_crop_size + data_online_context_pixels * 2 < 224
             else D_proj_interp,
             config_path=os.path.join(jg_dir, D_proj_config_segformer),
             weight_path=weight_path,

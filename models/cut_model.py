@@ -366,66 +366,24 @@ class CUTModel(BaseModel):
 
         self.fake_B = self.fake[: self.real_A.size(0)]
 
-        self.fake_B_with_context = torch.nn.functional.pad(
-            self.fake_B,
-            (
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-            ),
-        )
-
-        self.mask_context = torch.ones_like(self.fake_B_with_context)
-
         if self.opt.data_online_context_pixels > 0:
+            self.compute_fake_with_context(fake_name="fake_B", real_name="real_A")
 
-            self.mask_context[
-                :,
-                :,
-                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-            ] = torch.zeros_like(self.fake_B)
-
-        self.mask_context_vis = torch.nn.functional.interpolate(
-            self.mask_context, size=self.real_A.shape[2:]
-        )[:, 0]
-
-        self.fake_B_with_context = (
-            self.fake_B_with_context + self.mask_context * self.real_A_with_context
-        )
-
-        self.fake_B_with_context_vis = torch.nn.functional.interpolate(
-            self.fake_B_with_context, size=self.real_A.shape[2:]
-        )
         if self.opt.alg_cut_nce_idt:
             self.idt_B = self.fake[self.real_A.size(0) :]
 
-            self.idt_B_with_context = torch.nn.functional.pad(
-                self.idt_B,
-                (
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                ),
-            )
-
-            self.idt_B_with_context = (
-                self.idt_B_with_context + self.mask_context * self.real_B_with_context
-            )
-
-            self.idt_B_with_context_vis = torch.nn.functional.interpolate(
-                self.idt_B_with_context, size=self.real_A.shape[2:]
-            )
-
         if self.opt.dataaug_D_noise > 0.0:
-            self.fake_B_with_context_noisy = gaussian(
-                self.fake_B_with_context, self.opt.dataaug_D_noise
-            )
-            self.real_B_with_context_noisy = gaussian(
-                self.real_B_with_context, self.opt.dataaug_D_noise
-            )
+            context = ""
+            if self.opt.data_online_context_pixels > 0:
+                context = "with_context"
+
+            names = ["fake_B", "real_B"]
+            for name in names:
+                setattr(
+                    self,
+                    name + context + "_noisy",
+                    gaussian(getattr(self, name + context, self.opt.dataaug_D_noise)),
+                )
 
         self.diff_real_A_fake_B = self.real_A - self.fake_B
 

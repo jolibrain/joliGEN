@@ -259,94 +259,45 @@ class CycleGANModel(BaseModel):
         ### Fake B
 
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
+
+        if self.opt.data_online_context_pixels > 0:
+            self.compute_fake_with_context(fake_name="fake_B", real_name="real_A")
+
+        # Rec A
+
         if self.rec_noise > 0.0:
             self.fake_B_noisy1 = gaussian(self.fake_B, self.rec_noise)
             self.rec_A = self.netG_B(self.fake_B_noisy1)
         else:
             self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
 
-        self.fake_B_with_context = torch.nn.functional.pad(
-            self.fake_B,
-            (
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-            ),
-        )
-
-        self.mask_context = torch.ones_like(self.fake_B_with_context)
-
-        if self.opt.data_online_context_pixels > 0:
-
-            self.mask_context[
-                :,
-                :,
-                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-            ] = torch.zeros_like(self.fake_B)
-
-        self.mask_context_vis = torch.nn.functional.interpolate(
-            self.mask_context, size=self.real_A.shape[2:]
-        )[:, 0]
-
-        self.fake_B_with_context = (
-            self.fake_B_with_context + self.mask_context * self.real_A_with_context
-        )
-
-        self.fake_B_with_context_vis = torch.nn.functional.interpolate(
-            self.fake_B_with_context, size=self.real_A.shape[2:]
-        )
-
-        ### Fake A
+        # Fake A
 
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
+
+        if self.opt.data_online_context_pixels > 0:
+            self.compute_fake_with_context(fake_name="fake_A", real_name="real_B")
+
+        # Rec B
+
         if self.rec_noise > 0.0:
             self.fake_A_noisy1 = gaussian(self.fake_A, self.rec_noise)
             self.rec_B = self.netG_A(self.fake_A_noisy1)
         else:
             self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
 
-        self.fake_A_with_context = torch.nn.functional.pad(
-            self.fake_A,
-            (
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels,
-            ),
-        )
-
-        if self.opt.data_online_context_pixels > 0:
-
-            self.mask_context[
-                :,
-                :,
-                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-            ] = torch.zeros_like(self.fake_A)
-
-        self.fake_A_with_context = (
-            self.fake_A_with_context + self.mask_context * self.real_A_with_context
-        )
-
-        self.fake_A_with_context_vis = torch.nn.functional.interpolate(
-            self.fake_A_with_context, size=self.real_A.shape[2:]
-        )
-
         if self.opt.dataaug_D_noise > 0.0:
-            self.fake_B_with_context_noisy = gaussian(
-                self.fake_B_with_context, self.opt.dataaug_D_noise
-            )
-            self.real_A_with_context_noisy = gaussian(
-                self.real_A_with_context, self.opt.dataaug_D_noise
-            )
-            self.fake_A_with_context_noisy = gaussian(
-                self.fake_A_with_context, self.opt.dataaug_D_noise
-            )
-            self.real_B_with_context_noisy = gaussian(
-                self.real_B_with_context, self.opt.dataaug_D_noise
-            )
+            context = ""
+            if self.opt.data_online_context_pixels > 0:
+                context = "with_context"
+
+            names = ["fake_B", "real_A", "fake_A", "real_B"]
+            for name in names:
+                setattr(
+                    self,
+                    name + context + "_noisy",
+                    gaussian(getattr(self, name + context, self.opt.dataaug_D_noise)),
+                )
 
         if self.opt.alg_cyclegan_lambda_identity > 0:
             self.idt_A = self.netG_A(self.real_B)

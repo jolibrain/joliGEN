@@ -302,7 +302,37 @@ class BaseModel(ABC):
             for i, cur_image in enumerate(images):
                 setattr(self, "image_" + str(i), cur_image)
 
-        pass
+        if self.opt.data_online_context_pixels > 0:
+
+            bs = self.get_current_batch_size()
+            self.mask_context = torch.ones(
+                [
+                    bs,
+                    self.opt.model_input_nc,
+                    self.opt.data_crop_size + self.opt.data_online_context_pixels * 2,
+                    self.opt.data_crop_size + self.opt.data_online_context_pixels * 2,
+                ],
+                device=self.device,
+            )
+
+            self.mask_context[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ] = torch.zeros(
+                [
+                    bs,
+                    self.opt.model_input_nc,
+                    self.opt.data_crop_size,
+                    self.opt.data_crop_size,
+                ],
+                device=self.device,
+            )
+
+            self.mask_context_vis = torch.nn.functional.interpolate(
+                self.mask_context, size=self.real_A.shape[2:]
+            )[:, 0]
 
     def setup(self, opt):
         """Load and print networks; create schedulers
@@ -847,9 +877,13 @@ class BaseModel(ABC):
         if self.opt.dataaug_D_noise > 0.0:
             noisy = "_noisy"
 
+        context = ""
+        if self.opt.data_online_context_pixels > 0:
+            context = "_with_context"
+
         if fake_name is None:
             fake = getattr(self, "fake_" + domain_img + "_pool").query(
-                getattr(self, "fake_" + domain_img + "_with_context" + noisy)
+                getattr(self, "fake_" + domain_img + context + noisy)
             )
         else:
             fake = getattr(self, fake_name)
@@ -863,7 +897,7 @@ class BaseModel(ABC):
             fake_2 = None
 
         if real_name is None:
-            real = getattr(self, "real_" + domain_img + "_with_context" + noisy)
+            real = getattr(self, "real_" + domain_img + context + noisy)
         else:
             real = getattr(self, real_name)
 
@@ -873,12 +907,16 @@ class BaseModel(ABC):
     def compute_G_loss_GAN_generic(
         self, netD, domain_img, loss, real_name=None, fake_name=None
     ):
+        context = ""
+        if self.opt.data_online_context_pixels > 0:
+            context = "_with_context"
+
         if fake_name is None:
-            fake = getattr(self, "fake_" + domain_img + "_with_context")
+            fake = getattr(self, "fake_" + domain_img + context)
         else:
             fake = getattr(self, fake_name)
         if real_name is None:
-            real = getattr(self, "real_" + domain_img + "_with_context")
+            real = getattr(self, "real_" + domain_img + context)
         else:
             real = getattr(self, real_name)
 
@@ -935,3 +973,32 @@ class BaseModel(ABC):
             self.realmB_val, self.realsB_val, self.fakemB_val, self.fakesB_val
         )
         return self.fidB_val
+
+    def compute_fake_with_context(self, fake_name, real_name):
+        setattr(
+            self,
+            fake_name + "_with_context",
+            torch.nn.functional.pad(
+                getattr(self, fake_name),
+                (
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                ),
+            ),
+        )
+
+        setattr(
+            self,
+            fake_name + "_with_context",
+            getattr(self, fake_name + "_with_context")
+            + self.mask_context * getattr(self, real_name + "_with_context"),
+        )
+        setattr(
+            self,
+            fake_name + "_with_context_vis",
+            torch.nn.functional.interpolate(
+                getattr(self, fake_name, "_with_context"), size=self.real_A.shape[2:]
+            ),
+        )
