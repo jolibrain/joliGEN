@@ -224,6 +224,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 mask_square=self.opt.data_online_creation_mask_square_A,
                 crop_dim=self.opt.data_online_creation_crop_size_A,
                 output_dim=self.opt.data_load_size,
+                context_pixels=self.opt.data_online_context_pixels,
             )
 
         except Exception as e:
@@ -259,6 +260,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         mask_square=self.opt.data_online_creation_mask_square_B,
                         crop_dim=self.opt.data_online_creation_crop_size_B,
                         output_dim=self.opt.data_load_size,
+                        context_pixels=self.opt.data_online_context_pixels,
                     )
                     B, B_label = self.transform(B_img, B_label)
                     if torch.any(B_label > self.semantic_nclasses - 1):

@@ -496,6 +496,12 @@ class BaseOptions:
             action="store_true",
             help="whether masks should be squared for domain B",
         )
+        parser.add_argument(
+            "--data_online_context_pixels",
+            type=int,
+            default=0,
+            help="context pixel band around the crop, unused for generation, only for disc ",
+        )
 
         parser.add_argument(
             "--data_sanitize_paths",

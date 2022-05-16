@@ -298,6 +298,17 @@ class CUTModel(BaseModel):
             self.visual_names.append(visual_names_temporal_real_B)
             self.visual_names.append(visual_names_temporal_fake_B)
 
+        # _vis because images with context are too large for visualization, so we resize it to fit into visdom windows
+        if self.opt.data_online_context_pixels > 0:
+            self.context_visual_names = [
+                "real_A_with_context_vis",
+                "real_B_with_context_vis",
+                "fake_B_with_context_vis",
+                "mask_context_vis",
+            ]
+
+            self.visual_names.append(self.context_visual_names)
+
     def set_input_first_gpu(self, data):
         self.set_input(data)
         self.bs_per_gpu = self.real_A.size(0)
@@ -332,17 +343,6 @@ class CUTModel(BaseModel):
         for optimizer in self.optimizers:
             optimizer.zero_grad()
 
-    def set_input(self, input):
-        """Unpack input data from the dataloader and perform necessary pre-processing steps.
-        Parameters:
-            input (dict): include the data itself and its metadata information.
-        The option 'direction' can be used to swap domain A and domain B.
-        """
-        AtoB = self.opt.data_direction == "AtoB"
-        self.real_A = input["A" if AtoB else "B"].to(self.device)
-        self.real_B = input["B" if AtoB else "A"].to(self.device)
-        self.image_paths = input["A_img_paths" if AtoB else "B_img_paths"]
-
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         super().forward()
@@ -360,13 +360,27 @@ class CUTModel(BaseModel):
                 self.real = torch.flip(self.real, [3])
 
         self.fake = self.netG(self.real)
+
         self.fake_B = self.fake[: self.real_A.size(0)]
+
+        if self.opt.data_online_context_pixels > 0:
+            self.compute_fake_with_context(fake_name="fake_B", real_name="real_A")
+
         if self.opt.alg_cut_nce_idt:
             self.idt_B = self.fake[self.real_A.size(0) :]
 
         if self.opt.dataaug_D_noise > 0.0:
-            self.fake_B_noisy = gaussian(self.fake_B, self.opt.dataaug_D_noise)
-            self.real_B_noisy = gaussian(self.real_B, self.opt.dataaug_D_noise)
+            context = ""
+            if self.opt.data_online_context_pixels > 0:
+                context = "_with_context"
+
+            names = ["fake_B", "real_B"]
+            for name in names:
+                setattr(
+                    self,
+                    name + context + "_noisy",
+                    gaussian(getattr(self, name + context), self.opt.dataaug_D_noise),
+                )
 
         self.diff_real_A_fake_B = self.real_A - self.fake_B
 

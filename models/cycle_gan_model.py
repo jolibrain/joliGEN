@@ -236,30 +236,50 @@ class CycleGANModel(BaseModel):
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_B_fake_A", "diff_real_A_fake_B"])
 
-    def set_input(self, input):
-        """Unpack input data from the dataloader and perform necessary pre-processing steps.
+        if self.opt.data_online_context_pixels > 0:
+            self.context_visual_names_A = [
+                "real_A_with_context_vis",
+                "fake_B_with_context_vis",
+                "mask_context_vis",
+            ]
 
-        Parameters:
-            input (dict): include the data itself and its metadata information.
+            self.context_visual_names_B = [
+                "real_B_with_context_vis",
+                "fake_A_with_context_vis",
+                "mask_context_vis",
+            ]
 
-        The option 'direction' can be used to swap domain A and domain B.
-        """
-        AtoB = self.opt.data_direction == "AtoB"
-        self.real_A = input["A" if AtoB else "B"].to(self.device)
-        self.real_B = input["B" if AtoB else "A"].to(self.device)
-        self.image_paths = input["A_img_paths" if AtoB else "B_img_paths"]
+            self.visual_names.append(self.context_visual_names_A)
+            self.visual_names.append(self.context_visual_names_B)
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         super().forward()
+
+        ### Fake B
+
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
+
+        if self.opt.data_online_context_pixels > 0:
+            self.compute_fake_with_context(fake_name="fake_B", real_name="real_A")
+
+        # Rec A
+
         if self.rec_noise > 0.0:
             self.fake_B_noisy1 = gaussian(self.fake_B, self.rec_noise)
             self.rec_A = self.netG_B(self.fake_B_noisy1)
         else:
             self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
 
+        # Fake A
+
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
+
+        if self.opt.data_online_context_pixels > 0:
+            self.compute_fake_with_context(fake_name="fake_A", real_name="real_B")
+
+        # Rec B
+
         if self.rec_noise > 0.0:
             self.fake_A_noisy1 = gaussian(self.fake_A, self.rec_noise)
             self.rec_B = self.netG_A(self.fake_A_noisy1)
@@ -267,10 +287,17 @@ class CycleGANModel(BaseModel):
             self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
 
         if self.opt.dataaug_D_noise > 0.0:
-            self.fake_B_noisy = gaussian(self.fake_B, self.opt.dataaug_D_noise)
-            self.real_A_noisy = gaussian(self.real_A, self.opt.dataaug_D_noise)
-            self.fake_A_noisy = gaussian(self.fake_A, self.opt.dataaug_D_noise)
-            self.real_B_noisy = gaussian(self.real_B, self.opt.dataaug_D_noise)
+            context = ""
+            if self.opt.data_online_context_pixels > 0:
+                context = "_with_context"
+
+            names = ["fake_B", "real_A", "fake_A", "real_B"]
+            for name in names:
+                setattr(
+                    self,
+                    name + context + "_noisy",
+                    gaussian(getattr(self, name + context), self.opt.dataaug_D_noise),
+                )
 
         if self.opt.alg_cyclegan_lambda_identity > 0:
             self.idt_A = self.netG_A(self.real_B)

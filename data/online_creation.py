@@ -15,9 +15,12 @@ def crop_image(
     mask_square,
     crop_dim,
     output_dim,
+    context_pixels,
     get_crop_coordinates=False,
     crop_coordinates=None,
 ):
+
+    margin = context_pixels * 2
 
     img = np.array(Image.open(img_path))
 
@@ -80,19 +83,31 @@ def crop_image(
     height = y_max_ref - y_min_ref
     width = x_max_ref - x_min_ref
 
+    # Let's compute crop size
+
     crop_size_min = max(height, width, crop_dim - crop_delta)
-    crop_size_max = max(height, width, crop_dim + crop_delta)
+    crop_size_max = crop_dim + crop_delta
 
     crop_size = random.randint(crop_size_min, crop_size_max)
 
-    x_crop_min = max(0, x_max_ref - crop_size)
-    x_crop_max = min(x_min_ref, img.shape[1] - crop_size)
+    # Let's compute crop position
 
-    y_crop_min = max(0, y_max_ref - crop_size)
-    y_crop_max = min(y_min_ref, img.shape[0] - crop_size)
+    x_crop_min = max(0, x_max_ref - crop_size - context_pixels)
+    x_crop_max = min(x_min_ref - context_pixels, img.shape[1] - crop_size - margin)
+
+    y_crop_min = max(0, y_max_ref - crop_size - context_pixels)
+    y_crop_max = min(y_min_ref - context_pixels, img.shape[0] - crop_size - margin)
 
     x_crop = random.randint(x_crop_min, x_crop_max)
     y_crop = random.randint(y_crop_min, y_crop_max)
+
+    if (
+        x_crop < 0
+        or x_crop + crop_size + margin >= img.shape[1]
+        or y_crop < 0
+        or y_crop + crop_size + margin >= img.shape[0]
+    ):
+        raise ValueError(f"Image {img_path} too small for cropping.")
 
     if get_crop_coordinates:
         return x_crop - x_min_ref, y_crop - y_min_ref, crop_size
@@ -102,22 +117,22 @@ def crop_image(
         x_crop = x_crop + x_min_ref
         y_crop = y_crop + y_min_ref
 
-        if x_crop < 0:
-            x_crop = 0
-        if x_crop + crop_size > img.shape[1] - 1:
-            x_crop = img.shape[1] - crop_size
-        if y_crop < 0:
-            y_crop = 0
-        if y_crop + crop_size > img.shape[0] - 1:
-            y_crop = img.shape[0] - crop_size
+    img = img[
+        y_crop : y_crop + crop_size + margin,
+        x_crop : x_crop + crop_size + margin,
+        :,
+    ]
 
-    img = img[y_crop : y_crop + crop_size, x_crop : x_crop + crop_size, :]
     img = Image.fromarray(img)
-    img = F.resize(img, output_dim)
 
-    mask = mask[y_crop : y_crop + crop_size, x_crop : x_crop + crop_size]
+    img = F.resize(img, output_dim + margin)
+
+    mask = mask[
+        y_crop : y_crop + crop_size + margin,
+        x_crop : x_crop + crop_size + margin,
+    ]
     mask = Image.fromarray(mask)
-    mask = F.resize(mask, output_dim, interpolation=InterpolationMode.NEAREST)
+    mask = F.resize(mask, output_dim + margin, interpolation=InterpolationMode.NEAREST)
 
     return img, mask
 

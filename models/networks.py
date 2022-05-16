@@ -276,6 +276,7 @@ def define_D(
     jg_dir,
     D_temporal_number_frames,
     D_temporal_frame_step,
+    data_online_context_pixels,
     **unused_options
 ):
 
@@ -312,6 +313,8 @@ def define_D(
     net = None
     norm_layer = get_norm_layer(norm_type=D_norm)
 
+    margin = data_online_context_pixels * 2
+
     if netD == "basic":  # default PatchGAN classifier
         net = NLayerDiscriminator(
             model_input_nc,
@@ -338,7 +341,7 @@ def define_D(
             D_ndf,
             D_n_layers,
             no_antialias=D_no_antialias,
-            img_size=data_crop_size,
+            img_size=data_crop_size + margin,
             netD=netD,
         )
     elif netD in TORCH_MODEL_CLASSES:  # load torchvision model
@@ -348,7 +351,7 @@ def define_D(
             model_input_nc,
             D_ndf,
             nclasses,
-            opt.data_crop_size,
+            opt.data_crop_size + margin,
             template,
             pretrained=False,
         )
@@ -362,7 +365,7 @@ def define_D(
             download_segformer_weight(weight_path)
         net = ProjectedDiscriminator(
             D_proj_network_type,
-            interp=224 if data_crop_size < 224 else D_proj_interp,
+            interp=224 if data_crop_size + margin < 224 else D_proj_interp,
             config_path=os.path.join(jg_dir, D_proj_config_segformer),
             weight_path=weight_path,
         )

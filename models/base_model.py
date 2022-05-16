@@ -212,6 +212,8 @@ class BaseModel(ABC):
 
                 self.visual_names.append(temp_visual_names_attn)
 
+        self.margin = self.opt.data_online_context_pixels * 2
+
     @staticmethod
     def modify_commandline_options(parser, is_train):
         """Add new model-specific options, and rewrite default values for existing options.
@@ -225,15 +227,45 @@ class BaseModel(ABC):
         """
         return parser
 
-    @abstractmethod
     def set_input(self, input):
 
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
-
         Parameters:
-            input (dict): includes the data itself and its metadata information.
+            input (dict): include the data itself and its metadata information.
+        The option 'direction' can be used to swap domain A and domain B.
         """
-        pass
+        AtoB = self.opt.data_direction == "AtoB"
+        self.real_A_with_context = input["A" if AtoB else "B"].to(self.device)
+        self.real_A = self.real_A_with_context.clone()
+        if self.opt.data_online_context_pixels > 0:
+            self.real_A = self.real_A[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ]
+
+            self.real_A_with_context_vis = torch.nn.functional.interpolate(
+                self.real_A_with_context, size=self.real_A.shape[2:]
+            )
+
+        self.real_B_with_context = input["B" if AtoB else "A"].to(self.device)
+
+        self.real_B = self.real_B_with_context.clone()
+
+        if self.opt.data_online_context_pixels > 0:
+            self.real_B = self.real_B[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ]
+
+        self.real_B_with_context_vis = torch.nn.functional.interpolate(
+            self.real_B_with_context, size=self.real_A.shape[2:]
+        )
+
+        self.image_paths = input["A_img_paths" if AtoB else "B_img_paths"]
 
     def set_input_temporal(self, input_temporal):
         AtoB = self.opt.data_direction == "AtoB"
@@ -272,7 +304,37 @@ class BaseModel(ABC):
             for i, cur_image in enumerate(images):
                 setattr(self, "image_" + str(i), cur_image)
 
-        pass
+        if self.opt.data_online_context_pixels > 0:
+
+            bs = self.get_current_batch_size()
+            self.mask_context = torch.ones(
+                [
+                    bs,
+                    self.opt.model_input_nc,
+                    self.opt.data_crop_size + self.margin,
+                    self.opt.data_crop_size + self.margin,
+                ],
+                device=self.device,
+            )
+
+            self.mask_context[
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ] = torch.zeros(
+                [
+                    bs,
+                    self.opt.model_input_nc,
+                    self.opt.data_crop_size,
+                    self.opt.data_crop_size,
+                ],
+                device=self.device,
+            )
+
+            self.mask_context_vis = torch.nn.functional.interpolate(
+                self.mask_context, size=self.real_A.shape[2:]
+            )[:, 0]
 
     def setup(self, opt):
         """Load and print networks; create schedulers
@@ -817,9 +879,13 @@ class BaseModel(ABC):
         if self.opt.dataaug_D_noise > 0.0:
             noisy = "_noisy"
 
+        context = ""
+        if self.opt.data_online_context_pixels > 0:
+            context = "_with_context"
+
         if fake_name is None:
             fake = getattr(self, "fake_" + domain_img + "_pool").query(
-                getattr(self, "fake_" + domain_img + noisy)
+                getattr(self, "fake_" + domain_img + context + noisy)
             )
         else:
             fake = getattr(self, fake_name)
@@ -833,7 +899,7 @@ class BaseModel(ABC):
             fake_2 = None
 
         if real_name is None:
-            real = getattr(self, "real_" + domain_img + noisy)
+            real = getattr(self, "real_" + domain_img + context + noisy)
         else:
             real = getattr(self, real_name)
 
@@ -843,12 +909,16 @@ class BaseModel(ABC):
     def compute_G_loss_GAN_generic(
         self, netD, domain_img, loss, real_name=None, fake_name=None
     ):
+        context = ""
+        if self.opt.data_online_context_pixels > 0:
+            context = "_with_context"
+
         if fake_name is None:
-            fake = getattr(self, "fake_" + domain_img)
+            fake = getattr(self, "fake_" + domain_img + context)
         else:
             fake = getattr(self, fake_name)
         if real_name is None:
-            real = getattr(self, "real_" + domain_img)
+            real = getattr(self, "real_" + domain_img + context)
         else:
             real = getattr(self, real_name)
 
@@ -905,3 +975,32 @@ class BaseModel(ABC):
             self.realmB_val, self.realsB_val, self.fakemB_val, self.fakesB_val
         )
         return self.fidB_val
+
+    def compute_fake_with_context(self, fake_name, real_name):
+        setattr(
+            self,
+            fake_name + "_with_context",
+            torch.nn.functional.pad(
+                getattr(self, fake_name),
+                (
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                ),
+            ),
+        )
+
+        setattr(
+            self,
+            fake_name + "_with_context",
+            getattr(self, fake_name + "_with_context")
+            + self.mask_context * getattr(self, real_name + "_with_context"),
+        )
+        setattr(
+            self,
+            fake_name + "_with_context_vis",
+            torch.nn.functional.interpolate(
+                getattr(self, fake_name + "_with_context"), size=self.real_A.shape[2:]
+            ),
+        )
