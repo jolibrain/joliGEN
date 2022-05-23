@@ -12,3 +12,4 @@ torchviz
 imgaug
 dominate
 wget
+tqdm
