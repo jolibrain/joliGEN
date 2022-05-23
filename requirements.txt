@@ -13,3 +13,4 @@ imgaug
 dominate
 wget
 tqdm
+torch_optimizer

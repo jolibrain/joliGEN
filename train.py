@@ -31,6 +31,7 @@ from util.visualizer import Visualizer
 import torch.multiprocessing as mp
 import os
 import torch.distributed as dist
+import torch_optimizer as custom_optim
 import signal
 import torch
 import json
@@ -52,6 +53,8 @@ def optim(opt, params, lr, betas):
         return torch.optim.RAdam(params, lr, betas)
     elif opt.train_optim == "adamw":
         return torch.optim.AdamW(params, lr, betas)
+    elif opt.train_optim == "shampoo":
+        return custom_optim.Shampoo(params, lr)
 
 
 def signal_handler(sig, frame):
