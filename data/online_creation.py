@@ -5,6 +5,7 @@ from PIL import Image
 import torchvision.transforms.functional as F
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
+import warnings
 
 
 def crop_image(
@@ -87,6 +88,12 @@ def crop_image(
 
     crop_size_min = max(height, width, crop_dim - crop_delta)
     crop_size_max = crop_dim + crop_delta
+
+    if crop_size_max < max(height, width):
+        warnings.warn(
+            f"Bbox size ({height}, {width}) is bigger than crop dim {crop_size_max} for {img_path}\n we will use crop_dim = bbox size"
+        )
+        crop_size_max = max(height, width)
 
     crop_size = random.randint(crop_size_min, crop_size_max)
 
