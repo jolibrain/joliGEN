@@ -91,7 +91,7 @@ def crop_image(
 
     if crop_size_max < max(height, width):
         warnings.warn(
-            f"Bbox size ({height}, {width}) is bigger than crop dim {crop_size_max} for {img_path}\n we will use crop_dim = bbox size"
+            f"Bbox size ({height}, {width}) > crop dim {crop_size_max} for {img_path}, using crop_dim = bbox size"
         )
         crop_size_max = max(height, width)
 
