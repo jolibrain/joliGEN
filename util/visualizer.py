@@ -235,6 +235,14 @@ class Visualizer:
                 webpage.add_images(ims, txts, links, width=self.win_size)
             webpage.save()
 
+        # Save latest images
+
+        for visual_group in visuals:
+            for label, image in visual_group.items():
+                image_numpy = util.tensor2im(image)
+                img_path = os.path.join(self.img_dir, "latest_%s.png" % label)
+                util.save_image(image_numpy, img_path)
+
     def plot_current_losses(self, epoch, counter_ratio, losses):
         """display the current losses on visdom display: dictionary of error labels and values
 
