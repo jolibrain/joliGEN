@@ -102,19 +102,19 @@ class TemporalDataset(BaseDataset):
                 if cur_A_label_path is not None:
                     cur_A_label_path = os.path.join(self.root, cur_A_label_path)
 
-            if i == 0:
-                crop_coordinates = crop_image(
-                    cur_A_img_path,
-                    cur_A_label_path,
-                    mask_delta=self.opt.data_online_creation_mask_delta_A,
-                    crop_delta=self.opt.data_online_creation_crop_delta_A,
-                    mask_square=self.opt.data_online_creation_mask_square_A,
-                    crop_dim=self.opt.data_online_creation_crop_size_A,
-                    output_dim=self.opt.data_load_size,
-                    get_crop_coordinates=True,
-                )
-
             try:
+                if i == 0:
+                    crop_coordinates = crop_image(
+                        cur_A_img_path,
+                        cur_A_label_path,
+                        mask_delta=self.opt.data_online_creation_mask_delta_A,
+                        crop_delta=self.opt.data_online_creation_crop_delta_A,
+                        mask_square=self.opt.data_online_creation_mask_square_A,
+                        crop_dim=self.opt.data_online_creation_crop_size_A,
+                        output_dim=self.opt.data_load_size,
+                        context_pixels=self.opt.data_online_context_pixels,
+                        get_crop_coordinates=True,
+                    )
                 cur_A_img, cur_A_label = crop_image(
                     cur_A_img_path,
                     cur_A_label_path,
@@ -123,6 +123,7 @@ class TemporalDataset(BaseDataset):
                     mask_square=self.opt.data_online_creation_mask_square_A,
                     crop_dim=self.opt.data_online_creation_crop_size_A,
                     output_dim=self.opt.data_load_size,
+                    context_pixels=self.opt.data_online_context_pixels,
                     crop_coordinates=crop_coordinates,
                 )
 
@@ -170,19 +171,20 @@ class TemporalDataset(BaseDataset):
                 if cur_B_label_path is not None:
                     cur_B_label_path = os.path.join(self.root, cur_B_label_path)
 
-            if i == 0:
-                crop_coordinates = crop_image(
-                    cur_B_img_path,
-                    cur_B_label_path,
-                    mask_delta=self.opt.data_online_creation_mask_delta_B,
-                    crop_delta=self.opt.data_online_creation_crop_delta_B,
-                    mask_square=self.opt.data_online_creation_mask_square_B,
-                    crop_dim=self.opt.data_online_creation_crop_size_B,
-                    output_dim=self.opt.data_load_size,
-                    get_crop_coordinates=True,
-                )
-
             try:
+                if i == 0:
+                    crop_coordinates = crop_image(
+                        cur_B_img_path,
+                        cur_B_label_path,
+                        mask_delta=self.opt.data_online_creation_mask_delta_B,
+                        crop_delta=self.opt.data_online_creation_crop_delta_B,
+                        mask_square=self.opt.data_online_creation_mask_square_B,
+                        crop_dim=self.opt.data_online_creation_crop_size_B,
+                        output_dim=self.opt.data_load_size,
+                        context_pixels=self.opt.data_online_context_pixels,
+                        get_crop_coordinates=True,
+                    )
+
                 cur_B_img, cur_B_label = crop_image(
                     cur_B_img_path,
                     cur_B_label_path,
@@ -191,6 +193,7 @@ class TemporalDataset(BaseDataset):
                     mask_square=self.opt.data_online_creation_mask_square_B,
                     crop_dim=self.opt.data_online_creation_crop_size_B,
                     output_dim=self.opt.data_load_size,
+                    context_pixels=self.opt.data_online_context_pixels,
                     crop_coordinates=crop_coordinates,
                 )
 
