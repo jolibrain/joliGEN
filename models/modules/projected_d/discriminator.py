@@ -247,6 +247,7 @@ class ProjectedDiscriminator(torch.nn.Module):
             projector_model,
             config_path=config_path,
             weight_path=weight_path,
+            interp=self.interp,
             **backbone_kwargs,
         )
         self.freeze_feature_network.requires_grad_(False)
