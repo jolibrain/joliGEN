@@ -273,12 +273,120 @@ class BaseModel(ABC):
         self.image_paths = input["A_img_paths" if AtoB else "B_img_paths"]
 
     def set_input_temporal(self, input_temporal):
+
         AtoB = self.opt.data_direction == "AtoB"
+
+        self.temporal_real_A_with_context = input_temporal["A" if AtoB else "B"].to(
+            self.device
+        )
+        self.temporal_real_B_with_context = input_temporal["B" if AtoB else "A"].to(
+            self.device
+        )
+
+        if self.opt.data_online_context_pixels > 0:
+
+            self.temporal_real_A = self.temporal_real_A_with_context[
+                :,
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ]
+            self.temporal_real_B = self.temporal_real_B_with_context[
+                :,
+                :,
+                :,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+            ]
+
+        else:
+            self.temporal_real_A = self.temporal_real_A_with_context
+            self.temporal_real_B = self.temporal_real_B_with_context
+
+        for i in range(self.opt.D_temporal_number_frames):
+            setattr(
+                self,
+                "temporal_real_A_" + str(i) + "_with_context",
+                self.temporal_real_A_with_context[:, i],
+            )
+
+            if self.opt.data_online_context_pixels > 0:
+                setattr(
+                    self,
+                    "temporal_real_A_" + str(i),
+                    self.temporal_real_A_with_context[
+                        :,
+                        i,
+                        :,
+                        self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                        self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                    ],
+                )
+
+                setattr(
+                    self,
+                    "temporal_real_A_" + str(i) + "_with_context_vis",
+                    torch.nn.functional.interpolate(
+                        getattr(self, "temporal_real_A_" + str(i) + "_with_context"),
+                        size=self.real_A.shape[2:],
+                    ),
+                )
+            else:
+                setattr(
+                    self,
+                    "temporal_real_A_" + str(i),
+                    self.temporal_real_A_with_context[
+                        :,
+                        i,
+                    ],
+                )
+
+            # Temporal Real B
+
+            setattr(
+                self,
+                "temporal_real_B_" + str(i) + "_with_context",
+                self.temporal_real_B_with_context[:, i],
+            )
+
+            if self.opt.data_online_context_pixels > 0:
+
+                setattr(
+                    self,
+                    "temporal_real_B_" + str(i),
+                    self.temporal_real_B_with_context[
+                        :,
+                        i,
+                        :,
+                        self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                        self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                    ],
+                )
+
+                setattr(
+                    self,
+                    "temporal_real_B_" + str(i) + "_with_context_vis",
+                    torch.nn.functional.interpolate(
+                        getattr(self, "temporal_real_B_" + str(i) + "_with_context"),
+                        size=self.real_B.shape[2:],
+                    ),
+                )
+            else:
+                setattr(
+                    self,
+                    "temporal_real_B_" + str(i),
+                    self.temporal_real_B_with_context[
+                        :,
+                        i,
+                    ],
+                )
+        """AtoB = self.opt.data_direction == "AtoB"
         self.temporal_real_A = input_temporal["A" if AtoB else "B"].to(self.device)
         self.temporal_real_B = input_temporal["B" if AtoB else "A"].to(self.device)
         for i in range(self.opt.D_temporal_number_frames):
             setattr(self, "temporal_real_A_" + str(i), self.temporal_real_A[:, i])
-            setattr(self, "temporal_real_B_" + str(i), self.temporal_real_B[:, i])
+            setattr(self, "temporal_real_B_" + str(i), self.temporal_real_B[:, i])"""
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -293,7 +401,7 @@ class BaseModel(ABC):
         if self.opt.D_temporal:
             self.temporal_fake_B = []
             for i in range(self.opt.D_temporal_number_frames):
-                self.temporal_fake_B.append(self.netG(self.temporal_real_A[:, i]))
+                self.temporal_fake_B.append(netG(self.temporal_real_A[:, i]))
             self.temporal_fake_B = torch.stack(self.temporal_fake_B, dim=1)
             for i in range(self.opt.D_temporal_number_frames):
                 setattr(self, "temporal_fake_B_" + str(i), self.temporal_fake_B[:, i])
