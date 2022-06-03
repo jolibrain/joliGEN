@@ -21,8 +21,7 @@ Here are all the available options to call with `train.py`
 | --D_dropout | flag |  | whether to use dropout in the discriminator |
 | --D_n_layers | int | 3 | only used if netD==n_layers |
 | --D_ndf | int | 64 | \# of discrim filters in the first conv layer |
-| --D_netD | string | basic | specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator<br/><br/>_**Values:** basic, n_layers, pixel, stylegan2, patchstylegan2, smallpatchstylegan2, projected_d, alexnet, vgg11, vgg11_bn, vgg13, vgg13_bn, vgg16, vgg16_bn, vgg19, vgg19_bn, resnet18, resnet34, resnet50, resnet101, resnet152, squeezenet1_0, squeezenet1_1, densenet121, densenet169, densenet161, densenet201, inception_v3, googlenet, shufflenet_v2_x0_5, shufflenet_v2_x1_0, shufflenet_v2_x1_5, shufflenet_v2_x2_0, mobilenet_v2, resnext50_32x4d, resnext101_32x8d, wide_resnet50_2, wide_resnet101_2, mnasnet0_75, mnasnet1_0, mnasnet1_3_ |
-| --D_netD_global | string | none | specify discriminator architecture, any torchvision model can be used. By default no global discriminator will be used.<br/><br/>_**Values:** none, basic, n_layers, pixel, stylegan2, patchstylegan2, smallpatchstylegan2, projected_d, alexnet, vgg11, vgg11_bn, vgg13, vgg13_bn, vgg16, vgg16_bn, vgg19, vgg19_bn, resnet18, resnet34, resnet50, resnet101, resnet152, squeezenet1_0, squeezenet1_1, densenet121, densenet169, densenet161, densenet201, inception_v3, googlenet, shufflenet_v2_x0_5, shufflenet_v2_x1_0, shufflenet_v2_x1_5, shufflenet_v2_x2_0, mobilenet_v2, resnext50_32x4d, resnext101_32x8d, wide_resnet50_2, wide_resnet101_2, mnasnet0_75, mnasnet1_0, mnasnet1_3_ |
+| --D_netDs | array | ['basic'] | specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored. |
 | --D_no_antialias | flag |  | if specified, use stride=2 convs instead of antialiased-downsampling (sad) |
 | --D_no_antialias_up | flag |  | if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv] |
 | --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/>_**Values:** instance, batch, none_ |
@@ -31,7 +30,6 @@ Here are all the available options to call with `train.py`
 | --D_proj_network_type | string | efficientnet | <br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16_ |
 | --D_proj_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight |
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
-| --D_temporal | flag |  | if specified, use a temporal discriminator |
 | --D_temporal_every | int | 4 |  |
 | --D_temporal_frame_step | int | 30 | how many frames between successive frames selected |
 | --D_temporal_num_common_char | int | -1 | how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used  |
