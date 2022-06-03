@@ -4,10 +4,11 @@ from .base_model import BaseModel
 from . import networks
 from .patchnce import PatchNCELoss
 import util.util as util
-from .modules import loss
+
 from util.util import gaussian
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
+
 import itertools
 
 
@@ -101,24 +102,7 @@ class CUTModel(BaseModel):
     def __init__(self, opt, rank):
         BaseModel.__init__(self, opt, rank)
 
-        # specify the training losses you want to print out.
-        # The training/test scripts will call <BaseModel.get_current_losses>
-        losses_G = ["G_GAN", "G", "NCE"]
-        losses_D = ["D_tot", "D"]
-        if opt.alg_cut_nce_idt and self.isTrain:
-            losses_G += ["NCE_Y"]
-        if opt.D_netD_global != "none":
-            losses_D += ["D_global"]
-            losses_G += ["G_GAN_global"]
-        if opt.D_temporal:
-            losses_D += ["D_temporal"]
-            losses_G += ["G_temporal"]
-
-        self.loss_names_G = losses_G
-        self.loss_names_D = losses_D
-
-        self.loss_names = self.loss_names_G + self.loss_names_D
-
+        # Images to visualize
         visual_names_A = ["real_A", "fake_B"]
         visual_names_B = ["real_B"]
 
@@ -135,156 +119,10 @@ class CUTModel(BaseModel):
             self.visual_names.append(["fake_B_aug"])
             self.visual_names.append(["real_B_aug"])
 
-        if self.isTrain:
-            self.model_names = ["G", "F", "D"]
-            if opt.D_netD_global != "none":
-                self.model_names += ["D_global"]
-
-            self.model_names_export = ["G"]
-
-            if opt.D_temporal:
-                self.model_names += ["D_temporal"]
-
-        else:  # during test time, only load G
-            self.model_names = ["G"]
-
-        # define networks (both generator and discriminator)
-        self.netG = networks.define_G(**vars(opt))
-        self.netF = networks.define_F(**vars(opt))
-
-        self.netF.set_device(self.device)
-        if self.isTrain:
-            self.netD = networks.define_D(netD=opt.D_netD, **vars(opt))
-            if opt.D_netD_global != "none":
-                self.netD_global = networks.define_D(
-                    netD=opt.D_netD_global, **vars(opt)
-                )
-            if opt.D_temporal:
-                self.netD_temporal = networks.define_D("temporal", **vars(opt))
-
-            # define loss functions
-            self.criterionGAN = loss.GANLoss(opt.train_gan_mode).to(self.device)
-            self.criterionNCE = []
-
-            for nce_layer in self.nce_layers:
-                self.criterionNCE.append(PatchNCELoss(opt).to(self.device))
-
-            self.optimizer_G = opt.optim(
-                opt,
-                self.netG.parameters(),
-                lr=opt.train_G_lr,
-                betas=(opt.train_beta1, opt.train_beta2),
-            )
-            if opt.D_netD_global == "none":
-                if opt.D_temporal:
-                    self.optimizer_D = opt.optim(
-                        opt,
-                        itertools.chain(
-                            self.netD.parameters(), self.netD_temporal.parameters()
-                        ),
-                        lr=opt.train_D_lr,
-                        betas=(opt.train_beta1, opt.train_beta2),
-                    )
-                else:
-                    self.optimizer_D = opt.optim(
-                        opt,
-                        self.netD.parameters(),
-                        lr=opt.train_D_lr,
-                        betas=(opt.train_beta1, opt.train_beta2),
-                    )
-            else:
-                if opt.D_temporal:
-                    self.optimizer_D = opt.optim(
-                        opt,
-                        itertools.chain(
-                            self.netD.parameters(),
-                            self.netD_global.parameters(),
-                            self.netD_temporal.parameters(),
-                        ),
-                        lr=opt.train_D_lr,
-                        betas=(opt.train_beta1, opt.train_beta2),
-                    )
-                else:
-
-                    self.optimizer_D = opt.optim(
-                        opt,
-                        itertools.chain(
-                            self.netD.parameters(), self.netD_global.parameters()
-                        ),
-                        lr=opt.train_D_lr,
-                        betas=(opt.train_beta1, opt.train_beta2),
-                    )
-
-            self.optimizers.append(self.optimizer_G)
-            self.optimizers.append(self.optimizer_D)
-
-            if self.opt.train_iter_size > 1:
-                self.iter_calculator = IterCalculator(self.loss_names)
-                for i, cur_loss in enumerate(self.loss_names):
-                    self.loss_names[i] = cur_loss + "_avg"
-                    setattr(self, "loss_" + self.loss_names[i], 0)
-
-            if opt.D_netD_global == "none":
-                self.loss_D_global = 0
-                self.loss_G_GAN_global = 0
-
-            if not opt.D_temporal:
-                self.loss_D_temporal = 0
-                self.loss_G_temporal = 0
-
-            ###Making groups
-            discriminators = ["netD"]
-            if opt.D_netD_global != "none":
-                discriminators += ["netD_global"]
-                self.D_global_loss = loss.DiscriminatorGANLoss(
-                    opt, self.netD_global, self.device, gan_mode="lsgan"
-                )
-
-            if opt.D_temporal:
-                discriminators += ["netD_temporal"]
-                self.D_temporal_loss = loss.DiscriminatorGANLoss(
-                    opt, self.netD_temporal, self.device
-                )
-
-            self.networks_groups = []
-
-            self.group_G = NetworkGroup(
-                networks_to_optimize=["G", "F"],
-                forward_functions=["forward"],
-                backward_functions=["compute_G_loss"],
-                loss_names_list=["loss_names_G"],
-                optimizer=["optimizer_G", "optimizer_F"],
-                loss_backward=["loss_G"],
-                networks_to_ema=["G"],
-            )
-            self.networks_groups.append(self.group_G)
-
-            D_to_optimize = ["D"]
-            if opt.D_netD_global != "none":
-                D_to_optimize.append("D_global")
-            if opt.D_temporal:
-                D_to_optimize.append("D_temporal")
-            self.group_D = NetworkGroup(
-                networks_to_optimize=D_to_optimize,
-                forward_functions=None,
-                backward_functions=["compute_D_loss"],
-                loss_names_list=["loss_names_D"],
-                optimizer=["optimizer_D"],
-                loss_backward=["loss_D_tot"],
-            )
-            self.networks_groups.append(self.group_D)
-
-        if self.opt.train_use_contrastive_loss_D:
-            self.D_loss = loss.DiscriminatorContrastiveLoss(opt, self.netD, self.device)
-        else:
-            self.D_loss = loss.DiscriminatorGANLoss(opt, self.netD, self.device)
-
-        self.objects_to_update.append(self.D_loss)
-
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_A_fake_B"])
 
-        if self.opt.D_temporal:
+        if any("temporal" in D_name for D_name in self.opt.D_netDs):
             visual_names_temporal_real_A = []
             visual_names_temporal_real_B = []
             visual_names_temporal_fake_B = []
@@ -297,6 +135,125 @@ class CUTModel(BaseModel):
             self.visual_names.append(visual_names_temporal_real_A)
             self.visual_names.append(visual_names_temporal_real_B)
             self.visual_names.append(visual_names_temporal_fake_B)
+
+        if self.isTrain:
+            self.model_names = ["G_A", "F"]
+
+            self.model_names_export = ["G_A"]
+
+        else:  # during test time, only load G
+            self.model_names = ["G_A"]
+
+        # define networks (both generator and discriminator)
+
+        # Generator
+        self.netG_A = networks.define_G(**vars(opt))
+        self.netF = networks.define_F(**vars(opt))
+
+        self.netF.set_device(self.device)
+
+        # Discriminator(s)
+
+        if self.isTrain:
+
+            self.netDs = networks.define_D(**vars(opt))
+
+            self.discriminators_names = [
+                "D_B_" + D_name for D_name in self.netDs.keys()
+            ]
+            self.model_names += self.discriminators_names
+
+            for D_name, netD in self.netDs.items():
+                setattr(self, "netD_B_" + D_name, netD)
+
+            # define loss functions
+            self.criterionNCE = []
+
+            for nce_layer in self.nce_layers:
+                self.criterionNCE.append(PatchNCELoss(opt).to(self.device))
+
+            # Optimizers
+            self.optimizer_G = opt.optim(
+                opt,
+                self.netG_A.parameters(),
+                lr=opt.train_G_lr,
+                betas=(opt.train_beta1, opt.train_beta2),
+            )
+
+            if len(self.discriminators_names) > 0:
+                D_parameters = itertools.chain(
+                    *[
+                        getattr(self, "net" + D_name).parameters()
+                        for D_name in self.discriminators_names
+                    ]
+                )
+            else:
+                D_parameters = getattr(
+                    self, "net" + self.discriminators_names[0]
+                ).parameters()
+
+            self.optimizer_D = opt.optim(
+                opt,
+                D_parameters,
+                lr=opt.train_D_lr,
+                betas=(opt.train_beta1, opt.train_beta2),
+            )
+
+            self.optimizers.append(self.optimizer_G)
+            self.optimizers.append(self.optimizer_D)
+
+            # Making groups
+
+            self.networks_groups = []
+
+            self.group_G = NetworkGroup(
+                networks_to_optimize=["G_A", "F"],
+                forward_functions=["forward"],
+                backward_functions=["compute_G_loss"],
+                loss_names_list=["loss_names_G"],
+                optimizer=["optimizer_G", "optimizer_F"],
+                loss_backward=["loss_G_tot"],
+                networks_to_ema=["G_A"],
+            )
+            self.networks_groups.append(self.group_G)
+
+            self.group_D = NetworkGroup(
+                networks_to_optimize=self.discriminators_names,
+                forward_functions=None,
+                backward_functions=["compute_D_loss"],
+                loss_names_list=["loss_names_D"],
+                optimizer=["optimizer_D"],
+                loss_backward=["loss_D_tot"],
+            )
+            self.networks_groups.append(self.group_D)
+
+            # Discriminators
+
+            self.set_discriminators_info()
+
+        # Losses names
+
+        losses_G = ["G_tot", "G_NCE"]
+        losses_D = ["D_tot"]
+        if opt.alg_cut_nce_idt and self.isTrain:
+            losses_G += ["G_NCE_Y"]
+
+        for discriminator in self.discriminators:
+            losses_G.append(discriminator.loss_name_G)
+            losses_D.append(discriminator.loss_name_D)
+
+        self.loss_names_G = losses_G
+        self.loss_names_D = losses_D
+
+        self.loss_names = self.loss_names_G + self.loss_names_D
+
+        # Itercalculator
+
+        if self.opt.train_iter_size > 1:
+            self.iter_calculator = IterCalculator(self.loss_names)
+            for i, cur_loss in enumerate(self.loss_names):
+                self.loss_names[i] = cur_loss + "_avg"
+                setattr(self, "loss_" + self.loss_names[i], 0)
 
         # _vis because images with context are too large for visualization, so we resize it to fit into visdom windows
         if self.opt.data_online_context_pixels > 0:
@@ -325,7 +282,7 @@ class CUTModel(BaseModel):
 
         self.set_input_first_gpu(data)
         if self.opt.isTrain:
-            feat_temp = self.netG.get_feats(self.real_A.cpu(), self.nce_layers)
+            feat_temp = self.netG_A.get_feats(self.real_A.cpu(), self.nce_layers)
             self.netF.data_dependent_initialize(feat_temp)
 
             if (
@@ -359,7 +316,7 @@ class CUTModel(BaseModel):
             if self.flipped_for_equivariance:
                 self.real = torch.flip(self.real, [3])
 
-        self.fake = self.netG(self.real)
+        self.fake = self.netG_A(self.real)
 
         self.fake_B = self.fake[: self.real_A.size(0)]
 
@@ -384,80 +341,38 @@ class CUTModel(BaseModel):
 
         self.diff_real_A_fake_B = self.real_A - self.fake_B
 
-    def compute_D_loss(self):
-        """Calculate GAN loss for both discriminators"""
-        self.loss_D = self.compute_D_loss_generic(self.netD, "B", self.D_loss)
-
-        if self.opt.D_netD_global != "none":
-            self.loss_D_global = self.compute_D_loss_generic(
-                self.netD_global, "B", self.D_global_loss
-            )
-
-        if self.opt.D_temporal and self.niter % self.opt.D_temporal_every == 0:
-            self.loss_D_temporal = self.compute_D_loss_generic(
-                self.netD_temporal,
-                "B",
-                self.D_temporal_loss,
-                fake_name="temporal_fake_B",
-                real_name="temporal_real_B",
-            )
-        else:
-            self.loss_D_temporal = 0
-
-        self.loss_D_tot = self.loss_D + self.loss_D_global + self.loss_D_temporal
-
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
-        # First, G(A) should fake the discriminator
-        if self.opt.alg_cut_lambda_GAN > 0.0:
-            self.loss_G_GAN = self.compute_G_loss_GAN_generic(
-                self.netD, "B", self.D_loss
-            )
-            if self.opt.D_netD_global != "none":
-                self.loss_G_GAN_global = self.compute_G_loss_GAN_generic(
-                    self.netD_global, "B", self.D_global_loss
-                )
-            if self.opt.D_temporal and self.niter % self.opt.D_temporal_every == 0:
-                self.loss_G_temporal = self.compute_G_loss_GAN_generic(
-                    self.netD_temporal,
-                    "B",
-                    self.D_temporal_loss,
-                    fake_name="temporal_fake_B",
-                    real_name="temporal_real_B",
-                )
-            else:
-                self.loss_G_temporal = 0
+
+        super().compute_G_loss()
+
+        # CUT losses
 
         if self.opt.alg_cut_lambda_NCE > 0.0:
-            self.loss_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
+            self.loss_G_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
         else:
-            self.loss_NCE, self.loss_NCE_bd = 0.0, 0.0
+            self.loss_G_NCE, self.loss_NCE_bd = 0.0, 0.0
 
         if self.opt.alg_cut_nce_idt and self.opt.alg_cut_lambda_NCE > 0.0:
-            self.loss_NCE_Y = self.calculate_NCE_loss(self.real_B, self.idt_B)
-            loss_NCE_both = (self.loss_NCE + self.loss_NCE_Y) * 0.5
+            self.loss_G_NCE_Y = self.calculate_NCE_loss(self.real_B, self.idt_B)
+            loss_NCE_both = (self.loss_G_NCE + self.loss_G_NCE_Y) * 0.5
         else:
-            loss_NCE_both = self.loss_NCE
+            loss_NCE_both = self.loss_G_NCE
 
-        self.loss_G = (
-            self.loss_G_GAN
-            + self.loss_G_GAN_global
-            + self.loss_G_temporal
-            + loss_NCE_both
-        )
+        self.loss_G_tot += loss_NCE_both
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
-        if hasattr(self.netG, "module"):
-            netG = self.netG.module
+        if hasattr(self.netG_A, "module"):
+            netG_A = self.netG_A.module
         else:
-            netG = self.netG
-        feat_q = netG.get_feats(tgt, self.nce_layers)
+            netG_A = self.netG_A
+        feat_q = netG_A.get_feats(tgt, self.nce_layers)
 
         if self.opt.alg_cut_flip_equivariance and self.flipped_for_equivariance:
             feat_q = [torch.flip(fq, [3]) for fq in feat_q]
 
-        feat_k = netG.get_feats(src, self.nce_layers)
+        feat_k = netG_A.get_feats(src, self.nce_layers)
 
         feat_k_pool, sample_ids = self.netF(feat_k, self.opt.alg_cut_num_patches, None)
         feat_q_pool, _ = self.netF(feat_q, self.opt.alg_cut_num_patches, sample_ids)

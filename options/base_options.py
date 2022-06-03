@@ -223,9 +223,9 @@ class BaseOptions:
             help="# of discrim filters in the first conv layer",
         )
         parser.add_argument(
-            "--D_netD",
+            "--D_netDs",
             type=str,
-            default="basic",
+            default=["basic"],
             choices=[
                 "basic",
                 "n_layers",
@@ -234,27 +234,13 @@ class BaseOptions:
                 "patchstylegan2",
                 "smallpatchstylegan2",
                 "projected_d",
+                "temporal",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
-            help="specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator",
+            help="specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored.",
+            nargs="+",
         )
-        parser.add_argument(
-            "--D_netD_global",
-            type=str,
-            default="none",
-            choices=[
-                "none",
-                "basic",
-                "n_layers",
-                "pixel",
-                "stylegan2",
-                "patchstylegan2",
-                "smallpatchstylegan2",
-                "projected_d",
-            ]
-            + list(TORCH_MODEL_CLASSES.keys()),
-            help="specify discriminator architecture, any torchvision model can be used. By default no global discriminator will be used.",
-        )
+
         parser.add_argument(
             "--D_n_layers", type=int, default=3, help="only used if netD==n_layers"
         )
@@ -315,11 +301,6 @@ class BaseOptions:
             type=str,
             default="models/configs/segformer/pretrain/segformer_mit-b0.pth",
             help="path to segformer weight",
-        )
-        parser.add_argument(
-            "--D_temporal",
-            action="store_true",
-            help="if specified, use a temporal discriminator",
         )
 
         parser.add_argument(
@@ -700,6 +681,16 @@ class BaseOptions:
                             type(val) == int and check_type == float
                         ):  # int are considered as float
                             val = float(val)
+
+                        elif action.nargs == "+" or action.nargs == "*":
+                            if not isinstance(val, list) or not all(
+                                isinstance(elt, check_type) for elt in val
+                            ):
+                                raise ValueError(
+                                    "%s: Bad type (%s, should be list of %s)"
+                                    % (name, str(type(val)), str(check_type))
+                                )
+
                         elif not isinstance(val, check_type):
                             raise ValueError(
                                 "%s: Bad type (%s, should be %s)"
@@ -839,7 +830,13 @@ class BaseOptions:
                             description = description.replace(c, "\\" + c)
                         field["description"] = description
 
-                        if action.choices:
+                        if action.nargs == "+" or action.nargs == "*":
+                            field["items"]["enum"] = action.choices
+                            if isinstance(action.choices[0], str):
+                                cur_type = "string"
+                            field["items"]["type"] = cur_type
+
+                        elif action.choices:
                             field["enum"] = action.choices
 
                         if "title" in field:

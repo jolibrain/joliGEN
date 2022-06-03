@@ -33,9 +33,9 @@ class CUTSemanticMaskModel(CUTModel):
 
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
-        losses_G = ["sem"]
+        losses_G = ["G_sem"]
         if opt.train_mask_out_mask:
-            losses_G += ["out_mask"]
+            losses_G += ["G_out_mask"]
 
         losses_f_s = ["f_s"]
 
@@ -209,22 +209,22 @@ class CUTSemanticMaskModel(CUTModel):
             label_fake_B = torch.zeros_like(self.input_A_label)
         else:
             label_fake_B = self.input_A_label
-        self.loss_sem = self.opt.train_sem_lambda * self.criterionf_s(
+        self.loss_G_sem = self.opt.train_sem_lambda * self.criterionf_s(
             self.pfB, label_fake_B
         )
         if (
             not hasattr(self, "loss_f_s")
             or self.loss_f_s > self.opt.f_s_semantic_threshold
         ):
-            self.loss_sem = 0 * self.loss_sem
-        self.loss_G += self.loss_sem
+            self.loss_G_sem = 0 * self.loss_G_sem
+        self.loss_G_tot += self.loss_G_sem
 
         if hasattr(self, "criterionMask"):
-            self.loss_out_mask = (
+            self.loss_G_out_mask = (
                 self.criterionMask(self.real_A_out_mask, self.fake_B_out_mask)
                 * self.opt.train_mask_lambda_out_mask
             )
-            self.loss_G += self.loss_out_mask
+            self.loss_G_tot += self.loss_G_out_mask
 
     def compute_f_s_loss(self):
         self.loss_f_s = 0

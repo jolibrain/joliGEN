@@ -258,7 +258,7 @@ def define_G(
 
 
 def define_D(
-    netD,
+    D_netDs,
     model_input_nc,
     D_ndf,
     D_n_layers,
@@ -315,84 +315,103 @@ def define_D(
 
     margin = data_online_context_pixels * 2
 
-    if netD == "basic":  # default PatchGAN classifier
-        net = NLayerDiscriminator(
-            model_input_nc,
-            D_ndf,
-            n_layers=3,
-            norm_layer=norm_layer,
-            use_dropout=D_dropout,
-            use_spectral=D_spectral,
-        )
-    elif netD == "n_layers":  # more options
-        net = NLayerDiscriminator(
-            model_input_nc,
-            D_ndf,
-            D_n_layers,
-            norm_layer=norm_layer,
-            use_dropout=D_dropout,
-            use_spectral=D_spectral,
-        )
-    elif netD == "pixel":  # classify if each pixel is real or fake
-        net = PixelDiscriminator(model_input_nc, D_ndf, norm_layer=norm_layer)
-    elif "stylegan2" in netD:  # global D from sty2 repo
-        net = StyleGAN2Discriminator(
-            model_input_nc,
-            D_ndf,
-            D_n_layers,
-            no_antialias=D_no_antialias,
-            img_size=data_crop_size + margin,
-            netD=netD,
-        )
-    elif netD in TORCH_MODEL_CLASSES:  # load torchvision model
-        nclasses = 1
-        template = netD
-        net = torch_model(
-            model_input_nc,
-            D_ndf,
-            nclasses,
-            opt.data_crop_size + margin,
-            template,
-            pretrained=False,
-        )
-        return net
-    elif netD == "projected_d":  # D in projected feature space
-        weight_path = os.path.join(jg_dir, D_proj_weight_segformer)
-        if D_proj_network_type == "segformer" and not os.path.exists(weight_path):
-            print(
-                "Downloading pretrained segformer weights for projected D feature extractor."
-            )
-            download_segformer_weight(weight_path)
-        net = ProjectedDiscriminator(
-            D_proj_network_type,
-            interp=224 if data_crop_size + margin < 224 else D_proj_interp,
-            config_path=os.path.join(jg_dir, D_proj_config_segformer),
-            weight_path=weight_path,
-        )
-        return net  # no init since custom frozen backbone
-    elif netD == "temporal":
-        # projected D temporal
-        weight_path = os.path.join(jg_dir, D_proj_weight_segformer)
-        if D_proj_network_type == "segformer" and not os.path.exists(weight_path):
-            print(
-                "Downloading pretrained segformer weights for projected D feature extractor."
-            )
-            download_segformer_weight(weight_path)
-        net = TemporalProjectedDiscriminator(
-            D_proj_network_type,
-            interp=224 if data_crop_size < 224 else D_proj_interp,
-            config_path=os.path.join(jg_dir, D_proj_config_segformer),
-            weight_path=weight_path,
-            D_temporal_number_frames=D_temporal_number_frames,
-            D_temporal_frame_step=D_temporal_frame_step,
-        )
-        return net  # no init since custom frozen backbone
+    return_nets = {}
 
-    else:
-        raise NotImplementedError(
-            "Discriminator model name [%s] is not recognized" % netD
-        )
-    return init_net(net, model_init_type, model_init_gain)
+    img_size = data_crop_size
+
+    for netD in D_netDs:
+
+        if netD == "basic":  # default PatchGAN classifier
+            net = NLayerDiscriminator(
+                model_input_nc,
+                D_ndf,
+                n_layers=3,
+                norm_layer=norm_layer,
+                use_dropout=D_dropout,
+                use_spectral=D_spectral,
+            )
+            return_nets[netD] = init_net(net, model_init_type, model_init_gain)
+
+        elif netD == "n_layers":  # more options
+            net = NLayerDiscriminator(
+                model_input_nc,
+                D_ndf,
+                D_n_layers,
+                norm_layer=norm_layer,
+                use_dropout=D_dropout,
+                use_spectral=D_spectral,
+            )
+            return_nets[netD] = init_net(net, model_init_type, model_init_gain)
+
+        elif netD == "pixel":  # classify if each pixel is real or fake
+            net = PixelDiscriminator(model_input_nc, D_ndf, norm_layer=norm_layer)
+            return_nets[netD] = init_net(net, model_init_type, model_init_gain)
+
+        elif "stylegan2" in netD:  # global D from sty2 repo
+            net = StyleGAN2Discriminator(
+                model_input_nc,
+                D_ndf,
+                D_n_layers,
+                no_antialias=D_no_antialias,
+                img_size=data_crop_size + margin,
+                netD=netD,
+            )
+
+        elif netD in TORCH_MODEL_CLASSES:  # load torchvision model
+            nclasses = 1
+            template = netD
+            net = torch_model(
+                model_input_nc,
+                D_ndf,
+                nclasses,
+                opt.data_crop_size + margin,
+                template,
+                pretrained=False,
+            )
+            return_nets[netD] = net
+
+        elif netD == "projected_d":  # D in projected feature space
+            weight_path = os.path.join(jg_dir, D_proj_weight_segformer)
+            if D_proj_network_type == "segformer" and not os.path.exists(weight_path):
+                print(
+                    "Downloading pretrained segformer weights for projected D feature extractor."
+                )
+                download_segformer_weight(weight_path)
+            net = ProjectedDiscriminator(
+                D_proj_network_type,
+                interp=224 if data_crop_size + margin < 224 else D_proj_interp,
+                config_path=os.path.join(jg_dir, D_proj_config_segformer),
+                weight_path=weight_path,
+                img_size=data_crop_size + margin,
+            )
+            return_nets[netD] = net  # no init since custom frozen backbon
+
+        elif netD == "temporal":
+            # projected D temporal
+            weight_path = os.path.join(jg_dir, D_proj_weight_segformer)
+            if D_proj_network_type == "segformer" and not os.path.exists(weight_path):
+                print(
+                    "Downloading pretrained segformer weights for projected D feature extractor."
+                )
+                download_segformer_weight(weight_path)
+            net = TemporalProjectedDiscriminator(
+                D_proj_network_type,
+                interp=224 if data_crop_size < 224 else D_proj_interp,
+                config_path=os.path.join(jg_dir, D_proj_config_segformer),
+                weight_path=weight_path,
+                D_temporal_number_frames=D_temporal_number_frames,
+                D_temporal_frame_step=D_temporal_frame_step,
+                img_size=data_crop_size + margin,
+            )
+
+            return_nets[netD] = net  # no init since custom frozen backbone
+
+        else:
+            raise NotImplementedError(
+                "Discriminator model name [%s] is not recognized" % netD
+            )
+
+    return return_nets
 
 
 def define_C(

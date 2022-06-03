@@ -26,10 +26,10 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         super().__init__(opt, rank)
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        losses_G = ["sem_AB", "sem_BA"]
+        losses_G = ["G_sem_AB", "G_sem_BA"]
 
         if opt.train_mask_out_mask:
-            losses_G += ["out_mask_AB", "out_mask_BA"]
+            losses_G += ["G_out_mask_AB", "G_out_mask_BA"]
 
         losses_f_s = ["f_s"]
 
@@ -289,17 +289,17 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         super().compute_G_loss()
 
         # semantic loss AB
-        self.loss_sem_AB = self.opt.train_sem_lambda * self.criterionf_s(
+        self.loss_G_sem_AB = self.opt.train_sem_lambda * self.criterionf_s(
             self.pfB, self.input_A_label
         )
 
         # semantic loss BA
         if hasattr(self, "input_B_label"):
-            self.loss_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
+            self.loss_G_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
                 self.pfA, self.input_B_label
             )  # .squeeze(1))
         else:
-            self.loss_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
+            self.loss_G_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
                 self.pfA, self.gt_pred_B
             )  # .squeeze(1))
 
@@ -308,22 +308,22 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             not hasattr(self, "loss_f_s")
             or self.loss_f_s > self.opt.f_s_semantic_threshold
         ):
-            self.loss_sem_AB = 0 * self.loss_sem_AB
-            self.loss_sem_BA = 0 * self.loss_sem_BA
-        self.loss_G += self.loss_sem_BA + self.loss_sem_AB
+            self.loss_G_sem_AB = 0 * self.loss_G_sem_AB
+            self.loss_G_sem_BA = 0 * self.loss_G_sem_BA
+        self.loss_G_tot += self.loss_G_sem_BA + self.loss_G_sem_AB
 
         lambda_out_mask = self.opt.train_mask_lambda_out_mask
 
         if hasattr(self, "criterionMask"):
-            self.loss_out_mask_AB = (
+            self.loss_G_out_mask_AB = (
                 self.criterionMask(self.real_A_out_mask, self.fake_B_out_mask)
                 * lambda_out_mask
             )
             if hasattr(self, "input_B_label") and len(self.input_B_label) > 0:
-                self.loss_out_mask_BA = (
+                self.loss_G_out_mask_BA = (
                     self.criterionMask(self.real_B_out_mask, self.fake_A_out_mask)
                     * lambda_out_mask
                 )
             else:
-                self.loss_out_mask_BA = 0
-            self.loss_G += self.loss_out_mask_AB + self.loss_out_mask_BA
+                self.loss_G_out_mask_BA = 0
+            self.loss_G_tot += self.loss_G_out_mask_AB + self.loss_G_out_mask_BA
