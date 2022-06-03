@@ -238,6 +238,7 @@ class ProjectedDiscriminator(torch.nn.Module):
         backbone_kwargs={"cout": 64, "expand": True},
         config_path="",
         weight_path="",
+        img_size=256,
         **kwargs,
     ):
         super().__init__()
@@ -248,6 +249,7 @@ class ProjectedDiscriminator(torch.nn.Module):
             config_path=config_path,
             weight_path=weight_path,
             interp=self.interp,
+            img_size=img_size,
             **backbone_kwargs,
         )
         self.freeze_feature_network.requires_grad_(False)
@@ -337,6 +339,7 @@ class TemporalProjectedDiscriminator(torch.nn.Module):
         D_temporal_number_frames,
         D_temporal_frame_step,
         backbone_kwargs={"cout": 64, "expand": True},
+        img_size=256,
         **kwargs,
     ):
         super().__init__()
@@ -348,6 +351,7 @@ class TemporalProjectedDiscriminator(torch.nn.Module):
             config_path=config_path,
             weight_path=weight_path,
             interp=interp,
+            img_size=img_size,
             **backbone_kwargs,
         )
         self.freeze_feature_network.requires_grad_(False)

@@ -294,13 +294,17 @@ class Proj(nn.Module):
         proj_type=2,  # 0 = no projection, 1 = cross channel mixing, 2 = cross scale mixing
         config_path="",
         weight_path="",
-        interp=256,
-        **kwargs
+        interp=-1,
+        img_size=256,
+        **kwargs,
     ):
         super().__init__()
         self.proj_type = proj_type
         self.cout = cout
         self.expand = expand
+
+        if interp == -1:
+            interp = img_size
 
         # build pretrained feature network and random decoder (scratch)
         self.pretrained, self.scratch = _make_projector(
