@@ -40,7 +40,8 @@ from .modules.projected_d.discriminator import (
 )
 from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn
 
-from .modules.semantic_networks.resnet_50 import Resnet50Segmentor
+
+from .modules.semantic_networks.resnet_50 import Resnet50Segmentor, convert_batchnorm
 
 
 class BaseNetwork(nn.Module):
@@ -496,6 +497,7 @@ def define_f(
         weights = get_weights(weight_path)
         net.resnet50.load_state_dict(weights["state_dict"], strict=True)
         del net.resnet50.auxiliary_head
+        convert_batchnorm(net)
         return net
 
     return init_net(net, model_init_type, model_init_gain)
