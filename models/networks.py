@@ -11,7 +11,7 @@ from .modules.utils import (
     init_weights,
     get_norm_layer,
     get_weights,
-    download_segformer_weight,
+    download_weight,
 )
 
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator
@@ -39,6 +39,8 @@ from .modules.projected_d.discriminator import (
     TemporalProjectedDiscriminator,
 )
 from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn
+
+from .modules.semantic_networks.resnet_50 import Resnet50Segmentor
 
 
 class BaseNetwork(nn.Module):
@@ -376,7 +378,7 @@ def define_D(
                 print(
                     "Downloading pretrained segformer weights for projected D feature extractor."
                 )
-                download_segformer_weight(weight_path)
+                download_weight(weight_path)
             net = ProjectedDiscriminator(
                 D_proj_network_type,
                 interp=224 if data_crop_size + margin < 224 else D_proj_interp,
@@ -393,7 +395,7 @@ def define_D(
                 print(
                     "Downloading pretrained segformer weights for projected D feature extractor."
                 )
-                download_segformer_weight(weight_path)
+                download_weight(weight_path)
             net = TemporalProjectedDiscriminator(
                 D_proj_network_type,
                 interp=224 if data_crop_size < 224 else D_proj_interp,
@@ -446,8 +448,8 @@ def define_f(
     f_s_semantic_nclasses,
     model_init_type,
     model_init_gain,
-    f_s_config_segformer,
-    f_s_weight_segformer,
+    f_s_config,
+    f_s_weight,
     jg_dir,
     data_crop_size,
     **unused_options
@@ -464,18 +466,36 @@ def define_f(
     elif f_s_net == "segformer":
         net = Segformer(
             jg_dir,
-            f_s_config_segformer,
+            f_s_config,
             img_size=data_crop_size,
             num_classes=f_s_semantic_nclasses,
             final_conv=False,
         )
-        weight_path = os.path.join(jg_dir, f_s_weight_segformer)
+        weight_path = os.path.join(jg_dir, f_s_weight)
         if not os.path.exists(weight_path):
             print("Downloading pretrained segformer weights for f_s.")
-            download_segformer_weight(weight_path)
+            download_weight(weight_path)
 
         weights = get_weights(weight_path)
         net.net.load_state_dict(weights, strict=False)
+        return net
+
+    elif f_s_net == "resnet50":
+        net = Resnet50Segmentor(
+            jg_dir,
+            f_s_config,
+            img_size=data_crop_size,
+            num_classes=f_s_semantic_nclasses,
+        )
+        weight_path = os.path.join(jg_dir, f_s_weight)
+
+        if not os.path.exists(weight_path):
+            print("Downloading pretrained resnet50 weights for f_s.")
+            download_weight(weight_path)
+
+        weights = get_weights(weight_path)
+        net.resnet50.load_state_dict(weights["state_dict"], strict=True)
+        del net.resnet50.auxiliary_head
         return net
 
     return init_net(net, model_init_type, model_init_gain)

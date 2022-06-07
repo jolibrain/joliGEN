@@ -330,8 +330,8 @@ class BaseOptions:
             "--f_s_net",
             type=str,
             default="vgg",
-            choices=["vgg", "unet", "segformer"],
-            help="specify f_s network [vgg|unet|segformer]",
+            choices=["vgg", "unet", "segformer", "resnet50"],
+            help="specify f_s network",
         )
         parser.add_argument(
             "--f_s_dropout",
@@ -362,13 +362,13 @@ class BaseOptions:
             help="# of filters in the first conv layer of classifier",
         )
         parser.add_argument(
-            "--f_s_config_segformer",
+            "--f_s_config",
             type=str,
             default="models/configs/segformer/segformer_config_b0.py",
             help="path to segformer configuration file for f_s",
         )
         parser.add_argument(
-            "--f_s_weight_segformer",
+            "--f_s_weight",
             type=str,
             default="models/configs/segformer/pretrain/segformer_mit-b0.pth",
             help="path to segformer weight for f_s",

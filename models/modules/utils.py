@@ -202,7 +202,7 @@ def normal_init(m, mean, std):
         m.bias.data.zero_()
 
 
-segformer_weights = {
+weights = {
     "segformer_mit-b0.pth": "https://download.openmmlab.com/mmsegmentation/v0.5/segformer/segformer_mit-b0_512x512_160k_ade20k/segformer_mit-b0_512x512_160k_ade20k_20210726_101530-8ffa8fda.pth",
     "segformer_mit-b1.pth": "https://download.openmmlab.com/mmsegmentation/v0.5/segformer/segformer_mit-b1_512x512_160k_ade20k/segformer_mit-b1_512x512_160k_ade20k_20210726_112106-d70e859d.pth",
     "segformer_mit-b2.pth": "https://download.openmmlab.com/mmsegmentation/v0.5/segformer/segformer_mit-b2_512x512_160k_ade20k/segformer_mit-b2_512x512_160k_ade20k_20210726_112103-cbd414ac.pth",
@@ -210,18 +210,19 @@ segformer_weights = {
     "segformer_mit-b4.pth": "https://download.openmmlab.com/mmsegmentation/v0.5/segformer/segformer_mit-b4_512x512_160k_ade20k/segformer_mit-b4_512x512_160k_ade20k_20210728_183055-7f509d7d.pth",
     "segformer_mit-b5.pth": "https://download.openmmlab.com/mmsegmentation/v0.5/segformer/segformer_mit-b5_512x512_160k_ade20k/segformer_mit-b5_512x512_160k_ade20k_20210726_145235-94cedf59.pth",
     "segformer_mit-b5_640.pth": "https://download.openmmlab.com/mmsegmentation/v0.5/segformer/segformer_mit-b5_640x640_160k_ade20k/segformer_mit-b5_640x640_160k_ade20k_20210801_121243-41d2845b.pth",
+    "dnl_r50-d8_512x1024_80k_sem_seg_bdd100k.pth": "https://dl.cv.ethz.ch/bdd100k/sem_seg/models/dnl_r50-d8_512x1024_80k_sem_seg_bdd100k.pth",
 }
 
 
-def download_segformer_weight(path):
+def download_weight(path):
     for i in range(2, len(path.split("/"))):
         temp = path.split("/")[:i]
         cur_path = "/".join(temp)
         if not os.path.isdir(cur_path):
             os.mkdir(cur_path)
     model_name = path.split("/")[-1]
-    if model_name in segformer_weights:
-        wget.download(segformer_weights[model_name], path)
+    if model_name in weights:
+        wget.download(weights[model_name], path)
     else:
         raise NameError(
             "There is no pretrained weight to download for %s, you need to provide a path to segformer weights."
