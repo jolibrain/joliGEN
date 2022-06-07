@@ -60,7 +60,6 @@ def convert_batchnorm(module):
 
     """
     module_output = module
-    print(type(module))
     if isinstance(module, torch.nn.modules.batchnorm.SyncBatchNorm):
         module_output = torch.nn.BatchNorm2d(
             module.num_features,
