@@ -143,14 +143,17 @@ def calc_channels(pretrained, inp_res=224):
     return channels, feats
 
 
-def create_timm_model(model_name, config_path, weight_path):
+def create_timm_model(model_name, config_path, weight_path, img_size):
     import timm
 
-    model = timm.create_model(model_name, pretrained=True)
+    if "vit" in model_name:
+        model = timm.create_model(model_name, img_size=img_size, pretrained=True)
+    else:
+        model = timm.create_model(model_name, pretrained=True)
     return model
 
 
-def create_clip_model(model_name, config_path, weight_path):
+def create_clip_model(model_name, config_path, weight_path, img_size):
     import clip
 
     model = clip.load(model_name)
@@ -158,7 +161,7 @@ def create_clip_model(model_name, config_path, weight_path):
     return model[0].visual.float().cpu()
 
 
-def create_segformer_model(model_name, config_path, weight_path):
+def create_segformer_model(model_name, config_path, weight_path, img_size):
     from mmseg.models import build_segmentor
     import mmcv
 
@@ -229,7 +232,7 @@ def _make_projector(
     ### Build pretrained feature network
     projector_gen = projector_models[projector_model]
     model = projector_gen["create_model_function"](
-        projector_gen["model_name"], config_path, weight_path
+        projector_gen["model_name"], config_path, weight_path, interp
     )
 
     pretrained = projector_gen["make_function"](model)
