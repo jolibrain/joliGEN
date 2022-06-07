@@ -103,7 +103,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                     B, B_label = self.transform(B_img, B_label)
                     if torch.any(B_label > self.semantic_nclasses - 1):
                         warnings.warn(
-                            "A label is above number of semantic classes for img %s and label %s"
+                            "B label is above number of semantic classes for img %s and label %s"
                             % (B_img_path, B_label_path)
                         )
                         B_label = torch.clamp(B_label, max=self.semantic_nclasses - 1)
@@ -118,16 +118,6 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                     B_label_path,
                 )
                 return None
-
-            if B_label_path is not None:  # B label is optional
-                B_label = Image.open(B_label_path)
-                B, B_label = self.transform(B_img, B_label)
-                if self.opt.f_s_all_classes_as_one:
-                    B_label = (B_label >= 1) * 1
-
-            else:
-                B = self.transform_noseg(B_img)
-                B_label = []
 
             return {
                 "A": A,
