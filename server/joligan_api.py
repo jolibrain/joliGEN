@@ -4,6 +4,7 @@ import traceback
 import json
 import subprocess
 import os
+import shutil
 
 import torch.multiprocessing as mp
 
@@ -164,3 +165,17 @@ async def delete_train(name: str):
         return {"message": "ok", "name": name}
     else:
         raise HTTPException(status_code=404, detail="Not found")
+
+
+@app.delete(
+    "/fs/",
+    status_code=200,
+    summary="Delete a file or a directory in the filesystem",
+    description="This endpoint can be dangerous, use it with extreme caution",
+)
+async def delete_path(path: str):
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    else:
+        os.remove(path)
+    return {"message": "ok"}
