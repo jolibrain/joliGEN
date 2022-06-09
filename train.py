@@ -34,6 +34,7 @@ import torch.distributed as dist
 import signal
 import torch
 import json
+import warnings
 
 
 def setup(rank, world_size, port):
@@ -59,6 +60,10 @@ def signal_handler(sig, frame):
 
 
 def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
+
+    if not opt.warning_mode:
+        warnings.simplefilter("ignore")
+
     torch.cuda.set_device(opt.gpu_ids[rank])
     signal.signal(signal.SIGINT, signal_handler)  # to really kill the process
     signal.signal(signal.SIGTERM, signal_handler)
@@ -271,6 +276,9 @@ def launch_training(opt=None):
         opt = TrainOptions().parse()  # get training options
     opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-1]))
     world_size = len(opt.gpu_ids)
+
+    if not opt.warning_mode:
+        warnings.simplefilter("ignore")
 
     dataset = create_dataset(opt)
     print("The number of training images = %d" % len(dataset))

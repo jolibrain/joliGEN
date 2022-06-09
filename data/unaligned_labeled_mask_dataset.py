@@ -98,26 +98,31 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         if B_img_path is not None:
             try:
                 B_img = Image.open(B_img_path).convert("RGB")
-                if B_label_path is not None:
-                    B_label = Image.open(B_label_path)
-                    B, B_label = self.transform(B_img, B_label)
-                    if torch.any(B_label > self.semantic_nclasses - 1):
-                        warnings.warn(
-                            "B label is above number of semantic classes for img %s and label %s"
-                            % (B_img_path, B_label_path)
-                        )
-                        B_label = torch.clamp(B_label, max=self.semantic_nclasses - 1)
-                else:
-                    B = self.transform_noseg(B_img)
-                    B_label = []
             except:
                 print(
                     "failed to read B domain image ",
                     B_img_path,
-                    " or label",
-                    B_label_path,
                 )
                 return None
+
+            if B_label_path is not None:
+                try:
+                    B_label = Image.open(B_label_path)
+                except:
+                    print(
+                        f"failed to read domain B label %s for image %s"
+                        % (B_label_path, N_img_path)
+                    )
+
+                B, B_label = self.transform(B_img, B_label)
+                if torch.any(B_label > self.semantic_nclasses - 1):
+                    warnings.warn(
+                        f"A label is above number of semantic classes for img {B_img_path} and label {B_label_path}, label is clamped to have only {self.semantic_nclasses} classes."
+                    )
+                    B_label = torch.clamp(B_label, max=self.semantic_nclasses - 1)
+            else:
+                B = self.transform_noseg(B_img)
+                B_label = []
 
             return {
                 "A": A,

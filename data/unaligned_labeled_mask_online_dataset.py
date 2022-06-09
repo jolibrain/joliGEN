@@ -228,21 +228,14 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             )
 
         except Exception as e:
-            print(
-                "failure with loading A domain image ",
-                A_img_path,
-                " or label ",
-                A_label_path,
-            )
-            print(e)
+            print(e, "domain A data loading")
             return None
 
         A, A_label = self.transform(A_img, A_label)
 
         if torch.any(A_label > self.semantic_nclasses - 1):
             warnings.warn(
-                "A label is above number of semantic classes for img %s and label %s"
-                % (A_img_path, A_label_path)
+                f"A label is above number of semantic classes for img {A_img_path} and label {A_label_path}, label is clamped to have only {self.semantic_nclasses} classes."
             )
             A_label = torch.clamp(A_label, max=self.semantic_nclasses - 1)
 
@@ -265,8 +258,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     B, B_label = self.transform(B_img, B_label)
                     if torch.any(B_label > self.semantic_nclasses - 1):
                         warnings.warn(
-                            "A label is above number of semantic classes for img %s and label %s"
-                            % (B_img_path, B_label_path)
+                            f"A label is above number of semantic classes for img {B_img_path} and label {B_label_path}, label is clamped to have only {self.semantic_nclasses} classes."
                         )
                         B_label = torch.clamp(B_label, max=self.semantic_nclasses - 1)
 
@@ -279,13 +271,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     B_label = []
 
             except Exception as e:
-                print(
-                    "failure with loading B domain image ",
-                    B_img_path,
-                    "or label",
-                    B_label_path,
-                )
-                print(e)
+                print(e, "domain B data loading")
                 return None
 
             return {

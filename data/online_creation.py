@@ -23,9 +23,19 @@ def crop_image(
 
     margin = context_pixels * 2
 
-    img = np.array(Image.open(img_path))
+    try:
+        img = np.array(Image.open(img_path))
+    except Exception as e:
+        raise ValueError(f"failure with loading image {img_path}") from e
 
-    with open(bbox_path, "r") as f:
+    try:
+        f = open(bbox_path, "r")
+    except Exception as e:
+        raise ValueError(
+            f"failure with loading label {bbox_path} for image {img_path}"
+        ) from e
+
+    with f:
         bboxes = []
 
         for line in f:
@@ -35,7 +45,7 @@ def crop_image(
                 print("%s does not describe a bbox" % line)
 
         if len(bboxes) == 0:
-            print("There is no bbox.")
+            raise ValueError(f"There is no bbox at {bbox_path} for image {img_path}.")
 
         # Creation of a blank mask
         mask = np.zeros(img.shape[:2], dtype=np.uint8)
@@ -81,52 +91,102 @@ def crop_image(
                 y_min_ref = ymin
                 y_max_ref = ymax
 
+                if (
+                    x_min_ref < context_pixels
+                    or y_min_ref < context_pixels
+                    or x_max_ref + context_pixels > img.shape[1]
+                    or y_max_ref + context_pixels > img.shape[0]
+                ):
+                    new_context_pixels = min(
+                        x_min_ref,
+                        y_min_ref,
+                        img.shape[1] - x_max_ref,
+                        img.shape[0] - y_max_ref,
+                    )
+
+                    warnings.warn(
+                        f"Bbox is too close to the edge to crop with context ({context_pixels} pixels)  for {img_path},using context_pixels=distance to the edge {new_context_pixels}"
+                    )
+
+                    context_pixels = new_context_pixels
+
     height = y_max_ref - y_min_ref
     width = x_max_ref - x_min_ref
 
     # Let's compute crop size
 
-    crop_size_min = max(height, width, crop_dim - crop_delta)
-    crop_size_max = crop_dim + crop_delta
+    if crop_coordinates is None:
 
-    if crop_size_max < max(height, width):
-        warnings.warn(
-            f"Bbox size ({height}, {width}) > crop dim {crop_size_max} for {img_path}, using crop_dim = bbox size"
-        )
-        crop_size_max = max(height, width)
+        # We compute the range within which crop size should be
 
-    crop_size = random.randint(crop_size_min, crop_size_max)
+        # Crop size should be > height, width bbox (to keep the bbox within the crop)
+        # Crop size should be > crop_dim - delta
+        crop_size_min = max(height, width, crop_dim - crop_delta)
 
-    # Let's compute crop position
+        # Crop size should be < crop_dim - delta
+        crop_size_max = crop_dim + crop_delta
 
-    x_crop_min = max(0, x_max_ref - crop_size - context_pixels)
-    x_crop_max = min(x_min_ref - context_pixels, img.shape[1] - crop_size - margin)
+        # if bbox is bigger than crop size max, we replace crop size max by bbox
+        # So, we'll have bbox size == crop size
+        if crop_size_max < max(height, width):
+            warnings.warn(
+                f"Bbox size ({height}, {width}) > crop dim {crop_size_max} for {img_path}, using crop_dim = bbox size"
+            )
+            crop_size_max = max(height, width)
 
-    y_crop_min = max(0, y_max_ref - crop_size - context_pixels)
-    y_crop_max = min(y_min_ref - context_pixels, img.shape[0] - crop_size - margin)
+        if crop_size_max < crop_size_min:
+            raise ValueError(f"Crop size cannot be computed for {img_path}")
 
-    x_crop = random.randint(x_crop_min, x_crop_max)
-    y_crop = random.randint(y_crop_min, y_crop_max)
+        crop_size = random.randint(crop_size_min, crop_size_max)
 
-    if (
-        x_crop < 0
-        or x_crop + crop_size + margin >= img.shape[1]
-        or y_crop < 0
-        or y_crop + crop_size + margin >= img.shape[0]
-    ):
-        raise ValueError(f"Image {img_path} too small for cropping.")
+        if crop_size > min(img.shape[0], img.shape[1]):
+            warnings.warn(
+                f"Image size ({img.shape}) > crop dim {crop_size} for {img_path}, using crop_dim = img size"
+            )
+            crop_size = min(img.shape[0], img.shape[1])
 
-    if get_crop_coordinates:
-        return x_crop - x_min_ref, y_crop - y_min_ref, crop_size
+        # Let's compute crop position
+        # The final crop coordinates will be [x_crop:x_crop+crop_size+margin,y_crop:y_crop+crop_size+margin)
 
-    if crop_coordinates is not None:
+        # The bbox needs to fit in the crop without context
+        # So x_crop <= x_min_ref and x_crop + crop_size >= x_max_ref
+
+        # The crop with context needs to fit in the img
+        # So x_crop - context_pixels >=0 and x_crop + crop_size + context_pixels <= img_size-1
+
+        x_crop_min = max(context_pixels, x_max_ref - crop_size)
+        x_crop_max = min(x_min_ref, img.shape[1] - crop_size - context_pixels)
+
+        y_crop_min = max(context_pixels, y_max_ref - crop_size)
+        y_crop_max = min(y_min_ref, img.shape[0] - crop_size - context_pixels)
+
+        if x_crop_min > x_crop_max or y_crop_min > y_crop_max:
+            raise ValueError(f"Crop position cannot be computed for {img_path}")
+
+        x_crop = random.randint(x_crop_min, x_crop_max)
+        y_crop = random.randint(y_crop_min, y_crop_max)
+
+        if get_crop_coordinates:
+            return x_crop - x_min_ref, y_crop - y_min_ref, crop_size
+
+    else:
         x_crop, y_crop, crop_size = crop_coordinates
         x_crop = x_crop + x_min_ref
         y_crop = y_crop + y_min_ref
 
+    if (
+        x_crop < context_pixels
+        or x_crop + crop_size + context_pixels > img.shape[1]
+        or y_crop < context_pixels
+        or y_crop + crop_size + context_pixels > img.shape[0]
+    ):
+        raise ValueError(
+            f"Image cropping failed for {img_path}.",
+        )
+
     img = img[
-        y_crop : y_crop + crop_size + margin,
-        x_crop : x_crop + crop_size + margin,
+        y_crop - context_pixels : y_crop + crop_size + context_pixels,
+        x_crop - context_pixels : x_crop + crop_size + context_pixels,
         :,
     ]
 
