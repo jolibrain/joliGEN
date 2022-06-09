@@ -128,13 +128,7 @@ class TemporalDataset(BaseDataset):
                 )
 
             except Exception as e:
-                print(
-                    "failure with loading A domain image ",
-                    cur_A_img_path,
-                    " or label ",
-                    cur_A_label_path,
-                )
-                print(e)
+                print(e, f"{i+1}th frame of domain A in temporal dataloading")
                 return None
 
             images_A.append(cur_A_img)
@@ -198,13 +192,7 @@ class TemporalDataset(BaseDataset):
                 )
 
             except Exception as e:
-                print(
-                    "failure with loading B domain image ",
-                    cur_B_img_path,
-                    " or label ",
-                    cur_B_label_path,
-                )
-                print(e)
+                print(e, f"{i+1}th frame of domain B in temporal dataloading")
                 return None
 
             images_B.append(cur_B_img)

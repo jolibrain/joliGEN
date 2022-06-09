@@ -98,6 +98,9 @@ class BaseOptions:
             "--phase", type=str, default="train", help="train, val, test, etc"
         )
         parser.add_argument("--ddp_port", type=str, default="12355")
+        parser.add_argument(
+            "--warning_mode", action="store_true", help="whether to display warning"
+        )
 
         # model parameters
         parser.add_argument(

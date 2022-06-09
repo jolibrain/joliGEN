@@ -15,6 +15,7 @@ from torchvision.transforms import InterpolationMode
 import imgaug as ia
 import imgaug.augmenters as iaa
 import os
+import warnings
 
 
 class BaseDataset(data.Dataset, ABC):
@@ -36,6 +37,7 @@ class BaseDataset(data.Dataset, ABC):
         self.opt = opt
         self.root = opt.dataroot
         self.sv_dir = os.path.join(opt.checkpoints_dir, opt.name)
+        self.warning_mode = self.opt.warning_mode
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -68,6 +70,9 @@ class BaseDataset(data.Dataset, ABC):
             B_paths (str)    -- image paths
             A_label (tensor) -- mask label of image A
         """
+        if not self.warning_mode:
+            warnings.simplefilter("ignore")
+
         A_img_path = self.A_img_paths[
             index % self.A_size
         ]  # make sure index is within then range
