@@ -35,6 +35,7 @@ parser.add_argument("--img-in", help="image to transform", required=True)
 parser.add_argument("--img-out", help="transformed image", required=True)
 parser.add_argument("--bw", action="store_true", help="whether input/output is bw")
 parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
+parser.add_argument("--gpuid", type=int, default=0, help="which GPU to use")
 args = parser.parse_args()
 
 if args.bw:
@@ -63,7 +64,8 @@ model.eval()
 model.load_state_dict(torch.load(args.model_in_file))
 
 if not args.cpu:
-    model = model.cuda()
+    device = torch.device("cuda:" + str(args.gpuid))
+    model = model.to(device)
 
 # reading image
 img = cv2.imread(args.img_in)
@@ -77,7 +79,7 @@ tranlist = [
 tran = transforms.Compose(tranlist)
 img_tensor = tran(img)
 if not args.cpu:
-    img_tensor = img_tensor.cuda()
+    img_tensor = img_tensor.to(device)
 
 # run through model
 out_tensor = model(img_tensor.unsqueeze(0))[0].detach()
