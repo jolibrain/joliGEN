@@ -13,6 +13,7 @@ Here are all the available options to call with `train.py`
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
+| --warning_mode | flag |  | whether to display warning |
 
 ## Discriminator
 
