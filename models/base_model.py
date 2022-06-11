@@ -243,8 +243,7 @@ class BaseModel(ABC):
             input (dict): include the data itself and its metadata information.
         The option 'direction' can be used to swap domain A and domain B.
         """
-        AtoB = self.opt.data_direction == "AtoB"
-        self.real_A_with_context = input["A" if AtoB else "B"].to(self.device)
+        self.real_A_with_context = input["A"].to(self.device)
         self.real_A = self.real_A_with_context.clone()
         if self.opt.data_online_context_pixels > 0:
             self.real_A = self.real_A[
@@ -258,7 +257,7 @@ class BaseModel(ABC):
                 self.real_A_with_context, size=self.real_A.shape[2:]
             )
 
-        self.real_B_with_context = input["B" if AtoB else "A"].to(self.device)
+        self.real_B_with_context = input["B"].to(self.device)
 
         self.real_B = self.real_B_with_context.clone()
 
@@ -274,17 +273,12 @@ class BaseModel(ABC):
             self.real_B_with_context, size=self.real_A.shape[2:]
         )
 
-        self.image_paths = input["A_img_paths" if AtoB else "B_img_paths"]
+        self.image_paths = input["A_img_paths"]
 
     def set_input_temporal(self, input_temporal):
 
-        AtoB = self.opt.data_direction == "AtoB"
-        self.temporal_real_A_with_context = input_temporal["A" if AtoB else "B"].to(
-            self.device
-        )
-        self.temporal_real_B_with_context = input_temporal["B" if AtoB else "A"].to(
-            self.device
-        )
+        self.temporal_real_A_with_context = input_temporal["A"]
+        self.temporal_real_B_with_context = input_temporal["B"]
 
         if self.opt.data_online_context_pixels > 0:
 

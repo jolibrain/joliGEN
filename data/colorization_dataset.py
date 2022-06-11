@@ -27,7 +27,7 @@ class ColorizationDataset(BaseDataset):
         By default, the number of channels for input image  is 1 (L) and
         the number of channels for output image is 2 (ab). The direction is from A to B
         """
-        parser.set_defaults(input_nc=1, output_nc=2, direction="AtoB")
+        parser.set_defaults(self.input_nc=1, self.output_nc=2, direction="AtoB")
         return parser
 
     def __init__(self, opt):
@@ -39,7 +39,6 @@ class ColorizationDataset(BaseDataset):
         BaseDataset.__init__(self, opt)
         self.dir = os.path.join(opt.dataroot, opt.phase)
         self.AB_paths = sorted(make_dataset(self.dir, opt.max_dataset_size))
-        assert opt.input_nc == 1 and opt.output_nc == 2 and opt.direction == "AtoB"
         self.transform = get_transform(self.opt, convert=False)
 
     def __getitem__(self, index):
