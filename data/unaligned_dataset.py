@@ -23,12 +23,6 @@ class UnalignedDataset(BaseDataset):
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         BaseDataset.__init__(self, opt)
-        self.dir_A = os.path.join(
-            opt.dataroot, opt.phase + "A"
-        )  # create a path '/path/to/data/trainA'
-        self.dir_B = os.path.join(
-            opt.dataroot, opt.phase + "B"
-        )  # create a path '/path/to/data/trainB'
 
         self.dir_A_val = os.path.join(
             opt.dataroot, "validationA"
@@ -56,15 +50,9 @@ class UnalignedDataset(BaseDataset):
 
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
         self.B_size = len(self.B_img_paths)  # get the size of dataset B
-        btoA = self.opt.data_direction == "BtoA"
-        input_nc = (
-            self.opt.model_output_nc if btoA else self.opt.model_input_nc
-        )  # get the number of channels of input image
-        output_nc = (
-            self.opt.model_input_nc if btoA else self.opt.model_output_nc
-        )  # get the number of channels of output image
-        self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
-        self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
+
+        self.transform_A = get_transform(self.opt, grayscale=(self.input_nc == 1))
+        self.transform_B = get_transform(self.opt, grayscale=(self.output_nc == 1))
 
     # A_label_path and B_label_path are unused
     def get_img(

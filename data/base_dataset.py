@@ -38,6 +38,7 @@ class BaseDataset(data.Dataset, ABC):
         self.root = opt.dataroot
         self.sv_dir = os.path.join(opt.checkpoints_dir, opt.name)
         self.warning_mode = self.opt.warning_mode
+        self.set_dataset_dirs_and_dims()
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -107,6 +108,30 @@ class BaseDataset(data.Dataset, ABC):
                 B_label_path = os.path.join(self.root, B_label_path)
 
         return self.get_img(A_img_path, A_label_path, B_img_path, B_label_path, index)
+
+    def set_dataset_dirs_and_dims(self):
+        btoA = self.opt.data_direction == "BtoA"
+        self.input_nc = (
+            self.opt.model_output_nc if btoA else self.opt.model_input_nc
+        )  # get the number of channels of input image
+        self.output_nc = (
+            self.opt.model_input_nc if btoA else self.opt.model_output_nc
+        )  # get the number of channels of output image
+
+        if not btoA:
+            self.dir_A = os.path.join(
+                self.opt.dataroot, self.opt.phase + "A"
+            )  # create a path '/path/to/data/trainA'
+            self.dir_B = os.path.join(
+                self.opt.dataroot, self.opt.phase + "B"
+            )  # create a path '/path/to/data/trainB'
+        else:
+            self.dir_A = os.path.join(
+                self.opt.dataroot, self.opt.phase + "B"
+            )  # create a path '/path/to/data/trainB'
+            self.dir_B = os.path.join(
+                self.opt.dataroot, self.opt.phase + "A"
+            )  # create a path '/path/to/data/trainA'
 
     def get_validation_set(self, size):
         return_A_list = []

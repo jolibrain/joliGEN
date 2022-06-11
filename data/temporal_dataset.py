@@ -23,21 +23,6 @@ class TemporalDataset(BaseDataset):
     def __init__(self, opt):
         BaseDataset.__init__(self, opt)
         super(TemporalDataset).__init__()
-        self.opt = opt
-        btoA = self.opt.data_direction == "BtoA"
-        self.input_nc = (
-            self.opt.model_output_nc if btoA else self.opt.model_input_nc
-        )  # get the number of channels of input image
-        output_nc = (
-            self.opt.model_input_nc if btoA else self.opt.model_output_nc
-        )  # get the number of channels of output image
-
-        self.dir_A = os.path.join(
-            opt.dataroot, opt.phase + "A"
-        )  # create a path '/path/to/data/trainA'
-        self.dir_B = os.path.join(
-            opt.dataroot, opt.phase + "B"
-        )  # create a path '/path/to/data/trainB'
 
         self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(
             self.dir_A, "/paths.txt"

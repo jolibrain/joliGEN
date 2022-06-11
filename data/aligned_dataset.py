@@ -25,16 +25,6 @@ class AlignedDataset(BaseDataset):
         assert (
             self.opt.data_load_size >= self.opt.data_crop_size
         )  # crop_size should be smaller than the size of loaded image
-        self.input_nc = (
-            self.opt.model_output_nc
-            if self.opt.data_direction == "BtoA"
-            else self.opt.model_input_nc
-        )
-        self.output_nc = (
-            self.opt.model_input_nc
-            if self.opt.data_direction == "BtoA"
-            else self.opt.model_output_nc
-        )
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
