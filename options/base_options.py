@@ -177,6 +177,7 @@ class BaseOptions:
                 "smallstylegan2",
                 "segformer_attn_conv",
                 "segformer_conv",
+                "segformer_decoder"
             ],
             help="specify generator architecture",
         )

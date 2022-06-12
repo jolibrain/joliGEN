@@ -38,10 +38,11 @@ from .modules.projected_d.discriminator import (
     ProjectedDiscriminator,
     TemporalProjectedDiscriminator,
 )
+
 from .modules.vision_aided_d import VisionAidedDiscriminator
 from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn
 from .modules.multimodal_encoder import E_ResNet, E_NLayers
-
+from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn, SegformerWithDecoder
 
 class BaseNetwork(nn.Module):
     def __init__(self):
@@ -251,6 +252,15 @@ def define_G(
             img_size=data_crop_size,
             num_classes=256,
             final_conv=True,
+            padding_type=G_padding_type,
+        )
+    elif G_netG == "segformer_decoder":
+        net = SegformerWithDecoder(
+            jg_dir,
+            G_config_segformer,
+            img_size=data_crop_size,
+            final_conv=True,
+            num_classes=256,
             padding_type=G_padding_type,
         )
         return net

@@ -1,4 +1,6 @@
 import os
+import sys
+import torch
 from torch import nn
 
 from models.modules.resnet_architecture.resnet_generator import ResnetDecoder
@@ -132,3 +134,66 @@ class SegformerGenerator_attn(BaseGenerator_attn):
             attentions.append(attention[:, i : i + 1, :, :].repeat(1, 3, 1, 1))
 
         return attentions, images
+
+class SegformerWithDecoder(nn.Module):
+    def __init__(
+        self,
+        jg_dir,
+        G_config_segformer,
+        img_size,
+        num_classes=10,
+        final_conv=False,
+        padding_type="zeros",
+    ):
+        super().__init__()
+        import mmcv
+
+        cfg = mmcv.Config.fromfile(os.path.join(jg_dir, G_config_segformer))
+        cfg.model.pretrained = None
+        cfg.model.train_cfg = None
+        cfg.model.decode_head.num_classes = num_classes
+        from mmseg.models import build_segmentor
+
+        self.net = build_segmentor(
+            cfg.model, train_cfg=None, test_cfg=cfg.get("test_cfg")
+        )
+
+        configure_encoder_decoder(self.net)
+        self.net.img_size = img_size
+        configure_mit(self.net.backbone)
+
+        self.use_final_conv = final_conv
+        if self.use_final_conv:
+            self.final_conv = ResnetDecoder(
+                num_classes, 3, ngf=64, padding_type=padding_type
+            )
+
+        self.dec_size = 64
+        decoder_layer = nn.TransformerEncoderLayer(d_model=self.dec_size, nhead=4, batch_first=True, dim_feedforward=512)
+        self.transformer_decoder = nn.TransformerEncoder(decoder_layer, num_layers=2)
+
+        #decoder_layer = nn.TransformerDecoderLayer(d_model=512, nhead=8)
+        #self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=3)
+
+    def compute_feats(self, input, extract_layer_ids=[]):
+        outs, feats = self.net.extract_feat(input, extract_layer_ids)
+        return outs, feats
+
+    def forward(self, input):
+        outs, _ = self.compute_feats(input)
+        
+        dec_outs = []
+        for o in outs:
+            oshape = o.shape
+            o = o.reshape([oshape[0],-1,self.dec_size])
+            dec_o = self.transformer_decoder(o)
+            dec_outs.append(dec_o.reshape(oshape))
+        
+        out = self.net.decode(dec_outs, use_resize=not self.use_final_conv)
+        if self.use_final_conv:
+            out = self.final_conv(out)
+        return out
+
+    def get_feats(self, input, extract_layer_ids):
+        _, feats = self.compute_feats(input, extract_layer_ids)
+        return feats
