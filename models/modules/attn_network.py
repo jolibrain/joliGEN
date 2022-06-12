@@ -13,6 +13,9 @@ class BaseGenerator_attn(nn.Module):
     def compute_outputs(self, input, attentions, images):
         outputs = []
 
+        if input.shape[1] > 3:
+            input = input[:, :3, :, :]
+
         for i in range(self.nb_mask_attn - self.nb_mask_input):
             if images[i].shape == attentions[i].shape:
                 outputs.append(images[i] * attentions[i])

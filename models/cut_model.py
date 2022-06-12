@@ -138,6 +138,8 @@ class CUTModel(BaseModel):
 
         if self.isTrain:
             self.model_names = ["G_A", "F"]
+            if self.opt.model_multimodal:
+                self.model_names.append("E")
 
             self.model_names_export = ["G_A"]
 
@@ -147,15 +149,19 @@ class CUTModel(BaseModel):
         # define networks (both generator and discriminator)
 
         # Generator
+        if self.opt.model_multimodal:
+            tmp_model_input_nc = self.opt.model_input_nc
+            self.opt.model_input_nc += self.opt.train_mm_nz
         self.netG_A = networks.define_G(**vars(opt))
+        if self.opt.model_multimodal:
+            self.opt.model_input_nc = tmp_model_input_nc
         self.netF = networks.define_F(**vars(opt))
-
         self.netF.set_device(self.device)
-
-        # Discriminator(s)
+        if self.opt.model_multimodal:
+            self.netE = networks.define_E(**vars(opt))
 
         if self.isTrain:
-
+            # Discriminator(s)
             self.netDs = networks.define_D(**vars(opt))
 
             self.discriminators_names = [
@@ -179,6 +185,14 @@ class CUTModel(BaseModel):
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
             )
+            if self.opt.model_multimodal:
+                self.criterionZ = torch.nn.L1Loss()
+                self.optimizer_E = opt.optim(
+                    opt,
+                    self.netE.parameters(),
+                    lr=opt.train_G_lr,
+                    betas=(opt.train_beta1, opt.train_beta2),
+                )
 
             if len(self.discriminators_names) > 0:
                 D_parameters = itertools.chain(
@@ -201,18 +215,24 @@ class CUTModel(BaseModel):
 
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+            if self.opt.model_multimodal:
+                self.optimizers.append(self.optimizer_E)
 
             # Making groups
-
             self.networks_groups = []
 
+            optimizers = ["optimizer_G", "optimizer_F"]
+            losses_backward = ["loss_G_tot"]
+            if self.opt.model_multimodal:
+                optimizers.append("optimizer_E")
+                losses_backward.append("loss_G_z")
             self.group_G = NetworkGroup(
-                networks_to_optimize=["G_A", "F"],
+                networks_to_optimize=["G_A", "F", "E"],
                 forward_functions=["forward"],
                 backward_functions=["compute_G_loss"],
                 loss_names_list=["loss_names_G"],
-                optimizer=["optimizer_G", "optimizer_F"],
-                loss_backward=["loss_G_tot"],
+                optimizer=optimizers,
+                loss_backward=losses_backward,
                 networks_to_ema=["G_A"],
             )
             self.networks_groups.append(self.group_G)
@@ -237,6 +257,8 @@ class CUTModel(BaseModel):
         losses_D = ["D_tot"]
         if opt.alg_cut_nce_idt and self.isTrain:
             losses_G += ["G_NCE_Y"]
+        if opt.model_multimodal and self.isTrain:
+            losses_G += ["G_z"]
 
         for discriminator in self.discriminators:
             losses_G.append(discriminator.loss_name_G)
@@ -282,7 +304,18 @@ class CUTModel(BaseModel):
 
         self.set_input_first_gpu(data)
         if self.opt.isTrain:
-            feat_temp = self.netG_A.get_feats(self.real_A.cpu(), self.nce_layers)
+            if self.opt.model_multimodal:
+                z_random = self.get_z_random(self.real_A.size(0), self.opt.train_mm_nz)
+                z_real = z_random.view(z_random.size(0), z_random.size(1), 1, 1).expand(
+                    z_random.size(0),
+                    z_random.size(1),
+                    self.real_A.size(2),
+                    self.real_A.size(3),
+                )
+                real_A_with_z = torch.cat([self.real_A, z_real], 1)
+            else:
+                real_A_with_z = self.real_A
+            feat_temp = self.netG_A.get_feats(real_A_with_z.cpu(), self.nce_layers)
             self.netF.data_dependent_initialize(feat_temp)
 
             if (
@@ -316,7 +349,24 @@ class CUTModel(BaseModel):
             if self.flipped_for_equivariance:
                 self.real = torch.flip(self.real, [3])
 
-        self.fake = self.netG_A(self.real)
+        if self.opt.model_multimodal:
+            self.z_random = self.get_z_random(self.real_A.size(0), self.opt.train_mm_nz)
+            z_real = self.z_random.view(
+                self.z_random.size(0), self.z_random.size(1), 1, 1
+            ).expand(
+                self.z_random.size(0),
+                self.z_random.size(1),
+                self.real.size(2),
+                self.real.size(3),
+            )
+            z_real = torch.cat(
+                [z_real, z_real], 0
+            )  # accomodates concatenated real_A and real_B
+            self.real_with_z = torch.cat([self.real, z_real], 1)
+        else:
+            self.real_with_z = self.real
+
+        self.fake = self.netG_A(self.real_with_z)
 
         self.fake_B = self.fake[: self.real_A.size(0)]
 
@@ -341,13 +391,15 @@ class CUTModel(BaseModel):
 
         self.diff_real_A_fake_B = self.real_A - self.fake_B
 
+        if self.opt.model_multimodal:
+            self.mu2 = self.netE(self.fake_B)
+
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
 
         super().compute_G_loss()
 
         # CUT losses
-
         if self.opt.alg_cut_lambda_NCE > 0.0:
             self.loss_G_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
         else:
@@ -361,18 +413,39 @@ class CUTModel(BaseModel):
 
         self.loss_G_tot += loss_NCE_both
 
+        # multimodal loss
+        if self.opt.model_multimodal:
+            self.loss_G_z = (
+                self.criterionZ(self.mu2, self.z_random) * self.opt.train_mm_lambda_z
+            )
+            self.loss_G_tot += self.loss_G_z
+
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
         if hasattr(self.netG_A, "module"):
             netG_A = self.netG_A.module
         else:
             netG_A = self.netG_A
-        feat_q = netG_A.get_feats(tgt, self.nce_layers)
+        if self.opt.model_multimodal:
+            z_real = self.z_random.view(
+                self.z_random.size(0), self.z_random.size(1), 1, 1
+            ).expand(
+                self.z_random.size(0),
+                self.z_random.size(1),
+                self.real.size(2),
+                self.real.size(3),
+            )
+            tgt_with_z = torch.cat([tgt, z_real], 1)
+            src_with_z = torch.cat([src, z_real], 1)
+        else:
+            tgt_with_z = tgt
+            src_with_z = src
+        feat_q = netG_A.get_feats(tgt_with_z, self.nce_layers)
 
         if self.opt.alg_cut_flip_equivariance and self.flipped_for_equivariance:
             feat_q = [torch.flip(fq, [3]) for fq in feat_q]
 
-        feat_k = netG_A.get_feats(src, self.nce_layers)
+        feat_k = netG_A.get_feats(src_with_z, self.nce_layers)
 
         feat_k_pool, sample_ids = self.netF(feat_k, self.opt.alg_cut_num_patches, None)
         feat_q_pool, _ = self.netF(feat_q, self.opt.alg_cut_num_patches, sample_ids)

@@ -228,6 +228,17 @@ class TrainOptions(BaseOptions):
         )
         parser.add_argument("--train_use_contrastive_loss_D", action="store_true")
 
+        # multimodal training
+        parser.add_argument(
+            "--train_mm_lambda_z",
+            type=float,
+            default=0.5,
+            help="weight for random z loss",
+        )
+        parser.add_argument(
+            "--train_mm_nz", type=int, default=8, help="number of latent vectors"
+        )
+
         # train with semantics
         parser.add_argument(
             "--train_sem_use_label_B",

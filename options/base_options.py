@@ -144,6 +144,11 @@ class BaseOptions:
             default=0.02,
             help="scaling factor for normal, xavier and orthogonal.",
         )
+        parser.add_argument(
+            "--model_multimodal",
+            action="store_true",
+            help="multimodal model with random latent input vector",
+        )
 
         # generator
         parser.add_argument(
@@ -216,6 +221,13 @@ class BaseOptions:
             "--G_backward_compatibility_twice_resnet_blocks",
             action="store_true",
             help="if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way).",
+        )
+        parser.add_argument(
+            "--G_netE",
+            type=str,
+            default="resnet_256",
+            choices=["resnet_128", "resnet_256", "conv_128", "conv_256"],
+            help="specify multimodal latent vector encoder",
         )
 
         # discriminator

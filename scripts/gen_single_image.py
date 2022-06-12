@@ -11,6 +11,15 @@ from torchvision.utils import save_image
 import numpy as np
 import argparse
 
+
+def get_z_random(batch_size=1, nz=8, random_type="gauss"):
+    if random_type == "uni":
+        z = torch.rand(batch_size, nz) * 2.0 - 1.0
+    elif random_type == "gauss":
+        z = torch.randn(batch_size, nz)
+    return z.detach()
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--model-in-file", help="file path to generator model (.pth file)", required=True
@@ -36,6 +45,12 @@ parser.add_argument("--img-out", help="transformed image", required=True)
 parser.add_argument("--bw", action="store_true", help="whether input/output is bw")
 parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
 parser.add_argument("--gpuid", type=int, default=0, help="which GPU to use")
+parser.add_argument(
+    "--nz",
+    type=int,
+    default=-1,
+    help="size of the latent for multimodal models, e.g. 8",
+)
 args = parser.parse_args()
 
 if args.bw:
@@ -53,6 +68,8 @@ opt.G_netG = args.model_type
 opt.G_padding_type = args.padding_type
 opt.model_input_nc = input_nc
 opt.model_output_nc = output_nc
+if args.nz > 0:
+    opt.model_multimodal = True
 if "segformer" in args.model_type:
     opt.G_config_segformer = (
         args.model_config
@@ -81,8 +98,22 @@ img_tensor = tran(img)
 if not args.cpu:
     img_tensor = img_tensor.to(device)
 
+if args.nz > 0:
+    z_random = get_z_random(batch_size=1, nz=args.nz)
+    z_random = z_random.to(device)
+    # print('z_random shape=', self.z_random.shape)
+    z_real = z_random.view(z_random.size(0), z_random.size(1), 1, 1).expand(
+        z_random.size(0),
+        z_random.size(1),
+        img_tensor.size(1),
+        img_tensor.size(2),
+    )
+    img_tensor = torch.cat([img_tensor.unsqueeze(0), z_real], 1)
+else:
+    img_tensor = img_tensor.unsqueeze(0)
+
 # run through model
-out_tensor = model(img_tensor.unsqueeze(0))[0].detach()
+out_tensor = model(img_tensor)[0].detach()
 
 # post-processing
 out_img = out_tensor.data.cpu().float().numpy()

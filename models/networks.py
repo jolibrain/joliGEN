@@ -39,6 +39,7 @@ from .modules.projected_d.discriminator import (
     TemporalProjectedDiscriminator,
 )
 from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn
+from .modules.multimodal_encoder import E_ResNet, E_NLayers
 
 
 class BaseNetwork(nn.Module):
@@ -526,4 +527,64 @@ def define_F(
         )
     else:
         raise NotImplementedError("projection model name [%s] is not recognized" % netF)
+    return init_net(net, model_init_type, model_init_gain)
+
+
+def define_E(
+    model_input_nc,
+    train_mm_nz,
+    G_ngf,
+    G_netE,
+    model_init_type="xavier",
+    model_init_gain=0.02,
+    **unused_options
+):
+    net = None
+    vaeLike = False
+    model_output_nc = train_mm_nz
+    norm_layer = get_norm_layer(norm_type="batch")
+    nl_layer = functools.partial(nn.LeakyReLU, negative_slope=0.2, inplace=True)
+    if G_netE == "resnet_128":
+        net = E_ResNet(
+            model_input_nc,
+            model_output_nc,
+            G_ngf,
+            n_blocks=4,
+            norm_layer=norm_layer,
+            nl_layer=nl_layer,
+            vaeLike=vaeLike,
+        )
+    elif G_netE == "resnet_256":
+        net = E_ResNet(
+            model_input_nc,
+            model_output_nc,
+            G_ngf,
+            n_blocks=5,
+            norm_layer=norm_layer,
+            nl_layer=nl_layer,
+            vaeLike=vaeLike,
+        )
+    elif G_netE == "conv_128":
+        net = E_NLayers(
+            model_input_nc,
+            model_output_nc,
+            G_ngf,
+            n_layers=4,
+            norm_layer=norm_layer,
+            nl_layer=nl_layer,
+            vaeLike=vaeLike,
+        )
+    elif G_netE == "conv_256":
+        net = E_NLayers(
+            model_input_nc,
+            model_output_nc,
+            G_ngf,
+            n_layers=5,
+            norm_layer=norm_layer,
+            nl_layer=nl_layer,
+            vaeLike=vaeLike,
+        )
+    else:
+        raise NotImplementedError("E encoder model name [%s] is not recognized" % net)
+
     return init_net(net, model_init_type, model_init_gain)
