@@ -594,9 +594,13 @@ class BaseModel(ABC):
 
                 net = getattr(self, "net" + name)
 
+                input_nc = self.opt.model_input_nc
+                if self.opt.model_multimodal:
+                    input_nc += self.opt.train_mm_nz
+
                 dummy_input = torch.randn(
                     1,
-                    self.opt.model_input_nc,
+                    input_nc,
                     self.opt.data_crop_size,
                     self.opt.data_crop_size,
                     device=self.device,
@@ -915,6 +919,7 @@ class BaseModel(ABC):
             optimizers.append(getattr(self, optimizer_name))
 
         if self.opt.train_iter_size > 1:
+            # print('loss_names=',loss_names)
             for loss_name in loss_names:
                 value = (
                     getattr(self, "loss_" + loss_name).clone()
@@ -977,14 +982,16 @@ class BaseModel(ABC):
                     getattr(self, forward)()
 
             for backward in group.backward_functions:
-
                 getattr(self, backward)()
 
             for loss in group.loss_backward:
-                (getattr(self, loss) / self.opt.train_iter_size).backward()
+                (getattr(self, loss) / self.opt.train_iter_size).backward(
+                    retain_graph=True
+                )
 
             loss_names = []
 
+            # print('group loss_names=', group.loss_names_list)
             for temp in group.loss_names_list:
                 loss_names += getattr(self, temp)
             self.compute_step(group.optimizer, loss_names)
@@ -1291,3 +1298,11 @@ class BaseModel(ABC):
                     compute_every=compute_every,
                 )
             )
+
+    # multimodal input latent vector
+    def get_z_random(self, batch_size, nz, random_type="gauss"):
+        if random_type == "uni":
+            z = torch.rand(batch_size, nz) * 2.0 - 1.0
+        elif random_type == "gauss":
+            z = torch.randn(batch_size, nz)
+        return z.detach().to(self.device)

@@ -417,6 +417,7 @@ class ResnetGenerator_attn(BaseGenerator_attn):
         self.twice_resnet_blocks = twice_resnet_blocks
 
         self.conv1 = spectral_norm(nn.Conv2d(input_nc, ngf, 7, 1, 0), use_spectral)
+        self.input_nc = output_nc  # hack
         self.conv1_norm = nn.InstanceNorm2d(ngf)
         self.conv2 = spectral_norm(nn.Conv2d(ngf, ngf * 2, 3, 2, 1), use_spectral)
         self.conv2_norm = nn.InstanceNorm2d(ngf * 2)
