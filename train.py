@@ -69,6 +69,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
     signal.signal(signal.SIGTERM, signal_handler)
     if len(opt.gpu_ids) > 1:
         setup(rank, world_size, opt.ddp_port)
+
     dataloader = create_dataloader(
         opt, rank, dataset
     )  # create a dataset given opt.dataset_mode and other options

@@ -919,7 +919,6 @@ class BaseModel(ABC):
             optimizers.append(getattr(self, optimizer_name))
 
         if self.opt.train_iter_size > 1:
-            # print('loss_names=',loss_names)
             for loss_name in loss_names:
                 value = (
                     getattr(self, "loss_" + loss_name).clone()
@@ -991,7 +990,6 @@ class BaseModel(ABC):
 
             loss_names = []
 
-            # print('group loss_names=', group.loss_names_list)
             for temp in group.loss_names_list:
                 loss_names += getattr(self, temp)
             self.compute_step(group.optimizer, loss_names)

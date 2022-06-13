@@ -57,6 +57,8 @@ if args.bw:
     input_nc = output_nc = 1
 else:
     input_nc = output_nc = 3
+if args.nz > 0:
+    input_nc += args.nz
 
 # loading model
 opt = TrainOptions().parse_json({})

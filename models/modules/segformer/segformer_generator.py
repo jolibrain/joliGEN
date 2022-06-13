@@ -11,6 +11,7 @@ class Segformer(nn.Module):
         self,
         jg_dir,
         G_config_segformer,
+        input_nc,
         img_size,
         num_classes=10,
         final_conv=False,
@@ -20,6 +21,7 @@ class Segformer(nn.Module):
         import mmcv
 
         cfg = mmcv.Config.fromfile(os.path.join(jg_dir, G_config_segformer))
+        cfg.model.backbone.in_channels = input_nc
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
         cfg.model.decode_head.num_classes = num_classes
@@ -62,6 +64,7 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         self,
         jg_dir,
         G_config_segformer,
+        input_nc,
         img_size,
         nb_mask_attn,
         nb_mask_input,
@@ -75,6 +78,7 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         import mmcv
 
         cfg = mmcv.Config.fromfile(os.path.join(jg_dir, G_config_segformer))
+        cfg.model.backbone.in_channels = input_nc
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
         cfg.model.auxiliary_head = cfg.model.decode_head.copy()
