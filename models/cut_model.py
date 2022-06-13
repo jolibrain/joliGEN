@@ -224,10 +224,10 @@ class CUTModel(BaseModel):
             optimizers = ["optimizer_G", "optimizer_F"]
             losses_backward = ["loss_G_tot"]
             if self.opt.model_multimodal:
-                optimizers.append("optimizer_E")
+                #    optimizers.append("optimizer_E")
                 losses_backward.append("loss_G_z")
             self.group_G = NetworkGroup(
-                networks_to_optimize=["G_A", "F", "E"],
+                networks_to_optimize=["G_A", "F"],
                 forward_functions=["forward"],
                 backward_functions=["compute_G_loss"],
                 loss_names_list=["loss_names_G"],
@@ -236,6 +236,17 @@ class CUTModel(BaseModel):
                 networks_to_ema=["G_A"],
             )
             self.networks_groups.append(self.group_G)
+
+            if opt.model_multimodal:
+                self.group_E = NetworkGroup(
+                    networks_to_optimize=["E"],
+                    forward_functions=["forward_E"],
+                    backward_functions=["compute_E_loss"],
+                    loss_names_list=["loss_names_E"],
+                    optimizer=["optimizer_E"],
+                    loss_backward=["loss_G_z"],
+                )
+                self.networks_groups.append(self.group_E)
 
             self.group_D = NetworkGroup(
                 networks_to_optimize=self.discriminators_names,
@@ -258,6 +269,7 @@ class CUTModel(BaseModel):
         if opt.alg_cut_nce_idt and self.isTrain:
             losses_G += ["G_NCE_Y"]
         if opt.model_multimodal and self.isTrain:
+            losses_E = ["G_z"]
             losses_G += ["G_z"]
 
         for discriminator in self.discriminators:
@@ -266,12 +278,19 @@ class CUTModel(BaseModel):
 
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
+        if self.opt.model_multimodal:
+            self.loss_names_E = losses_E
+            self.loss_names_G += losses_E
+        else:
+            self.loss_names_E = []
 
         self.loss_names = self.loss_names_G + self.loss_names_D
+        if self.opt.model_multimodal:
+            self.loss_names += self.loss_names_E
 
         # Itercalculator
-
         if self.opt.train_iter_size > 1:
+            print("cut loss_names=", self.loss_names)
             self.iter_calculator = IterCalculator(self.loss_names)
             for i, cur_loss in enumerate(self.loss_names):
                 self.loss_names[i] = cur_loss + "_avg"
@@ -394,6 +413,21 @@ class CUTModel(BaseModel):
         if self.opt.model_multimodal:
             self.mu2 = self.netE(self.fake_B)
 
+    def forward_E(self):
+        if self.opt.model_multimodal:
+            self.z_random = self.get_z_random(self.real_A.size(0), self.opt.train_mm_nz)
+            z_real = self.z_random.view(
+                self.z_random.size(0), self.z_random.size(1), 1, 1
+            ).expand(
+                self.z_random.size(0),
+                self.z_random.size(1),
+                self.real_A.size(2),
+                self.real_A.size(3),
+            )
+            real_A_with_z = torch.cat([self.real_A, z_real], 1)
+            fake_B = self.netG_A(real_A_with_z)
+            self.mu2 = self.netE(fake_B)
+
     def compute_G_loss(self):
         """Calculate GAN and NCE loss for the generator"""
 
@@ -412,13 +446,17 @@ class CUTModel(BaseModel):
             loss_NCE_both = self.loss_G_NCE
 
         self.loss_G_tot += loss_NCE_both
+        self.compute_E_loss()
+        self.loss_G_tot += self.loss_G_z
 
+    def compute_E_loss(self):
         # multimodal loss
         if self.opt.model_multimodal:
             self.loss_G_z = (
                 self.criterionZ(self.mu2, self.z_random) * self.opt.train_mm_lambda_z
             )
-            self.loss_G_tot += self.loss_G_z
+        else:
+            self.loss_G_z = 0
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)

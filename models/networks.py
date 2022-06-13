@@ -234,6 +234,7 @@ def define_G(
         net = SegformerGenerator_attn(
             jg_dir,
             G_config_segformer,
+            model_input_nc,
             img_size=data_crop_size,
             nb_mask_attn=G_attn_nb_mask_attn,
             nb_mask_input=G_attn_nb_mask_input,
@@ -245,6 +246,7 @@ def define_G(
         net = Segformer(
             jg_dir,
             G_config_segformer,
+            model_input_nc,
             img_size=data_crop_size,
             num_classes=256,
             final_conv=True,
@@ -564,6 +566,16 @@ def define_E(
             nl_layer=nl_layer,
             vaeLike=vaeLike,
         )
+    elif G_netE == "resnet_512":
+        net = E_ResNet(
+            model_input_nc,
+            model_output_nc,
+            G_ngf,
+            n_blocks=6,
+            norm_layer=norm_layer,
+            nl_layer=nl_layer,
+            vaeLike=vaeLike,
+        )
     elif G_netE == "conv_128":
         net = E_NLayers(
             model_input_nc,
@@ -575,6 +587,16 @@ def define_E(
             vaeLike=vaeLike,
         )
     elif G_netE == "conv_256":
+        net = E_NLayers(
+            model_input_nc,
+            model_output_nc,
+            G_ngf,
+            n_layers=5,
+            norm_layer=norm_layer,
+            nl_layer=nl_layer,
+            vaeLike=vaeLike,
+        )
+    elif G_netE == "conv_512":
         net = E_NLayers(
             model_input_nc,
             model_output_nc,

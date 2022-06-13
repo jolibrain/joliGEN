@@ -42,7 +42,12 @@ class CUTSemanticMaskModel(CUTModel):
         self.loss_names_G += losses_G
         self.loss_names_f_s = losses_f_s
 
-        self.loss_names = self.loss_names_G + self.loss_names_D + self.loss_names_f_s
+        self.loss_names = (
+            self.loss_names_G
+            + self.loss_names_D
+            + self.loss_names_E
+            + self.loss_names_f_s
+        )
 
         # define networks (both generator and discriminator)
         if self.isTrain:

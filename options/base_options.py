@@ -10,6 +10,7 @@ from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
 from util.util import MAX_INT
 import json
 from models.modules.classifiers import TORCH_MODEL_CLASSES
+import warnings
 
 TRAIN_JSON_FILENAME = "train_config.json"
 
@@ -226,7 +227,14 @@ class BaseOptions:
             "--G_netE",
             type=str,
             default="resnet_256",
-            choices=["resnet_128", "resnet_256", "conv_128", "conv_256"],
+            choices=[
+                "resnet_128",
+                "resnet_256",
+                "resnet_512",
+                "conv_128",
+                "conv_256",
+                "conv_512",
+            ],
             help="specify multimodal latent vector encoder",
         )
 
@@ -639,6 +647,27 @@ class BaseOptions:
                 opt.gpu_ids.append(id)
         if len(opt.gpu_ids) > 0:
             torch.cuda.set_device(opt.gpu_ids[0])
+
+        # multimodal check
+        if opt.model_multimodal:
+            if not "cut" in opt.model_type:
+                raise ValueError(
+                    "Multimodal models are only supported with cut-based models at this stage, use --model_type accordingly"
+                )
+            if "resnet" in opt.G_netG:
+                warnings.warn(
+                    "ResNet encoder/decoder architectures do not mix well with multimodal training, use segformer or unet instead"
+                )
+            netE_size = int(opt.G_netE[-3:])
+            if opt.data_crop_size != netE_size:
+                msg = (
+                    "latent multimodal decoder E has input size different than G output size: "
+                    + str(netE_size)
+                    + " vs "
+                    + str(opt.data_crop_size)
+                    + ", run may fail, use --G_netE accordingly"
+                )
+                warnings.warn(msg)
 
         self.opt = opt
 
