@@ -238,12 +238,18 @@ class BaseOptions:
                 "smallpatchstylegan2",
                 "projected_d",
                 "temporal",
+                "vision_aided",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
             help="specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored.",
             nargs="+",
         )
-
+        parser.add_argument(
+            "--D_vision_aided_backbones",
+            type=str,
+            default="clip+dino",
+            help="specify discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with +",
+        )
         parser.add_argument(
             "--D_n_layers", type=int, default=3, help="only used if netD==n_layers"
         )
