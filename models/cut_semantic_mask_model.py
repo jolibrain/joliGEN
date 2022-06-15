@@ -34,6 +34,10 @@ class CUTSemanticMaskModel(CUTModel):
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
         losses_G = ["G_sem"]
+
+        if self.opt.train_sem_idt:
+            losses_G += ["G_sem_idt"]
+
         if opt.train_mask_out_mask:
             losses_G += ["G_out_mask"]
 
@@ -124,7 +128,7 @@ class CUTSemanticMaskModel(CUTModel):
         Please also see PatchSampleF.create_mlp(), which is called at the first forward() call.
         """
         super().data_dependent_initialize(data)
-        visual_names_seg_A = ["input_A_label", "gt_pred_A", "pfB_max"]
+        visual_names_seg_A = ["input_A_label", "gt_pred_real_A", "pfB_max"]
 
         if hasattr(self, "input_B_label"):
             visual_names_seg_B = ["input_B_label"]
@@ -178,7 +182,7 @@ class CUTSemanticMaskModel(CUTModel):
             f_s = self.netf_s
 
         self.pred_real_A = f_s(self.real_A)
-        self.gt_pred_A = F.log_softmax(self.pred_real_A, dim=d).argmax(dim=d)
+        self.gt_pred_real_A = F.log_softmax(self.pred_real_A, dim=d).argmax(dim=d)
 
         if self.opt.train_mask_disjoint_f_s:
             f_s = self.netf_s_B
@@ -191,6 +195,10 @@ class CUTSemanticMaskModel(CUTModel):
         self.pred_fake_B = f_s(self.fake_B)
         self.pfB = F.log_softmax(self.pred_fake_B, dim=d)  # .argmax(dim=d)
         self.pfB_max = self.pfB.argmax(dim=d)
+
+        if self.opt.train_sem_idt:
+            self.pred_idt_B = f_s(self.idt_B)
+            self.pred_idt_B = F.log_softmax(self.pred_idt_B, dim=d)
 
         if hasattr(self, "criterionMask"):
             label_A = self.input_A_label
@@ -209,15 +217,29 @@ class CUTSemanticMaskModel(CUTModel):
             label_fake_B = torch.zeros_like(self.input_A_label)
         else:
             label_fake_B = self.input_A_label
+
         self.loss_G_sem = self.opt.train_sem_lambda * self.criterionf_s(
             self.pfB, label_fake_B
         )
+
+        if self.opt.train_sem_idt:
+
+            self.loss_G_sem_idt = self.opt.train_sem_lambda * self.criterionf_s(
+                self.pred_idt_B, self.input_B_label
+            )
+
         if (
             not hasattr(self, "loss_f_s")
             or self.loss_f_s > self.opt.f_s_semantic_threshold
         ):
             self.loss_G_sem = 0 * self.loss_G_sem
+            if self.opt.train_sem_idt:
+                self.loss_G_sem_idt = 0 * self.loss_G_sem_idt
+
         self.loss_G_tot += self.loss_G_sem
+
+        if self.opt.train_sem_idt:
+            self.loss_G_tot += self.loss_G_sem_idt
 
         if hasattr(self, "criterionMask"):
             self.loss_G_out_mask = (

@@ -269,6 +269,11 @@ class TrainOptions(BaseOptions):
             action="store_true",
             help="if true l1 loss will be used to compute regressor loss",
         )
+        parser.add_argument(
+            "--train_sem_idt",
+            action="store_true",
+            help="if true apply semantic loss on identity",
+        )
 
         # train with mask semantics
         parser.add_argument(

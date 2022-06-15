@@ -192,6 +192,10 @@ class CycleGANSemanticMaskModel(CycleGANModel):
 
             self.pred_fake_A = f_s(self.fake_A)
 
+            if self.opt.train_sem_idt:
+                self.pred_idt_A = f_s(self.idt_A)
+                self.pred_idt_A = F.log_softmax(self.pred_idt_A, dim=d)
+
             if self.opt.train_mask_disjoint_f_s:
                 f_s = self.netf_s_B
             else:
@@ -234,6 +238,10 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         self.pred_fake_B = f_s(self.fake_B)
         self.pfB = F.log_softmax(self.pred_fake_B, dim=d)
         self.pfB_max = self.pfB.argmax(dim=d)
+
+        if self.opt.train_sem_idt:
+            self.pred_idt_B = f_s(self.idt_B)
+            self.pred_idt_B = F.log_softmax(self.pred_idt_B, dim=d)
 
     def compute_f_s_loss(self):
         self.loss_f_s = 0
@@ -303,6 +311,20 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                 self.pfA, self.gt_pred_B
             )  # .squeeze(1))
 
+        if self.opt.train_sem_idt:
+
+            # semantic loss idt A
+
+            self.loss_G_sem_idt_A = self.opt.train_sem_lambda * self.criterionf_s(
+                self.pred_idt_A, self.input_A_label
+            )
+
+            # semantic loss idt B
+
+            self.loss_G_sem_idt_B = self.opt.train_sem_lambda * self.criterionf_s(
+                self.pred_idt_B, self.input_B_label
+            )
+
         # only use semantic loss when classifier has reasonably low loss
         if (
             not hasattr(self, "loss_f_s")
@@ -310,6 +332,11 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         ):
             self.loss_G_sem_AB = 0 * self.loss_G_sem_AB
             self.loss_G_sem_BA = 0 * self.loss_G_sem_BA
+
+            if self.opt.train_sem_idt:
+                self.loss_G_sem_idt_A = 0 * self.loss_G_sem_idt_A
+                self.loss_G_sem_idt_B = 0 * self.loss_G_sem_idt_B
+
         self.loss_G_tot += self.loss_G_sem_BA + self.loss_G_sem_AB
 
         lambda_out_mask = self.opt.train_mask_lambda_out_mask
