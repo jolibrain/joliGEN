@@ -59,7 +59,7 @@ class AlignedDataset(BaseDataset):
         A = A_transform(A)
         B = B_transform(B)
 
-        return {"A": A, "B": B, "A_paths": AB_path, "B_paths": AB_path}
+        return {"A": A, "B": B, "A_img_paths": AB_path, "B_img_paths": AB_path}
 
     def __len__(self):
         """Return the total number of images in the dataset."""

@@ -387,6 +387,7 @@ class BaseOptions:
                 "unaligned_labeled",
                 "unaligned_labeled_mask",
                 "unaligned_labeled_mask_online",
+                "aligned",
             ],
             help="chooses how datasets are loaded.",
         )
