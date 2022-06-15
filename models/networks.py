@@ -38,6 +38,7 @@ from .modules.projected_d.discriminator import (
     ProjectedDiscriminator,
     TemporalProjectedDiscriminator,
 )
+from .modules.vision_aided_d import VisionAidedDiscriminator
 from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn
 
 
@@ -277,6 +278,7 @@ def define_D(
     D_temporal_number_frames,
     D_temporal_frame_step,
     data_online_context_pixels,
+    D_vision_aided_backbones,
     **unused_options
 ):
 
@@ -364,7 +366,7 @@ def define_D(
                 model_input_nc,
                 D_ndf,
                 nclasses,
-                opt.data_crop_size + margin,
+                data_crop_size + margin,
                 template,
                 pretrained=False,
             )
@@ -384,7 +386,11 @@ def define_D(
                 weight_path=weight_path,
                 img_size=data_crop_size + margin,
             )
-            return_nets[netD] = net  # no init since custom frozen backbon
+            return_nets[netD] = net  # no init since custom frozen backbone
+
+        elif netD == "vision_aided":
+            net = VisionAidedDiscriminator(cv_type=D_vision_aided_backbones)
+            return_nets[netD] = net  # no init since partly frozen
 
         elif netD == "temporal":
             # projected D temporal

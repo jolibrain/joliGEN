@@ -702,7 +702,9 @@ class BaseModel(ABC):
         for net in nets:
             if net is not None:
                 for name, param in net.named_parameters():
-                    if not "freeze" in name:
+                    if (
+                        not "freeze" in name and not "cv_ensemble" in name
+                    ):  # cv_ensemble is for vision-aided
                         param.requires_grad = requires_grad
                     else:
                         param.requires_grad = False
@@ -1207,11 +1209,12 @@ class BaseModel(ABC):
 
             loss_calculator_name = "D_" + discriminator_name + "_loss_calculator"
 
-            train_gan_mode = (
-                "projected"
-                if "temporal" in discriminator_name or "projected" in discriminator_name
-                else self.opt.train_gan_mode
-            )
+            if "temporal" in discriminator_name or "projected" in discriminator_name:
+                train_gan_mode = "projected"
+            elif "vision_aided" in discriminator_name:
+                train_gan_mode = "vanilla"
+            else:
+                train_gan_mode = self.opt.train_gan_mode
 
             if "temporal" in discriminator_name:
                 setattr(
