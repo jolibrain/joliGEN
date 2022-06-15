@@ -97,7 +97,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled, unaligned_labeled_mask, unaligned_labeled_mask_online_ |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled, unaligned_labeled_mask, unaligned_labeled_mask_online, aligned_ |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/>_**Values:** AtoB, BtoA_ |
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
