@@ -69,6 +69,26 @@ class UnetGenerator(nn.Module):
         """Standard forward"""
         return self.model(input)
 
+    def compute_feats(self, input, extract_layer_ids=[]):
+        output, feats = self.model(input, feats=[])
+
+        return_feats = []
+
+        for i, feat in enumerate(feats):
+            if i in extract_layer_ids:
+                return_feats.append(feat)
+
+        return output, return_feats
+
+    def forward(self, input):
+        output, _ = self.compute_feats(input)
+        return output
+
+    def get_feats(self, input, extract_layer_ids=[]):
+        _, feats = self.compute_feats(input, extract_layer_ids)
+
+        return feats
+
 
 class UnetSkipConnectionBlock(nn.Module):
     """Defines the Unet submodule with skip connection.
@@ -148,8 +168,17 @@ class UnetSkipConnectionBlock(nn.Module):
 
         self.model = nn.Sequential(*model)
 
-    def forward(self, x):
-        if self.outermost:
-            return self.model(x)
-        else:  # add skip connections
-            return torch.cat([x, self.model(x)], 1)
+    def forward(self, x, feats):
+        output = self.model[0](x)
+        return_feats = feats + [output]
+
+        for layer in self.model[1:]:
+            if isinstance(layer, UnetSkipConnectionBlock):
+                output, return_feats = layer(output, return_feats)
+            else:
+                output = layer(output)
+
+        if not self.outermost:  # add skip connections
+            output = torch.cat([x, output], 1)
+
+        return output, return_feats
