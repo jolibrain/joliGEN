@@ -79,11 +79,14 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         cfg.model.train_cfg = None
         cfg.model.auxiliary_head = cfg.model.decode_head.copy()
         if self.use_final_conv:
-            num_cls = 256
+            self.num_cls_img = 256
+            self.num_cls_attn = 256
         else:
-            num_cls = 3 * (self.nb_mask_attn - self.nb_mask_input)
-        cfg.model.decode_head.num_classes = num_cls
-        cfg.model.auxiliary_head.num_classes = self.nb_mask_attn
+            self.num_cls_img = 3 * (self.nb_mask_attn - self.nb_mask_input)
+            self.num_cls_attn = self.nb_mask_attn
+        cfg.model.decode_head.num_classes = self.num_cls_img
+        cfg.model.auxiliary_head.num_classes = self.num_cls_attn
+
         from mmseg.models import build_segmentor
 
         self.segformer = build_segmentor(
@@ -99,11 +102,19 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         self.use_final_conv = final_conv
 
         if self.use_final_conv:
-            self.final_conv = ResnetDecoder(
-                num_cls,
+            self.final_conv_img = ResnetDecoder(
+                self.num_cls_img,
                 3 * (self.nb_mask_attn - self.nb_mask_input),
                 ngf=64,
                 padding_type=padding_type,
+            )
+
+            self.final_conv_attn = ResnetDecoder(
+                self.num_cls_attn,
+                self.nb_mask_attn,
+                ngf=64,
+                padding_type=padding_type,
+                use_tanh=False,
             )
 
     def compute_feats(self, input, extract_layer_ids=[]):
@@ -112,10 +123,13 @@ class SegformerGenerator_attn(BaseGenerator_attn):
 
     def compute_attention_content(self, outs):
         image = self.segformer.decode(outs, use_resize=not self.use_final_conv)
+
         if self.use_final_conv:
-            image = self.final_conv(image)
+            image = self.final_conv_img(image)
 
         attention = self.segformer.decode_2(outs, use_resize=not self.use_final_conv)
+        if self.use_final_conv:
+            attention = self.final_conv_attn(attention)
         images = []
 
         for i in range(self.nb_mask_attn - self.nb_mask_input):

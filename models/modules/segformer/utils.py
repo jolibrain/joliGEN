@@ -60,12 +60,13 @@ def configure_decode_2_encoder_encoder(obj):
         out2 = obj._auxiliary_head_forward_test(outs, img_metas=None)
         from mmseg.ops import resize
 
-        out2 = resize(
-            input=out2,
-            size=obj.img_size,
-            mode="bilinear",
-            align_corners=obj.align_corners,
-        )
+        if use_resize:
+            out2 = resize(
+                input=out2,
+                size=obj.img_size,
+                mode="bilinear",
+                align_corners=obj.align_corners,
+            )
         return out2
 
     obj.decode_2 = decode_2_encoder_encoder

@@ -287,6 +287,7 @@ class ResnetDecoder(nn.Module):
         n_blocks=6,
         padding_type="reflect",
         use_spectral=False,
+        use_tanh=True,
     ):
         """Construct a Resnet-based generator
 
@@ -338,7 +339,8 @@ class ResnetDecoder(nn.Module):
         else:
             raise NotImplementedError("padding [%s] is not implemented" % padding_type)
         model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=p)]
-        model += [nn.Tanh()]
+        if use_tanh:
+            model += [nn.Tanh()]
         self.model = nn.Sequential(*model)
 
     def forward(self, input):
