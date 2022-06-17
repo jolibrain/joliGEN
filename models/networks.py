@@ -41,6 +41,9 @@ from .modules.projected_d.discriminator import (
 from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn
 
 
+from .modules.vit_custom import VitGenerator
+
+
 class BaseNetwork(nn.Module):
     def __init__(self):
         super(BaseNetwork, self).__init__()
@@ -73,6 +76,7 @@ def define_G(
     G_config_segformer,
     G_stylegan2_num_downsampling,
     G_backward_compatibility_twice_resnet_blocks,
+    G_vit_encoder_architecture,
     **unused_options
 ):
     """Create a generator
@@ -250,6 +254,16 @@ def define_G(
             padding_type=G_padding_type,
         )
         return net
+
+    elif G_netG == "vit":
+        net = VitGenerator(
+            img_size=data_crop_size,
+            patch_size=16,
+            in_chans=model_input_nc,
+            encoder_architecture=G_vit_encoder_architecture,
+        )
+        return net
+
     else:
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG

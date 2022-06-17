@@ -171,6 +171,7 @@ class BaseOptions:
                 "smallstylegan2",
                 "segformer_attn_conv",
                 "segformer_conv",
+                "vit",
             ],
             help="specify generator architecture",
         )
@@ -216,6 +217,14 @@ class BaseOptions:
             "--G_backward_compatibility_twice_resnet_blocks",
             action="store_true",
             help="if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way).",
+        )
+
+        parser.add_argument(
+            "--G_vit_encoder_architecture",
+            type=str,
+            default="vitsmall",
+            help="define encoder architecture for vit generator",
+            choices=["custom", "vitsmall"],
         )
 
         # discriminator
