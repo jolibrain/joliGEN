@@ -288,7 +288,7 @@ class VitGenerator(nn.Module):
         imgs: (N, 3, H, W)
         """
 
-        print(x.shape)
+        # print(x.shape)
 
         p = self.patch_size
         h = w = int(x.shape[1] ** 0.5)
@@ -307,22 +307,22 @@ class VitGenerator(nn.Module):
         """
 
         # Remove cls token
-        print("input un patch feat", x.shape)
-        # x = x[:, 1:, :]
+        # print("input un patch feat", x.shape)
+        x = x[:, 1:, :]
 
         p = int(x.shape[2] ** 0.5)  # self.patch_size
-        print("p", p)
+        # print("p", p)
         h = w = int(x.shape[1] ** 0.5)
-        print(x.shape)
+        # print(x.shape)
         print(h, x.shape[1])
         assert h * w == x.shape[1]
 
         x = x.reshape(shape=(x.shape[0], h, w, p * p))
-        print("x", x.shape)
+        # print("x", x.shape)
         x = torch.einsum("nhwp->nphw", x)
-        print("x ein", x.shape)
+        # print("x ein", x.shape)
         imgs = x  # .reshape(shape=(x.shape[0], p, p, h, w))
-        print(imgs.shape)
+        # print(imgs.shape)
         return imgs
 
     def get_feats(self, input, extract_layer_ids):
@@ -333,11 +333,11 @@ class VitGenerator(nn.Module):
         return return_feats
 
     def forward(self, x):
-        print(x.shape)
+        # print(x.shape)
         x = self.encoder(x)
-        print("after encoder", x.shape)
+        # print("after encoder", x.shape)
         x = self.decoder(x)
-        print(x.shape)
+        # print(x.shape)
         return self.unpatchify(x)
 
 
@@ -420,8 +420,8 @@ def configure_compute_feats_vit_timm(net):
         for i, block in enumerate(net.blocks):
             feat = block(feat)
             if i in extract_layer_ids:
-                feats.append(feat.transpose(2, 1).contiguous())
-        feats.append(feat.transpose(2, 1).contiguous())
+                feats.append(feat)  # .transpose(2, 1).contiguous())
+        feats.append(feat)  # .transpose(2, 1).contiguous())
 
         return x, feats
 

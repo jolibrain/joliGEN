@@ -222,7 +222,7 @@ class BaseOptions:
         parser.add_argument(
             "--G_vit_encoder_architecture",
             type=str,
-            default="vitsmall",
+            default="custom",
             help="define encoder architecture for vit generator",
             choices=["custom", "vitsmall"],
         )
