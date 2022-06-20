@@ -220,6 +220,8 @@ class BaseModel(ABC):
 
         if "segformer" in self.opt.G_netG:
             self.onnx_opset_version = 11
+        elif "vit" in self.opt.G_netG:
+            self.onnx_opset_version = 12
         else:
             self.onnx_opset_version = 9
 

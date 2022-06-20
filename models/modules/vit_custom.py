@@ -256,6 +256,9 @@ class VitGenerator(nn.Module):
             configure_compute_feats_vit_timm(self.encoder)
             configure_forward_vit_timm(self.encoder)
 
+            new_embed_dim = (embed_dim**0.5) ** 2
+            self.mlp_feats = nn.Linear(embed_dim, new_embed_dim)
+
         self.decoder = VitDecoder(
             embed_dim=embed_dim,
             decoder_embed_dim=decoder_embed_dim,
@@ -310,11 +313,14 @@ class VitGenerator(nn.Module):
         # print("input un patch feat", x.shape)
         x = x[:, 1:, :]
 
+        if hasattr(self, "mlp_feats"):
+            x = self.mlp_feats(x)
+
         p = int(x.shape[2] ** 0.5)  # self.patch_size
         # print("p", p)
         h = w = int(x.shape[1] ** 0.5)
         # print(x.shape)
-        print(h, x.shape[1])
+        # print(h, x.shape[1])
         assert h * w == x.shape[1]
 
         x = x.reshape(shape=(x.shape[0], h, w, p * p))
