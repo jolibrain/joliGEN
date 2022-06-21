@@ -475,13 +475,29 @@ def define_f(
             num_classes=f_s_semantic_nclasses,
             final_conv=False,
         )
-        weight_path = os.path.join(jg_dir, f_s_weight_segformer)
-        if not os.path.exists(weight_path):
-            print("Downloading pretrained segformer weights for f_s.")
-            download_segformer_weight(weight_path)
+        if f_s_weight_segformer:
+            weight_path = os.path.join(jg_dir, f_s_weight_segformer)
+            if not os.path.exists(weight_path):
+                print("Downloading pretrained segformer weights for f_s.")
+                download_segformer_weight(weight_path)
 
-        weights = get_weights(weight_path)
-        net.net.load_state_dict(weights, strict=False)
+            weights = get_weights(weight_path)
+
+            try:
+                net.net.load_state_dict(weights, strict=False)
+            except:
+                print(
+                    "f_s pretrained segformer decode_head size may have the wrong number of classes, fixing"
+                )
+                pretrained_dict = {k: v for k, v in weights.items() if k in weights}
+                decode_head_keys = []
+                for k in pretrained_dict.keys():
+                    if "decode_head" in k:
+                        decode_head_keys.append(k)
+                for k in decode_head_keys:
+                    del weights[k]
+
+                net.net.load_state_dict(weights, strict=False)
         return net
 
     return init_net(net, model_init_type, model_init_gain)
