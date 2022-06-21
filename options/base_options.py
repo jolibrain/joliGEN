@@ -379,8 +379,8 @@ class BaseOptions:
         parser.add_argument(
             "--f_s_weight_segformer",
             type=str,
-            default="models/configs/segformer/pretrain/segformer_mit-b0.pth",
-            help="path to segformer weight for f_s",
+            default="",
+            help="path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
         )
 
         # dataset parameters
