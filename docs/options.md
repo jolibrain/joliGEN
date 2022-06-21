@@ -35,6 +35,7 @@ Here are all the available options to call with `train.py`
 | --D_temporal_frame_step | int | 30 | how many frames between successive frames selected |
 | --D_temporal_num_common_char | int | -1 | how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used  |
 | --D_temporal_number_frames | int | 5 | how many successive frames use for temporal loss |
+| --D_vision_aided_backbones | string | clip+dino | specify discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with + |
 
 ## Generator
 
