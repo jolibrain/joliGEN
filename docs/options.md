@@ -133,7 +133,7 @@ Here are all the available options to call with `train.py`
 | --f_s_nf | int | 64 | \# of filters in the first conv layer of classifier |
 | --f_s_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
 | --f_s_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
-| --f_s_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight for f_s |
+| --f_s_weight_segformer | string |  | path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth |
 
 ## Output
 
