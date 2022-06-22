@@ -2,7 +2,6 @@ import torch
 import itertools
 from .base_model import BaseModel
 from . import networks
-from .modules import loss
 from util.iter_calculator import IterCalculator
 from util.util import gaussian
 from util.network_group import NetworkGroup

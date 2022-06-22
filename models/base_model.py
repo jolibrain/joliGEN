@@ -22,7 +22,7 @@ from util.image_pool import ImagePool
 import torch.nn.functional as F
 
 # For D loss computing
-from .modules import loss
+from .modules.loss import GAN_loss
 from util.discriminator import DiscriminatorInfo
 
 
@@ -1225,7 +1225,7 @@ class BaseModel(ABC):
                 setattr(
                     self,
                     loss_calculator_name,
-                    loss.DiscriminatorGANLoss(
+                    GAN_loss.DiscriminatorGANLoss(
                         netD=getattr(self, "net" + discriminator_name),
                         device=self.device,
                         dataaug_APA_p=self.opt.dataaug_APA_p,
@@ -1250,7 +1250,7 @@ class BaseModel(ABC):
 
                 if self.opt.train_use_contrastive_loss_D:
                     loss_calculator = (
-                        loss.DiscriminatorContrastiveLoss(
+                        GAN_loss.DiscriminatorContrastiveLoss(
                             netD=getattr(self, "net" + discriminator_name),
                             device=self.device,
                             dataaug_APA_p=self.opt.dataaug_APA_p,
@@ -1264,7 +1264,7 @@ class BaseModel(ABC):
                         ),
                     )
                 else:
-                    loss_calculator = loss.DiscriminatorGANLoss(
+                    loss_calculator = GAN_loss.DiscriminatorGANLoss(
                         netD=getattr(self, "net" + discriminator_name),
                         device=self.device,
                         dataaug_APA_p=self.opt.dataaug_APA_p,

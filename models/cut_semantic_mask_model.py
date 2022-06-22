@@ -4,11 +4,11 @@ from .cut_model import CUTModel
 from . import networks
 from .patchnce import PatchNCELoss
 import util.util as util
-from .modules import loss
 import torch.nn.functional as F
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 import itertools
+from .modules.loss.semantic_loss import GDiceLoss, GDiceLossV2
 
 
 class CUTSemanticMaskModel(CUTModel):
@@ -71,11 +71,17 @@ class CUTSemanticMaskModel(CUTModel):
             self.model_names += networks_f_s
 
             # define loss functions
-            tweights = None
-            if opt.f_s_class_weights:
-                print("Using f_s class weights=", opt.f_s_class_weights)
-                tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
-            self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
+            if opt.f_s_loss == "cross_entropy":
+                tweights = None
+                if opt.f_s_class_weights:
+                    print("Using f_s class weights=", opt.f_s_class_weights)
+                    tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
+                self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
+
+            elif opt.f_s_loss == "dice":
+                self.criterionf_s = GDiceLoss()
+            elif opt.f_s_loss == "dice2":
+                self.criterionf_s = GDiceLossV2()
 
             if opt.train_mask_out_mask:
                 if opt.train_mask_loss_out_mask == "L1":

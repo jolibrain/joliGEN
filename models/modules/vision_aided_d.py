@@ -1,6 +1,7 @@
 import torch
 from torch import nn
-import vision_aided_loss
+
+# import vision_aided_loss
 
 
 class VisionAidedDiscriminator(nn.Module):

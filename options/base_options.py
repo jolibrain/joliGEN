@@ -410,6 +410,14 @@ class BaseOptions:
             help="path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
         )
 
+        parser.add_argument(
+            "--f_s_loss",
+            type=str,
+            default="cross_entropy",
+            choices=["cross_entropy", "dice", "dice2"],
+            help="loss used to train semantic network (f_s)",
+        )
+
         # dataset parameters
         parser.add_argument(
             "--data_dataset_mode",
