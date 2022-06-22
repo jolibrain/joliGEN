@@ -24,7 +24,7 @@ class BaseGenerator_attn(nn.Module):
                 outputs.append(images[i] * rattention)
 
         for i in range(self.nb_mask_attn - self.nb_mask_input, self.nb_mask_attn):
-            if input.shape == attentions[i]:
+            if input.shape == attentions[i].shape:
                 outputs.append(input * attentions[i])
             else:
                 warnings.warn("Bilinear interpolation of attention heads")
