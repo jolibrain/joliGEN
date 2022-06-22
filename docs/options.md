@@ -209,6 +209,7 @@ Here are all the available options to call with `train.py`
 | --train_sem_cls_B | flag |  | if true cls will be trained not only on domain A but also on domain B |
 | --train_sem_cls_pretrained | flag |  | whether to use a pretrained model, available for non "basic" model only |
 | --train_sem_cls_template | string | basic | classifier/regressor model type, from torchvision (resnet18, ...), default is custom simple model |
+| --train_sem_idt | flag |  | if true apply semantic loss on identity |
 | --train_sem_l1_regression | flag |  | if true l1 loss will be used to compute regressor loss |
 | --train_sem_lambda | float | 1.0 | weight for semantic loss |
 | --train_sem_lr_f_s | float | 0.0002 | f_s learning rate |
