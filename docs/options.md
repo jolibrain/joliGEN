@@ -46,6 +46,7 @@ Here are all the available options to call with `train.py`
 | --G_backward_compatibility_twice_resnet_blocks | flag |  | if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way). |
 | --G_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segforme configuration file for G |
 | --G_dropout | flag |  | dropout for the generator |
+| --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/>_**Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512_ |
 | --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
@@ -166,6 +167,7 @@ Here are all the available options to call with `train.py`
 | --model_init_gain | float | 0.02 | scaling factor for normal, xavier and orthogonal. |
 | --model_init_type | string | normal | network initialization<br/><br/>_**Values:** normal, xavier, kaiming, orthogonal_ |
 | --model_input_nc | int | 3 | \# of input image channels: 3 for RGB and 1 for grayscale<br/><br/>_**Values:** 1, 3_ |
+| --model_multimodal | flag |  | multimodal model with random latent input vector |
 | --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale<br/><br/>_**Values:** 1, 3_ |
 
 ## Training
@@ -192,6 +194,8 @@ Here are all the available options to call with `train.py`
 | --train_load_iter | int | 0 | which iteration to load? if load_iter \> 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch] |
 | --train_lr_decay_iters | int | 50 | multiply by a gamma every lr_decay_iters iterations |
 | --train_lr_policy | string | linear | learning rate policy.<br/><br/>_**Values:** linear, step, plateau, cosine_ |
+| --train_mm_lambda_z | float | 0.5 | weight for random z loss |
+| --train_mm_nz | int | 8 | number of latent vectors |
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |
 | --train_n_epochs_decay | int | 100 | number of epochs to linearly decay learning rate to zero |
 | --train_nb_img_max_fid | int | 1000000000 | Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used. |
