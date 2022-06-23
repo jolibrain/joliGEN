@@ -374,6 +374,13 @@ class BaseOptions:
             help="number of classes of the semantic loss classifier",
         )
         parser.add_argument(
+            "--f_s_class_weights",
+            default=None,
+            nargs="*",
+            type=int,
+            help="class weights for imbalanced semantic classes",
+        )
+        parser.add_argument(
             "--f_s_semantic_threshold",
             default=1.0,
             type=float,
