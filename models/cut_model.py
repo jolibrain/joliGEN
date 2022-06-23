@@ -276,7 +276,7 @@ class CUTModel(BaseModel):
             losses_G.append(discriminator.loss_name_G)
             losses_D.append(discriminator.loss_name_D)
 
-        self.loss_names_G = losses_G
+        self.loss_names_G += losses_G
         self.loss_names_D = losses_D
         if self.opt.model_multimodal:
             self.loss_names_E = losses_E
@@ -290,7 +290,6 @@ class CUTModel(BaseModel):
 
         # Itercalculator
         if self.opt.train_iter_size > 1:
-            print("cut loss_names=", self.loss_names)
             self.iter_calculator = IterCalculator(self.loss_names)
             for i, cur_loss in enumerate(self.loss_names):
                 self.loss_names[i] = cur_loss + "_avg"
@@ -306,6 +305,12 @@ class CUTModel(BaseModel):
             ]
 
             self.visual_names.append(self.context_visual_names)
+
+        if self.opt.train_sem_clipstyler_loss:
+            assert (
+                self.opt.train_sem_txt_label_A is not None
+                and self.opt.train_sem_txt_label_B is not None
+            )
 
     def set_input_first_gpu(self, data):
         self.set_input(data)

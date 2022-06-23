@@ -292,6 +292,26 @@ class TrainOptions(BaseOptions):
             help="if true apply generator semantic loss on network output for real image rather than on label.",
         )
 
+        parser.add_argument(
+            "--train_sem_txt_label_A",
+            type=str,
+            default=None,
+            help="Text label for clipstyler loss for domain A",
+        )
+
+        parser.add_argument(
+            "--train_sem_txt_label_B",
+            type=str,
+            default=None,
+            help="Text label for clipstyler loss for domain B",
+        )
+
+        parser.add_argument(
+            "--train_sem_clipstyler_loss",
+            action="store_true",
+            help="if true apply clipstyler loss",
+        )
+
         # train with mask semantics
         parser.add_argument(
             "--train_mask_f_s_B",

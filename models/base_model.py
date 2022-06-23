@@ -25,6 +25,14 @@ import torch.nn.functional as F
 from .modules import loss
 from util.discriminator import DiscriminatorInfo
 
+# For clipstyler loss
+from .modules.clip_loss import (
+    compute_feats_clip_txt,
+    compute_feats_clip_img,
+    clip_normalize,
+)
+import clip
+
 
 class BaseModel(ABC):
     """This class is an abstract base class (ABC) for models.
@@ -70,6 +78,10 @@ class BaseModel(ABC):
             torch.backends.cudnn.benchmark = True
             torch.backends.cudnn.deterministic = False
         self.loss_names = []
+        self.loss_names_G = []
+        if self.opt.train_sem_clipstyler_loss:
+            self.loss_names_G += ["G_clip_styler_AB"]
+
         self.model_names = []
         self.visual_names = []
         self.display_param = []
@@ -235,6 +247,32 @@ class BaseModel(ABC):
             self.onnx_opset_version = 11
         else:
             self.onnx_opset_version = 9
+
+        if self.opt.train_sem_clipstyler_loss:
+            assert (
+                self.opt.train_sem_txt_label_A is not None
+                and self.opt.train_sem_txt_label_B is not None
+            )
+
+            self.clip_model, _ = clip.load("ViT-B/32", self.device, jit=False)
+
+            self.feats_clip_txt_A = compute_feats_clip_txt(
+                label=self.opt.train_sem_txt_label_A,
+                device=self.device,
+                clip_model=self.clip_model,
+            )
+
+            self.feats_clip_txt_B = compute_feats_clip_txt(
+                label=self.opt.train_sem_txt_label_B,
+                device=self.device,
+                clip_model=self.clip_model,
+            )
+
+            self.text_direction_AB = (
+                self.feats_clip_txt_B - self.feats_clip_txt_A
+            ).repeat(self.opt.train_batch_size, 1)
+
+            self.text_direction_AB /= self.text_direction_AB.norm(dim=-1, keepdim=True)
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -1164,6 +1202,22 @@ class BaseModel(ABC):
 
                 self.loss_G_tot += loss_value
 
+        # CLip styler loss
+        self.loss_G_clip_styler_AB = self.compute_clip_styler_loss(
+            real=self.real_A, fake=self.fake_B, text_direction=self.text_direction_AB
+        ).mean()
+
+        self.loss_G_tot += self.loss_G_clip_styler_AB
+
+        if hasattr(self, "fake_A"):
+            self.loss_G_clip_styler_BA = self.compute_clip_styler_loss(
+                real=self.real_B,
+                fake=self.fake_A,
+                text_direction=self.text_direction_BA,
+            ).mean()
+
+            self.loss_G_tot += self.loss_G_clip_styler_BA.mean()
+
     def compute_fid_val(self):
         dims = 2048
         batch = 1
@@ -1375,3 +1429,18 @@ class BaseModel(ABC):
             dtype=tensor.dtype,
         )
         return one_hot.scatter_(1, tensor.unsqueeze(1), 1.0)
+
+    # clip styler loss
+
+    def compute_clip_styler_loss(self, real, fake, text_direction):
+
+        real_features = self.clip_model.encode_image(clip_normalize(real, self.device))
+        real_features /= real_features.clone().norm(dim=-1, keepdim=True)
+
+        fake_features = self.clip_model.encode_image(clip_normalize(fake, self.device))
+        fake_features /= fake_features.clone().norm(dim=-1, keepdim=True)
+
+        img_direction = fake_features - real_features
+        img_direction /= img_direction.clone().norm(dim=-1, keepdim=True)
+
+        return 1 - torch.cosine_similarity(img_direction, text_direction, dim=1)

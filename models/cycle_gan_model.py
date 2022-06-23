@@ -228,8 +228,11 @@ class CycleGANModel(BaseModel):
                 losses_G.append(discriminator.loss_name_G)
                 losses_D.append(discriminator.loss_name_D)
 
-            self.loss_names_G = losses_G
+            self.loss_names_G += losses_G
             self.loss_names_D = losses_D
+
+            if self.opt.train_sem_clipstyler_loss:
+                self.loss_names_G += ["G_clip_styler_BA"]
 
             self.loss_names = self.loss_names_G + self.loss_names_D
 
@@ -256,6 +259,15 @@ class CycleGANModel(BaseModel):
 
             self.visual_names.append(self.context_visual_names_A)
             self.visual_names.append(self.context_visual_names_B)
+
+        # Clipstyler direction B-> A
+
+        if self.opt.train_sem_clipstyler_loss:
+            self.text_direction_BA = (
+                self.feats_clip_txt_A - self.feats_clip_txt_B
+            ).repeat(self.opt.train_batch_size, 1)
+
+            self.text_direction_BA /= self.text_direction_BA.norm(dim=-1, keepdim=True)
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
