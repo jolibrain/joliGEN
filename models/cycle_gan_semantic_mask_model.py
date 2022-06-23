@@ -298,17 +298,17 @@ class CycleGANSemanticMaskModel(CycleGANModel):
 
         # semantic loss AB
         self.loss_G_sem_AB = self.opt.train_sem_lambda * self.criterionf_s(
-            self.pfB, self.input_A_label
+            self.pred_fake_B, self.input_A_label
         )
 
         # semantic loss BA
         if hasattr(self, "input_B_label"):
             self.loss_G_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
-                self.pfA, self.input_B_label
+                self.pred_fake_A, self.input_B_label
             )  # .squeeze(1))
         else:
             self.loss_G_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
-                self.pfA, self.gt_pred_B
+                self.pred_fake_A, self.gt_pred_B
             )  # .squeeze(1))
 
         if self.opt.train_sem_idt:
