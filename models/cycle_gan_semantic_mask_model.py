@@ -69,7 +69,11 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             self.fake_B_pool_mask = ImagePool(opt.train_pool_size)
 
             # define loss functions
-            self.criterionf_s = torch.nn.modules.CrossEntropyLoss()
+            tweights = None
+            if opt.f_s_class_weights:
+                print("Using f_s class weights=", opt.f_s_class_weights)
+                tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
+            self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
 
             if opt.train_mask_out_mask:
                 if opt.train_mask_loss_out_mask == "L1":
