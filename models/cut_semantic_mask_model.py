@@ -224,7 +224,7 @@ class CUTSemanticMaskModel(CUTModel):
             label_fake_B = self.input_A_label
 
         self.loss_G_sem = self.opt.train_sem_lambda * self.criterionf_s(
-            self.pfB, label_fake_B
+            self.pred_fake_B, label_fake_B
         )
 
         if self.opt.train_sem_idt:
