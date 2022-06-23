@@ -7,9 +7,9 @@ from . import networks
 from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
-from .modules import loss
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
+from .modules.loss.semantic_loss import GDiceLossV2
 
 
 class CycleGANSemanticMaskModel(CycleGANModel):
@@ -69,11 +69,14 @@ class CycleGANSemanticMaskModel(CycleGANModel):
             self.fake_B_pool_mask = ImagePool(opt.train_pool_size)
 
             # define loss functions
-            tweights = None
-            if opt.f_s_class_weights:
-                print("Using f_s class weights=", opt.f_s_class_weights)
-                tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
-            self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
+            if opt.f_s_loss == "cross_entropy":
+                tweights = None
+                if opt.f_s_class_weights:
+                    print("Using f_s class weights=", opt.f_s_class_weights)
+                    tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
+                self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
+            elif opt.f_s_loss == "dice":
+                self.criterionf_s = GDiceLossV2()
 
             if opt.train_mask_out_mask:
                 if opt.train_mask_loss_out_mask == "L1":

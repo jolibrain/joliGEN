@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 import itertools
-from .modules.loss.semantic_loss import GDiceLoss, GDiceLossV2
+from .modules.loss.semantic_loss import GDiceLossV2
 
 
 class CUTSemanticMaskModel(CUTModel):
@@ -79,8 +79,6 @@ class CUTSemanticMaskModel(CUTModel):
                 self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
 
             elif opt.f_s_loss == "dice":
-                self.criterionf_s = GDiceLoss()
-            elif opt.f_s_loss == "dice2":
                 self.criterionf_s = GDiceLossV2()
 
             if opt.train_mask_out_mask:
