@@ -15,6 +15,10 @@ echo "Current dir is [$current_dir]"
 export PYTHONDONTWRITEBYTECODE=1
 export NCCL_P2P_DISABLE=1
 
+####### doc auto generation
+echo "Running doc auto generation tests"
+python3 -m pytest ${current_dir}/../scripts/generate_doc.py
+
 ####### no sem tests
 echo "Running no semantics training tests"
 URL=https://www.deepdetect.com/joligan/datasets/horse2zebra.zip
