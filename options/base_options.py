@@ -888,7 +888,7 @@ class BaseOptions:
                             description = description.replace(c, "\\" + c)
                         field["description"] = description
 
-                        if action.nargs == "+" or action.nargs == "*":
+                        if action.nargs == "+":
                             field["items"]["enum"] = action.choices
                             if isinstance(action.choices[0], str):
                                 cur_type = "string"
