@@ -474,6 +474,7 @@ def define_f(
         net = Segformer(
             jg_dir,
             f_s_config_segformer,
+            model_input_nc,
             img_size=data_crop_size,
             num_classes=f_s_semantic_nclasses,
             final_conv=False,
