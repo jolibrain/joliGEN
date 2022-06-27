@@ -248,7 +248,7 @@ class BaseOptions:
         parser.add_argument(
             "--D_netDs",
             type=str,
-            default=["basic"],
+            default=["projected_d", "basic"],
             choices=[
                 "basic",
                 "n_layers",
