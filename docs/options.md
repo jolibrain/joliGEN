@@ -22,7 +22,7 @@ Here are all the available options to call with `train.py`
 | --D_dropout | flag |  | whether to use dropout in the discriminator |
 | --D_n_layers | int | 3 | only used if netD==n_layers |
 | --D_ndf | int | 64 | \# of discrim filters in the first conv layer |
-| --D_netDs | array | ['basic'] | specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored. |
+| --D_netDs | array | ['projected_d', 'basic'] | specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored. |
 | --D_no_antialias | flag |  | if specified, use stride=2 convs instead of antialiased-downsampling (sad) |
 | --D_no_antialias_up | flag |  | if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv] |
 | --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/>_**Values:** instance, batch, none_ |
