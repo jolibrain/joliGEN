@@ -218,6 +218,7 @@ Here are all the available options to call with `train.py`
 | --train_sem_l1_regression | flag |  | if true l1 loss will be used to compute regressor loss |
 | --train_sem_lambda | float | 1.0 | weight for semantic loss |
 | --train_sem_lr_f_s | float | 0.0002 | f_s learning rate |
+| --train_sem_net_output | flag |  | if true apply generator semantic loss on network output for real image rather than on label. |
 | --train_sem_regression | flag |  | if true cls will be a regressor and not a classifier |
 | --train_sem_use_label_B | flag |  | if true domain B has labels too |
 
