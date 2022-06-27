@@ -144,7 +144,7 @@ class CUTSemanticMaskModel(CUTModel):
         else:
             visual_names_seg_B = []
 
-        visual_names_seg_B += ["gt_pred_B"]
+        visual_names_seg_B += ["gt_pred_real_B"]
 
         self.visual_names += [visual_names_seg_A, visual_names_seg_B]
 
@@ -199,7 +199,7 @@ class CUTSemanticMaskModel(CUTModel):
             f_s = self.netf_s
 
         self.pred_real_B = f_s(self.real_B)
-        self.gt_pred_B = F.log_softmax(self.pred_real_B, dim=d).argmax(dim=d)
+        self.gt_pred_real_B = F.log_softmax(self.pred_real_B, dim=d).argmax(dim=d)
 
         self.pred_fake_B = f_s(self.fake_B)
         self.pfB = F.log_softmax(self.pred_fake_B, dim=d)  # .argmax(dim=d)
