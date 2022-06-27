@@ -301,32 +301,35 @@ class CycleGANSemanticMaskModel(CycleGANModel):
         super().compute_G_loss()
 
         # semantic loss AB
+        if self.opt.train_sem_net_output:
+            label_fake_B = self.gt_pred_A
+        else:
+            label_fake_B = self.input_A_label
         self.loss_G_sem_AB = self.opt.train_sem_lambda * self.criterionf_s(
-            self.pred_fake_B, self.input_A_label
+            self.pred_fake_B, label_fake_B
         )
 
         # semantic loss BA
-        if hasattr(self, "input_B_label"):
-            self.loss_G_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
-                self.pred_fake_A, self.input_B_label
-            )  # .squeeze(1))
+        if self.opt.train_sem_net_output or not hasattr(self, "input_B_label"):
+            label_fake_A = self.gt_pred_B
         else:
-            self.loss_G_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
-                self.pred_fake_A, self.gt_pred_B
-            )  # .squeeze(1))
+            label_fake_A = self.input_B_label
+        self.loss_G_sem_BA = self.opt.train_sem_lambda * self.criterionf_s(
+            self.pred_fake_A, label_fake_A
+        )
 
         if self.opt.train_sem_idt:
 
             # semantic loss idt A
-
+            label_idt_A = label_fake_B
             self.loss_G_sem_idt_A = self.opt.train_sem_lambda * self.criterionf_s(
-                self.pred_idt_A, self.input_A_label
+                self.pred_idt_A, label_idt_A
             )
 
             # semantic loss idt B
-
+            label_idt_B = label_fake_A
             self.loss_G_sem_idt_B = self.opt.train_sem_lambda * self.criterionf_s(
-                self.pred_idt_B, self.input_B_label
+                self.pred_idt_B, label_idt_B
             )
 
         # only use semantic loss when classifier has reasonably low loss

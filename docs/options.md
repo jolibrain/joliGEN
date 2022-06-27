@@ -128,6 +128,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --f_s_all_classes_as_one | flag |  | if true, all classes will be considered as the same one (ie foreground vs background) |
+| --f_s_class_weights | string | None | class weights for imbalanced semantic classes |
 | --f_s_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file for f_s |
 | --f_s_dropout | flag |  | dropout for the semantic network |
 | --f_s_net | string | vgg | specify f_s network [vgg|unet|segformer]<br/><br/>_**Values:** vgg, unet, segformer_ |
@@ -217,6 +218,7 @@ Here are all the available options to call with `train.py`
 | --train_sem_l1_regression | flag |  | if true l1 loss will be used to compute regressor loss |
 | --train_sem_lambda | float | 1.0 | weight for semantic loss |
 | --train_sem_lr_f_s | float | 0.0002 | f_s learning rate |
+| --train_sem_net_output | flag |  | if true apply generator semantic loss on network output for real image rather than on label. |
 | --train_sem_regression | flag |  | if true cls will be a regressor and not a classifier |
 | --train_sem_use_label_B | flag |  | if true domain B has labels too |
 

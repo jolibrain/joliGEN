@@ -286,6 +286,12 @@ class TrainOptions(BaseOptions):
             help="if true apply semantic loss on identity",
         )
 
+        parser.add_argument(
+            "--train_sem_net_output",
+            action="store_true",
+            help="if true apply generator semantic loss on network output for real image rather than on label.",
+        )
+
         # train with mask semantics
         parser.add_argument(
             "--train_mask_f_s_B",

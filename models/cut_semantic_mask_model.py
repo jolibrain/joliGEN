@@ -224,6 +224,8 @@ class CUTSemanticMaskModel(CUTModel):
         super().compute_G_loss()
         if self.opt.train_mask_for_removal:
             label_fake_B = torch.zeros_like(self.input_A_label)
+        elif self.opt.train_sem_net_output:
+            label_fake_B = self.gt_pred_real_A
         else:
             label_fake_B = self.input_A_label
 
@@ -232,9 +234,15 @@ class CUTSemanticMaskModel(CUTModel):
         )
 
         if self.opt.train_sem_idt:
+            if self.opt.train_mask_for_removal:
+                label_idt_B = torch.zeros_like(self.input_A_label)
+            elif self.opt.train_sem_net_output or not hasattr(self, "input_B_label"):
+                label_idt_B = self.gt_pred_real_B
+            else:
+                label_idt_B = self.input_B_label
 
             self.loss_G_sem_idt = self.opt.train_sem_lambda * self.criterionf_s(
-                self.pred_idt_B, self.input_B_label
+                self.pred_idt_B, label_idt_B
             )
 
         if (
