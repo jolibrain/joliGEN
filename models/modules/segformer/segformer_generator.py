@@ -115,11 +115,11 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         return outs, feats
 
     def compute_attention_content(self, outs):
-        image = self.segformer.decode(outs, use_resize=not self.use_final_conv)
+        image = self.segformer.decode(outs)
         if self.use_final_conv:
             image = self.final_conv(image)
 
-        attention = self.segformer.decode_2(outs, use_resize=not self.use_final_conv)
+        attention = self.segformer.decode_2(outs)
         images = []
 
         for i in range(self.nb_mask_attn - self.nb_mask_input):

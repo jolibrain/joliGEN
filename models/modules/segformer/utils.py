@@ -34,19 +34,10 @@ def configure_new_extract_feat_encoder_encoder(obj):
 
 
 def configure_decode_encoder_encoder(obj):
-    def decode_encoder_encoder(outs, use_resize=True):
+    def decode_encoder_encoder(outs):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
         out = obj._decode_head_forward_test(outs, img_metas=None)
-        if use_resize:
-            from mmseg.ops import resize
-
-            out = resize(
-                input=out,
-                size=obj.img_size,
-                mode="bilinear",
-                align_corners=obj.align_corners,
-            )
 
         return out
 
@@ -54,18 +45,11 @@ def configure_decode_encoder_encoder(obj):
 
 
 def configure_decode_2_encoder_encoder(obj):
-    def decode_2_encoder_encoder(outs, use_resize=True):
+    def decode_2_encoder_encoder(outs):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
         out2 = obj._auxiliary_head_forward_test(outs, img_metas=None)
-        from mmseg.ops import resize
 
-        out2 = resize(
-            input=out2,
-            size=obj.img_size,
-            mode="bilinear",
-            align_corners=obj.align_corners,
-        )
         return out2
 
     obj.decode_2 = decode_2_encoder_encoder

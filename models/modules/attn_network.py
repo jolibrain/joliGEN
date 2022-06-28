@@ -17,24 +17,20 @@ class BaseGenerator_attn(nn.Module):
             input = input[:, :3, :, :]
 
         for i in range(self.nb_mask_attn - self.nb_mask_input):
-            if images[i].shape == attentions[i].shape:
-                outputs.append(images[i] * attentions[i])
-            else:
-                warnings.warn("Bilinear interpolation of attention heads")
-                rattention = F.interpolate(
+            if images[i].shape != attentions[i].shape:
+                attentions[i] = F.interpolate(
                     attentions[i], size=(images[i].shape[2], images[i].shape[3])
                 )
-                outputs.append(images[i] * rattention)
+
+            outputs.append(images[i] * attentions[i])
 
         for i in range(self.nb_mask_attn - self.nb_mask_input, self.nb_mask_attn):
-            if input.shape == attentions[i].shape:
-                outputs.append(input * attentions[i])
-            else:
-                warnings.warn("Bilinear interpolation of attention heads")
-                rattention = F.interpolate(
+            if input.shape != attentions[i].shape:
+                attentions[i] = F.interpolate(
                     attentions[i], size=(input.shape[2], input.shape[3])
                 )
-                outputs.append(input * rattention)
+
+            outputs.append(input * attentions[i])
 
         return images, attentions, outputs
 
