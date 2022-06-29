@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
 import itertools
-from .modules.loss.semantic_loss import GDiceLossV2
+from .modules.loss.semantic_loss import TverskyLoss
 
 
 class CUTSemanticMaskModel(CUTModel):
@@ -78,8 +78,11 @@ class CUTSemanticMaskModel(CUTModel):
                     tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
                 self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
 
-            elif opt.f_s_loss == "dice":
-                self.criterionf_s = GDiceLossV2()
+            elif opt.f_s_loss == "tversky":
+                self.criterionf_s = TverskyLoss(
+                    alpha=self.opt.f_s_tversky_loss_alpha,
+                    beta=self.opt.f_s_tversky_loss_beta,
+                )
 
             if opt.train_mask_out_mask:
                 if opt.train_mask_loss_out_mask == "L1":

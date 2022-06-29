@@ -414,8 +414,21 @@ class BaseOptions:
             "--f_s_loss",
             type=str,
             default="cross_entropy",
-            choices=["cross_entropy", "dice", "dice2"],
+            choices=["cross_entropy", "tversky"],
             help="loss used to train semantic network (f_s)",
+        )
+
+        parser.add_argument(
+            "--f_s_tversky_loss_alpha",
+            type=int,
+            default=0.5,
+            help="Beta used to compute tversky loss to train semantic network (f_s). Dice :0.5, usual tvsersky 0.7, jacquard (IoU) 1.",
+        )
+        parser.add_argument(
+            "--f_s_tversky_loss_beta",
+            type=int,
+            default=0.5,
+            help="Beta used to compute tversky loss to train semantic network (f_s). Dice :0.5, usual tvsersky 0.3, jacquard (IoU) 1.",
         )
 
         # dataset parameters
