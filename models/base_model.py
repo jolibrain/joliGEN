@@ -101,6 +101,11 @@ class BaseModel(ABC):
             path_sv_A = os.path.join(
                 opt.checkpoints_dir, opt.name, "fid_mu_sigma_A.npz"
             )
+            if self.opt.data_relative_paths:
+                self.root = opt.dataroot
+            else:
+                self.root = None
+
             if not os.path.isfile(path_sv_A):
                 self.realmA, self.realsA = _compute_statistics_of_path(
                     pathA,
@@ -110,6 +115,7 @@ class BaseModel(ABC):
                     self.gpu_ids[0],
                     self.transform,
                     nb_max_img=opt.train_nb_img_max_fid,
+                    root=self.root,
                 )
                 np.savez(path_sv_A, mu=self.realmA, sigma=self.realsA)
             else:
@@ -122,6 +128,7 @@ class BaseModel(ABC):
                     self.gpu_ids[0],
                     self.transform,
                     nb_max_img=opt.train_nb_img_max_fid,
+                    root=self.root,
                 )
 
             pathB = opt.dataroot + "/trainB"
@@ -137,6 +144,7 @@ class BaseModel(ABC):
                     self.gpu_ids[0],
                     self.transform,
                     nb_max_img=opt.train_nb_img_max_fid,
+                    root=self.root,
                 )
                 np.savez(path_sv_B, mu=self.realmB, sigma=self.realsB)
             else:
@@ -150,6 +158,7 @@ class BaseModel(ABC):
                     self.gpu_ids[0],
                     self.transform,
                     nb_max_img=opt.train_nb_img_max_fid,
+                    root=self.root,
                 )
             pathA = self.save_dir + "/fakeA/"
             if not os.path.exists(pathA):
@@ -158,7 +167,9 @@ class BaseModel(ABC):
             pathB = self.save_dir + "/fakeB/"
             if not os.path.exists(pathB):
                 os.mkdir(pathB)
-            self.fidA = 0
+
+            if hasattr(self, "netG_B"):
+                self.fidA = 0
             self.fidB = 0
 
         if rank == 0 and opt.train_compute_fid_val:
@@ -180,6 +191,7 @@ class BaseModel(ABC):
                     self.gpu_ids[0],
                     self.transform,
                     nb_max_img=opt.train_nb_img_max_fid,
+                    root=self.root,
                 )
                 np.savez(path_sv, mu=self.realmB_val, sigma=self.realsB_val)
             else:
@@ -192,6 +204,7 @@ class BaseModel(ABC):
                     self.gpu_ids[0],
                     self.transform,
                     nb_max_img=opt.train_nb_img_max_fid,
+                    root=self.root,
                 )
 
         if opt.dataaug_diff_aug_policy != "":
@@ -759,6 +772,7 @@ class BaseModel(ABC):
                 dims,
                 self.gpu_ids[0],
                 nb_max_img=self.opt.train_nb_img_max_fid,
+                root=self.root,
             )
 
         pathB = self.save_dir + "/fakeB/" + str(n_iter) + "_" + str(n_epoch)
@@ -776,6 +790,7 @@ class BaseModel(ABC):
             dims,
             self.gpu_ids[0],
             nb_max_img=self.opt.train_nb_img_max_fid,
+            root=self.root,
         )
 
         if len(self.fake_A_pool.get_all()) > 0:
@@ -789,11 +804,18 @@ class BaseModel(ABC):
     def get_current_fids(self):
 
         fids = OrderedDict()
-        for name in ["fidA", "fidB"]:
+
+        if hasattr(self, "netG_B"):
+            fid_names = ["fidA", "fidB"]
+        else:
+            fid_names = ["fidB"]
+
+        for name in fid_names:
             if isinstance(name, str):
                 fids[name] = float(
                     getattr(self, name)
                 )  # float(...) works for both scalar tensor and float number
+
         return fids
 
     def compute_D_accuracy_pred(self, real, fake, netD):
@@ -1171,6 +1193,7 @@ class BaseModel(ABC):
             dims,
             self.gpu_ids[0],
             nb_max_img=self.opt.train_nb_img_max_fid,
+            root=self.root,
         )
 
         self.fidB_val = calculate_frechet_distance(
