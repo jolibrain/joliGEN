@@ -398,3 +398,21 @@ class Visualizer:
             ylabel="prob APA",
             win_id=6,
         )
+
+    def plot_current_miou(self, epoch, counter_ratio, miou):
+        """display the current fid values on visdom display: dictionary of fid labels and values
+
+        Parameters:
+            epoch (int)           -- current epoch
+            counter_ratio (float) -- progress (percentage) in the current epoch, between 0 to 1
+            miouf_s (OrderedDict)  -- training miou_f_s values stored in the format of (name, float) pairs
+        """
+        self.plot_metrics_dict(
+            "miou",
+            epoch,
+            counter_ratio,
+            miou,
+            title="miou over time",
+            ylabel="miou",
+            win_id=7,
+        )

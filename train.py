@@ -224,6 +224,17 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                             epoch, float(epoch_iter) / dataset_size, p
                         )
 
+                if (
+                    total_iters % opt.train_mask_miou_every < batch_size
+                    and opt.train_mask_compute_miou
+                ):
+                    model.compute_miou()
+                    if opt.output_display_id > 0:
+                        miou = model.get_current_miou()
+                        visualizer.plot_current_miou(
+                            epoch, float(epoch_iter) / dataset_size, miou
+                        )
+
                 iter_data_time = time.time()
 
         if (

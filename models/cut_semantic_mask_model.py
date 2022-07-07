@@ -137,14 +137,14 @@ class CUTSemanticMaskModel(CUTModel):
         Please also see PatchSampleF.create_mlp(), which is called at the first forward() call.
         """
         super().data_dependent_initialize(data)
-        visual_names_seg_A = ["input_A_label", "gt_pred_real_A", "pfB_max"]
+        visual_names_seg_A = ["input_A_label", "gt_pred_real_A_max", "pfB_max"]
 
         if hasattr(self, "input_B_label"):
             visual_names_seg_B = ["input_B_label"]
         else:
             visual_names_seg_B = []
 
-        visual_names_seg_B += ["gt_pred_real_B"]
+        visual_names_seg_B += ["gt_pred_real_B_max"]
 
         self.visual_names += [visual_names_seg_A, visual_names_seg_B]
 
@@ -191,7 +191,8 @@ class CUTSemanticMaskModel(CUTModel):
             f_s = self.netf_s
 
         self.pred_real_A = f_s(self.real_A)
-        self.gt_pred_real_A = F.log_softmax(self.pred_real_A, dim=d).argmax(dim=d)
+        self.gt_pred_real_A = F.log_softmax(self.pred_real_A, dim=d)
+        self.gt_pred_real_A_max = self.gt_pred_real_A.argmax(dim=d)
 
         if self.opt.train_mask_disjoint_f_s:
             f_s = self.netf_s_B
@@ -199,7 +200,8 @@ class CUTSemanticMaskModel(CUTModel):
             f_s = self.netf_s
 
         self.pred_real_B = f_s(self.real_B)
-        self.gt_pred_real_B = F.log_softmax(self.pred_real_B, dim=d).argmax(dim=d)
+        self.gt_pred_real_B = F.log_softmax(self.pred_real_B, dim=d)
+        self.gt_pred_real_B_max = self.gt_pred_real_B.argmax(dim=d)
 
         self.pred_fake_B = f_s(self.fake_B)
         self.pfB = F.log_softmax(self.pred_fake_B, dim=d)  # .argmax(dim=d)
@@ -225,7 +227,7 @@ class CUTSemanticMaskModel(CUTModel):
         if self.opt.train_mask_for_removal:
             label_fake_B = torch.zeros_like(self.input_A_label)
         elif self.opt.train_sem_net_output:
-            label_fake_B = self.gt_pred_real_A
+            label_fake_B = self.gt_pred_real_A_max
         else:
             label_fake_B = self.input_A_label
 
@@ -237,7 +239,7 @@ class CUTSemanticMaskModel(CUTModel):
             if self.opt.train_mask_for_removal:
                 label_idt_B = torch.zeros_like(self.input_A_label)
             elif self.opt.train_sem_net_output or not hasattr(self, "input_B_label"):
-                label_idt_B = self.gt_pred_real_B
+                label_idt_B = self.gt_pred_real_B_max
             else:
                 label_idt_B = self.input_B_label
 
