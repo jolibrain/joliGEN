@@ -1327,3 +1327,51 @@ class BaseModel(ABC):
         elif random_type == "gauss":
             z = torch.randn(batch_size, nz)
         return z.detach().to(self.device)
+
+    def compute_miou_f_s_generic(self, pred, target):
+        target = self.one_hot(target)
+        intersection = (pred * target).sum()
+        total = (pred + target).sum()
+        union = total - intersection
+
+        IoU = (intersection) / (union)
+        return IoU
+
+    def compute_miou(self):
+        self.miou_real_A = self.compute_miou_f_s_generic(
+            self.gt_pred_real_A, self.input_A_label
+        )
+        self.miou_real_B = self.compute_miou_f_s_generic(
+            self.gt_pred_real_B, self.input_B_label
+        )
+
+        self.miou_fake_B = self.compute_miou_f_s_generic(self.pfB, self.input_A_label)
+        if hasattr(self, "fake_A"):
+            self.miou_fake_A = self.compute_miou_f_s_generic(
+                self.pfA, self.input_B_label
+            )
+
+    def get_current_miou(self):
+        miou = OrderedDict()
+        miou_names = ["miou_real_A", "miou_real_B", "miou_fake_B"]
+        if hasattr(self, "fake_A"):
+            miou_names.append("miou_fake_A")
+
+        for name in miou_names:
+            if isinstance(name, str):
+                miou[name] = float(
+                    getattr(self, name)
+                )  # float(...) works for both scalar tensor and float number
+        return miou
+
+    def one_hot(self, tensor):
+        batch_size, height, width = tensor.shape
+        one_hot = torch.zeros(
+            batch_size,
+            self.opt.f_s_semantic_nclasses,
+            height,
+            width,
+            device=tensor.device,
+            dtype=tensor.dtype,
+        )
+        return one_hot.scatter_(1, tensor.unsqueeze(1), 1.0)

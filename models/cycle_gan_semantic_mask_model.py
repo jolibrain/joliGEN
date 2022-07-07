@@ -151,14 +151,14 @@ class CycleGANSemanticMaskModel(CycleGANModel):
     def data_dependent_initialize(self, data):
         self.set_input(data)
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        visual_names_seg_A = ["input_A_label", "gt_pred_A", "pfB_max"]
+        visual_names_seg_A = ["input_A_label", "gt_pred_real_A_max", "pfB_max"]
 
         if hasattr(self, "input_B_label"):
             visual_names_seg_B = ["input_B_label"]
         else:
             visual_names_seg_B = []
 
-        visual_names_seg_B += ["gt_pred_B", "pfA_max"]
+        visual_names_seg_B += ["gt_pred_real_B_max", "pfA_max"]
 
         visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
 
@@ -192,7 +192,8 @@ class CycleGANSemanticMaskModel(CycleGANModel):
 
         if self.isTrain:
             self.pred_real_A = f_s(self.real_A)
-            self.gt_pred_A = F.log_softmax(self.pred_real_A, dim=d).argmax(dim=d)
+            self.gt_pred_real_A = F.log_softmax(self.pred_real_A, dim=d)
+            self.gt_pred_real_A_max = self.gt_pred_real_A.argmax(dim=d)
 
             self.pred_fake_A = f_s(self.fake_A)
 
@@ -206,7 +207,8 @@ class CycleGANSemanticMaskModel(CycleGANModel):
                 f_s = self.netf_s
 
             self.pred_real_B = f_s(self.real_B)
-            self.gt_pred_B = F.log_softmax(self.pred_real_B, dim=d).argmax(dim=d)
+            self.gt_pred_real_B = F.log_softmax(self.pred_real_B, dim=d)
+            self.gt_pred_real_B_max = self.gt_pred_real_B.argmax(dim=d)
 
             self.pfA = F.log_softmax(self.pred_fake_A, dim=d)
             self.pfA_max = self.pfA.argmax(dim=d)
@@ -302,7 +304,7 @@ class CycleGANSemanticMaskModel(CycleGANModel):
 
         # semantic loss AB
         if self.opt.train_sem_net_output:
-            label_fake_B = self.gt_pred_A
+            label_fake_B = self.gt_pred_real_A
         else:
             label_fake_B = self.input_A_label
         self.loss_G_sem_AB = self.opt.train_sem_lambda * self.criterionf_s(

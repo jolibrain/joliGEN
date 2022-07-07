@@ -336,6 +336,9 @@ class TrainOptions(BaseOptions):
             help="if true, object removal mode, domain B images with label 0, cut models only",
         )
 
+        parser.add_argument("--train_mask_compute_miou", action="store_true")
+        parser.add_argument("--train_mask_miou_every", type=int, default=1000)
+
         # train with re-(cycle/cut)
         parser.add_argument(
             "--alg_re_adversarial_loss_p",
