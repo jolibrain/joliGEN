@@ -398,7 +398,7 @@ class BaseModel(ABC):
         self.real_B_pool.query(self.real_B)
 
         if self.opt.output_display_G_attention_masks:
-            images, attentions, outputs = netG.get_attention_masks(self.real_A)
+            images, attentions, outputs = self.netG_A.get_attention_masks(self.real_A)
             for i, cur_mask in enumerate(attentions):
                 setattr(self, "attention_" + str(i), cur_mask)
 
