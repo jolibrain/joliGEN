@@ -5,8 +5,10 @@ from models.modules.resnet_architecture.resnet_generator import ResnetDecoder
 from models.modules.attn_network import BaseGenerator_attn
 from .utils import configure_encoder_decoder, configure_mit
 
+from mmseg.ops import resize
 
-class Segformer(nn.Module):
+
+class SegformerBackbone(nn.Module):
     def __init__(
         self,
         jg_dir,
@@ -56,6 +58,38 @@ class Segformer(nn.Module):
     def get_feats(self, input, extract_layer_ids):
         _, feats = self.compute_feats(input, extract_layer_ids)
         return feats
+
+
+class Segformer(SegformerBackbone):
+    def __init__(
+        self,
+        jg_dir,
+        G_config_segformer,
+        input_nc,
+        img_size,
+        num_classes=10,
+        final_conv=False,
+        padding_type="zeros",
+    ):
+        super().__init__(
+            jg_dir,
+            G_config_segformer,
+            input_nc,
+            img_size,
+            num_classes,
+            final_conv,
+            padding_type,
+        )
+
+    def forward(self, input):
+        out = super().forward(input)
+
+        out = resize(
+            input=out,
+            size=input.shape[-1],
+            mode="bilinear",
+        )
+        return out
 
 
 class SegformerGenerator_attn(BaseGenerator_attn):
