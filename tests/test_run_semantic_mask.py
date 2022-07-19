@@ -37,6 +37,12 @@ models_semantic_mask = [
     "cut_semantic_mask",
 ]
 
+G_netG = ["mobile_resnet_attn", "segformer_attn_conv"]
+
+D_proj_network_type = ["efficientnet", "vitsmall"]
+
+f_s_net = ["unet", "segformer"]
+
 
 def test_semantic_mask(dataroot):
     json_like_dict["dataroot"] = dataroot
@@ -44,5 +50,12 @@ def test_semantic_mask(dataroot):
     for model in models_semantic_mask:
         json_like_dict["model_type"] = model
         json_like_dict["name"] += "_" + model
-        opt = TrainOptions().parse_json(json_like_dict.copy())
-        train.launch_training(opt)
+        json_like_dict_c = json_like_dict.copy()
+        for Gtype in G_netG:
+            json_like_dict_c["G_netG"] = Gtype
+            for Dtype in D_proj_network_type:
+                json_like_dict_c["D_proj_network_type"] = Dtype
+                # for f_s_type in f_s_net:
+                #    json_like_dict_c['f_s_net'] = f_s_type
+                opt = TrainOptions().parse_json(json_like_dict_c)
+                train.launch_training(opt)
