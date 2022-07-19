@@ -39,7 +39,11 @@ from .modules.projected_d.discriminator import (
     TemporalProjectedDiscriminator,
 )
 from .modules.vision_aided_d import VisionAidedDiscriminator
-from .modules.segformer.segformer_generator import Segformer, SegformerGenerator_attn
+from .modules.segformer.segformer_generator import (
+    SegformerBackbone,
+    Segformer,
+    SegformerGenerator_attn,
+)
 from .modules.multimodal_encoder import E_ResNet, E_NLayers
 
 
@@ -244,7 +248,7 @@ def define_G(
         )
         return net
     elif G_netG == "segformer_conv":
-        net = Segformer(
+        net = SegformerBackbone(
             jg_dir,
             G_config_segformer,
             model_input_nc,
