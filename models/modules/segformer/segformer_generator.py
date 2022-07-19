@@ -48,7 +48,7 @@ class Segformer(nn.Module):
 
     def forward(self, input):
         outs, _ = self.compute_feats(input)
-        out = self.net.decode(outs, use_resize=not self.use_final_conv)
+        out = self.net.decode(outs)
         if self.use_final_conv:
             out = self.final_conv(out)
         return out
