@@ -31,7 +31,7 @@ json_like_dict = {
     "train_G_ema": True,
     "dataaug_no_rotate": True,
     "train_mask_compute_miou": True,
-    "train_mask_miou_every": 1000,
+    "train_mask_miou_every": 1,
 }
 
 models_semantic_mask = [
