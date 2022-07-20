@@ -57,5 +57,5 @@ def test_semantic_mask(dataroot):
                 json_like_dict_c["D_proj_network_type"] = Dtype
                 for f_s_type in f_s_net:
                     json_like_dict_c["f_s_net"] = f_s_type
-                opt = TrainOptions().parse_json(json_like_dict_c)
-                train.launch_training(opt)
+                    opt = TrainOptions().parse_json(json_like_dict_c)
+                    train.launch_training(opt)
