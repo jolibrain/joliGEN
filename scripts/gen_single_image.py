@@ -20,14 +20,12 @@ def get_z_random(batch_size=1, nz=8, random_type="gauss"):
         z = torch.randn(batch_size, nz)
     return z.detach()
 
-
-##TODO
 def load_model(modelpath, model_in_file, device):
     train_json_path = modelpath + "/train_config.json"
     with open(train_json_path, "r") as jsonf:
         train_json = json.load(jsonf)
     opt = TrainOptions().parse_json(train_json)
-    if opt.train_mm_nz > 0:
+    if opt.model_multimodal:
         opt.model_input_nc += opt.train_mm_nz
     opt.jg_dir = "../"
 
@@ -73,7 +71,7 @@ img_tensor = tran(img)
 if not args.cpu:
     img_tensor = img_tensor.to(device)
 
-if opt.train_mm_nz > 0:
+if opt.model_multimodal:
     z_random = get_z_random(batch_size=1, nz=opt.train_mm_nz)
     z_random = z_random.to(device)
     # print('z_random shape=', self.z_random.shape)
