@@ -227,11 +227,13 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --train_mask_charbonnier_eps | float | 1e-06 | Charbonnier loss epsilon value |
+| --train_mask_compute_miou | flag |  |  |
 | --train_mask_disjoint_f_s | flag |  | whether to use a disjoint f_s with the same exact structure |
 | --train_mask_f_s_B | flag |  | if true f_s will be trained not only on domain A but also on domain B |
 | --train_mask_for_removal | flag |  | if true, object removal mode, domain B images with label 0, cut models only |
 | --train_mask_lambda_out_mask | float | 10.0 | weight for loss out mask |
 | --train_mask_loss_out_mask | string | L1 | loss for out mask content (which should not change).<br/><br/>_**Values:** L1, MSE, Charbonnier_ |
+| --train_mask_miou_every | int | 1000 |  |
 | --train_mask_no_train_f_s_A | flag |  | if true f_s wont be trained on domain A |
 | --train_mask_out_mask | flag |  | use loss out mask |
 
