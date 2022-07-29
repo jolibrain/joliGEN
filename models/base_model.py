@@ -1202,21 +1202,25 @@ class BaseModel(ABC):
 
                 self.loss_G_tot += loss_value
 
-        # CLip styler loss
-        self.loss_G_clip_styler_AB = self.compute_clip_styler_loss(
-            real=self.real_A, fake=self.fake_B, text_direction=self.text_direction_AB
-        ).mean()
+        if self.opt.train_sem_clipstyler_loss:
 
-        self.loss_G_tot += self.loss_G_clip_styler_AB
-
-        if hasattr(self, "fake_A"):
-            self.loss_G_clip_styler_BA = self.compute_clip_styler_loss(
-                real=self.real_B,
-                fake=self.fake_A,
-                text_direction=self.text_direction_BA,
+            # CLip styler loss
+            self.loss_G_clip_styler_AB = self.compute_clip_styler_loss(
+                real=self.real_A,
+                fake=self.fake_B,
+                text_direction=self.text_direction_AB,
             ).mean()
 
-            self.loss_G_tot += self.loss_G_clip_styler_BA.mean()
+            self.loss_G_tot += self.loss_G_clip_styler_AB
+
+            if hasattr(self, "fake_A"):
+                self.loss_G_clip_styler_BA = self.compute_clip_styler_loss(
+                    real=self.real_B,
+                    fake=self.fake_A,
+                    text_direction=self.text_direction_BA,
+                ).mean()
+
+                self.loss_G_tot += self.loss_G_clip_styler_BA.mean()
 
     def compute_fid_val(self):
         dims = 2048
