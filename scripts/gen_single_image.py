@@ -20,6 +20,7 @@ def get_z_random(batch_size=1, nz=8, random_type="gauss"):
         z = torch.randn(batch_size, nz)
     return z.detach()
 
+
 def load_model(modelpath, model_in_file, device):
     train_json_path = modelpath + "/train_config.json"
     with open(train_json_path, "r") as jsonf:
