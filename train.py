@@ -35,6 +35,7 @@ import signal
 import torch
 import json
 import warnings
+import util.adai_optim as adai_optim
 
 
 def setup(rank, world_size, port):
@@ -53,6 +54,10 @@ def optim(opt, params, lr, betas):
         return torch.optim.RAdam(params, lr, betas)
     elif opt.train_optim == "adamw":
         return torch.optim.AdamW(params, lr, betas)
+    elif opt.train_optim == "adaiw":
+        return adai_optim.Adai(
+            params, lr, betas, eps=1e-03, weight_decay=5e-4, decoupled=False
+        )
 
 
 def signal_handler(sig, frame):
