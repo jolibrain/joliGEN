@@ -375,7 +375,7 @@ class BaseOptions:
         )
         parser.add_argument(
             "--f_s_class_weights",
-            default=None,
+            default=[],
             nargs="*",
             type=int,
             help="class weights for imbalanced semantic classes",
