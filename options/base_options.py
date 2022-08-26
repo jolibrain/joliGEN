@@ -468,6 +468,13 @@ class BaseOptions:
 
         # Online dataset creation options
         parser.add_argument(
+            "--data_online_creation_load_size_A",
+            default=[],
+            nargs="*",
+            type=int,
+            help="load to this size during online creation, format : width height or only one size if square",
+        )
+        parser.add_argument(
             "--data_online_creation_crop_size_A",
             type=int,
             default=512,
@@ -489,6 +496,14 @@ class BaseOptions:
             "--data_online_creation_mask_square_A",
             action="store_true",
             help="whether masks should be squared for domain A",
+        )
+
+        parser.add_argument(
+            "--data_online_creation_load_size_B",
+            default=[],
+            nargs="*",
+            type=int,
+            help="load to this size during online creation, format : width height or only one size if square",
         )
 
         parser.add_argument(

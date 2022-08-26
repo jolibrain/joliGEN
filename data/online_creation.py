@@ -17,6 +17,7 @@ def crop_image(
     crop_dim,
     output_dim,
     context_pixels,
+    load_size,
     get_crop_coordinates=False,
     crop_coordinates=None,
 ):
@@ -24,7 +25,18 @@ def crop_image(
     margin = context_pixels * 2
 
     try:
-        img = np.array(Image.open(img_path))
+        img = Image.open(img_path)
+        if load_size != []:
+            old_size = img.size
+            img = F.resize(img, load_size)
+            new_size = img.size
+            ratio_x = img.size[0] / old_size[0]
+            ratio_y = img.size[1] / old_size[1]
+        else:
+            ratio_x = 1
+            ratio_y = 1
+
+        img = np.array(img)
     except Exception as e:
         raise ValueError(f"failure with loading image {img_path}") from e
 
@@ -56,10 +68,10 @@ def crop_image(
         for i, cur_bbox in enumerate(bboxes):
             bbox = cur_bbox.split()
             cat = int(bbox[0])
-            xmin = math.floor(int(bbox[1]))
-            ymin = math.floor(int(bbox[2]))
-            xmax = math.floor(int(bbox[3]))
-            ymax = math.floor(int(bbox[4]))
+            xmin = math.floor(int(bbox[1]) * ratio_x)
+            ymin = math.floor(int(bbox[2]) * ratio_y)
+            xmax = math.floor(int(bbox[3]) * ratio_x)
+            ymax = math.floor(int(bbox[4]) * ratio_y)
 
             if (
                 mask_delta > 0
@@ -213,6 +225,7 @@ def sanitize_paths(
     crop_dim,
     output_dim,
     context_pixels,
+    load_size,
     max_dataset_size=float("inf"),
     verbose=False,
 ):
@@ -240,6 +253,7 @@ def sanitize_paths(
                         crop_dim=crop_dim + crop_delta,
                         output_dim=output_dim,
                         context_pixels=context_pixels,
+                        load_size=load_size,
                     )
                 except Exception as e:
                     failed = True

@@ -143,6 +143,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             output_dim=self.opt.data_load_size,
             max_dataset_size=self.opt.data_max_dataset_size,
             context_pixels=self.opt.data_online_context_pixels,
+            load_size=self.opt.data_online_creation_load_size_A,
         )
         write_paths_file(
             self.A_img_paths,
@@ -160,6 +161,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 output_dim=self.opt.data_load_size,
                 max_dataset_size=self.opt.train_pool_size,
                 context_pixels=self.opt.data_online_context_pixels,
+                load_size=self.opt.data_online_creation_load_size_A,
             )
             write_paths_file(
                 self.A_img_paths_val,
@@ -177,6 +179,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             output_dim=self.opt.data_load_size,
             max_dataset_size=self.opt.data_max_dataset_size,
             context_pixels=self.opt.data_online_context_pixels,
+            load_size=self.opt.data_online_creation_load_size_B,
         )
         write_paths_file(
             self.B_img_paths,
@@ -194,6 +197,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 output_dim=self.opt.data_load_size,
                 max_dataset_size=self.opt.train_pool_size,
                 context_pixels=self.opt.data_online_context_pixels,
+                load_size=self.opt.data_online_creation_load_size_B,
             )
             write_paths_file(
                 self.B_img_paths_val,
@@ -215,6 +219,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 crop_dim=self.opt.data_online_creation_crop_size_A,
                 output_dim=self.opt.data_load_size,
                 context_pixels=self.opt.data_online_context_pixels,
+                load_size=self.opt.data_online_creation_load_size_A,
             )
 
         except Exception as e:
@@ -244,6 +249,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         crop_dim=self.opt.data_online_creation_crop_size_B,
                         output_dim=self.opt.data_load_size,
                         context_pixels=self.opt.data_online_context_pixels,
+                        load_size=self.opt.data_online_creation_load_size_B,
                     )
                     B, B_label = self.transform(B_img, B_label)
                     if torch.any(B_label > self.semantic_nclasses - 1):
