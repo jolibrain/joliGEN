@@ -142,6 +142,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             crop_dim=self.opt.data_online_creation_crop_size_A,
             output_dim=self.opt.data_load_size,
             max_dataset_size=self.opt.data_max_dataset_size,
+            context_pixels=self.opt.data_online_context_pixels,
         )
         write_paths_file(
             self.A_img_paths,
@@ -158,6 +159,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 crop_dim=self.opt.data_online_creation_crop_size_A,
                 output_dim=self.opt.data_load_size,
                 max_dataset_size=self.opt.train_pool_size,
+                context_pixels=self.opt.data_online_context_pixels,
             )
             write_paths_file(
                 self.A_img_paths_val,
@@ -174,6 +176,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             crop_dim=self.opt.data_online_creation_crop_size_B,
             output_dim=self.opt.data_load_size,
             max_dataset_size=self.opt.data_max_dataset_size,
+            context_pixels=self.opt.data_online_context_pixels,
         )
         write_paths_file(
             self.B_img_paths,
@@ -190,6 +193,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 crop_dim=self.opt.data_online_creation_crop_size_B,
                 output_dim=self.opt.data_load_size,
                 max_dataset_size=self.opt.train_pool_size,
+                context_pixels=self.opt.data_online_context_pixels,
             )
             write_paths_file(
                 self.B_img_paths_val,
