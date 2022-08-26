@@ -57,6 +57,28 @@ rm -rf $DIR/*
 
 if [ $OUT != 0 ]; then
     exit 1
+fi
+
+
+####### mask cls semantics test with online dataloading
+echo "Running mask online semantics training tests"
+URL=https://www.deepdetect.com/joligan/datasets/online_mario2sonic_lite.zip 
+ZIP_FILE=$DIR/online_mario2sonic_lite.zip 
+TARGET_MASK_SEM_ONLINE_DIR=$DIR/online_mario2sonic_lite
+wget -N $URL -O $ZIP_FILE
+mkdir $TARGET_MASK_SEM_ONLINE_DIR
+unzip $ZIP_FILE -d $DIR
+rm $ZIP_FILE
+
+
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+OUT=$?
+
+echo "Deleting target dir $DIR"
+rm -rf $DIR/*
+
+if [ $OUT != 0 ]; then
+    exit 1
 else
     exit 0
 fi
