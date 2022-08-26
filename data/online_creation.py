@@ -206,12 +206,13 @@ def crop_image(
 
 def sanitize_paths(
     paths_img,
-    paths_bb=None,
-    mask_delta=None,
-    crop_delta=None,
-    mask_square=None,
-    crop_dim=None,
-    output_dim=None,
+    paths_bb,
+    mask_delta,
+    crop_delta,
+    mask_square,
+    crop_dim,
+    output_dim,
+    context_pixels,
     max_dataset_size=float("inf"),
     verbose=False,
 ):
@@ -238,6 +239,7 @@ def sanitize_paths(
                         mask_square=mask_square,
                         crop_dim=crop_dim + crop_delta,
                         output_dim=output_dim,
+                        context_pixels=context_pixels,
                     )
                 except Exception as e:
                     failed = True
