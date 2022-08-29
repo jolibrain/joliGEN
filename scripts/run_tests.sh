@@ -60,3 +60,11 @@ if [ $OUT != 0 ]; then
 else
     exit 0
 fi
+
+#### Client server test
+SERVER_HOST="10.10.77.108"
+SERVER_PORT=8000
+
+python3 -m pytest ${current_dir}/../tests/client_test_server.py --host $SERVER_HOST --port $SERVER_PORT
+
+

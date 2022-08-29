@@ -1,5 +1,7 @@
 def pytest_addoption(parser):
     parser.addoption("--dataroot", action="store", type=str)
+    parser.addoption("--host", action="store", type=str)
+    parser.addoption("--port", action="store", type=int)
 
 
 def pytest_generate_tests(metafunc):
