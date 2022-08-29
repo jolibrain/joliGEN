@@ -535,7 +535,7 @@ class BaseOptions:
         self.initialized = True
         return parser
 
-    def gather_options(self):
+    def gather_options(self, args=None):
         """Initialize our parser with basic options(only once).
         Add additional model-specific and dataset-specific options.
         These options are defined in the <modify_commandline_options> function
@@ -548,13 +548,13 @@ class BaseOptions:
             parser = self.initialize(parser)
 
         # get the basic options
-        opt, _ = parser.parse_known_args()
+        opt, _ = parser.parse_known_args(args)
 
         # modify model-related parser options
         model_name = opt.model_type
         model_option_setter = models.get_option_setter(model_name)
         parser = model_option_setter(parser, self.isTrain)
-        opt, _ = parser.parse_known_args()  # parse again with new defaults
+        opt, _ = parser.parse_known_args(args)  # parse again with new defaults
 
         # modify dataset-related parser options
         dataset_name = opt.data_dataset_mode
@@ -563,7 +563,7 @@ class BaseOptions:
 
         # save and return the parser
         self.parser = parser
-        return parser.parse_args()
+        return parser.parse_args(args)
 
     def print_options(self, opt):
         """Print and save options
@@ -700,6 +700,10 @@ class BaseOptions:
         self.save_options()
         opt = self._after_parse(self.opt)
         return opt
+
+    def parse_to_json(self, args=None):
+        self.opt = self.gather_options(args)
+        return self.to_json()
 
     def _json_parse_known_args(self, parser, opt, json_args):
         """
