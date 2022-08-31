@@ -34,18 +34,16 @@ python client.py --method training_status --host jg_server_host --port jg_server
 """
 
 import requests
-from options.client_options import ClientOptions
+from options.train_options import TrainOptions
 import sys
+import argparse
+import json
 
 
-def train(host: str, port: int, name: str, client_options: dict):
-    train_options = client_options.copy()
-    del train_options["method"]
-    del train_options["host"]
-    del train_options["port"]
-
+def train(host: str, port: int, name: str, train_options: dict):
     json_opt = {}
     json_opt["sync"] = False
+    train_options["name"] = name
     json_opt["train_options"] = train_options
 
     url = "http://%s:%d" % (host, port) + "/train/%s" % name
@@ -73,19 +71,55 @@ def get_status(host: str, port: int):
         print("Name: %s, status: %s" % (process["name"], process["status"]))
 
 
-def main_client(args):
-    if not "launch_training" in args and not "--dataroot" in args:
-        args += ["--dataroot", "unused"]
+def main_client(args: list):
+    main_parser = argparse.ArgumentParser()
 
-    client_options = ClientOptions().parse_to_json(args)
+    main_parser.add_argument(
+        "--config_json", type=str, default="", help="path to json config"
+    )
+    main_parser.add_argument(
+        "--method",
+        type=str,
+        default="launch_training",
+        choices=["launch_training", "stop_training", "training_status"],
+    )
 
-    host = client_options["host"]
-    port = client_options["port"]
-    method = client_options["method"]
-    name = client_options["name"]
+    main_parser.add_argument(
+        "--name",
+        type=str,
+        default="training_name",
+    )
+
+    main_parser.add_argument(
+        "--host",
+        type=str,
+        required=True,
+        help="joligan server host",
+    )
+
+    main_parser.add_argument(
+        "--port",
+        type=int,
+        required=True,
+        help="joligan server post",
+    )
+
+    main_opt, args = main_parser.parse_known_args(args)
+
+    host = main_opt.host
+    port = main_opt.port
+    method = main_opt.method
+    name = main_opt.name
 
     if method == "launch_training":
-        train(host, port, name, client_options)
+        if main_opt.config_json != "":
+            with open(main_opt.config_json, "r") as jsonf:
+                train_options = json.load(jsonf)
+            print("%s config file loaded" % main_opt.config_json)
+        else:
+            train_options = TrainOptions().parse_to_json(args)
+
+        train(host, port, name, train_options)
 
     elif method == "stop_training":
         delete(host, port, name)
