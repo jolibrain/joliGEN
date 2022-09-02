@@ -7,7 +7,7 @@ import torch
 import models
 import data
 from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
-from util.util import MAX_INT
+from util.util import MAX_INT, flatten_json
 import json
 from models.modules.classifiers import TORCH_MODEL_CLASSES
 import warnings
@@ -802,14 +802,6 @@ class BaseOptions:
                 formatter_class=argparse.ArgumentDefaultsHelpFormatter
             )
             parser = self.initialize(parser)
-
-        def flatten_json(src_json, flat_json={}, prefix=""):
-            for key in src_json:
-                if isinstance(src_json[key], dict):
-                    flatten_json(src_json[key], flat_json, prefix + key + "_")
-                else:
-                    flat_json[prefix + key] = src_json[key]
-            return flat_json
 
         flat_json = flatten_json(json_args)
 
