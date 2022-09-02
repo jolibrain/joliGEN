@@ -105,23 +105,6 @@ class CycleGANModel(BaseModel):
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_B_fake_A", "diff_real_A_fake_B"])
 
-        if any("temporal" in D_name for D_name in self.opt.D_netDs):
-            visual_names_temporal_real_A = []
-            visual_names_temporal_real_B = []
-            visual_names_temporal_fake_B = []
-            visual_names_temporal_fake_A = []
-            for i in range(self.opt.D_temporal_number_frames):
-                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
-                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
-            for i in range(self.opt.D_temporal_number_frames):
-                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
-                visual_names_temporal_fake_A.append("temporal_fake_A_" + str(i))
-
-            self.visual_names.append(visual_names_temporal_real_A)
-            self.visual_names.append(visual_names_temporal_real_B)
-            self.visual_names.append(visual_names_temporal_fake_B)
-            self.visual_names.append(visual_names_temporal_fake_A)
-
         # Models names
 
         if self.isTrain:
@@ -218,18 +201,18 @@ class CycleGANModel(BaseModel):
 
             # Losses names
 
-            losses_G = ["G_tot"]
+            losses_G = []
 
             losses_G += ["G_cycle_A", "G_idt_A", "G_cycle_B", "G_idt_B"]
 
-            losses_D = ["D_tot"]
+            losses_D = []
 
             for discriminator in self.discriminators:
                 losses_G.append(discriminator.loss_name_G)
                 losses_D.append(discriminator.loss_name_D)
 
-            self.loss_names_G = losses_G
-            self.loss_names_D = losses_D
+            self.loss_names_G += losses_G
+            self.loss_names_D += losses_D
 
             self.loss_names = self.loss_names_G + self.loss_names_D
 
