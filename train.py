@@ -74,9 +74,9 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         opt, rank, dataset
     )  # create a dataset given opt.dataset_mode and other options
 
-    D_temporal = "temporal" in opt.D_netDs
+    use_temporal = ("temporal" in opt.D_netDs) or opt.train_temporal_criterion
 
-    if D_temporal:
+    if use_temporal:
         dataloader_temporal = create_iterable_dataloader(opt, rank, dataset_temporal)
 
     dataset_size = len(dataset)  # get the number of images in the dataset.
@@ -88,6 +88,8 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         model.data_dependent_initialize(data)
 
     model.setup(opt)  # regular setup: load and print networks; create schedulers
+
+    model.use_temporal = use_temporal
 
     if len(opt.gpu_ids) > 1:
         model.parallelize(rank)
@@ -123,7 +125,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         if rank == 0:
             visualizer.reset()  # reset the visualizer: make sure it saves the results to HTML at least once every epoch
 
-        if D_temporal:
+        if use_temporal:
             dataloaders = zip(
                 dataloader, dataloader_temporal
             )  # dataloader, dataloader_temporal
@@ -135,7 +137,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         ):  # inner loop (minibatch) within one epoch
 
             data = data_list[0]
-            if D_temporal:
+            if use_temporal:
                 temporal_data = data_list[1]
 
             iter_start_time = time.time()  # timer for computation per iteration
@@ -143,7 +145,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
 
             model.set_input(data)  # unpack data from dataloader and apply preprocessing
 
-            if D_temporal:
+            if use_temporal:
                 model.set_input_temporal(temporal_data)
 
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
@@ -295,7 +297,9 @@ def launch_training(opt=None):
     dataset = create_dataset(opt)
     print("The number of training images = %d" % len(dataset))
 
-    if "temporal" in opt.D_netDs:
+    use_temporal = ("temporal" in opt.D_netDs) or opt.train_temporal_criterion
+
+    if use_temporal:
         dataset_temporal = create_dataset_temporal(opt)
     else:
         dataset_temporal = None

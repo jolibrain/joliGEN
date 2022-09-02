@@ -339,6 +339,20 @@ class TrainOptions(BaseOptions):
         parser.add_argument("--train_mask_compute_miou", action="store_true")
         parser.add_argument("--train_mask_miou_every", type=int, default=1000)
 
+        # train with temporal criterion loss
+        parser.add_argument(
+            "--train_temporal_criterion",
+            action="store_true",
+            help="if true, MSE loss will be computed between successive frames",
+        )
+
+        parser.add_argument(
+            "--train_temporal_criterion_lambda",
+            type=float,
+            default=1.0,
+            help="lambda for MSE loss that will be computed between successive frames",
+        )
+
         # train with re-(cycle/cut)
         parser.add_argument(
             "--alg_re_adversarial_loss_p",

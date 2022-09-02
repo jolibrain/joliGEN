@@ -122,20 +122,6 @@ class CUTModel(BaseModel):
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_A_fake_B"])
 
-        if any("temporal" in D_name for D_name in self.opt.D_netDs):
-            visual_names_temporal_real_A = []
-            visual_names_temporal_real_B = []
-            visual_names_temporal_fake_B = []
-            for i in range(self.opt.D_temporal_number_frames):
-                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
-                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
-            for i in range(self.opt.D_temporal_number_frames):
-                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
-
-            self.visual_names.append(visual_names_temporal_real_A)
-            self.visual_names.append(visual_names_temporal_real_B)
-            self.visual_names.append(visual_names_temporal_fake_B)
-
         if self.isTrain:
             self.model_names = ["G_A", "F"]
             if self.opt.model_multimodal:
@@ -264,8 +250,8 @@ class CUTModel(BaseModel):
 
         # Losses names
 
-        losses_G = ["G_tot", "G_NCE"]
-        losses_D = ["D_tot"]
+        losses_G = ["G_NCE"]
+        losses_D = []
         if opt.alg_cut_nce_idt and self.isTrain:
             losses_G += ["G_NCE_Y"]
         if opt.model_multimodal and self.isTrain:
@@ -276,8 +262,8 @@ class CUTModel(BaseModel):
             losses_G.append(discriminator.loss_name_G)
             losses_D.append(discriminator.loss_name_D)
 
-        self.loss_names_G = losses_G
-        self.loss_names_D = losses_D
+        self.loss_names_G += losses_G
+        self.loss_names_D += losses_D
         if self.opt.model_multimodal:
             self.loss_names_E = losses_E
             self.loss_names_G += losses_E

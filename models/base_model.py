@@ -229,12 +229,47 @@ class BaseModel(ABC):
 
                 self.visual_names.append(temp_visual_names_attn)
 
+        if self.opt.train_temporal_criterion or "temporal" in opt.D_netDs:
+            self.use_temporal = True
+        else:
+            self.use_temporal = False
+
+        if self.use_temporal:
+            visual_names_temporal_real_A = []
+            visual_names_temporal_real_B = []
+            visual_names_temporal_fake_B = []
+            visual_names_temporal_fake_A = []
+            for i in range(self.opt.D_temporal_number_frames):
+                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
+                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
+            for i in range(self.opt.D_temporal_number_frames):
+                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
+                if "cycle_gan" in self.opt.model_type:
+                    visual_names_temporal_fake_A.append("temporal_fake_A_" + str(i))
+
+            self.visual_names.append(visual_names_temporal_real_A)
+            self.visual_names.append(visual_names_temporal_real_B)
+            self.visual_names.append(visual_names_temporal_fake_B)
+            if "cycle_gan" in self.opt.model_type:
+                self.visual_names.append(visual_names_temporal_fake_A)
+
         self.margin = self.opt.data_online_context_pixels * 2
 
         if "segformer" in self.opt.G_netG:
             self.onnx_opset_version = 11
         else:
             self.onnx_opset_version = 9
+
+        # Define loss functions
+        losses_G = ["G_tot"]
+        losses_D = ["D_tot"]
+
+        if self.opt.train_temporal_criterion:
+            self.criterionTemporal = torch.nn.MSELoss()
+            losses_G.append("G_temporal_criterion")
+
+        self.loss_names_G = losses_G
+        self.loss_names_D = losses_D
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -440,7 +475,7 @@ class BaseModel(ABC):
                 self.mask_context, size=self.real_A.shape[2:]
             )[:, 0]
 
-        if any("temporal" in D_name for D_name in self.opt.D_netDs):
+        if self.use_temporal:
             self.compute_temporal_fake(objective_domain="B")
 
             if hasattr(self, "netG_B"):
@@ -1174,6 +1209,9 @@ class BaseModel(ABC):
 
             self.loss_G_tot += loss_value
 
+        if self.opt.train_temporal_criterion:
+            self.loss_G_tot += self.compute_temporal_criterion_loss()
+
     def compute_fid_val(self):
         dims = 2048
         batch = 1
@@ -1385,3 +1423,33 @@ class BaseModel(ABC):
             dtype=tensor.dtype,
         )
         return one_hot.scatter_(1, tensor.unsqueeze(1), 1.0)
+
+    def compute_temporal_criterion_loss_generic(self, domain):
+        loss_value = torch.zeros([], device=self.device)
+        previous_fake = getattr(self, "temporal_fake_" + domain)[:, 0].clone().detach()
+
+        for i in range(1, self.opt.D_temporal_number_frames):
+            next_fake = getattr(self, "temporal_fake_" + domain)[:, i]
+            loss_value += self.criterionTemporal(previous_fake, next_fake)
+            previous_fake = next_fake.clone().detach()
+
+        return loss_value.mean()
+
+    def compute_temporal_criterion_loss(self):
+        self.loss_G_temporal_criterion_B = (
+            self.compute_temporal_criterion_loss_generic(domain="B")
+            * self.opt.train_temporal_criterion_lambda
+        )
+
+        if hasattr(self, "netG_B"):
+            self.loss_G_temporal_criterion_A = (
+                self.compute_temporal_criterion_loss_generic(domain="A")
+            ) * self.opt.train_temporal_criterion_lambda
+        else:
+            self.loss_G_temporal_criterion_A = torch.zeros([], device=self.device)
+
+        self.loss_G_temporal_criterion = (
+            self.loss_G_temporal_criterion_B + self.loss_G_temporal_criterion_A
+        )
+
+        return self.loss_G_temporal_criterion
