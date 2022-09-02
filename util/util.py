@@ -173,3 +173,14 @@ def str2bool(v):
 
 
 MAX_INT = 1000000000
+
+
+def flatten_json(src_json, flat_json=None, prefix=""):
+    if flat_json is None:
+        flat_json = {}
+    for key in src_json:
+        if isinstance(src_json[key], dict):
+            flatten_json(src_json[key], flat_json, prefix + key + "_")
+        else:
+            flat_json[prefix + key] = src_json[key]
+    return flat_json
