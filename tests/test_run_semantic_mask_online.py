@@ -32,13 +32,15 @@ json_like_dict = {
     "dataaug_D_noise": 0.001,
     "train_sem_use_label_B": True,
     "data_relative_paths": True,
-    "D_netDs": ["basic", "projected_d"],
+    "D_netDs": ["basic", "projected_d", "temporal"],
     "train_gan_mode": "projected",
     "D_proj_interp": 256,
     "train_G_ema": True,
     "dataaug_no_rotate": True,
     "train_mask_compute_miou": True,
     "train_mask_miou_every": 1,
+    "D_temporal_number_frames": 2,
+    "D_temporal_frame_step": 2,
 }
 
 models_semantic_mask = [

@@ -44,10 +44,8 @@ class TemporalDataset(BaseDataset):
 
         self.opt = opt
 
-        self.A_size = (
-            100  # use to compute image path in base datset method (unused then)
-        )
-        self.B_size = 100
+        self.A_size = 1  # use to compute image path in base datset method (unused then)
+        self.B_size = 1
 
         # sort
         self.A_img_paths.sort(key=natural_keys)
@@ -98,6 +96,7 @@ class TemporalDataset(BaseDataset):
                         crop_dim=self.opt.data_online_creation_crop_size_A,
                         output_dim=self.opt.data_load_size,
                         context_pixels=self.opt.data_online_context_pixels,
+                        load_size=self.opt.data_online_creation_load_size_A,
                         get_crop_coordinates=True,
                     )
                 cur_A_img, cur_A_label = crop_image(
@@ -109,6 +108,7 @@ class TemporalDataset(BaseDataset):
                     crop_dim=self.opt.data_online_creation_crop_size_A,
                     output_dim=self.opt.data_load_size,
                     context_pixels=self.opt.data_online_context_pixels,
+                    load_size=self.opt.data_online_creation_load_size_A,
                     crop_coordinates=crop_coordinates,
                 )
 
@@ -161,6 +161,7 @@ class TemporalDataset(BaseDataset):
                         crop_dim=self.opt.data_online_creation_crop_size_B,
                         output_dim=self.opt.data_load_size,
                         context_pixels=self.opt.data_online_context_pixels,
+                        load_size=self.opt.data_online_creation_load_size_B,
                         get_crop_coordinates=True,
                     )
 
@@ -173,6 +174,7 @@ class TemporalDataset(BaseDataset):
                     crop_dim=self.opt.data_online_creation_crop_size_B,
                     output_dim=self.opt.data_load_size,
                     context_pixels=self.opt.data_online_context_pixels,
+                    load_size=self.opt.data_online_creation_load_size_B,
                     crop_coordinates=crop_coordinates,
                 )
 
