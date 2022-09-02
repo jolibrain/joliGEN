@@ -363,14 +363,26 @@ class TemporalProjectedDiscriminator(torch.nn.Module):
 
         self.num_feats = len(channels)
 
-        self.lstm = torch.nn.LSTM(input_size=100, hidden_size=100, batch_first=True)
-
         self.discriminator = MultiScaleD(
             channels=self.freeze_feature_network.CHANNELS,
             resolutions=self.freeze_feature_network.RESOLUTIONS,
             feats=self.freeze_feature_network.FEATS,
             conv="vit" not in projector_model,
             **backbone_kwargs,
+        )
+
+        if self.interp > 0:
+            input_size = self.interp
+        else:
+            input_size = img_size
+        dumb_input = torch.zeros([1, 3, input_size, input_size])
+
+        temp = self.freeze_feature_network(dumb_input)
+        temp = self.discriminator(temp)
+        lstm_size = temp.shape[-1]
+
+        self.lstm = torch.nn.LSTM(
+            input_size=lstm_size, hidden_size=lstm_size, batch_first=True
         )
 
     def train(self, mode=True):
@@ -389,6 +401,7 @@ class TemporalProjectedDiscriminator(torch.nn.Module):
             x = images[:, i]
             if self.interp > 0:
                 x = F.interpolate(x, self.interp, mode="bilinear", align_corners=False)
+
             cur_feat = self.freeze_feature_network(x)
 
             logits_frames.append(self.discriminator(cur_feat).unsqueeze(1))

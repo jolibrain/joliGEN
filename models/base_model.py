@@ -290,8 +290,8 @@ class BaseModel(ABC):
 
     def set_input_temporal(self, input_temporal):
 
-        self.temporal_real_A_with_context = input_temporal["A"]
-        self.temporal_real_B_with_context = input_temporal["B"]
+        self.temporal_real_A_with_context = input_temporal["A"].to(self.device)
+        self.temporal_real_B_with_context = input_temporal["B"].to(self.device)
 
         if self.opt.data_online_context_pixels > 0:
 
@@ -667,6 +667,9 @@ class BaseModel(ABC):
                 net = getattr(self, "net" + name)
                 if isinstance(net, torch.nn.DataParallel):
                     net = net.module
+                if not os.path.isfile(load_path) and "temporal" in load_path:
+                    print("Skipping missing temporal discriminator pre-trained weights")
+                    continue
                 print("loading the model from %s" % load_path)
                 # if you are using PyTorch newer than 0.4 (e.g., built from
                 # GitHub source), you can remove str() on self.device
@@ -1083,15 +1086,19 @@ class BaseModel(ABC):
                     fake_name=fake_name,
                     real_name=real_name,
                 )
-                loss_name = "loss_" + discriminator.loss_name_D
 
-                setattr(
-                    self,
-                    loss_name,
-                    loss_value,
-                )
+            else:
+                loss_value = torch.zeros([], device=self.device)
 
-                self.loss_D_tot += loss_value
+            loss_name = "loss_" + discriminator.loss_name_D
+
+            setattr(
+                self,
+                loss_name,
+                loss_value,
+            )
+
+            self.loss_D_tot += loss_value
 
     def compute_G_loss_GAN_generic(
         self, netD, domain_img, loss, real_name=None, fake_name=None
@@ -1154,15 +1161,18 @@ class BaseModel(ABC):
                     real_name=real_name,
                 )
 
-                loss_name = "loss_" + discriminator.loss_name_G
+            else:
+                loss_value = torch.zeros([], device=self.device)
 
-                setattr(
-                    self,
-                    loss_name,
-                    loss_value,
-                )
+            loss_name = "loss_" + discriminator.loss_name_G
 
-                self.loss_G_tot += loss_value
+            setattr(
+                self,
+                loss_name,
+                loss_value,
+            )
+
+            self.loss_G_tot += loss_value
 
     def compute_fid_val(self):
         dims = 2048
