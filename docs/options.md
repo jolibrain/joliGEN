@@ -207,6 +207,8 @@ Here are all the available options to call with `train.py`
 | --train_save_by_iter | flag |  | whether saves model by iteration |
 | --train_save_epoch_freq | int | 1 | frequency of saving checkpoints at the end of epochs |
 | --train_save_latest_freq | int | 5000 | frequency of saving the latest results |
+| --train_temporal_criterion | flag |  | if true, MSE loss will be computed between successive frames |
+| --train_temporal_criterion_lambda | float | 1.0 | lambda for MSE loss that will be computed between successive frames |
 | --train_use_contrastive_loss_D | flag |  |  |
 
 ### Semantic training
