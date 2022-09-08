@@ -108,6 +108,13 @@ class TrainOptions(BaseOptions):
             action="store_true",
             help="whether saves model by iteration",
         )
+
+        parser.add_argument(
+            "--train_export_jit",
+            action="store_true",
+            help="whether to export model in jit format",
+        )
+
         parser.add_argument(
             "--train_continue",
             action="store_true",

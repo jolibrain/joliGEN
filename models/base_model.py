@@ -666,7 +666,7 @@ class BaseModel(ABC):
                 )
 
                 # jit
-                if not "segformer" in self.opt.G_netG:
+                if self.opt.train_export_jit and not "segformer" in self.opt.G_netG:
                     export_path_jit = save_path.replace(".pth", ".pt")
                     jit_model = torch.jit.trace(net, dummy_input)
                     jit_model.save(export_path_jit)
