@@ -33,20 +33,29 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         BaseDataset.__init__(self, opt)
 
         if os.path.exists(self.dir_A):
-            self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(
+            self.A_img_paths, self.A_label = make_labeled_path_dataset(
                 self.dir_A, "/paths.txt", opt.data_max_dataset_size
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
         else:
-            self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(
+            self.A_img_paths, self.A_label = make_labeled_path_dataset(
                 opt.dataroot, "/paths.txt", opt.data_max_dataset_size
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
 
         if os.path.exists(self.dir_B):
-            self.B_img_paths, self.B_label_paths = make_labeled_path_dataset(
+            self.B_img_paths, self.B_label = make_labeled_path_dataset(
                 self.dir_B, "/paths.txt", opt.data_max_dataset_size
             )  # load images from '/path/to/data/trainB'
             self.B_size = len(self.B_img_paths)  # get the size of dataset B
+
+        self.A_label_mask_paths = []
+        self.B_label_mask_paths = []
+
+        for label in self.A_label:
+            self.A_label_mask_paths.append(label.split(" ")[-1])
+
+        for label in self.B_label:
+            self.B_label_mask_paths.append(label.split(" ")[-1])
 
         self.transform = get_transform_seg(self.opt, grayscale=(self.input_nc == 1))
         self.transform_noseg = get_transform(self.opt, grayscale=(self.input_nc == 1))
@@ -54,32 +63,39 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         self.semantic_nclasses = self.opt.f_s_semantic_nclasses
 
     def get_img(
-        self, A_img_path, A_label_path, B_img_path=None, B_label_path=None, index=None
+        self,
+        A_img_path,
+        A_label_mask_path,
+        A_label_cls,
+        B_img_path=None,
+        B_label_mask_path=None,
+        B_label_cls=None,
+        index=None,
     ):
         try:
             A_img = Image.open(A_img_path).convert("RGB")
-            A_label = Image.open(A_label_path)
+            A_label_mask = Image.open(A_label_mask_path)
         except Exception as e:
             print(
                 "failure with reading A domain image ",
                 A_img_path,
                 " or label ",
-                A_label_path,
+                A_label_mask_path,
             )
             print(e)
             return None
 
-        A, A_label = self.transform(A_img, A_label)
+        A, A_label_mask = self.transform(A_img, A_label_mask)
 
-        if torch.any(A_label > self.semantic_nclasses - 1):
+        if torch.any(A_label_mask > self.semantic_nclasses - 1):
             warnings.warn(
                 "A label is above number of semantic classes for img %s and label %s"
-                % (A_img_path, A_label_path)
+                % (A_img_path, A_label_mask_path)
             )
-            A_label = torch.clamp(A_label, max=self.semantic_nclasses - 1)
+            A_label_mask = torch.clamp(A_label_mask, max=self.semantic_nclasses - 1)
 
         if self.opt.f_s_all_classes_as_one:
-            A_label = (A_label >= 1) * 1
+            A_label_mask = (A_label_mask >= 1) * 1
 
         if B_img_path is not None:
             try:
@@ -91,36 +107,38 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 )
                 return None
 
-            if B_label_path is not None:
+            if B_label_mask_path is not None:
                 try:
-                    B_label = Image.open(B_label_path)
+                    B_label_mask = Image.open(B_label_mask_path)
                 except:
                     print(
                         f"failed to read domain B label %s for image %s"
-                        % (B_label_path, N_img_path)
+                        % (B_label_mask_path, N_img_path)
                     )
 
-                B, B_label = self.transform(B_img, B_label)
-                if torch.any(B_label > self.semantic_nclasses - 1):
+                B, B_label_mask = self.transform(B_img, B_label_mask)
+                if torch.any(B_label_mask > self.semantic_nclasses - 1):
                     warnings.warn(
-                        f"A label is above number of semantic classes for img {B_img_path} and label {B_label_path}, label is clamped to have only {self.semantic_nclasses} classes."
+                        f"A label is above number of semantic classes for img {B_img_path} and label {B_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
                     )
-                    B_label = torch.clamp(B_label, max=self.semantic_nclasses - 1)
+                    B_label_mask = torch.clamp(
+                        B_label_mask, max=self.semantic_nclasses - 1
+                    )
             else:
                 B = self.transform_noseg(B_img)
-                B_label = []
+                B_label_mask = []
 
             return {
                 "A": A,
                 "B": B,
                 "A_img_paths": A_img_path,
                 "B_img_paths": B_img_path,
-                "A_label": A_label,
-                "B_label": B_label,
+                "A_label_mask": A_label_mask,
+                "B_label_mask": B_label_mask,
             }
 
         else:
-            return {"A": A, "A_img_paths": A_img_path, "A_label": A_label}
+            return {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask}
 
     def __len__(self):
         """Return the total number of images in the dataset.

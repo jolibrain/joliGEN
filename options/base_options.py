@@ -109,12 +109,8 @@ class BaseOptions:
             type=str,
             default="cut",
             choices=[
-                "cycle_gan",
                 "cut",
-                "cycle_gan_semantic",
-                "cut_semantic",
-                "cycle_gan_semantic_mask",
-                "cut_semantic_mask",
+                "cycle_gan",
             ],
             help="chooses which model to use.",
         )
@@ -354,7 +350,7 @@ class BaseOptions:
             help="how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used ",
         )
 
-        # semantic network
+        # mask semantic network : f_s
         parser.add_argument(
             "--f_s_net",
             type=str,
@@ -410,6 +406,62 @@ class BaseOptions:
             help="path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
         )
 
+        # cls semantic network
+        parser.add_argument(
+            "--cls_net",
+            type=str,
+            default="vgg",
+            choices=["vgg", "unet", "segformer"],
+            help="specify cls network [vgg|unet|segformer]",
+        )
+        parser.add_argument(
+            "--cls_dropout",
+            action="store_true",
+            help="dropout for the semantic network",
+        )
+        parser.add_argument(
+            "--cls_semantic_nclasses",
+            default=2,
+            type=int,
+            help="number of classes of the semantic loss classifier",
+        )
+        parser.add_argument(
+            "--cls_class_weights",
+            default=None,
+            nargs="*",
+            type=int,
+            help="class weights for imbalanced semantic classes",
+        )
+        parser.add_argument(
+            "--cls_semantic_threshold",
+            default=1.0,
+            type=float,
+            help="threshold of the semantic classifier loss below with semantic loss is applied",
+        )
+        parser.add_argument(
+            "--cls_all_classes_as_one",
+            action="store_true",
+            help="if true, all classes will be considered as the same one (ie foreground vs background)",
+        )
+        parser.add_argument(
+            "--cls_nf",
+            type=int,
+            default=64,
+            help="# of filters in the first conv layer of classifier",
+        )
+        parser.add_argument(
+            "--cls_config_segformer",
+            type=str,
+            default="models/configs/segformer/segformer_config_b0.py",
+            help="path to segformer configuration file for cls",
+        )
+        parser.add_argument(
+            "--cls_weight_segformer",
+            type=str,
+            default="",
+            help="path to segformer weight for cls, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
+        )
+
         # dataset parameters
         parser.add_argument(
             "--data_dataset_mode",
@@ -419,7 +471,9 @@ class BaseOptions:
                 "unaligned",
                 "unaligned_labeled",
                 "unaligned_labeled_mask",
+                "unaligned_labeled_mask_cls",
                 "unaligned_labeled_mask_online",
+                "unaligned_labeled_mask_cls_online",
                 "aligned",
             ],
             help="chooses how datasets are loaded.",

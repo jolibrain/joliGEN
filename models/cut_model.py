@@ -1,13 +1,17 @@
 import numpy as np
 import torch
+import torch.nn.functional as F
+
 from .base_model import BaseModel
 from . import networks
-from .patchnce import PatchNCELoss
-import util.util as util
 
-from util.util import gaussian
+from .modules import loss
+from .patchnce import PatchNCELoss
+
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
+import util.util as util
+from util.util import gaussian
 
 import itertools
 
@@ -100,7 +104,10 @@ class CUTModel(BaseModel):
         return parser
 
     def __init__(self, opt, rank):
+
         BaseModel.__init__(self, opt, rank)
+
+        # Vanilla cut
 
         # Images to visualize
         visual_names_A = ["real_A", "fake_B"]
@@ -121,6 +128,20 @@ class CUTModel(BaseModel):
 
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_A_fake_B"])
+
+        if any("temporal" in D_name for D_name in self.opt.D_netDs):
+            visual_names_temporal_real_A = []
+            visual_names_temporal_real_B = []
+            visual_names_temporal_fake_B = []
+            for i in range(self.opt.D_temporal_number_frames):
+                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
+                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
+            for i in range(self.opt.D_temporal_number_frames):
+                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
+
+            self.visual_names.append(visual_names_temporal_real_A)
+            self.visual_names.append(visual_names_temporal_real_B)
+            self.visual_names.append(visual_names_temporal_fake_B)
 
         if self.isTrain:
             self.model_names = ["G_A", "F"]
@@ -209,6 +230,7 @@ class CUTModel(BaseModel):
 
             optimizers = ["optimizer_G", "optimizer_F"]
             losses_backward = ["loss_G_tot"]
+
             if self.opt.model_multimodal:
                 #    optimizers.append("optimizer_E")
                 losses_backward.append("loss_G_z")
@@ -250,8 +272,8 @@ class CUTModel(BaseModel):
 
         # Losses names
 
-        losses_G = ["G_NCE"]
-        losses_D = []
+        losses_G = ["G_tot", "G_NCE"]
+        losses_D = ["D_tot"]
         if opt.alg_cut_nce_idt and self.isTrain:
             losses_G += ["G_NCE_Y"]
         if opt.model_multimodal and self.isTrain:
@@ -262,8 +284,8 @@ class CUTModel(BaseModel):
             losses_G.append(discriminator.loss_name_G)
             losses_D.append(discriminator.loss_name_D)
 
-        self.loss_names_G += losses_G
-        self.loss_names_D += losses_D
+        self.loss_names_G = losses_G
+        self.loss_names_D = losses_D
         if self.opt.model_multimodal:
             self.loss_names_E = losses_E
             self.loss_names_G += losses_E
@@ -273,14 +295,6 @@ class CUTModel(BaseModel):
         self.loss_names = self.loss_names_G + self.loss_names_D
         if self.opt.model_multimodal:
             self.loss_names += self.loss_names_E
-
-        # Itercalculator
-        if self.opt.train_iter_size > 1:
-            print("cut loss_names=", self.loss_names)
-            self.iter_calculator = IterCalculator(self.loss_names)
-            for i, cur_loss in enumerate(self.loss_names):
-                self.loss_names[i] = cur_loss + "_avg"
-                setattr(self, "loss_" + self.loss_names[i], 0)
 
         # _vis because images with context are too large for visualization, so we resize it to fit into visdom windows
         if self.opt.data_online_context_pixels > 0:
@@ -293,11 +307,34 @@ class CUTModel(BaseModel):
 
             self.visual_names.append(self.context_visual_names)
 
+        if self.opt.train_semantic_mask:
+            self.init_semantic_mask(opt)
+        if self.opt.train_semantic_cls:
+            self.init_semantic_cls(opt)
+
+        self.backward_functions_G.append("compute_G_loss_cut")
+        self.forward_functions.insert(1, "forward_cut")
+
+        # Itercalculator
+        if self.opt.train_iter_size > 1:
+            self.iter_calculator = IterCalculator(self.loss_names)
+            for i, cur_loss in enumerate(self.loss_names):
+                self.loss_names[i] = cur_loss + "_avg"
+                setattr(self, "loss_" + self.loss_names[i], 0)
+
     def set_input_first_gpu(self, data):
         self.set_input(data)
         self.bs_per_gpu = self.real_A.size(0)
         self.real_A = self.real_A[: self.bs_per_gpu]
         self.real_B = self.real_B[: self.bs_per_gpu]
+
+        if self.opt.train_semantic_mask:
+            self.set_input_first_gpu_semantic_mask(data)
+
+    def set_input_first_gpu_semantic_mask(self, data):
+        self.input_A_label_mask = self.input_A_label_mask[: self.bs_per_gpu]
+        if hasattr(self, "input_B_label_mask"):
+            self.input_B_label_mask = self.input_B_label_mask[: self.bs_per_gpu]
 
     def data_dependent_initialize(self, data):
         """
@@ -338,9 +375,27 @@ class CUTModel(BaseModel):
         for optimizer in self.optimizers:
             optimizer.zero_grad()
 
-    def forward(self):
+        if self.opt.train_semantic_mask:
+            self.data_dependent_initialize_semantic_mask(data)
+
+    def data_dependent_initialize_semantic_mask(self, data):
+        visual_names_seg_A = ["input_A_label_mask", "gt_pred_f_s_real_A_max", "pfB_max"]
+
+        if hasattr(self, "input_B_label_mask"):
+            visual_names_seg_B = ["input_B_label_mask"]
+        else:
+            visual_names_seg_B = []
+
+        visual_names_seg_B += ["gt_pred_f_s_real_B_max"]
+
+        self.visual_names += [visual_names_seg_A, visual_names_seg_B]
+
+        if self.opt.train_mask_out_mask and self.isTrain:
+            visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
+            self.visual_names += [visual_names_out_mask_A]
+
+    def forward_cut(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        super().forward()
 
         self.real = (
             torch.cat((self.real_A, self.real_B), dim=0)
@@ -414,12 +469,9 @@ class CUTModel(BaseModel):
             fake_B = self.netG_A(real_A_with_z)
             self.mu2 = self.netE(fake_B)
 
-    def compute_G_loss(self):
-        """Calculate GAN and NCE loss for the generator"""
+    def compute_G_loss_cut(self):
+        """Calculate NCE loss for the generator"""
 
-        super().compute_G_loss()
-
-        # CUT losses
         if self.opt.alg_cut_lambda_NCE > 0.0:
             self.loss_G_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
         else:

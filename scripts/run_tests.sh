@@ -72,6 +72,32 @@ rm $ZIP_FILE
 
 
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+
+####### mask cls semantics test
+echo "Running mask and class semantics training tests"
+URL=https://www.deepdetect.com/joligan/datasets/daytime2dawn_dusk_lite.zip
+ZIP_FILE=$DIR/daytime2dawn_dusk_lite.zip
+TARGET_MASK_CLS_SEM_DIR=$DIR/daytime2dawn_dusk_lite
+wget -N $URL -O $ZIP_FILE
+mkdir $TARGET_MASK_CLS_SEM_DIR
+unzip $ZIP_FILE -d $DIR
+rm $ZIP_FILE
+
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_cls.py" --dataroot "$TARGET_MASK_CLS_SEM_DIR"
+
+####### cls semantics test
+echo "Running mask and class semantics training tests"
+URL=https://www.deepdetect.com/joligan/datasets/mnist2USPS.zip
+ZIP_FILE=$DIR/mnist2USPS.zip
+TARGET_CLS_SEM_DIR=$DIR/mnist2USPS
+wget -N $URL -O $ZIP_FILE
+mkdir $TARGET_CLS_SEM_DIR
+unzip $ZIP_FILE -d $DIR
+rm $ZIP_FILE
+
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_cls.py" --dataroot "$TARGET_CLS_SEM_DIR"
+
+
 OUT=$?
 
 echo "Deleting target dir $DIR"

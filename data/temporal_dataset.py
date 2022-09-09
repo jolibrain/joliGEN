@@ -54,7 +54,14 @@ class TemporalDataset(BaseDataset):
         self.B_label_paths.sort(key=natural_keys)
 
     def get_img(
-        self, A_img_path, A_label_path, B_img_path=None, B_label_path=None, index=None
+        self,
+        A_img_path,
+        A_label_mask_path,
+        A_label_cls,
+        B_img_path=None,
+        B_label_mask_path=None,
+        B_label_cls=None,
+        index=None,
     ):  # all params are unused
 
         index_A = random.randint(0, self.range_A - 1)

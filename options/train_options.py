@@ -239,12 +239,32 @@ class TrainOptions(BaseOptions):
             "--train_mm_nz", type=int, default=8, help="number of latent vectors"
         )
 
-        # train with semantics
+        # train with semantics (for all semantic types)
         parser.add_argument(
             "--train_sem_use_label_B",
             action="store_true",
             help="if true domain B has labels too",
         )
+
+        parser.add_argument(
+            "--train_sem_idt",
+            action="store_true",
+            help="if true apply semantic loss on identity",
+        )
+
+        parser.add_argument(
+            "--train_sem_net_output",
+            action="store_true",
+            help="if true apply generator semantic loss on network output for real image rather than on label.",
+        )
+
+        # train with cls semantics
+        parser.add_argument(
+            "--train_semantic_cls",
+            action="store_true",
+            help="if true semantic class losses will be used",
+        )
+
         parser.add_argument(
             "--train_sem_cls_B",
             action="store_true",
@@ -261,38 +281,47 @@ class TrainOptions(BaseOptions):
             action="store_true",
             help='whether to use a pretrained model, available for non "basic" model only',
         )
+
         parser.add_argument(
-            "--train_sem_lr_f_s", type=float, default=0.0002, help="f_s learning rate"
-        )
-        parser.add_argument(
-            "--train_sem_regression",
+            "--train_cls_regression",
             action="store_true",
             help="if true cls will be a regressor and not a classifier",
         )
+
         parser.add_argument(
-            "--train_sem_lambda",
+            "--train_sem_lr_cls", type=float, default=0.0002, help="cls learning rate"
+        )
+
+        parser.add_argument(
+            "--train_sem_cls_lambda",
             type=float,
             default=1.0,
-            help="weight for semantic loss",
+            help="weight for semantic class loss",
         )
         parser.add_argument(
-            "--train_sem_l1_regression",
+            "--train_cls_l1_regression",
             action="store_true",
             help="if true l1 loss will be used to compute regressor loss",
         )
-        parser.add_argument(
-            "--train_sem_idt",
-            action="store_true",
-            help="if true apply semantic loss on identity",
-        )
-
-        parser.add_argument(
-            "--train_sem_net_output",
-            action="store_true",
-            help="if true apply generator semantic loss on network output for real image rather than on label.",
-        )
 
         # train with mask semantics
+
+        parser.add_argument(
+            "--train_sem_lr_f_s", type=float, default=0.0002, help="f_s learning rate"
+        )
+
+        parser.add_argument(
+            "--train_sem_mask_lambda",
+            type=float,
+            default=1.0,
+            help="weight for semantic mask loss",
+        )
+
+        parser.add_argument(
+            "--train_semantic_mask",
+            action="store_true",
+            help="if true semantic mask losses will be used",
+        )
         parser.add_argument(
             "--train_mask_f_s_B",
             action="store_true",

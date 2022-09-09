@@ -22,8 +22,8 @@ json_like_dict = {
 }
 
 models_nosemantic = [
-    "cycle_gan",
     "cut",
+    "cycle_gan",
 ]
 
 

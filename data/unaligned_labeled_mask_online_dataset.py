@@ -34,7 +34,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         BaseDataset.__init__(self, opt)
 
         if os.path.exists(self.dir_A):
-            self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(
+            self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
                 self.dir_A, "/paths.txt"
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
             if opt.phase == "train" and opt.train_compute_D_accuracy:
@@ -43,18 +43,18 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 )  # create a path '/path/to/data/trainA'
                 (
                     self.A_img_paths_val,
-                    self.A_label_paths_val,
+                    self.A_label_mask_paths_val,
                 ) = make_labeled_path_dataset(
                     self.dir_val_A, "/paths.txt"
                 )  # load images from '/path/to/data/validationA/paths.txt' as well as labels
 
         else:
-            self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(
+            self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
                 opt.dataroot, "/paths.txt"
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
 
         if os.path.exists(self.dir_B):
-            self.B_img_paths, self.B_label_paths = make_labeled_path_dataset(
+            self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
                 self.dir_B, "/paths.txt"
             )  # load images from '/path/to/data/trainB'
             if opt.phase == "train" and opt.train_compute_D_accuracy:
@@ -63,7 +63,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 )  # create a path '/path/to/data/validationA'
                 (
                     self.B_img_paths_val,
-                    self.B_label_paths_val,
+                    self.B_label_mask_paths_val,
                 ) = make_labeled_path_dataset(
                     self.dir_val_B, "/paths.txt"
                 )  # load images from '/path/to/data/validationB/paths.txt' as well as labels
@@ -85,22 +85,22 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             if train_sanitized_exist and (
                 not validation_is_needed or validation_sanitized_exist
             ):
-                self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(
+                self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
                     self.sv_dir, "/paths_sanitized_train_A.txt"
                 )
-                self.B_img_paths, self.B_label_paths = make_labeled_path_dataset(
+                self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
                     self.sv_dir, "/paths_sanitized_train_B.txt"
                 )
                 if validation_is_needed:
                     (
                         self.A_img_paths_val,
-                        self.A_label_paths_val,
+                        self.A_label_mask_paths_val,
                     ) = make_labeled_path_dataset(
                         self.sv_dir, "/paths_sanitized_validation_A.txt"
                     )
                     (
                         self.B_img_paths_val,
-                        self.B_label_paths_val,
+                        self.B_label_mask_paths_val,
                     ) = make_labeled_path_dataset(
                         self.sv_dir, "/paths_sanitized_validation_B.txt"
                     )
@@ -108,13 +108,13 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             else:
                 self.sanitize()
         elif opt.data_max_dataset_size != float("inf"):
-            self.A_img_paths, self.A_label_paths = (
+            self.A_img_paths, self.A_label_mask_paths = (
                 self.A_img_paths[: opt.data_max_dataset_size],
-                self.A_label_paths[: opt.data_max_dataset_size],
+                self.A_label_mask_paths[: opt.data_max_dataset_size],
             )
-            self.B_img_paths, self.B_label_paths = (
+            self.B_img_paths, self.B_label_mask_paths = (
                 self.B_img_paths[: opt.data_max_dataset_size],
-                self.B_label_paths[: opt.data_max_dataset_size],
+                self.B_label_mask_paths[: opt.data_max_dataset_size],
             )
 
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
@@ -128,14 +128,16 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
 
         self.semantic_nclasses = self.opt.f_s_semantic_nclasses
 
+        self.header = ["img", "mask"]
+
     def sanitize(self):
         print("--------------")
         print("Sanitizing images and labels paths")
         print("--- DOMAIN A ---")
 
-        self.A_img_paths, self.A_label_paths = sanitize_paths(
+        self.A_img_paths, self.A_label_mask_paths = sanitize_paths(
             self.A_img_paths,
-            self.A_label_paths,
+            self.A_label_mask_paths,
             mask_delta=self.opt.data_online_creation_mask_delta_A,
             crop_delta=self.opt.data_online_creation_crop_delta_A,
             mask_square=self.opt.data_online_creation_mask_square_A,
@@ -147,13 +149,13 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         )
         write_paths_file(
             self.A_img_paths,
-            self.A_label_paths,
+            self.A_label_mask_paths,
             os.path.join(self.sv_dir, "paths_sanitized_train_A.txt"),
         )
         if self.opt.phase == "train" and self.opt.train_compute_D_accuracy:
-            self.A_img_paths_val, self.A_label_paths_val = sanitize_paths(
+            self.A_img_paths_val, self.A_label_mask_paths_val = sanitize_paths(
                 self.A_img_paths_val,
-                self.A_label_paths_val,
+                self.A_label_mask_paths_val,
                 mask_delta=self.opt.data_online_creation_mask_delta_A,
                 crop_delta=self.opt.data_online_creation_crop_delta_A,
                 mask_square=self.opt.data_online_creation_mask_square_A,
@@ -165,13 +167,13 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             )
             write_paths_file(
                 self.A_img_paths_val,
-                self.A_label_paths_val,
+                self.A_label_mask_paths_val,
                 os.path.join(self.sv_dir, "paths_sanitized_validation_A.txt"),
             )
         print("--- DOMAIN B ---")
-        self.B_img_paths, self.B_label_paths = sanitize_paths(
+        self.B_img_paths, self.B_label_mask_paths = sanitize_paths(
             self.B_img_paths,
-            self.B_label_paths,
+            self.B_label_mask_paths,
             mask_delta=self.opt.data_online_creation_mask_delta_B,
             crop_delta=self.opt.data_online_creation_crop_delta_B,
             mask_square=self.opt.data_online_creation_mask_square_B,
@@ -183,13 +185,13 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         )
         write_paths_file(
             self.B_img_paths,
-            self.B_label_paths,
+            self.B_label_mask_paths,
             os.path.join(self.sv_dir, "paths_sanitized_train_B.txt"),
         )
         if self.opt.phase == "train" and self.opt.train_compute_D_accuracy:
-            self.B_img_paths_val, self.B_label_paths_val = sanitize_paths(
+            self.B_img_paths_val, self.B_label_mask_paths_val = sanitize_paths(
                 self.B_img_paths_val,
-                self.B_label_paths_val,
+                self.B_label_mask_paths_val,
                 mask_delta=self.opt.data_online_creation_mask_delta_B,
                 crop_delta=self.opt.data_online_creation_crop_delta_B,
                 mask_square=self.opt.data_online_creation_mask_square_B,
@@ -201,18 +203,25 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             )
             write_paths_file(
                 self.B_img_paths_val,
-                self.B_label_paths_val,
+                self.B_label_mask_paths_val,
                 os.path.join(self.sv_dir, "paths_sanitized_validation_B.txt"),
             )
         print("--------------")
 
     def get_img(
-        self, A_img_path, A_label_path, B_img_path=None, B_label_path=None, index=None
+        self,
+        A_img_path,
+        A_label_mask_path,
+        A_label_cls,
+        B_img_path=None,
+        B_label_mask_path=None,
+        B_label_cls=None,
+        index=None,
     ):
         try:
-            A_img, A_label = crop_image(
+            A_img, A_label_mask = crop_image(
                 A_img_path,
-                A_label_path,
+                A_label_mask_path,
                 mask_delta=self.opt.data_online_creation_mask_delta_A,
                 crop_delta=self.opt.data_online_creation_crop_delta_A,
                 mask_square=self.opt.data_online_creation_mask_square_A,
@@ -226,23 +235,23 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             print(e, "domain A data loading")
             return None
 
-        A, A_label = self.transform(A_img, A_label)
+        A, A_label_mask = self.transform(A_img, A_label_mask)
 
-        if torch.any(A_label > self.semantic_nclasses - 1):
+        if torch.any(A_label_mask > self.semantic_nclasses - 1):
             warnings.warn(
-                f"A label is above number of semantic classes for img {A_img_path} and label {A_label_path}, label is clamped to have only {self.semantic_nclasses} classes."
+                f"A label is above number of semantic classes for img {A_img_path} and label {A_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
             )
-            A_label = torch.clamp(A_label, max=self.semantic_nclasses - 1)
+            A_label_mask = torch.clamp(A_label_mask, max=self.semantic_nclasses - 1)
 
         if self.opt.f_s_all_classes_as_one:
-            A_label = (A_label >= 1) * 1
+            A_label_mask = (A_label_mask >= 1) * 1
 
         if B_img_path is not None:
             try:
-                if B_label_path is not None:
-                    B_img, B_label = crop_image(
+                if B_label_mask_path is not None:
+                    B_img, B_label_mask = crop_image(
                         B_img_path,
-                        B_label_path,
+                        B_label_mask_path,
                         mask_delta=self.opt.data_online_creation_mask_delta_B,
                         crop_delta=self.opt.data_online_creation_crop_delta_B,
                         mask_square=self.opt.data_online_creation_mask_square_B,
@@ -251,20 +260,23 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         context_pixels=self.opt.data_online_context_pixels,
                         load_size=self.opt.data_online_creation_load_size_B,
                     )
-                    B, B_label = self.transform(B_img, B_label)
-                    if torch.any(B_label > self.semantic_nclasses - 1):
+                    B, B_label_mask = self.transform(B_img, B_label_mask)
+
+                    if torch.any(B_label_mask > self.semantic_nclasses - 1):
                         warnings.warn(
-                            f"A label is above number of semantic classes for img {B_img_path} and label {B_label_path}, label is clamped to have only {self.semantic_nclasses} classes."
+                            f"A label is above number of semantic classes for img {B_img_path} and label {B_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
                         )
-                        B_label = torch.clamp(B_label, max=self.semantic_nclasses - 1)
+                        B_label_mask = torch.clamp(
+                            B_label_mask, max=self.semantic_nclasses - 1
+                        )
 
                     if self.opt.f_s_all_classes_as_one:
-                        B_label = (B_label >= 1) * 1
+                        B_label_mask = (B_label_mask >= 1) * 1
 
                 else:
                     B_img = Image.open(B_img_path).convert("RGB")
                     B = self.transform_noseg(B_img)
-                    B_label = []
+                    B_label_mask = []
 
             except Exception as e:
                 print(e, "domain B data loading")
@@ -275,11 +287,11 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 "B": B,
                 "A_img_paths": A_img_path,
                 "B_img_paths": B_img_path,
-                "A_label": A_label,
-                "B_label": B_label,
+                "A_label_mask": A_label_mask,
+                "B_label_mask": B_label_mask,
             }
         else:
-            return {"A": A, "A_img_paths": A_img_path, "A_label": A_label}
+            return {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask}
 
     def __len__(self):
         """Return the total number of images in the dataset.

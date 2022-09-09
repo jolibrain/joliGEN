@@ -10,7 +10,7 @@ import math
 
 
 class Classifier(nn.Module):
-    def __init__(self, input_nc, ndf, nclasses, img_size, norm_layer=nn.SyncBatchNorm):
+    def __init__(self, input_nc, ndf, nclasses, img_size, norm_layer=nn.BatchNorm2d):
         super(Classifier, self).__init__()
 
         kw = 3
