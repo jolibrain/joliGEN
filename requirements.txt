@@ -5,7 +5,7 @@ numpy==1.21
 Pillow==8.4.0
 torchvision==0.13.1+cu113
 timm==0.5.4
-mmsegmentation==0.22.1
+mmsegmentation
 mmcv-full
 visdom==0.1.8.9
 torchviz
