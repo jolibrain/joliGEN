@@ -120,8 +120,8 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_crop_size_B | int | 512 | crop to this size during online creation, it needs to be greater than bbox size for domain B |
 | --data_online_creation_load_size_A | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
-| --data_online_creation_mask_delta_A | int | 0 | mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain A |
-| --data_online_creation_mask_delta_B | int | 0 | mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B |
+| --data_online_creation_mask_delta_A | int | 0 | mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A |
+| --data_online_creation_mask_delta_B | int | 0 | mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain B |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
 | --data_online_creation_mask_square_B | flag |  | whether masks should be squared for domain B |
 

@@ -490,7 +490,7 @@ class BaseOptions:
             "--data_online_creation_mask_delta_A",
             type=int,
             default=0,
-            help="mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain A",
+            help="mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A",
         )
         parser.add_argument(
             "--data_online_creation_mask_square_A",
