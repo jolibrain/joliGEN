@@ -191,6 +191,7 @@ Here are all the available options to call with `train.py`
 | --train_continue | flag |  | continue training: load the latest model |
 | --train_epoch | string | latest | which epoch to load? set to latest to use latest cached model |
 | --train_epoch_count | int | 1 | the starting epoch count, we save the model by \<epoch_count\>, \<epoch_count\>+\<save_latest_freq\>, ... |
+| --train_export_jit | flag |  | whether to export model in jit format |
 | --train_fid_every | int | 1000 |  |
 | --train_gan_mode | string | lsgan | the type of GAN objective. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.<br/><br/>_**Values:** vanilla, lsgan, wgangp, projected_ |
 | --train_iter_size | int | 1 | backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size\*iter_size |
