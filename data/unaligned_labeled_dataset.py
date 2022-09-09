@@ -73,7 +73,14 @@ class UnalignedLabeledDataset(BaseDataset):
         self.semantic_nclasses = self.opt.f_s_semantic_nclasses
 
     def get_img(
-        self, A_img_path, A_label_path, B_img_path=None, B_label_path=None, index=None
+        self,
+        A_img_path,
+        A_label_mask_path,
+        A_label_cls,
+        B_img_path,
+        B_label_mask_path,
+        B_label_cls,
+        index,
     ):
         A_img = Image.open(A_img_path).convert("RGB")
         B_img = Image.open(B_img_path).convert("RGB")
@@ -89,7 +96,7 @@ class UnalignedLabeledDataset(BaseDataset):
             A_label = self.semantic_nclasses - 1
 
         if hasattr(self, "B_label"):
-            B_label = self.B_label[index_B]
+            B_label = self.B_label[index % self.B_size]
             if B_label > self.semantic_nclasses - 1:
                 warnings.warn(
                     "A label is above number of semantic classes for img %s"
@@ -102,8 +109,8 @@ class UnalignedLabeledDataset(BaseDataset):
                 "B": B,
                 "A_img_paths": A_img_path,
                 "B_paths": B_img_path,
-                "A_label": A_label,
-                "B_label": B_label,
+                "A_label_cls": A_label,
+                "B_label_cls": B_label,
             }
 
         return {
@@ -111,7 +118,7 @@ class UnalignedLabeledDataset(BaseDataset):
             "B": B,
             "A_img_paths": A_img_path,
             "B_paths": B_img_path,
-            "A_label": A_label,
+            "A_label_cls": A_label,
         }
 
     def __len__(self):

@@ -7,6 +7,9 @@ from . import networks
 from .modules.utils import get_scheduler
 from torchviz import make_dot
 
+
+from util.network_group import NetworkGroup
+
 # for FID
 from data.base_dataset import get_transform
 from .modules.fid.pytorch_fid.fid_score import (
@@ -271,6 +274,160 @@ class BaseModel(ABC):
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
 
+        self.backward_functions_G = ["compute_G_loss_GAN"]
+        self.forward_functions = ["forward_GAN"]
+
+        if self.opt.train_semantic_mask:
+            self.backward_functions_G.append("compute_G_loss_semantic_mask")
+            self.forward_functions.append("forward_semantic_mask")
+
+        if self.opt.train_semantic_cls:
+            self.backward_functions_G.append("compute_G_loss_semantic_cls")
+            self.forward_functions.append("forward_semantic_cls")
+
+    def init_semantic_cls(self, opt):
+
+        # specify the training losses you want to print out.
+        # The training/test scripts will call <BaseModel.get_current_losses>
+
+        losses_G = ["G_sem_cls_AB"]
+
+        if hasattr(self, "fake_A"):
+            losses_G.append("G_sem_cls_BA")
+
+        losses_CLS = ["CLS"]
+
+        self.loss_names_G += losses_G
+        self.loss_names_CLS = losses_CLS
+        self.loss_names += losses_G + losses_CLS
+
+        # define network CLS
+        if self.isTrain:
+            self.netCLS = networks.define_C(**vars(opt))
+
+            self.model_names += ["CLS"]
+
+            # define loss functions
+            self.criterionCLS = torch.nn.modules.CrossEntropyLoss()
+
+            self.optimizer_CLS = opt.optim(
+                opt,
+                self.netCLS.parameters(),
+                lr=opt.train_sem_lr_f_s,
+                betas=(opt.train_beta1, opt.train_beta2),
+            )
+
+            if opt.train_cls_regression:
+                if opt.train_cls_l1_regression:
+                    self.criterionCLS = torch.nn.L1Loss()
+                else:
+                    self.criterionCLS = torch.nn.modules.MSELoss()
+            else:
+                self.criterionCLS = torch.nn.modules.CrossEntropyLoss()
+
+            self.optimizers.append(self.optimizer_CLS)
+
+            ###Making groups
+            self.group_CLS = NetworkGroup(
+                networks_to_optimize=["CLS"],
+                forward_functions=None,
+                backward_functions=["compute_CLS_loss"],
+                loss_names_list=["loss_names_CLS"],
+                optimizer=["optimizer_CLS"],
+                loss_backward=["loss_CLS"],
+            )
+            self.networks_groups.append(self.group_CLS)
+
+    def init_semantic_mask(self, opt):
+
+        # specify the training losses you want to print out.
+        # The training/test scripts will call <BaseModel.get_current_losses>
+        losses_G = ["G_sem_mask_AB"]
+
+        if hasattr(self, "fake_A"):
+            losses_G += ["G_sem_mask_BA"]
+
+        if self.opt.train_sem_idt:
+            losses_G += ["G_sem_mask_idt_B"]
+            if hasattr(self, "fake_A"):
+                losses_G += ["G_sem_mask_idt_A"]
+
+        if opt.train_mask_out_mask:
+            losses_G += ["G_out_mask_AB"]
+            if hasattr(self, "fake_A"):
+                losses_G += ["G_out_mask_BA"]
+
+        losses_f_s = ["f_s"]
+
+        self.loss_names_G += losses_G
+        self.loss_names_f_s = losses_f_s
+
+        self.loss_names += losses_G + losses_f_s
+
+        # define networks (both generator and discriminator)
+        if self.isTrain:
+            networks_f_s = []
+            if self.opt.train_mask_disjoint_f_s:
+                self.opt.train_f_s_B = True
+
+                self.netf_s_A = networks.define_f(**vars(opt))
+                networks_f_s.append("f_s_A")
+
+                self.netf_s_B = networks.define_f(**vars(opt))
+                networks_f_s.append("f_s_B")
+            else:
+                self.netf_s = networks.define_f(**vars(opt))
+                networks_f_s.append("f_s")
+
+            self.model_names += networks_f_s
+
+            # define loss functions
+            tweights = None
+            if opt.f_s_class_weights:
+                print("Using f_s class weights=", opt.f_s_class_weights)
+                tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
+            self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
+
+            if opt.train_mask_out_mask:
+                if opt.train_mask_loss_out_mask == "L1":
+                    self.criterionMask = torch.nn.L1Loss()
+                elif opt.train_mask_loss_out_mask == "MSE":
+                    self.criterionMask = torch.nn.MSELoss()
+                elif opt.train_mask_loss_out_mask == "Charbonnier":
+                    self.criterionMask = L1_Charbonnier_loss(
+                        opt.train_mask_charbonnier_eps
+                    )
+
+            if self.opt.train_mask_disjoint_f_s:
+                self.optimizer_f_s = opt.optim(
+                    opt,
+                    itertools.chain(
+                        self.netf_s_A.parameters(), self.netf_s_B.parameters()
+                    ),
+                    lr=opt.train_sem_lr_f_s,
+                    betas=(opt.train_beta1, opt.train_beta2),
+                )
+            else:
+                self.optimizer_f_s = opt.optim(
+                    opt,
+                    self.netf_s.parameters(),
+                    lr=opt.train_sem_lr_f_s,
+                    betas=(opt.train_beta1, opt.train_beta2),
+                )
+
+            self.optimizers.append(self.optimizer_f_s)
+
+            ###Making groups
+            self.group_f_s = NetworkGroup(
+                networks_to_optimize=networks_f_s,
+                forward_functions=None,
+                backward_functions=["compute_f_s_loss"],
+                loss_names_list=["loss_names_f_s"],
+                optimizer=["optimizer_f_s"],
+                loss_backward=["loss_f_s"],
+            )
+            self.networks_groups.append(self.group_f_s)
+
     @staticmethod
     def modify_commandline_options(parser, is_train):
         """Add new model-specific options, and rewrite default values for existing options.
@@ -322,6 +479,48 @@ class BaseModel(ABC):
         )
 
         self.image_paths = input["A_img_paths"]
+
+        if self.opt.train_semantic_mask:
+            self.set_input_semantic_mask(input)
+        if self.opt.train_semantic_cls:
+            self.set_input_semantic_cls(input)
+
+    def set_input_semantic_mask(self, input):
+        if "A_label_mask" in input:
+            self.input_A_label_mask = input["A_label_mask"].to(self.device).squeeze(1)
+
+            if self.opt.data_online_context_pixels > 0:
+                self.input_A_label_mask = self.input_A_label_mask[
+                    :,
+                    self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                ]
+
+        if "B_label_mask" in input:
+            self.input_B_label_mask = input["B_label_mask"].to(self.device).squeeze(1)
+
+            if self.opt.data_online_context_pixels > 0:
+                self.input_B_label_mask = self.input_B_label_mask[
+                    :,
+                    self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
+                ]
+
+    def set_input_semantic_cls(self, input):
+        if "A_label_cls" in input:
+            if not self.opt.train_cls_regression:
+                self.input_A_label_cls = input["A_label_cls"].to(self.device)
+            else:
+                self.input_A_label_cls = (
+                    input["A_label_cls"].to(torch.float).to(device=self.device)
+                )
+        if "B_label_cls" in input:
+            if not self.opt.train_cls_regression:
+                self.input_B_label_cls = input["B_label_cls"].to(self.device)
+            else:
+                self.input_B_label_cls = (
+                    input["B_label_cls"].to(torch.float).to(device=self.device)
+                )
 
     def set_input_temporal(self, input_temporal):
 
@@ -428,6 +627,10 @@ class BaseModel(ABC):
                 )
 
     def forward(self):
+        for forward_function in self.forward_functions:
+            getattr(self, forward_function)()
+
+    def forward_GAN(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.real_A_pool.query(self.real_A)
         self.real_B_pool.query(self.real_B)
@@ -1170,11 +1373,13 @@ class BaseModel(ABC):
         return loss
 
     def compute_G_loss(self):
+        self.loss_G_tot = 0
+        for backward_function in self.backward_functions_G:
+            getattr(self, backward_function)()
+
+    def compute_G_loss_GAN(self):
         """Calculate GAN losses for generator(s)"""
 
-        self.loss_G_tot = 0
-
-        # GAN losses
         for discriminator in self.discriminators:
             if self.niter % discriminator.compute_every == 0:
                 domain = discriminator.name.split("_")[1]
@@ -1387,16 +1592,18 @@ class BaseModel(ABC):
 
     def compute_miou(self):
         self.miou_real_A = self.compute_miou_f_s_generic(
-            self.gt_pred_real_A, self.input_A_label
+            self.gt_pred_f_s_real_A, self.input_A_label_mask
         )
         self.miou_real_B = self.compute_miou_f_s_generic(
-            self.gt_pred_real_B, self.input_B_label
+            self.gt_pred_f_s_real_B, self.input_B_label_mask
         )
 
-        self.miou_fake_B = self.compute_miou_f_s_generic(self.pfB, self.input_A_label)
+        self.miou_fake_B = self.compute_miou_f_s_generic(
+            self.pfB, self.input_A_label_mask
+        )
         if hasattr(self, "fake_A"):
             self.miou_fake_A = self.compute_miou_f_s_generic(
-                self.pfA, self.input_B_label
+                self.pfA, self.input_B_label_mask
             )
 
     def get_current_miou(self):
@@ -1453,3 +1660,269 @@ class BaseModel(ABC):
         )
 
         return self.loss_G_temporal_criterion
+
+    def compute_f_s_loss(self):
+        """Calculate segmentation loss for f_s"""
+        self.loss_f_s = 0
+        if not self.opt.train_mask_no_train_f_s_A:
+            label_A = self.input_A_label_mask
+            # forward only real source image through semantic classifier
+            if self.opt.train_mask_disjoint_f_s:
+                f_s = self.netf_s_A
+            else:
+                f_s = self.netf_s
+
+            pred_A = f_s(self.real_A)
+            self.loss_f_s += self.criterionf_s(pred_A, label_A)  # .squeeze(1))
+
+        if self.opt.train_mask_f_s_B:
+            if self.opt.train_mask_disjoint_f_s:
+                f_s = self.netf_s_B
+            else:
+                f_s = self.netf_s
+            label_B = self.input_B_label_mask
+            pred_B = f_s(self.real_B)
+            self.loss_f_s += self.criterionf_s(pred_B, label_B)  # .squeeze(1))
+
+    def compute_CLS_loss(self):
+        """Calculate classif loss for cls"""
+        label_A = self.input_A_label_cls
+        # forward only real source image through semantic classifier
+        pred_A = self.netCLS(self.real_A)
+        if not self.opt.train_cls_regression:
+            self.loss_CLS = self.opt.train_sem_cls_lambda * self.criterionCLS(
+                pred_A, label_A
+            )
+        else:
+            self.loss_CLS = self.opt.train_sem_cls_lambda * self.criterionCLS(
+                pred_A.squeeze(1), label_A
+            )
+        if self.opt.train_sem_cls_B:
+            label_B = self.input_B_label_cls
+            pred_B = self.netCLS(self.real_B)
+            if not self.opt.train_cls_regression:
+                self.loss_CLS += self.opt.train_sem_cls_lambda * self.criterionCLS(
+                    pred_B, label_B
+                )
+            else:
+                self.loss_CLS += self.opt.train_sem_cls_lambda * self.criterionCLS(
+                    pred_B.squeeze(1), label_B
+                )
+
+    def compute_G_loss_semantic_cls_generic(self, domain_fake):
+        """Calculate semantic class loss for G"""
+
+        domain_real = "A" if domain_fake == "B" else "B"
+        direction = domain_real + domain_fake
+
+        if not self.opt.train_cls_regression:
+            loss_G_sem_cls = self.criterionCLS(
+                getattr(self, "pred_cls_fake_%s" % domain_fake),
+                getattr(self, "input_%s_label_cls" % domain_real),
+            )
+        else:
+            loss_G_sem_cls = self.criterionCLS(
+                getattr(self, "pred_cls_fake_%s" % domain_fake).squeeze(1),
+                getattr(self, "input_%s_label_cls" % domain_real),
+            )
+        if (
+            not hasattr(self, "loss_CLS")
+            or self.loss_CLS > self.opt.f_s_semantic_threshold
+        ):
+            loss_G_sem_cls = 0 * loss_G_sem_cls
+        loss_G_sem_cls *= self.opt.train_sem_cls_lambda
+
+        setattr(self, "loss_G_sem_cls_%s" % direction, loss_G_sem_cls)
+
+        self.loss_G_tot += loss_G_sem_cls
+
+    def compute_G_loss_semantic_cls(self):
+        self.compute_G_loss_semantic_cls_generic(domain_fake="B")
+        if hasattr(self, "fake_A"):
+            self.compute_G_loss_semantic_cls_generic(domain_fake="A")
+
+    def compute_G_loss_semantic_cls_old(self):
+        """Calculate semantic class loss for G"""
+
+        # semantic class loss AB
+        if not self.opt.train_cls_regression:
+            self.loss_G_sem_cls_AB = self.criterionCLS(
+                self.pred_cls_fake_B, self.input_A_label_cls
+            )
+        else:
+            self.loss_G_sem_cls_AB = self.criterionCLS(
+                self.pred_cls_fake_B.squeeze(1), self.input_A_label_cls
+            )
+        if (
+            not hasattr(self, "loss_CLS")
+            or self.loss_CLS > self.opt.f_s_semantic_threshold
+        ):
+            self.loss_G_sem_cls_AB = 0 * self.loss_G_sem_cls_AB
+        self.loss_G_sem_cls_AB *= self.opt.train_sem_cls_lambda
+        self.loss_G_tot += self.loss_G_sem_cls_AB
+
+        # semantic class loss BA
+        if hasattr(self, "fake_A"):
+            if not self.opt.train_cls_regression:
+                self.loss_G_sem_cls_BA = self.criterionCLS(
+                    self.pred_cls_fake_A, self.input_B_label_cls
+                )
+            else:
+                self.loss_G_sem_cls_BA = self.criterionCLS(
+                    self.pred_cls_fake_A.squeeze(1), self.input_B_label_cls
+                )
+            if (
+                not hasattr(self, "loss_CLS")
+                or self.loss_CLS > self.opt.f_s_semantic_threshold
+            ):
+                self.loss_G_sem_cls_BA = 0 * self.loss_G_sem_cls_BA
+            self.loss_G_sem_cls_BA *= self.opt.train_sem_cls_lambda
+            self.loss_G_tot += self.loss_G_sem_cls_BA
+
+    def compute_G_loss_semantic_mask(self):
+        self.compute_G_loss_semantic_mask_generic(domain_fake="B")
+
+        if hasattr(self, "fake_A"):
+            self.compute_G_loss_semantic_mask_generic(domain_fake="A")
+
+    def compute_G_loss_semantic_mask_generic(self, domain_fake):
+        """Calculate semantic mask loss for G"""
+
+        domain_real = "A" if domain_fake == "B" else "B"
+        direction = domain_real + domain_fake
+
+        if self.opt.train_mask_for_removal:
+            label_fake = torch.zeros_like(self.input_A_label_mask)
+        elif self.opt.train_sem_net_output:
+            label_fake = getattr(self, "gt_pred_f_s_real_%s_max" % domain_real)
+        else:
+            label_fake = getattr(self, "input_%s_label_mask" % domain_real)
+
+        loss_G_sem_mask = self.opt.train_sem_mask_lambda * self.criterionf_s(
+            getattr(self, "pred_f_s_fake_%s" % domain_fake), label_fake
+        )
+
+        if self.opt.train_sem_idt:
+            if self.opt.train_mask_for_removal:
+                label_idt = torch.zeros_like(self.input_A_label_mask)
+            elif self.opt.train_sem_net_output or not hasattr(
+                self, "input_%s_label_mask" % domain_fake
+            ):
+                label_idt = getattr(self, "gt_pred_f_s_real_%s_max" % domain_fake)
+            else:
+                label_idt = getattr(self, "input_%s_label_mask" % domain_fake)
+
+            loss_G_sem_mask_idt = self.opt.train_sem_mask_lambda * self.criterionf_s(
+                getattr(self, "pred_f_s_idt_%s" % domain_fake), label_idt
+            )
+
+        # Check if f_s is good enough
+        if (
+            not hasattr(self, "loss_f_s")
+            or self.loss_f_s > self.opt.f_s_semantic_threshold
+        ):
+            loss_G_sem_mask_ = 0 * loss_G_sem_mask
+            if self.opt.train_sem_idt:
+                loss_G_sem_mask_idt = 0 * loss_G_sem_mask_idt
+
+        setattr(self, "loss_G_sem_mask_%s" % direction, loss_G_sem_mask)
+
+        self.loss_G_tot += loss_G_sem_mask
+
+        if self.opt.train_sem_idt:
+            setattr(self, "loss_G_sem_mask_idt_%s" % domain_fake, loss_G_sem_mask_idt)
+            self.loss_G_tot += loss_G_sem_mask_idt
+
+        # Out mask loss
+        if hasattr(self, "criterionMask"):
+            loss_G_out_mask = (
+                self.criterionMask(
+                    getattr(self, "real_%s_out_mask" % domain_real),
+                    self.fake_B_out_mask,
+                )
+                * self.opt.train_mask_lambda_out_mask
+            )
+
+            setattr(self, "loss_G_out_mask_%s" % direction, loss_G_out_mask)
+
+            self.loss_G_tot += loss_G_out_mask
+
+    def forward_semantic_mask(self):
+        d = 1
+
+        if self.opt.train_mask_disjoint_f_s:
+            f_s = self.netf_s_A
+        else:
+            f_s = self.netf_s
+
+        self.pred_f_s_real_A = f_s(self.real_A)
+        self.gt_pred_f_s_real_A = F.log_softmax(self.pred_f_s_real_A, dim=d)
+        self.gt_pred_f_s_real_A_max = self.gt_pred_f_s_real_A.argmax(dim=d)
+
+        if self.opt.train_mask_disjoint_f_s:
+            f_s = self.netf_s_B
+        else:
+            f_s = self.netf_s
+
+        self.pred_f_s_real_B = f_s(self.real_B)
+        self.gt_pred_f_s_real_B = F.log_softmax(self.pred_f_s_real_B, dim=d)
+        self.gt_pred_f_s_real_B_max = self.gt_pred_f_s_real_B.argmax(dim=d)
+
+        self.pred_f_s_fake_B = f_s(self.fake_B)
+        self.pfB = F.log_softmax(self.pred_f_s_fake_B, dim=d)  # .argmax(dim=d)
+        self.pfB_max = self.pfB.argmax(dim=d)
+
+        # fake A
+        if hasattr(self, "fake_A"):
+            self.pred_f_s_fake_A = f_s(self.fake_A)
+            self.pfA = F.log_softmax(self.pred_f_s_fake_A, dim=d)
+            self.pfA_max = self.pfA.argmax(dim=d)
+
+        if self.opt.train_sem_idt:
+            self.pred_f_s_idt_B = f_s(self.idt_B)
+            self.pred_f_s_idt_B = F.log_softmax(self.pred_f_s_idt_B, dim=d)
+
+        if hasattr(self, "criterionMask"):
+            label_A = self.input_A_label_mask
+            label_A_in = label_A.unsqueeze(1)
+            label_A_inv = (
+                torch.tensor(np.ones(label_A.size())).to(self.device) - label_A > 0.5
+            )
+            label_A_inv = label_A_inv.unsqueeze(1)
+            self.real_A_out_mask = self.real_A * label_A_inv
+            self.fake_B_out_mask = self.fake_B * label_A_inv
+
+            if (
+                hasattr(self, "fake_A")
+                and hasattr(self, "input_B_label_mask")
+                and len(self.input_B_label_mask) > 0
+            ):
+
+                label_B = self.input_B_label_mask
+                label_B_in = label_B.unsqueeze(1)
+                label_B_inv = (
+                    torch.tensor(np.ones(label_B.size())).to(self.device) - label_B > 0
+                )
+                label_B_inv = label_B_inv.unsqueeze(1)
+
+                self.real_B_out_mask = self.real_B * label_B_inv
+                self.fake_A_out_mask = self.fake_A * label_B_inv
+
+    def forward_semantic_cls(self):
+        d = 1
+        self.pred_cls_real_A = self.netCLS(self.real_A)
+        if not self.opt.train_cls_regression:
+            _, self.gt_pred_cls_A = self.pred_cls_real_A.max(1)
+
+        self.pred_cls_fake_B = self.netCLS(self.fake_B)
+        if not self.opt.train_cls_regression:
+            _, self.pfB = self.pred_cls_fake_B.max(1)
+
+        if hasattr(self, "fake_A"):
+            self.pred_cls_real_B = self.netCLS(self.real_B)
+            if not self.opt.train_cls_regression:
+                _, self.gt_pred_cls_B = self.pred_cls_real_B.max(1)
+
+            self.pred_cls_fake_A = self.netCLS(self.fake_A)
+            if not self.opt.train_cls_regression:
+                _, self.pfB = self.pred_cls_fake_A.max(1)

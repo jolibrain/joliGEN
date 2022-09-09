@@ -85,12 +85,17 @@ def make_labeled_path_dataset(dir, paths, max_dataset_size=float("inf")):
 
     with open(dir + paths, "r") as f:
         paths_list = f.read().split("\n")
+
     for line in paths_list:
         line_split = line.split(" ")
 
         if len(line_split) == 2:
             images.append(line_split[0])
             labels.append(line_split[1])
+        if len(line_split) == 3:
+            images.append(line_split[0])
+            labels.append(line_split[1] + " " + line_split[2])
+
         elif (
             len(line_split) == 1 and len(line_split[0]) > 0
         ):  # we allow B not having a label

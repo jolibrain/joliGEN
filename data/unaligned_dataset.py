@@ -54,9 +54,18 @@ class UnalignedDataset(BaseDataset):
         self.transform_A = get_transform(self.opt, grayscale=(self.input_nc == 1))
         self.transform_B = get_transform(self.opt, grayscale=(self.output_nc == 1))
 
+        self.header = ["img"]
+
     # A_label_path and B_label_path are unused
     def get_img(
-        self, A_img_path, A_label_path, B_img_path=None, B_label_path=None, index=None
+        self,
+        A_img_path,
+        A_label_mask_path,
+        A_label_cls,
+        B_img_path,
+        B_label_mask_path,
+        B_label_cls,
+        index,
     ):
         A_img = Image.open(A_img_path).convert("RGB")
         B_img = Image.open(B_img_path).convert("RGB")

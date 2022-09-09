@@ -1,15 +1,22 @@
+import numpy as np
 import torch
-import itertools
+import torch.nn.functional as F
+
 from .base_model import BaseModel
 from . import networks
+
 from .modules import loss
+from .patchnce import PatchNCELoss
+
 from util.iter_calculator import IterCalculator
-from util.util import gaussian
 from util.network_group import NetworkGroup
-from util.discriminator import DiscriminatorInfo
+import util.util as util
+from util.util import gaussian
+
+import itertools
 
 
-class CycleGANModel(BaseModel):
+class CycleGanModel(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
 
@@ -23,24 +30,7 @@ class CycleGANModel(BaseModel):
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
-        """Add new dataset-specific options, and rewrite default values for existing options.
-
-        Parameters:
-            parser          -- original option parser
-            is_train (bool) -- whether training phase or test phase. You can use this flag to add training-specific or test-specific options.
-
-        Returns:
-            the modified parser.
-
-        For CycleGAN, in addition to GAN losses, we introduce lambda_A, lambda_B, and lambda_identity for the following losses.
-        A (source domain), B (target domain).
-        Generators: G_A: A -> B; G_B: B -> A.
-        Discriminators: D_A: G_A(A) vs. B; D_B: G_B(B) vs. A.
-        Forward cycle loss:  lambda_A * ||G_B(G_A(A)) - A|| (Eqn. (2) in the paper)
-        Backward cycle loss: lambda_B * ||G_A(G_B(B)) - B|| (Eqn. (2) in the paper)
-        Identity loss (optional): lambda_identity * (||G_A(B) - B|| * lambda_B + ||G_B(A) - A|| * lambda_A) (Sec 5.2 "Photo generation from paintings" in the paper)
-        Dropout is not used in the original CycleGAN paper.
-        """
+        """Configures options specific for cyclegan model"""
         parser.set_defaults(G_dropout=False)  # default CycleGAN did not use dropout
         if is_train:
             parser.add_argument(
@@ -70,14 +60,8 @@ class CycleGANModel(BaseModel):
         return parser
 
     def __init__(self, opt, rank):
-        """Initialize the CycleGAN class.
 
-        Parameters:
-            opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
-        """
-        super().__init__(opt, rank)
-
-        # Check
+        BaseModel.__init__(self, opt, rank)
 
         if opt.alg_cyclegan_lambda_identity > 0.0:
             # only works when input and output images have the same number of channels
@@ -104,6 +88,23 @@ class CycleGANModel(BaseModel):
 
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_B_fake_A", "diff_real_A_fake_B"])
+
+        if any("temporal" in D_name for D_name in self.opt.D_netDs):
+            visual_names_temporal_real_A = []
+            visual_names_temporal_real_B = []
+            visual_names_temporal_fake_B = []
+            visual_names_temporal_fake_A = []
+            for i in range(self.opt.D_temporal_number_frames):
+                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
+                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
+            for i in range(self.opt.D_temporal_number_frames):
+                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
+                visual_names_temporal_fake_A.append("temporal_fake_A_" + str(i))
+
+            self.visual_names.append(visual_names_temporal_real_A)
+            self.visual_names.append(visual_names_temporal_real_B)
+            self.visual_names.append(visual_names_temporal_fake_B)
+            self.visual_names.append(visual_names_temporal_fake_A)
 
         # Models names
 
@@ -201,28 +202,20 @@ class CycleGANModel(BaseModel):
 
             # Losses names
 
-            losses_G = []
+            losses_G = ["G_tot"]
 
             losses_G += ["G_cycle_A", "G_idt_A", "G_cycle_B", "G_idt_B"]
 
-            losses_D = []
+            losses_D = ["D_tot"]
 
             for discriminator in self.discriminators:
                 losses_G.append(discriminator.loss_name_G)
                 losses_D.append(discriminator.loss_name_D)
 
-            self.loss_names_G += losses_G
-            self.loss_names_D += losses_D
+            self.loss_names_G = losses_G
+            self.loss_names_D = losses_D
 
             self.loss_names = self.loss_names_G + self.loss_names_D
-
-            # Itercalculator
-
-            if self.opt.train_iter_size > 1:
-                self.iter_calculator = IterCalculator(self.loss_names)
-                for i, cur_loss in enumerate(self.loss_names):
-                    self.loss_names[i] = cur_loss + "_avg"
-                    setattr(self, "loss_" + self.loss_names[i], 0)
 
         if self.opt.data_online_context_pixels > 0:
             self.context_visual_names_A = [
@@ -240,9 +233,61 @@ class CycleGANModel(BaseModel):
             self.visual_names.append(self.context_visual_names_A)
             self.visual_names.append(self.context_visual_names_B)
 
-    def forward(self):
+        if self.opt.train_semantic_mask:
+            self.init_semantic_mask(opt)
+        if self.opt.train_semantic_cls:
+            self.init_semantic_cls(opt)
+
+        self.backward_functions_G.append("compute_G_loss_cycle_gan")
+        self.forward_functions.insert(1, "forward_cycle_gan")
+
+        # Itercalculator
+        if self.opt.train_iter_size > 1:
+            self.iter_calculator = IterCalculator(self.loss_names)
+            for i, cur_loss in enumerate(self.loss_names):
+                self.loss_names[i] = cur_loss + "_avg"
+                setattr(self, "loss_" + self.loss_names[i], 0)
+
+    def data_dependent_initialize(self, data):
+        self.set_input(data)
+        if hasattr(self, "fake_A"):
+            self.data_dependent_initialize_semantic_mask(data)
+
+    def data_dependent_initialize_semantic_mask(self, data):
+        # specify the images you want to save/display. The program will call base_model.get_current_visuals
+        visual_names_seg_A = ["input_A_label", "gt_pred_real_A_max", "pfB_max"]
+
+        if hasattr(self, "input_B_label"):
+            visual_names_seg_B = ["input_B_label"]
+        else:
+            visual_names_seg_B = []
+
+        visual_names_seg_B += ["gt_pred_real_B_max", "pfA_max"]
+
+        visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
+
+        visual_names_out_mask_B = ["real_B_out_mask", "fake_A_out_mask"]
+
+        visual_names_mask = ["fake_B_mask", "fake_A_mask"]
+
+        visual_names_mask_in = [
+            "real_B_mask",
+            "fake_B_mask",
+            "real_A_mask",
+            "fake_A_mask",
+            "real_B_mask_in",
+            "fake_B_mask_in",
+            "real_A_mask_in",
+            "fake_A_mask_in",
+        ]
+
+        self.visual_names += [visual_names_seg_A, visual_names_seg_B]
+
+        if self.opt.train_mask_out_mask:
+            self.visual_names += [visual_names_out_mask_A, visual_names_out_mask_B]
+
+    def forward_cycle_gan(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        super().forward()
 
         ### Fake B
 
@@ -294,10 +339,8 @@ class CycleGANModel(BaseModel):
         self.diff_real_B_fake_A = self.real_B - self.fake_A
         self.diff_real_A_fake_B = self.real_A - self.fake_B
 
-    def compute_G_loss(self):
+    def compute_G_loss_cycle_gan(self):
         """Calculate the loss for generators G_A and G_B"""
-
-        super().compute_G_loss()
 
         lambda_idt = self.opt.alg_cyclegan_lambda_identity
         lambda_A = self.opt.alg_cyclegan_lambda_A

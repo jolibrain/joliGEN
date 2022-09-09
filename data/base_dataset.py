@@ -69,7 +69,7 @@ class BaseDataset(data.Dataset, ABC):
             B (tensor)       -- its corresponding image in the target domain
             A_paths (str)    -- image paths
             B_paths (str)    -- image paths
-            A_label (tensor) -- mask label of image A
+            A_label_mask (tensor) -- mask label of image A
         """
         if not self.warning_mode:
             warnings.simplefilter("ignore")
@@ -77,10 +77,15 @@ class BaseDataset(data.Dataset, ABC):
         A_img_path = self.A_img_paths[
             index % self.A_size
         ]  # make sure index is within then range
-        if hasattr(self, "A_label_paths"):
-            A_label_path = self.A_label_paths[index % self.A_size]
+        if hasattr(self, "A_label_mask_paths"):
+            A_label_mask_path = self.A_label_mask_paths[index % self.A_size]
         else:
-            A_label_path = None
+            A_label_mask_path = None
+
+        if hasattr(self, "A_label_cls"):
+            A_label_cls = self.A_label_cls[index % self.A_size]
+        else:
+            A_label_cls = None
 
         if hasattr(self, "B_img_paths"):
             if self.opt.data_serial_batches:  # make sure index is within then range
@@ -91,23 +96,38 @@ class BaseDataset(data.Dataset, ABC):
             B_img_path = self.B_img_paths[index_B]
 
             if (
-                hasattr(self, "B_label_paths") and len(self.B_label_paths) > 0
+                hasattr(self, "B_label_mask_paths") and len(self.B_label_mask_paths) > 0
             ):  # B label is optional
-                B_label_path = self.B_label_paths[index_B]
+                B_label_mask_path = self.B_label_mask_paths[index_B]
             else:
-                B_label_path = None
+                B_label_mask_path = None
+
+            if (
+                hasattr(self, "B_label_cls") and len(self.B_label_cls) > 0
+            ):  # B label is optional
+                B_label_cls = self.B_label_cls[index_B]
+            else:
+                B_label_cls = None
         else:
             B_img_path = None
 
         if self.opt.data_relative_paths:
             A_img_path = os.path.join(self.root, A_img_path)
-            if A_label_path is not None:
-                A_label_path = os.path.join(self.root, A_label_path)
+            if A_label_mask_path is not None:
+                A_label_mask_path = os.path.join(self.root, A_label_mask_path)
             B_img_path = os.path.join(self.root, B_img_path)
-            if B_label_path is not None:
-                B_label_path = os.path.join(self.root, B_label_path)
+            if B_label_mask_path is not None:
+                B_label_mask_path = os.path.join(self.root, B_label_mask_path)
 
-        return self.get_img(A_img_path, A_label_path, B_img_path, B_label_path, index)
+        return self.get_img(
+            A_img_path,
+            A_label_mask_path,
+            A_label_cls,
+            B_img_path,
+            B_label_mask_path,
+            B_label_cls,
+            index,
+        )
 
     def set_dataset_dirs_and_dims(self):
         btoA = self.opt.data_direction == "BtoA"
@@ -136,23 +156,43 @@ class BaseDataset(data.Dataset, ABC):
     def get_validation_set(self, size):
         return_A_list = []
         return_B_list = []
-        if not hasattr(self, "A_label_paths_val"):
-            A_label_paths_val = [None for k in range(size)]
+        if not hasattr(self, "A_label_mask_paths_val"):
+            A_label_mask_paths_val = [None for k in range(size)]
         else:
-            A_label_paths_val = self.A_label_paths_val
+            A_label_mask_paths_val = self.A_label_mask_paths_val
+
+        if not hasattr(self, "A_label_cls_val"):
+            A_label_cls_val = [None for k in range(size)]
+        else:
+            A_label_cls_val = self.A_label_cls_val
+
         if not hasattr(self, "B_img_paths_val"):
             self.B_img_paths_val = [None for k in range(size)]
-        if not hasattr(self, "B_label_paths_val"):
-            B_label_paths_val = [None for k in range(size)]
+        if not hasattr(self, "B_label_mask_paths_val"):
+            B_label_mask_paths_val = [None for k in range(size)]
         else:
-            B_label_paths_val = self.B_label_paths_val
+            B_label_mask_paths_val = self.B_label_mask_paths_val
 
-        for index, (A_img_path, A_label_path, B_img_path, B_label_path) in enumerate(
+        if not hasattr(self, "B_label_cls_val"):
+            B_label_cls_val = [None for k in range(size)]
+        else:
+            B_label_cls_val = self.B_label_cls_val
+
+        for index, (
+            A_img_path,
+            A_label_mask_path,
+            A_label_cls,
+            B_img_path,
+            B_label_mask_path,
+            B_label_cls,
+        ) in enumerate(
             zip(
                 self.A_img_paths_val,
-                A_label_paths_val,
+                A_label_mask_paths_val,
+                A_label_cls_val,
                 self.B_img_paths_val,
-                B_label_paths_val,
+                B_label_mask_paths_val,
+                B_label_cls_val,
             )
         ):
             if len(return_A_list) >= size:
@@ -160,14 +200,20 @@ class BaseDataset(data.Dataset, ABC):
 
             if self.opt.data_relative_paths:
                 A_img_path = os.path.join(self.root, A_img_path)
-                if A_label_path is not None:
-                    A_label_path = os.path.join(self.root, A_label_path)
+                if A_label_mask_path is not None:
+                    A_label_mask_path = os.path.join(self.root, A_label_mask_path)
                 B_img_path = os.path.join(self.root, B_img_path)
-                if B_label_path is not None:
-                    B_label_path = os.path.join(self.root, B_label_path)
+                if B_label_mask_path is not None:
+                    B_label_mask_path = os.path.join(self.root, B_label_mask_path)
 
             images = self.get_img(
-                A_img_path, A_label_path, B_img_path, B_label_path, index
+                A_img_path,
+                A_label_mask_path,
+                A_label_cls,
+                B_img_path,
+                B_label_mask_path,
+                B_label_cls,
+                index,
             )
             if images is not None:
                 return_A_list.append(images["A"].unsqueeze(0))
