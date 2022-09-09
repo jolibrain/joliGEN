@@ -190,11 +190,14 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                         "saving the latest model (epoch %d, total_iters %d)"
                         % (epoch, total_iters)
                     )
-                    save_suffix = (
-                        "iter_%d" % total_iters if opt.train_save_by_iter else "latest"
-                    )
-                    model.save_networks(save_suffix)
-                    model.export_networks(save_suffix)
+
+                    model.save_networks("latest")
+                    model.export_networks("latest")
+
+                    if opt.train_save_by_iter:
+                        save_suffix = "iter_%d" % total_iters
+                        model.save_networks(save_suffix)
+                        model.export_networks(save_suffix)
 
                 if (
                     total_iters % opt.train_fid_every < batch_size
