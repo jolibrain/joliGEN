@@ -6,10 +6,19 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --checkpoints_dir | string | ./checkpoints | models are saved here |
+| --cls_all_classes_as_one | flag |  | if true, all classes will be considered as the same one (ie foreground vs background) |
+| --cls_class_weights | string | None | class weights for imbalanced semantic classes |
+| --cls_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file for cls |
+| --cls_dropout | flag |  | dropout for the semantic network |
+| --cls_net | string | vgg | specify cls network [vgg|unet|segformer]<br/><br/>_**Values:** vgg, unet, segformer_ |
+| --cls_nf | int | 64 | \# of filters in the first conv layer of classifier |
+| --cls_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
+| --cls_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
+| --cls_weight_segformer | string |  | path to segformer weight for cls, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth |
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
-| --model_type | string | cut | chooses which model to use.<br/><br/>_**Values:** cycle_gan, cut, cycle_gan_semantic, cut_semantic, cycle_gan_semantic_mask, cut_semantic_mask_ |
+| --model_type | string | cut | chooses which model to use.<br/><br/>_**Values:** cut, cycle_gan_ |
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
@@ -99,7 +108,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled, unaligned_labeled_mask, unaligned_labeled_mask_online, aligned_ |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled, unaligned_labeled_mask, unaligned_labeled_mask_cls, unaligned_labeled_mask_online, unaligned_labeled_mask_cls_online, aligned_ |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/>_**Values:** AtoB, BtoA_ |
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
@@ -185,6 +194,8 @@ Here are all the available options to call with `train.py`
 | --train_batch_size | int | 1 | input batch size |
 | --train_beta1 | float | 0.9 | momentum term of adam |
 | --train_beta2 | float | 0.999 | momentum term of adam |
+| --train_cls_l1_regression | flag |  | if true l1 loss will be used to compute regressor loss |
+| --train_cls_regression | flag |  | if true cls will be a regressor and not a classifier |
 | --train_compute_D_accuracy | flag |  |  |
 | --train_compute_fid | flag |  |  |
 | --train_compute_fid_val | flag |  |  |
@@ -208,6 +219,8 @@ Here are all the available options to call with `train.py`
 | --train_save_by_iter | flag |  | whether saves model by iteration |
 | --train_save_epoch_freq | int | 1 | frequency of saving checkpoints at the end of epochs |
 | --train_save_latest_freq | int | 5000 | frequency of saving the latest results |
+| --train_semantic_cls | flag |  | if true semantic class losses will be used |
+| --train_semantic_mask | flag |  | if true semantic mask losses will be used |
 | --train_temporal_criterion | flag |  | if true, MSE loss will be computed between successive frames |
 | --train_temporal_criterion_lambda | float | 1.0 | lambda for MSE loss that will be computed between successive frames |
 | --train_use_contrastive_loss_D | flag |  |  |
@@ -217,14 +230,14 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --train_sem_cls_B | flag |  | if true cls will be trained not only on domain A but also on domain B |
+| --train_sem_cls_lambda | float | 1.0 | weight for semantic class loss |
 | --train_sem_cls_pretrained | flag |  | whether to use a pretrained model, available for non "basic" model only |
 | --train_sem_cls_template | string | basic | classifier/regressor model type, from torchvision (resnet18, ...), default is custom simple model |
 | --train_sem_idt | flag |  | if true apply semantic loss on identity |
-| --train_sem_l1_regression | flag |  | if true l1 loss will be used to compute regressor loss |
-| --train_sem_lambda | float | 1.0 | weight for semantic loss |
+| --train_sem_lr_cls | float | 0.0002 | cls learning rate |
 | --train_sem_lr_f_s | float | 0.0002 | f_s learning rate |
+| --train_sem_mask_lambda | float | 1.0 | weight for semantic mask loss |
 | --train_sem_net_output | flag |  | if true apply generator semantic loss on network output for real image rather than on label. |
-| --train_sem_regression | flag |  | if true cls will be a regressor and not a classifier |
 | --train_sem_use_label_B | flag |  | if true domain B has labels too |
 
 ### Semantic training with masks
