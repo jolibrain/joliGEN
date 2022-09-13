@@ -57,6 +57,8 @@ class BaseModel(ABC):
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
+        self.with_amp = opt.with_amp
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.with_amp)
         if hasattr(opt, "fs_light"):
             self.fs_light = opt.fs_light
         self.device = torch.device(
@@ -274,15 +276,15 @@ class BaseModel(ABC):
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
 
-        self.backward_functions_G = ["compute_G_loss_GAN"]
+        self.loss_functions_G = ["compute_G_loss_GAN"]
         self.forward_functions = ["forward_GAN"]
 
         if self.opt.train_semantic_mask:
-            self.backward_functions_G.append("compute_G_loss_semantic_mask")
+            self.loss_functions_G.append("compute_G_loss_semantic_mask")
             self.forward_functions.append("forward_semantic_mask")
 
         if self.opt.train_semantic_cls:
-            self.backward_functions_G.append("compute_G_loss_semantic_cls")
+            self.loss_functions_G.append("compute_G_loss_semantic_cls")
             self.forward_functions.append("forward_semantic_cls")
 
     def init_semantic_cls(self, opt):
@@ -1198,7 +1200,8 @@ class BaseModel(ABC):
 
         if self.niter % self.opt.train_iter_size == 0:
             for optimizer in optimizers:
-                optimizer.step()
+                self.scaler.step(optimizer)
+                self.scaler.update()
                 optimizer.zero_grad()
             if self.opt.train_iter_size > 1:
                 self.iter_calculator.compute_last_step(loss_names)
@@ -1240,16 +1243,17 @@ class BaseModel(ABC):
                     self.set_requires_grad(getattr(self, "net" + network), False)
 
             if not group.forward_functions is None:
-                for forward in group.forward_functions:
-                    getattr(self, forward)()
+                with torch.cuda.amp.autocast(enabled=self.with_amp):
+                    for forward in group.forward_functions:
+                        getattr(self, forward)()
 
             for backward in group.backward_functions:
                 getattr(self, backward)()
 
             for loss in group.loss_backward:
-                (getattr(self, loss) / self.opt.train_iter_size).backward(
-                    retain_graph=True
-                )
+                (
+                    self.scaler.scale(getattr(self, loss)) / self.opt.train_iter_size
+                ).backward(retain_graph=True)
 
             loss_names = []
 
@@ -1374,8 +1378,9 @@ class BaseModel(ABC):
 
     def compute_G_loss(self):
         self.loss_G_tot = 0
-        for backward_function in self.backward_functions_G:
-            getattr(self, backward_function)()
+        for loss_function in self.loss_functions_G:
+            with torch.cuda.amp.autocast(enabled=self.with_amp):
+                getattr(self, loss_function)()
 
     def compute_G_loss_GAN(self):
         """Calculate GAN losses for generator(s)"""
