@@ -312,7 +312,7 @@ class CUTModel(BaseModel):
         if self.opt.train_semantic_cls:
             self.init_semantic_cls(opt)
 
-        self.backward_functions_G.append("compute_G_loss_cut")
+        self.loss_functions_G.append("compute_G_loss_cut")
         self.forward_functions.insert(1, "forward_cut")
 
         # Itercalculator

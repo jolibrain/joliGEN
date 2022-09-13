@@ -90,6 +90,11 @@ class BaseOptions:
             help="gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU",
         )
         parser.add_argument(
+            "--with_amp",
+            action="store_true",
+            help="whether to activate torch amp on forward passes",
+        )
+        parser.add_argument(
             "--checkpoints_dir",
             type=str,
             default="./checkpoints",
