@@ -70,3 +70,8 @@ def test_semantic_mask(dataroot):
                     json_like_dict_c["f_s_net"] = f_s_type
                     opt = TrainOptions().parse_json(json_like_dict_c)
                     train.launch_training(opt)
+
+    json_like_dict_c = json_like_dict.copy()
+    json_like_dict_c["D_netDs"].remove("temporal")
+    json_like_dict_c["D_temporal_number_frames"] = 5
+    json_like_dict_c["train_temporal_criterion"] = True
