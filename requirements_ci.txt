@@ -1,0 +1,14 @@
+-f https://download.pytorch.org/whl/cu116/torch_stable.html
+torchvision==0.13.1+cu116
+numpy==1.21
+Pillow==8.4.0
+timm==0.5.4
+https://deepdetect.com/joligan/packages/pip/mmcv_full-1.6.1-cp38-cp38-linux_x86_64.whl
+mmsegmentation
+visdom==0.1.8.9
+torchviz
+imgaug
+dominate
+wget
+tqdm
+git+https://github.com/nupurkmr9/vision-aided-gan.git

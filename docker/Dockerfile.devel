@@ -18,8 +18,8 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 USER jenkins
 RUN mkdir /home/jenkins/app
 WORKDIR /home/jenkins/app
-ADD requirements.txt .
-RUN pip3 install -r requirements.txt
+ADD requirements_ci.txt .
+RUN pip3 install -r requirements_ci.txt
 RUN pip3 install uvicorn fastapi
 RUN mkdir .cache && mkdir .cache/torch 
 RUN export TORCH_HOME=/home/jenkins/app/.cache/torch
