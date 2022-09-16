@@ -1,11 +1,11 @@
 -f https://download.pytorch.org/whl/cu116/torch_stable.html
 torchvision==0.13.1+cu116
-numpy==1.21
-Pillow==8.4.0
-timm==0.5.4
+numpy
+Pillow
+timm
 mmcv-full --no-binary=mmcv-full
 mmsegmentation
-visdom==0.1.8.9
+visdom
 torchviz
 imgaug
 dominate
