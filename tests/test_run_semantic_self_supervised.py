@@ -13,22 +13,27 @@ json_like_dict = {
     "output_display_env": "joligan_utest",
     "output_display_id": 0,
     "gpu_ids": "0",
-    "data_dataset_mode": "unaligned_labeled_cls",
-    "data_load_size": 180,
-    "data_crop_size": 180,
+    "data_dataset_mode": "self_supervised_labeled_mask",
+    "data_load_size": 128,
+    "data_crop_size": 128,
+    "data_online_creation_color_mask_A": True,
     "train_n_epochs": 1,
     "train_n_epochs_decay": 0,
     "data_max_dataset_size": 10,
     "train_mask_out_mask": True,
-    "cls_semantic_nclasses": 5,
+    "f_s_net": "unet",
+    "f_s_semantic_nclasses": 2,
     "dataaug_D_noise": 0.001,
     "train_sem_use_label_B": True,
+    "data_relative_paths": True,
     "D_netDs": ["basic", "projected_d"],
     "train_gan_mode": "projected",
     "D_proj_interp": 256,
     "train_G_ema": True,
     "dataaug_no_rotate": True,
-    "train_semantic_cls": True,
+    "train_mask_compute_miou": True,
+    "train_mask_miou_every": 1,
+    "train_semantic_mask": True,
 }
 
 models_semantic_mask = [
@@ -40,7 +45,7 @@ G_netG = ["mobile_resnet_attn", "segformer_attn_conv"]
 
 D_proj_network_type = ["efficientnet", "vitsmall"]
 
-f_s_net = ["unet"]  # , "segformer"]
+f_s_net = ["unet", "segformer"]
 
 
 def test_semantic_mask(dataroot):

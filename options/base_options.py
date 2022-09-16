@@ -474,10 +474,12 @@ class BaseOptions:
             default="unaligned",
             choices=[
                 "unaligned",
-                "unaligned_labeled",
+                "unaligned_labeled_cls",
                 "unaligned_labeled_mask",
+                "self_supervised_labeled_mask",
                 "unaligned_labeled_mask_cls",
                 "unaligned_labeled_mask_online",
+                "self_supervised_labeled_mask_online",
                 "unaligned_labeled_mask_cls_online",
                 "aligned",
             ],
@@ -555,6 +557,16 @@ class BaseOptions:
             "--data_online_creation_mask_square_A",
             action="store_true",
             help="whether masks should be squared for domain A",
+        )
+        parser.add_argument(
+            "--data_online_creation_rand_mask_A",
+            action="store_true",
+            help="Perform task of replacing noised masks by objects",
+        )
+        parser.add_argument(
+            "--data_online_creation_color_mask_A",
+            action="store_true",
+            help="Perform task of replacing color-filled masks by objects",
         )
 
         parser.add_argument(

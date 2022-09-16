@@ -110,14 +110,18 @@ class BaseDataset(data.Dataset, ABC):
                 B_label_cls = None
         else:
             B_img_path = None
+            B_label_mask_path = None
+            B_label_cls = None
 
         if self.opt.data_relative_paths:
             A_img_path = os.path.join(self.root, A_img_path)
             if A_label_mask_path is not None:
                 A_label_mask_path = os.path.join(self.root, A_label_mask_path)
-            B_img_path = os.path.join(self.root, B_img_path)
-            if B_label_mask_path is not None:
-                B_label_mask_path = os.path.join(self.root, B_label_mask_path)
+
+            if hasattr(self, "B_img_paths"):
+                B_img_path = os.path.join(self.root, B_img_path)
+                if B_label_mask_path is not None:
+                    B_label_mask_path = os.path.join(self.root, B_label_mask_path)
 
         return self.get_img(
             A_img_path,
