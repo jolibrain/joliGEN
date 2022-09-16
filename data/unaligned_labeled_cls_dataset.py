@@ -13,7 +13,7 @@ import numpy as np
 import warnings
 
 
-class UnalignedLabeledDataset(BaseDataset):
+class UnalignedLabeledClsDataset(BaseDataset):
     """
     This dataset class can load unaligned/unpaired datasets.
 

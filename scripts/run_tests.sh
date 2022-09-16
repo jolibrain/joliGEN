@@ -52,13 +52,20 @@ rm $ZIP_FILE
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+###### self supervised mask semantics test
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_self_supervised.py" --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
 echo "Deleting target dir $DIR"
 rm -rf $DIR/*
 
 if [ $OUT != 0 ]; then
     exit 1
 fi
-
 
 ####### mask cls semantics test with online dataloading
 echo "Running mask online semantics training tests"
@@ -72,6 +79,7 @@ rm $ZIP_FILE
 
 
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+
 
 ####### mask cls semantics test
 echo "Running mask and class semantics training tests"

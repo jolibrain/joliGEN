@@ -72,6 +72,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         B_label_cls=None,
         index=None,
     ):
+        # Domain A
         try:
             A_img = Image.open(A_img_path).convert("RGB")
             A_label_mask = Image.open(A_label_mask_path)
@@ -97,6 +98,9 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         if self.opt.f_s_all_classes_as_one:
             A_label_mask = (A_label_mask >= 1) * 1
 
+        result = {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask}
+
+        # Domain B
         if B_img_path is not None:
             try:
                 B_img = Image.open(B_img_path).convert("RGB")
@@ -128,17 +132,15 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 B = self.transform_noseg(B_img)
                 B_label_mask = []
 
-            return {
-                "A": A,
-                "B": B,
-                "A_img_paths": A_img_path,
-                "B_img_paths": B_img_path,
-                "A_label_mask": A_label_mask,
-                "B_label_mask": B_label_mask,
-            }
+            result.update(
+                {
+                    "B": B,
+                    "B_img_paths": B_img_path,
+                    "B_label_mask": B_label_mask,
+                }
+            )
 
-        else:
-            return {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask}
+        return result
 
     def __len__(self):
         """Return the total number of images in the dataset.

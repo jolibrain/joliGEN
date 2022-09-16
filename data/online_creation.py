@@ -2,6 +2,7 @@ import math
 import numpy as np
 import random
 from PIL import Image
+import torch
 import torchvision.transforms.functional as F
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
@@ -214,6 +215,44 @@ def crop_image(
     mask = F.resize(mask, output_dim + margin, interpolation=InterpolationMode.NEAREST)
 
     return img, mask
+
+
+def fill_mask_with_random(img, mask, cls):
+    """
+    Randomize image inside masks.
+    cls: class to replace by random noise, if -1 all classes are replaced
+    """
+    if cls == -1:
+        mask = torch.where(mask != 0, 1.0, 0.0)
+    else:
+        mask = torch.where(mask == cls, 1.0, 0.0)
+    noise = torch.randn_like(img)
+    return img * (1 - mask) + noise * mask
+
+
+def fill_mask_with_color(img, mask, colors):
+    """
+    Fill image with color at the place
+    colors: dict with tuple (r, g, b) between -1 and 1
+    """
+    all_cls = mask.unique()
+
+    for cls in all_cls:
+        if cls == 0:
+            continue
+        if cls in colors:
+            color = colors[cls]
+        else:
+            color = (0, 0, 0)
+        mask = torch.where(mask == cls, 1.0, 0.0)
+        dims = img.shape
+        assert (
+            len(color) == dims[-3]
+        ), "fill_mask_with_color: number of channels do not match"
+        color = torch.tensor(color).repeat_interleave(dims[-2] * dims[-1]).reshape(dims)
+        img = img * (1 - mask) + color * mask
+
+    return img
 
 
 def sanitize_paths(
