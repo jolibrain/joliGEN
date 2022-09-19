@@ -38,7 +38,8 @@ class BaseOptions:
                 "title": "Datasets",
                 "properties": {"online_creation": {"title": "Online created datasets"}},
             },
-            "f_s": {"title": "Semantic network"},
+            "f_s": {"title": "Semantic segmentation network"},
+            "cls": {"title": "Semantic classification network"},
             "output": {
                 "title": "Output",
                 "properties": {"display": {"title": "Visdom display"}},
