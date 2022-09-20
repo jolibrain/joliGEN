@@ -6,15 +6,6 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --checkpoints_dir | string | ./checkpoints | models are saved here |
-| --cls_all_classes_as_one | flag |  | if true, all classes will be considered as the same one (ie foreground vs background) |
-| --cls_class_weights | string | None | class weights for imbalanced semantic classes |
-| --cls_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file for cls |
-| --cls_dropout | flag |  | dropout for the semantic network |
-| --cls_net | string | vgg | specify cls network [vgg|unet|segformer]<br/><br/>_**Values:** vgg, unet, segformer_ |
-| --cls_nf | int | 64 | \# of filters in the first conv layer of classifier |
-| --cls_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
-| --cls_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
-| --cls_weight_segformer | string |  | path to segformer weight for cls, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth |
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
@@ -135,7 +126,7 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
 | --data_online_creation_mask_square_B | flag |  | whether masks should be squared for domain B |
 
-## Semantic network
+## Semantic segmentation network
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -148,6 +139,20 @@ Here are all the available options to call with `train.py`
 | --f_s_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
 | --f_s_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
 | --f_s_weight_segformer | string |  | path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth |
+
+## Semantic classification network
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| --cls_all_classes_as_one | flag |  | if true, all classes will be considered as the same one (ie foreground vs background) |
+| --cls_class_weights | string | None | class weights for imbalanced semantic classes |
+| --cls_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file for cls |
+| --cls_dropout | flag |  | dropout for the semantic network |
+| --cls_net | string | vgg | specify cls network [vgg|unet|segformer]<br/><br/>_**Values:** vgg, unet, segformer_ |
+| --cls_nf | int | 64 | \# of filters in the first conv layer of classifier |
+| --cls_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
+| --cls_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
+| --cls_weight_segformer | string |  | path to segformer weight for cls, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth |
 
 ## Output
 
