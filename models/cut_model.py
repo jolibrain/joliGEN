@@ -272,8 +272,8 @@ class CUTModel(BaseModel):
 
         # Losses names
 
-        losses_G = ["G_tot", "G_NCE"]
-        losses_D = ["D_tot"]
+        losses_G = ["G_NCE"]
+        losses_D = []
         if opt.alg_cut_nce_idt and self.isTrain:
             losses_G += ["G_NCE_Y"]
         if opt.model_multimodal and self.isTrain:
@@ -284,8 +284,8 @@ class CUTModel(BaseModel):
             losses_G.append(discriminator.loss_name_G)
             losses_D.append(discriminator.loss_name_D)
 
-        self.loss_names_G = losses_G
-        self.loss_names_D = losses_D
+        self.loss_names_G += losses_G
+        self.loss_names_D += losses_D
         if self.opt.model_multimodal:
             self.loss_names_E = losses_E
             self.loss_names_G += losses_E
