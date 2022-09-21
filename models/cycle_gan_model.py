@@ -202,18 +202,15 @@ class CycleGanModel(BaseModel):
 
             # Losses names
 
-            losses_G = ["G_tot"]
-
-            losses_G += ["G_cycle_A", "G_idt_A", "G_cycle_B", "G_idt_B"]
-
-            losses_D = ["D_tot"]
+            losses_G = ["G_cycle_A", "G_idt_A", "G_cycle_B", "G_idt_B"]
+            losses_D = []
 
             for discriminator in self.discriminators:
                 losses_G.append(discriminator.loss_name_G)
                 losses_D.append(discriminator.loss_name_D)
 
-            self.loss_names_G = losses_G
-            self.loss_names_D = losses_D
+            self.loss_names_G += losses_G
+            self.loss_names_D += losses_D
 
             self.loss_names = self.loss_names_G + self.loss_names_D
 
