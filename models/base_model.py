@@ -293,6 +293,9 @@ class BaseModel(ABC):
             self.loss_functions_G.append("compute_G_loss_semantic_cls")
             self.forward_functions.append("forward_semantic_cls")
 
+        if self.opt.train_temporal_criterion:
+            self.loss_functions_G.append("compute_temporal_criterion_loss")
+
     def init_semantic_cls(self, opt):
 
         # specify the training losses you want to print out.
@@ -1425,9 +1428,6 @@ class BaseModel(ABC):
 
             self.loss_G_tot += loss_value
 
-        if self.opt.train_temporal_criterion:
-            self.loss_G_tot += self.compute_temporal_criterion_loss()
-
     def compute_fid_val(self):
         dims = 2048
         batch = 1
@@ -1681,7 +1681,7 @@ class BaseModel(ABC):
             self.loss_G_temporal_criterion_B + self.loss_G_temporal_criterion_A
         )
 
-        return self.loss_G_temporal_criterion
+        self.loss_G_tot += self.loss_G_temporal_criterion
 
     def compute_f_s_loss(self):
         """Calculate segmentation loss for f_s"""
