@@ -23,8 +23,15 @@ git_hash = (
 )
 print("Launching JoliGAN Server\ncommit=%s" % git_hash, flush=True)
 
-description = """This is the JoliGAN server API documentation.
+version_str = "*commit:* [%s](https://github.com/jolibrain/joliGAN/commit/%s)\n\n" % (
+    git_hash[:8],
+    git_hash,
+)
+description = (
+    version_str
+    + """This is the JoliGAN server API documentation.
 """
+)
 app = FastAPI(title="JoliGAN server", description=description)
 
 # Additional schema
