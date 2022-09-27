@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .base_model import BaseModel
+from .base_gan_model import BaseGanModel
 from . import networks
 
 from .modules import loss
@@ -16,7 +16,7 @@ from util.util import gaussian
 import itertools
 
 
-class CycleGanModel(BaseModel):
+class CycleGanModel(BaseGanModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
 
@@ -61,7 +61,7 @@ class CycleGanModel(BaseModel):
 
     def __init__(self, opt, rank):
 
-        BaseModel.__init__(self, opt, rank)
+        super().__init__(opt, rank)
 
         if opt.alg_cyclegan_lambda_identity > 0.0:
             # only works when input and output images have the same number of channels
