@@ -100,7 +100,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled, unaligned_labeled_mask, unaligned_labeled_mask_cls, unaligned_labeled_mask_online, unaligned_labeled_mask_cls_online, aligned_ |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, aligned_ |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/>_**Values:** AtoB, BtoA_ |
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
@@ -115,6 +115,7 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
+| --data_online_creation_color_mask_A | flag |  | Perform task of replacing color-filled masks by objects |
 | --data_online_creation_crop_delta_A | int | 50 | size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain A |
 | --data_online_creation_crop_delta_B | int | 50 | size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain B |
 | --data_online_creation_crop_size_A | int | 512 | crop to this size during online creation, it needs to be greater than bbox size for domain A |
@@ -125,6 +126,7 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_mask_delta_B | int | 0 | mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
 | --data_online_creation_mask_square_B | flag |  | whether masks should be squared for domain B |
+| --data_online_creation_rand_mask_A | flag |  | Perform task of replacing noised masks by objects |
 
 ## Semantic segmentation network
 
