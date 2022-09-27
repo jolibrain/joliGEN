@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .base_model import BaseModel
+from .base_gan_model import BaseGanModel
 from . import networks
 
 from .modules import loss
@@ -16,7 +16,7 @@ from util.util import gaussian
 import itertools
 
 
-class CUTModel(BaseModel):
+class CUTModel(BaseGanModel):
     """This class implements CUT and FastCUT model, described in the paper
     Contrastive Learning for Unpaired Image-to-Image Translation
     Taesung Park, Alexei A. Efros, Richard Zhang, Jun-Yan Zhu
@@ -105,7 +105,7 @@ class CUTModel(BaseModel):
 
     def __init__(self, opt, rank):
 
-        BaseModel.__init__(self, opt, rank)
+        super().__init__(opt, rank)
 
         # Vanilla cut
 

@@ -83,18 +83,12 @@ class BaseModel(ABC):
         self.image_paths = []
         self.metric = 0  # used for learning rate policy 'plateau'
 
-        self.fake_A_pool = ImagePool(
-            opt.train_pool_size
-        )  # create image buffer to store previously generated images
-        self.fake_B_pool = ImagePool(
-            opt.train_pool_size
-        )  # create image buffer to store previously generated images
-        self.real_A_pool = ImagePool(
-            opt.train_pool_size
-        )  # create image buffer to store previously generated images
-        self.real_B_pool = ImagePool(
-            opt.train_pool_size
-        )  # create image buffer to store previously generated images
+        # create image buffers to store  images
+
+        self.real_A_pool = ImagePool(opt.train_pool_size)
+        self.fake_B_pool = ImagePool(opt.train_pool_size)
+        self.fake_A_pool = ImagePool(opt.train_pool_size)
+        self.real_B_pool = ImagePool(opt.train_pool_size)
 
         if rank == 0 and (opt.train_compute_fid or opt.train_compute_fid_val):
             self.transform = get_transform(opt, grayscale=(opt.model_input_nc == 1))
@@ -212,17 +206,9 @@ class BaseModel(ABC):
                     root=self.root,
                 )
 
-        if opt.dataaug_diff_aug_policy != "":
-            self.diff_augment = DiffAugment(
-                opt.dataaug_diff_aug_policy, opt.dataaug_diff_aug_proba
-            )
-
         self.niter = 0
 
         self.objects_to_update = []
-
-        if self.opt.dataaug_APA:
-            self.visual_names.append(["APA_img"])
 
         if opt.output_display_G_attention_masks:
             for i in range(opt.G_attn_nb_mask_attn):
@@ -234,67 +220,12 @@ class BaseModel(ABC):
 
                 self.visual_names.append(temp_visual_names_attn)
 
-        if (
-            any("temporal" in D_name for D_name in self.opt.D_netDs)
-            and self.opt.train_temporal_criterion
-        ):
-            raise ValueError(
-                "Temporal discriminator and MSE temporal criterion cannot be used at the same time, please choose one and restart the training."
-            )
-
-        if (
-            any("temporal" in D_name for D_name in self.opt.D_netDs)
-            or self.opt.train_temporal_criterion
-        ):
-            visual_names_temporal_real_A = []
-            visual_names_temporal_real_B = []
-            visual_names_temporal_fake_B = []
-            visual_names_temporal_fake_A = []
-            for i in range(self.opt.D_temporal_number_frames):
-                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
-                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
-            for i in range(self.opt.D_temporal_number_frames):
-                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
-                if "cycle_gan" in self.opt.model_type:
-                    visual_names_temporal_fake_A.append("temporal_fake_A_" + str(i))
-
-            self.visual_names.append(visual_names_temporal_real_A)
-            self.visual_names.append(visual_names_temporal_real_B)
-            self.visual_names.append(visual_names_temporal_fake_B)
-            if "cycle_gan" in self.opt.model_type:
-                self.visual_names.append(visual_names_temporal_fake_A)
-
         self.margin = self.opt.data_online_context_pixels * 2
 
         if "segformer" in self.opt.G_netG:
             self.onnx_opset_version = 11
         else:
             self.onnx_opset_version = 9
-
-        # Define loss functions
-        losses_G = ["G_tot"]
-        losses_D = ["D_tot"]
-
-        if self.opt.train_temporal_criterion:
-            self.criterionTemporal = torch.nn.MSELoss()
-            losses_G.append("G_temporal_criterion")
-
-        self.loss_names_G = losses_G
-        self.loss_names_D = losses_D
-
-        self.loss_functions_G = ["compute_G_loss_GAN"]
-        self.forward_functions = ["forward_GAN"]
-
-        if self.opt.train_semantic_mask:
-            self.loss_functions_G.append("compute_G_loss_semantic_mask")
-            self.forward_functions.append("forward_semantic_mask")
-
-        if self.opt.train_semantic_cls:
-            self.loss_functions_G.append("compute_G_loss_semantic_cls")
-            self.forward_functions.append("forward_semantic_cls")
-
-        if self.opt.train_temporal_criterion:
-            self.loss_functions_G.append("compute_temporal_criterion_loss")
 
     def init_semantic_cls(self, opt):
 
@@ -452,14 +383,14 @@ class BaseModel(ABC):
         """
         return parser
 
-    def set_input(self, input):
+    def set_input(self, data):
 
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
         Parameters:
             input (dict): include the data itself and its metadata information.
         The option 'direction' can be used to swap domain A and domain B.
         """
-        self.real_A_with_context = input["A"].to(self.device)
+        self.real_A_with_context = data["A"].to(self.device)
         self.real_A = self.real_A_with_context.clone()
         if self.opt.data_online_context_pixels > 0:
             self.real_A = self.real_A[
@@ -473,7 +404,7 @@ class BaseModel(ABC):
                 self.real_A_with_context, size=self.real_A.shape[2:]
             )
 
-        self.real_B_with_context = input["B"].to(self.device)
+        self.real_B_with_context = data["B"].to(self.device)
 
         self.real_B = self.real_B_with_context.clone()
 
@@ -489,16 +420,16 @@ class BaseModel(ABC):
             self.real_B_with_context, size=self.real_A.shape[2:]
         )
 
-        self.image_paths = input["A_img_paths"]
+        self.image_paths = data["A_img_paths"]
 
         if self.opt.train_semantic_mask:
-            self.set_input_semantic_mask(input)
+            self.set_input_semantic_mask(data)
         if self.opt.train_semantic_cls:
-            self.set_input_semantic_cls(input)
+            self.set_input_semantic_cls(data)
 
-    def set_input_semantic_mask(self, input):
-        if "A_label_mask" in input:
-            self.input_A_label_mask = input["A_label_mask"].to(self.device).squeeze(1)
+    def set_input_semantic_mask(self, data):
+        if "A_label_mask" in data:
+            self.input_A_label_mask = data["A_label_mask"].to(self.device).squeeze(1)
 
             if self.opt.data_online_context_pixels > 0:
                 self.input_A_label_mask = self.input_A_label_mask[
@@ -507,8 +438,8 @@ class BaseModel(ABC):
                     self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
                 ]
 
-        if "B_label_mask" in input:
-            self.input_B_label_mask = input["B_label_mask"].to(self.device).squeeze(1)
+        if "B_label_mask" in data:
+            self.input_B_label_mask = data["B_label_mask"].to(self.device).squeeze(1)
 
             if self.opt.data_online_context_pixels > 0:
                 self.input_B_label_mask = self.input_B_label_mask[
@@ -517,26 +448,26 @@ class BaseModel(ABC):
                     self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
                 ]
 
-    def set_input_semantic_cls(self, input):
-        if "A_label_cls" in input:
+    def set_input_semantic_cls(self, data):
+        if "A_label_cls" in data:
             if not self.opt.train_cls_regression:
-                self.input_A_label_cls = input["A_label_cls"].to(self.device)
+                self.input_A_label_cls = data["A_label_cls"].to(self.device)
             else:
                 self.input_A_label_cls = (
-                    input["A_label_cls"].to(torch.float).to(device=self.device)
+                    data["A_label_cls"].to(torch.float).to(device=self.device)
                 )
-        if "B_label_cls" in input:
+        if "B_label_cls" in data:
             if not self.opt.train_cls_regression:
-                self.input_B_label_cls = input["B_label_cls"].to(self.device)
+                self.input_B_label_cls = data["B_label_cls"].to(self.device)
             else:
                 self.input_B_label_cls = (
-                    input["B_label_cls"].to(torch.float).to(device=self.device)
+                    data["B_label_cls"].to(torch.float).to(device=self.device)
                 )
 
-    def set_input_temporal(self, input_temporal):
+    def set_input_temporal(self, data_temporal):
 
-        self.temporal_real_A_with_context = input_temporal["A"].to(self.device)
-        self.temporal_real_B_with_context = input_temporal["B"].to(self.device)
+        self.temporal_real_A_with_context = data_temporal["A"].to(self.device)
+        self.temporal_real_B_with_context = data_temporal["B"].to(self.device)
 
         if self.opt.data_online_context_pixels > 0:
 
@@ -987,9 +918,7 @@ class BaseModel(ABC):
             if not "Decoder" in name:
                 temp = net(self.real_A)
             else:
-                temp = net(
-                    self.netG_A(self.real_A).detach()
-                )  # decoders take w+ in input
+                temp = net(self.netG_A(self.real_A).detach())
             make_dot(temp, params=dict(net.named_parameters())).render(
                 path, format="png"
             )
@@ -1003,186 +932,6 @@ class BaseModel(ABC):
         for param in params:
             self.display_param.append(param)
         self.display_param.sort()
-
-    def compute_fid(self, n_epoch, n_iter):
-        dims = 2048
-        batch = 1
-        pathA = self.save_dir + "/fakeA/" + str(n_iter) + "_" + str(n_epoch)
-        if not os.path.exists(pathA):
-            os.mkdir(pathA)
-        if len(self.fake_A_pool.get_all()) > 0:
-            for i, temp_fake_A in enumerate(self.fake_A_pool.get_all()):
-                save_image(
-                    tensor2im(temp_fake_A),
-                    pathA + "/" + str(i) + ".png",
-                    aspect_ratio=1.0,
-                )
-            self.fakemA, self.fakesA = _compute_statistics_of_path(
-                pathA,
-                self.netFid,
-                batch,
-                dims,
-                self.gpu_ids[0],
-                nb_max_img=self.opt.train_nb_img_max_fid,
-                root=self.root,
-            )
-
-        pathB = self.save_dir + "/fakeB/" + str(n_iter) + "_" + str(n_epoch)
-        if not os.path.exists(pathB):
-            os.mkdir(pathB)
-
-        for j, temp_fake_B in enumerate(self.fake_B_pool.get_all()):
-            save_image(
-                tensor2im(temp_fake_B), pathB + "/" + str(j) + ".png", aspect_ratio=1.0
-            )
-        self.fakemB, self.fakesB = _compute_statistics_of_path(
-            pathB,
-            self.netFid,
-            batch,
-            dims,
-            self.gpu_ids[0],
-            nb_max_img=self.opt.train_nb_img_max_fid,
-            root=self.root,
-        )
-
-        if len(self.fake_A_pool.get_all()) > 0:
-            self.fidA = calculate_frechet_distance(
-                self.realmA, self.realsA, self.fakemA, self.fakesA
-            )
-        self.fidB = calculate_frechet_distance(
-            self.realmB, self.realsB, self.fakemB, self.fakesB
-        )
-
-    def get_current_fids(self):
-
-        fids = OrderedDict()
-
-        if hasattr(self, "netG_B"):
-            fid_names = ["fidA", "fidB"]
-        else:
-            fid_names = ["fidB"]
-
-        for name in fid_names:
-            if isinstance(name, str):
-                fids[name] = float(
-                    getattr(self, name)
-                )  # float(...) works for both scalar tensor and float number
-
-        return fids
-
-    def compute_D_accuracy_pred(self, real, fake, netD):
-        pred_real = (netD(real).flatten() > 0.5) * 1
-        pred_fake = (netD(fake).flatten() > 0.5) * 1
-
-        FP = F.l1_loss(
-            pred_fake, torch.zeros(pred_real.shape).to(self.device), reduction="sum"
-        )
-        TP = F.l1_loss(
-            pred_real, torch.zeros(pred_real.shape).to(self.device), reduction="sum"
-        )
-        TN = F.l1_loss(
-            pred_fake, torch.ones(pred_real.shape).to(self.device), reduction="sum"
-        )
-        FN = F.l1_loss(
-            pred_real, torch.ones(pred_real.shape).to(self.device), reduction="sum"
-        )
-
-        prec_real = TP / (TP + FP)
-        prec_fake = TN / (TN + FN)
-        rec_real = TP / (TP + FN)
-        rec_fake = TN / (TN + FP)
-        acc = (TP + TN) / (TP + TN + FN + FP)
-
-        return prec_real, prec_fake, rec_real, rec_fake, acc
-
-    def compute_fake_val(self, imgs, netG):
-        return_imgs = []
-        for img in imgs:
-            return_imgs.append(netG(img.unsqueeze(0)))
-        return torch.cat(return_imgs)
-
-    def compute_D_accuracy(self):
-        real_A = torch.cat(self.real_A_pool.get_all())
-        real_B = torch.cat(self.real_B_pool.get_all())
-        if hasattr(self, "netD_A"):
-            fake_A = self.compute_fake_val(real_B, self.netG_B)
-            (
-                self.prec_real_A,
-                self.prec_fake_A,
-                self.rec_real_A,
-                self.rec_fake_A,
-                self.acc_A,
-            ) = self.compute_D_accuracy_pred(real_A, fake_A, self.netD_A)
-
-            fake_A_val = self.compute_fake_val(self.real_B_val, self.netG_B)
-            (
-                self.prec_real_A_val,
-                self.prec_fake_A_val,
-                self.rec_real_A_val,
-                self.rec_fake_A_val,
-                self.acc_A_val,
-            ) = self.compute_D_accuracy_pred(self.real_A_val, fake_A_val, self.netD_A)
-
-        if hasattr(self, "netD_B") or hasattr(self, "netD"):
-            if hasattr(self, "netD_B"):
-                netD = self.netD_B
-                netG = self.netG_B
-            elif hasattr(self, "netD"):
-                netD = self.netD
-                netG = self.netG
-
-            fake_B = self.compute_fake_val(real_A, netG)
-            (
-                self.prec_real_B,
-                self.prec_fake_B,
-                self.rec_real_B,
-                self.rec_fake_B,
-                self.acc_B,
-            ) = self.compute_D_accuracy_pred(real_B, fake_B, netD)
-
-            fake_B_val = self.compute_fake_val(self.real_B_val, netG)
-            (
-                self.prec_real_B_val,
-                self.prec_fake_B_val,
-                self.rec_real_B_val,
-                self.rec_fake_B_val,
-                self.acc_B_val,
-            ) = self.compute_D_accuracy_pred(self.real_A_val, fake_B_val, netD)
-
-    def get_current_D_accuracies(self):
-        accuracies = OrderedDict()
-        names = []
-        if hasattr(self, "netD_A"):
-            names += ["acc_A", "prec_real_A", "prec_fake_A", "rec_real_A", "rec_fake_A"]
-            names += [
-                "acc_A_val",
-                "prec_real_A_val",
-                "prec_fake_A_val",
-                "rec_real_A_val",
-                "rec_fake_A_val",
-            ]
-        if hasattr(self, "netD_B") or hasattr(self, "netD"):
-            names += ["acc_B", "prec_real_B", "prec_fake_B", "rec_real_B", "rec_fake_B"]
-            names += [
-                "acc_B_val",
-                "prec_real_B_val",
-                "prec_fake_B_val",
-                "rec_real_B_val",
-                "rec_fake_B_val",
-            ]
-        for name in names:
-            if isinstance(name, str):
-                accuracies[name] = float(
-                    getattr(self, name)
-                )  # float(...) works for both scalar tensor and float number
-        return accuracies
-
-    def get_current_APA_prob(self):
-        current_APA_prob = OrderedDict()
-        current_APA_prob["APA_p"] = float(self.D_loss.adaptive_pseudo_augmentation_p)
-        current_APA_prob["APA_adjust"] = float(self.D_loss.adjust)
-
-        return current_APA_prob
 
     def compute_step(
         self, optimizers_names, loss_names
@@ -1278,320 +1027,6 @@ class BaseModel(ABC):
         for cur_object in self.objects_to_update:
             cur_object.update(self.niter)
 
-    def compute_D_loss_generic(
-        self, netD, domain_img, loss, real_name=None, fake_name=None
-    ):
-        noisy = ""
-        if self.opt.dataaug_D_noise > 0.0:
-            noisy = "_noisy"
-
-        context = ""
-        if self.opt.data_online_context_pixels > 0:
-            context = "_with_context"
-
-        if fake_name is None:
-            fake = getattr(self, "fake_" + domain_img + "_pool").query(
-                getattr(self, "fake_" + domain_img + context + noisy)
-            )
-        else:
-            fake = getattr(self, fake_name)
-
-        if self.opt.dataaug_APA:
-            fake_2 = getattr(self, "fake_" + domain_img + "_pool").get_random(
-                fake.shape[0]
-            )
-            self.APA_img = fake_2
-        else:
-            fake_2 = None
-
-        if real_name is None:
-            real = getattr(self, "real_" + domain_img + context + noisy)
-        else:
-            real = getattr(self, real_name)
-
-        loss = loss.compute_loss_D(netD, real, fake, fake_2)
-        return loss
-
-    def compute_D_loss(self):
-        """Calculate GAN loss for discriminators"""
-
-        self.loss_D_tot = 0
-
-        for discriminator in self.discriminators:
-            if self.niter % discriminator.compute_every == 0:
-                domain = discriminator.name.split("_")[1]
-                netD = getattr(self, discriminator.name)
-                loss = getattr(self, discriminator.loss_type)
-                if discriminator.fake_name is not None:
-                    fake_name = discriminator.fake_name + "_" + domain
-                if discriminator.real_name is not None:
-                    real_name = discriminator.real_name + "_" + domain
-                else:
-                    fake_name = None
-                    real_name = None
-
-                loss_value = self.compute_D_loss_generic(
-                    netD,
-                    domain,
-                    loss,
-                    fake_name=fake_name,
-                    real_name=real_name,
-                )
-
-            else:
-                loss_value = torch.zeros([], device=self.device)
-
-            loss_name = "loss_" + discriminator.loss_name_D
-
-            setattr(
-                self,
-                loss_name,
-                loss_value,
-            )
-
-            self.loss_D_tot += loss_value
-
-    def compute_G_loss_GAN_generic(
-        self, netD, domain_img, loss, real_name=None, fake_name=None
-    ):
-        context = ""
-        if self.opt.data_online_context_pixels > 0:
-            context = "_with_context"
-
-        if fake_name is None:
-            fake = getattr(self, "fake_" + domain_img + context)
-        else:
-            fake = getattr(self, fake_name)
-        if real_name is None:
-            real = getattr(self, "real_" + domain_img + context)
-        else:
-            real = getattr(self, real_name)
-
-        if hasattr(self, "diff_augment"):
-
-            real = self.diff_augment(real)
-            fake = self.diff_augment(fake)
-
-            if fake_name is None:
-                setattr(self, "fake_" + domain_img + "_aug", fake)
-            else:
-                setattr(self, fake_name + "_aug", fake)
-
-            if real_name is None:
-                setattr(self, "real_" + domain_img + "_aug", real)
-            else:
-                setattr(self, real_name + "_aug", real)
-
-        loss = loss.compute_loss_G(netD, real, fake)
-        return loss
-
-    def compute_G_loss(self):
-        self.loss_G_tot = 0
-        for loss_function in self.loss_functions_G:
-            with torch.cuda.amp.autocast(enabled=self.with_amp):
-                getattr(self, loss_function)()
-
-    def compute_G_loss_GAN(self):
-        """Calculate GAN losses for generator(s)"""
-
-        for discriminator in self.discriminators:
-            if self.niter % discriminator.compute_every == 0:
-                domain = discriminator.name.split("_")[1]
-                netD = getattr(self, discriminator.name)
-                loss = getattr(self, discriminator.loss_type)
-                if discriminator.fake_name is not None:
-                    fake_name = discriminator.fake_name + "_" + domain
-                if discriminator.real_name is not None:
-                    real_name = discriminator.real_name + "_" + domain
-                else:
-                    fake_name = None
-                    real_name = None
-
-                loss_value = self.compute_G_loss_GAN_generic(
-                    netD,
-                    domain,
-                    loss,
-                    fake_name=fake_name,
-                    real_name=real_name,
-                )
-
-            else:
-                loss_value = torch.zeros([], device=self.device)
-
-            loss_name = "loss_" + discriminator.loss_name_G
-
-            setattr(
-                self,
-                loss_name,
-                loss_value,
-            )
-
-            self.loss_G_tot += loss_value
-
-    def compute_fid_val(self):
-        dims = 2048
-        batch = 1
-
-        pathB = self.save_dir + "/fakeB/%s_imgs" % (self.opt.data_max_dataset_size)
-        if not os.path.exists(pathB):
-            os.mkdir(pathB)
-
-        if hasattr(self, "netG_B"):
-            netG = self.netG_B
-        elif hasattr(self, "netG"):
-            netG = self.netG
-
-        self.fake_B_val = self.compute_fake_val(self.real_A_val, netG)
-
-        for j, temp_fake_B in enumerate(self.fake_B_val):
-            save_image(
-                tensor2im(temp_fake_B.unsqueeze(0)),
-                pathB + "/" + str(j) + ".png",
-                aspect_ratio=1.0,
-            )
-
-        self.fakemB_val, self.fakesB_val = _compute_statistics_of_path(
-            pathB,
-            self.netFid,
-            batch,
-            dims,
-            self.gpu_ids[0],
-            nb_max_img=self.opt.train_nb_img_max_fid,
-            root=self.root,
-        )
-
-        self.fidB_val = calculate_frechet_distance(
-            self.realmB_val, self.realsB_val, self.fakemB_val, self.fakesB_val
-        )
-        return self.fidB_val
-
-    def compute_fake_with_context(self, fake_name, real_name):
-        setattr(
-            self,
-            fake_name + "_with_context",
-            torch.nn.functional.pad(
-                getattr(self, fake_name),
-                (
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                ),
-            ),
-        )
-
-        setattr(
-            self,
-            fake_name + "_with_context",
-            getattr(self, fake_name + "_with_context")
-            + self.mask_context * getattr(self, real_name + "_with_context"),
-        )
-        setattr(
-            self,
-            fake_name + "_with_context_vis",
-            torch.nn.functional.interpolate(
-                getattr(self, fake_name + "_with_context"), size=self.real_A.shape[2:]
-            ),
-        )
-
-    def set_discriminators_info(self):
-        self.discriminators = []
-
-        for discriminator_name in self.discriminators_names:
-
-            loss_calculator_name = "D_" + discriminator_name + "_loss_calculator"
-
-            if "temporal" in discriminator_name or "projected" in discriminator_name:
-                train_gan_mode = "projected"
-            elif "vision_aided" in discriminator_name:
-                train_gan_mode = "vanilla"
-            else:
-                train_gan_mode = self.opt.train_gan_mode
-
-            if "temporal" in discriminator_name:
-                setattr(
-                    self,
-                    loss_calculator_name,
-                    loss.DiscriminatorGANLoss(
-                        netD=getattr(self, "net" + discriminator_name),
-                        device=self.device,
-                        dataaug_APA_p=self.opt.dataaug_APA_p,
-                        dataaug_APA_target=self.opt.dataaug_APA_target,
-                        train_batch_size=self.opt.train_batch_size,
-                        dataaug_APA_nimg=self.opt.dataaug_APA_nimg,
-                        dataaug_APA_every=self.opt.dataaug_APA_every,
-                        dataaug_D_label_smooth=self.opt.dataaug_D_label_smooth,
-                        train_gan_mode=train_gan_mode,
-                        dataaug_APA=self.opt.dataaug_APA,
-                    ),
-                )
-
-                fake_name = "temporal_fake"
-                real_name = "temporal_real"
-                compute_every = self.opt.D_temporal_every
-
-            else:
-                fake_name = None
-                real_name = None
-                compute_every = 1
-
-                if self.opt.train_use_contrastive_loss_D:
-                    loss_calculator = (
-                        loss.DiscriminatorContrastiveLoss(
-                            netD=getattr(self, "net" + discriminator_name),
-                            device=self.device,
-                            dataaug_APA_p=self.opt.dataaug_APA_p,
-                            dataaug_APA_target=self.opt.dataaug_APA_target,
-                            train_batch_size=self.opt.train_batch_size,
-                            dataaug_APA_nimg=self.opt.dataaug_APA_nimg,
-                            dataaug_APA_every=self.opt.dataaug_APA_every,
-                            model_input_nc=self.opt.model_input_nc,
-                            train_crop_size=train_crop_size,
-                            dataaug_APA=self.opt.dataaug_APA,
-                        ),
-                    )
-                else:
-                    loss_calculator = loss.DiscriminatorGANLoss(
-                        netD=getattr(self, "net" + discriminator_name),
-                        device=self.device,
-                        dataaug_APA_p=self.opt.dataaug_APA_p,
-                        dataaug_APA_target=self.opt.dataaug_APA_target,
-                        train_batch_size=self.opt.train_batch_size,
-                        dataaug_APA_nimg=self.opt.dataaug_APA_nimg,
-                        dataaug_APA_every=self.opt.dataaug_APA_every,
-                        dataaug_D_label_smooth=self.opt.dataaug_D_label_smooth,
-                        train_gan_mode=train_gan_mode,
-                        dataaug_APA=self.opt.dataaug_APA,
-                    )
-
-            setattr(
-                self,
-                loss_calculator_name,
-                loss_calculator,
-            )
-
-            self.objects_to_update.append(getattr(self, loss_calculator_name))
-
-            self.discriminators.append(
-                DiscriminatorInfo(
-                    name="net" + discriminator_name,
-                    loss_name_D="D_GAN_" + discriminator_name,
-                    loss_name_G="G_GAN_" + discriminator_name,
-                    loss_type=loss_calculator_name,
-                    fake_name=fake_name,
-                    real_name=real_name,
-                    compute_every=compute_every,
-                )
-            )
-
-    # multimodal input latent vector
-    def get_z_random(self, batch_size, nz, random_type="gauss"):
-        if random_type == "uni":
-            z = torch.rand(batch_size, nz) * 2.0 - 1.0
-        elif random_type == "gauss":
-            z = torch.randn(batch_size, nz)
-        return z.detach().to(self.device)
-
     def compute_miou_f_s_generic(self, pred, target):
         target = self.one_hot(target)
         intersection = (pred * target).sum()
@@ -1642,47 +1077,6 @@ class BaseModel(ABC):
         )
         return one_hot.scatter_(1, tensor.unsqueeze(1), 1.0)
 
-    def compute_temporal_criterion_loss_generic(self, domain):
-        origin_domain = "B" if domain == "A" else "A"
-        netG = getattr(self, "netG_" + origin_domain)
-
-        loss_value = torch.zeros([], device=self.device)
-        previous_fake = netG(
-            getattr(self, "temporal_real_" + origin_domain)[:, 0]
-        ).detach()
-
-        setattr(self, "temporal_fake_%s_0" % domain, previous_fake)
-
-        for i in range(1, self.opt.D_temporal_number_frames):
-            next_fake = netG(getattr(self, "temporal_real_" + origin_domain)[:, i])
-            cur_loss = self.criterionTemporal(previous_fake, next_fake)
-            cur_loss.backward()
-            loss_value += cur_loss.detach()
-            previous_fake = next_fake.clone().detach()
-            setattr(self, "temporal_fake_%s_%d" % (domain, i), previous_fake)
-
-        return loss_value.sum()
-
-    def compute_temporal_criterion_loss(self):
-
-        self.loss_G_temporal_criterion_B = (
-            self.compute_temporal_criterion_loss_generic(domain="B")
-            * self.opt.train_temporal_criterion_lambda
-        )
-
-        if hasattr(self, "netG_B"):
-            self.loss_G_temporal_criterion_A = (
-                self.compute_temporal_criterion_loss_generic(domain="A")
-            ) * self.opt.train_temporal_criterion_lambda
-        else:
-            self.loss_G_temporal_criterion_A = torch.zeros([], device=self.device)
-
-        self.loss_G_temporal_criterion = (
-            self.loss_G_temporal_criterion_B + self.loss_G_temporal_criterion_A
-        )
-
-        self.loss_G_tot += self.loss_G_temporal_criterion
-
     def compute_f_s_loss(self):
         """Calculate segmentation loss for f_s"""
         self.loss_f_s = 0
@@ -1730,144 +1124,6 @@ class BaseModel(ABC):
                 self.loss_CLS += self.opt.train_sem_cls_lambda * self.criterionCLS(
                     pred_B.squeeze(1), label_B
                 )
-
-    def compute_G_loss_semantic_cls_generic(self, domain_fake):
-        """Calculate semantic class loss for G"""
-
-        domain_real = "A" if domain_fake == "B" else "B"
-        direction = domain_real + domain_fake
-
-        if not self.opt.train_cls_regression:
-            loss_G_sem_cls = self.criterionCLS(
-                getattr(self, "pred_cls_fake_%s" % domain_fake),
-                getattr(self, "input_%s_label_cls" % domain_real),
-            )
-        else:
-            loss_G_sem_cls = self.criterionCLS(
-                getattr(self, "pred_cls_fake_%s" % domain_fake).squeeze(1),
-                getattr(self, "input_%s_label_cls" % domain_real),
-            )
-        if (
-            not hasattr(self, "loss_CLS")
-            or self.loss_CLS > self.opt.f_s_semantic_threshold
-        ):
-            loss_G_sem_cls = 0 * loss_G_sem_cls
-        loss_G_sem_cls *= self.opt.train_sem_cls_lambda
-
-        setattr(self, "loss_G_sem_cls_%s" % direction, loss_G_sem_cls)
-
-        self.loss_G_tot += loss_G_sem_cls
-
-    def compute_G_loss_semantic_cls(self):
-        self.compute_G_loss_semantic_cls_generic(domain_fake="B")
-        if hasattr(self, "fake_A"):
-            self.compute_G_loss_semantic_cls_generic(domain_fake="A")
-
-    def compute_G_loss_semantic_cls_old(self):
-        """Calculate semantic class loss for G"""
-
-        # semantic class loss AB
-        if not self.opt.train_cls_regression:
-            self.loss_G_sem_cls_AB = self.criterionCLS(
-                self.pred_cls_fake_B, self.input_A_label_cls
-            )
-        else:
-            self.loss_G_sem_cls_AB = self.criterionCLS(
-                self.pred_cls_fake_B.squeeze(1), self.input_A_label_cls
-            )
-        if (
-            not hasattr(self, "loss_CLS")
-            or self.loss_CLS > self.opt.f_s_semantic_threshold
-        ):
-            self.loss_G_sem_cls_AB = 0 * self.loss_G_sem_cls_AB
-        self.loss_G_sem_cls_AB *= self.opt.train_sem_cls_lambda
-        self.loss_G_tot += self.loss_G_sem_cls_AB
-
-        # semantic class loss BA
-        if hasattr(self, "fake_A"):
-            if not self.opt.train_cls_regression:
-                self.loss_G_sem_cls_BA = self.criterionCLS(
-                    self.pred_cls_fake_A, self.input_B_label_cls
-                )
-            else:
-                self.loss_G_sem_cls_BA = self.criterionCLS(
-                    self.pred_cls_fake_A.squeeze(1), self.input_B_label_cls
-                )
-            if (
-                not hasattr(self, "loss_CLS")
-                or self.loss_CLS > self.opt.f_s_semantic_threshold
-            ):
-                self.loss_G_sem_cls_BA = 0 * self.loss_G_sem_cls_BA
-            self.loss_G_sem_cls_BA *= self.opt.train_sem_cls_lambda
-            self.loss_G_tot += self.loss_G_sem_cls_BA
-
-    def compute_G_loss_semantic_mask(self):
-        self.compute_G_loss_semantic_mask_generic(domain_fake="B")
-
-        if hasattr(self, "fake_A"):
-            self.compute_G_loss_semantic_mask_generic(domain_fake="A")
-
-    def compute_G_loss_semantic_mask_generic(self, domain_fake):
-        """Calculate semantic mask loss for G"""
-
-        domain_real = "A" if domain_fake == "B" else "B"
-        direction = domain_real + domain_fake
-
-        if self.opt.train_mask_for_removal:
-            label_fake = torch.zeros_like(self.input_A_label_mask)
-        elif self.opt.train_sem_net_output:
-            label_fake = getattr(self, "gt_pred_f_s_real_%s_max" % domain_real)
-        else:
-            label_fake = getattr(self, "input_%s_label_mask" % domain_real)
-
-        loss_G_sem_mask = self.opt.train_sem_mask_lambda * self.criterionf_s(
-            getattr(self, "pred_f_s_fake_%s" % domain_fake), label_fake
-        )
-
-        if self.opt.train_sem_idt:
-            if self.opt.train_mask_for_removal:
-                label_idt = torch.zeros_like(self.input_A_label_mask)
-            elif self.opt.train_sem_net_output or not hasattr(
-                self, "input_%s_label_mask" % domain_fake
-            ):
-                label_idt = getattr(self, "gt_pred_f_s_real_%s_max" % domain_fake)
-            else:
-                label_idt = getattr(self, "input_%s_label_mask" % domain_fake)
-
-            loss_G_sem_mask_idt = self.opt.train_sem_mask_lambda * self.criterionf_s(
-                getattr(self, "pred_f_s_idt_%s" % domain_fake), label_idt
-            )
-
-        # Check if f_s is good enough
-        if (
-            not hasattr(self, "loss_f_s")
-            or self.loss_f_s > self.opt.f_s_semantic_threshold
-        ):
-            loss_G_sem_mask_ = 0 * loss_G_sem_mask
-            if self.opt.train_sem_idt:
-                loss_G_sem_mask_idt = 0 * loss_G_sem_mask_idt
-
-        setattr(self, "loss_G_sem_mask_%s" % direction, loss_G_sem_mask)
-
-        self.loss_G_tot += loss_G_sem_mask
-
-        if self.opt.train_sem_idt:
-            setattr(self, "loss_G_sem_mask_idt_%s" % domain_fake, loss_G_sem_mask_idt)
-            self.loss_G_tot += loss_G_sem_mask_idt
-
-        # Out mask loss
-        if hasattr(self, "criterionMask"):
-            loss_G_out_mask = (
-                self.criterionMask(
-                    getattr(self, "real_%s_out_mask" % domain_real),
-                    self.fake_B_out_mask,
-                )
-                * self.opt.train_mask_lambda_out_mask
-            )
-
-            setattr(self, "loss_G_out_mask_%s" % direction, loss_G_out_mask)
-
-            self.loss_G_tot += loss_G_out_mask
 
     def forward_semantic_mask(self):
         d = 1
