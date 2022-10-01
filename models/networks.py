@@ -44,6 +44,7 @@ from .modules.segformer.segformer_generator import (
     Segformer,
     SegformerGenerator_attn,
 )
+from .modules.ittr.ittr_generator import ITTRGenerator
 from .modules.multimodal_encoder import E_ResNet, E_NLayers
 
 
@@ -256,6 +257,15 @@ def define_G(
             num_classes=256,
             final_conv=True,
             padding_type=G_padding_type,
+        )
+        return net
+    elif G_netG == "ittr":
+        net = ITTRGenerator(
+            model_input_nc,
+            model_output_nc,
+            img_size=data_crop_size,
+            n_blocks=3,
+            ngf=G_ngf,
         )
         return net
     else:
