@@ -40,7 +40,7 @@ models_semantic_mask = [
     "cycle_gan",
 ]
 
-G_netG = ["mobile_resnet_attn", "segformer_attn_conv"]
+G_netG = ["mobile_resnet_attn", "segformer_attn_conv", "ittr"]
 
 D_proj_network_type = ["efficientnet", "vitsmall"]
 

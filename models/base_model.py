@@ -224,6 +224,8 @@ class BaseModel(ABC):
 
         if "segformer" in self.opt.G_netG:
             self.onnx_opset_version = 11
+        elif "ittr" in self.opt.G_netG:
+            self.onnx_opset_version = 12
         else:
             self.onnx_opset_version = 9
 
@@ -800,15 +802,16 @@ class BaseModel(ABC):
                 )
 
                 # onnx
-                export_path_onnx = save_path.replace(".pth", ".onnx")
+                if not "ittr" in self.opt.G_netG:
+                    export_path_onnx = save_path.replace(".pth", ".onnx")
 
-                torch.onnx.export(
-                    net,
-                    dummy_input,
-                    export_path_onnx,
-                    verbose=False,
-                    opset_version=self.onnx_opset_version,
-                )
+                    torch.onnx.export(
+                        net,
+                        dummy_input,
+                        export_path_onnx,
+                        verbose=False,
+                        opset_version=self.onnx_opset_version,
+                    )
 
                 # jit
                 if self.opt.train_export_jit and not "segformer" in self.opt.G_netG:
