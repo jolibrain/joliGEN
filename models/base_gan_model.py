@@ -241,57 +241,12 @@ class BaseGanModel(BaseModel):
 
         super().init_semantic_cls(opt)
 
-        losses_G = ["G_sem_cls_AB"]
-
-        if hasattr(self, "fake_A"):
-            losses_G.append("G_sem_cls_BA")
-
-        self.loss_names_G += losses_G
-        self.loss_names += losses_G
-
     def init_semantic_mask(self, opt):
 
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
         super().init_semantic_mask(opt)
-
-        losses_G = ["G_sem_mask_AB"]
-
-        if hasattr(self, "fake_A"):
-            losses_G += ["G_sem_mask_BA"]
-
-        if self.opt.train_sem_idt:
-            losses_G += ["G_sem_mask_idt_B"]
-            if hasattr(self, "fake_A"):
-                losses_G += ["G_sem_mask_idt_A"]
-
-        if opt.train_mask_out_mask:
-            losses_G += ["G_out_mask_AB"]
-            if hasattr(self, "fake_A"):
-                losses_G += ["G_out_mask_BA"]
-
-        self.loss_names_G += losses_G
-
-        self.loss_names += losses_G
-
-        if self.isTrain:
-            # define loss functions
-            tweights = None
-            if opt.f_s_class_weights:
-                print("Using f_s class weights=", opt.f_s_class_weights)
-                tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
-            self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
-
-            if opt.train_mask_out_mask:
-                if opt.train_mask_loss_out_mask == "L1":
-                    self.criterionMask = torch.nn.L1Loss()
-                elif opt.train_mask_loss_out_mask == "MSE":
-                    self.criterionMask = torch.nn.MSELoss()
-                elif opt.train_mask_loss_out_mask == "Charbonnier":
-                    self.criterionMask = L1_Charbonnier_loss(
-                        opt.train_mask_charbonnier_eps
-                    )
 
     def forward_GAN(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""

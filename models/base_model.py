@@ -229,7 +229,7 @@ class BaseModel(ABC):
 
     def init_semantic_cls(self, opt):
 
-        # specify the training losses you want to print out.
+        # specify the semantic training networks and losses.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
         losses_G = ["G_sem_cls_AB"]
@@ -282,7 +282,7 @@ class BaseModel(ABC):
 
     def init_semantic_mask(self, opt):
 
-        # specify the training losses you want to print out.
+        # specify the semantic training networks and losses.
         # The training/test scripts will call <BaseModel.get_current_losses>
         losses_G = ["G_sem_mask_AB"]
 
