@@ -66,6 +66,7 @@ def define_G(
     model_output_nc,
     G_ngf,
     G_netG,
+    G_nblocks,
     G_norm,
     G_dropout,
     G_spectral,
@@ -117,58 +118,16 @@ def define_G(
             norm_layer=norm_layer,
             use_dropout=G_dropout,
             use_spectral=G_spectral,
-            n_blocks=9,
+            n_blocks=G_nblocks,
             padding_type=G_padding_type,
         )
-    elif G_netG == "resnet_6blocks":
-        net = ResnetGenerator(
-            model_input_nc,
-            model_output_nc,
-            G_ngf,
-            norm_layer=norm_layer,
-            use_dropout=G_dropout,
-            use_spectral=G_spectral,
-            n_blocks=6,
-            padding_type=G_padding_type,
-        )
-    elif G_netG == "resnet_12blocks":
-        net = ResnetGenerator(
-            model_input_nc,
-            model_output_nc,
-            G_ngf,
-            norm_layer=norm_layer,
-            use_dropout=G_dropout,
-            use_spectral=G_spectral,
-            n_blocks=12,
-            padding_type=G_padding_type,
-        )
-    elif G_netG == "resnet_3blocks":
-        net = ResnetGenerator(
-            model_input_nc,
-            model_output_nc,
-            G_ngf,
-            norm_layer=norm_layer,
-            use_dropout=G_dropout,
-            use_spectral=G_spectral,
-            n_blocks=3,
-            padding_type=G_padding_type,
-        )
-    elif G_netG == "mobile_resnet_9blocks":
+    elif G_netG == "mobile_resnet":
         net = ResnetGenerator(
             model_input_nc,
             model_output_nc,
             ngf=G_ngf,
             norm_layer=norm_layer,
-            n_blocks=9,
-            mobile=True,
-        )
-    elif G_netG == "mobile_resnet_3blocks":
-        net = ResnetGenerator(
-            model_input_nc,
-            model_output_nc,
-            ngf=G_ngf,
-            norm_layer=norm_layer,
-            n_blocks=3,
+            n_blocks=G_nblocks,
             mobile=True,
         )
     elif G_netG == "unet_128":
@@ -196,7 +155,7 @@ def define_G(
             G_attn_nb_mask_attn,
             G_attn_nb_mask_input,
             G_ngf,
-            n_blocks=9,
+            n_blocks=G_nblocks,
             use_spectral=G_spectral,
             padding_type=G_padding_type,
             twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
@@ -208,7 +167,7 @@ def define_G(
             G_attn_nb_mask_attn,
             G_attn_nb_mask_input,
             G_ngf,
-            n_blocks=9,
+            n_blocks=G_nblocks,
             use_spectral=G_spectral,
             padding_type=G_padding_type,
             mobile=True,

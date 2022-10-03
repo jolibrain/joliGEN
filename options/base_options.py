@@ -183,6 +183,12 @@ class BaseOptions:
             help="specify generator architecture",
         )
         parser.add_argument(
+            "--G_nblocks",
+            type=int,
+            default=9,
+            help="# of layer blocks in G, applicable to resnets",
+        )
+        parser.add_argument(
             "--G_dropout", action="store_true", help="dropout for the generator"
         )
         parser.add_argument(
