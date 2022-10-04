@@ -66,7 +66,9 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
     if not opt.warning_mode:
         warnings.simplefilter("ignore")
 
-    torch.cuda.set_device(opt.gpu_ids[rank])
+    if opt.use_cuda:
+        torch.cuda.set_device(opt.gpu_ids[rank])
+
     signal.signal(signal.SIGINT, signal_handler)  # to really kill the process
     signal.signal(signal.SIGTERM, signal_handler)
     if len(opt.gpu_ids) > 1:
@@ -93,10 +95,11 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
 
     model.use_temporal = use_temporal
 
-    if len(opt.gpu_ids) > 1:
-        model.parallelize(rank)
-    else:
-        model.single_gpu()
+    if opt.use_cuda:
+        if len(opt.gpu_ids) > 1:
+            model.parallelize(rank)
+        else:
+            model.single_gpu()
 
     if rank == 0:
         visualizer = Visualizer(
@@ -309,12 +312,16 @@ def launch_training(opt=None):
     else:
         dataset_temporal = None
 
-    mp.spawn(
-        train_gpu,
-        args=(world_size, opt, dataset, dataset_temporal),
-        nprocs=world_size,
-        join=True,
-    )
+    opt.use_cuda = torch.cuda.is_available() and opt.gpu_ids and opt.gpu_ids[0] >= 0
+    if opt.use_cuda:
+        mp.spawn(
+            train_gpu,
+            args=(world_size, opt, dataset, dataset_temporal),
+            nprocs=world_size,
+            join=True,
+        )
+    else:
+        train_gpu(0, world_size, opt, dataset, dataset_temporal)
 
 
 def get_override_options_names(remaining_args):
