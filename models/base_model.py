@@ -1204,3 +1204,110 @@ class BaseModel(ABC):
             self.pred_cls_fake_A = self.netCLS(self.fake_A)
             if not self.opt.train_cls_regression:
                 _, self.pfB = self.pred_cls_fake_A.max(1)
+
+    def compute_fid(self, n_epoch, n_iter):
+        dims = 2048
+        batch = 1
+
+        # A->B
+        if hasattr(self, "netG_B"):
+            pathA = self.save_dir + "/fakeA/" + str(n_iter) + "_" + str(n_epoch)
+            if not os.path.exists(pathA):
+                os.mkdir(pathA)
+            if len(self.fake_A_pool.get_all()) > 0:
+                for i, temp_fake_A in enumerate(self.fake_A_pool.get_all()):
+                    save_image(
+                        tensor2im(temp_fake_A),
+                        pathA + "/" + str(i) + ".png",
+                        aspect_ratio=1.0,
+                    )
+                self.fakemA, self.fakesA = _compute_statistics_of_path(
+                    pathA,
+                    self.netFid,
+                    batch,
+                    dims,
+                    self.gpu_ids[0],
+                    nb_max_img=self.opt.train_nb_img_max_fid,
+                    root=self.root,
+                )
+
+        # B->A
+        pathB = self.save_dir + "/fakeB/" + str(n_iter) + "_" + str(n_epoch)
+        if not os.path.exists(pathB):
+            os.mkdir(pathB)
+
+        for j, temp_fake_B in enumerate(self.fake_B_pool.get_all()):
+            save_image(
+                tensor2im(temp_fake_B), pathB + "/" + str(j) + ".png", aspect_ratio=1.0
+            )
+        self.fakemB, self.fakesB = _compute_statistics_of_path(
+            pathB,
+            self.netFid,
+            batch,
+            dims,
+            self.gpu_ids[0],
+            nb_max_img=self.opt.train_nb_img_max_fid,
+            root=self.root,
+        )
+
+        if len(self.fake_A_pool.get_all()) > 0:
+            self.fidA = calculate_frechet_distance(
+                self.realmA, self.realsA, self.fakemA, self.fakesA
+            )
+        self.fidB = calculate_frechet_distance(
+            self.realmB, self.realsB, self.fakemB, self.fakesB
+        )
+
+    def get_current_fids(self):
+
+        fids = OrderedDict()
+
+        if hasattr(self, "netG_B"):
+            fid_names = ["fidA", "fidB"]
+        else:
+            fid_names = ["fidB"]
+
+        for name in fid_names:
+            if isinstance(name, str):
+                fids[name] = float(
+                    getattr(self, name)
+                )  # float(...) works for both scalar tensor and float number
+
+        return fids
+
+    def compute_fid_val(self):
+        dims = 2048
+        batch = 1
+
+        pathB = self.save_dir + "/fakeB/%s_imgs" % (self.opt.data_max_dataset_size)
+        if not os.path.exists(pathB):
+            os.mkdir(pathB)
+
+        if hasattr(self, "netG_B"):
+            netG = self.netG_B
+        elif hasattr(self, "netG"):
+            netG = self.netG
+
+        self.fake_B_val = self.compute_fake_val(self.real_A_val, netG)
+
+        for j, temp_fake_B in enumerate(self.fake_B_val):
+            save_image(
+                tensor2im(temp_fake_B.unsqueeze(0)),
+                pathB + "/" + str(j) + ".png",
+                aspect_ratio=1.0,
+            )
+
+        self.fakemB_val, self.fakesB_val = _compute_statistics_of_path(
+            pathB,
+            self.netFid,
+            batch,
+            dims,
+            self.gpu_ids[0],
+            nb_max_img=self.opt.train_nb_img_max_fid,
+            root=self.root,
+        )
+
+        self.fidB_val = calculate_frechet_distance(
+            self.realmB_val, self.realsB_val, self.fakemB_val, self.fakesB_val
+        )
+        return self.fidB_val
