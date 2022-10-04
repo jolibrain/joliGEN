@@ -49,6 +49,20 @@ class CUTModel(BaseGanModel):
             default=True,
             help="use NCE loss for identity mapping: NCE(G(Y), Y))",
         )
+
+        parser.add_argument(
+            "--alg_cut_MSE_idt",
+            action="store_true",
+            help="use MSENCE loss for identity mapping: MSE(G(Y), Y))",
+        )
+
+        parser.add_argument(
+            "--alg_cut_lambda_MSE_idt",
+            type=float,
+            default=1.0,
+            help="weight for MSE identity loss: MSE(G(X), X)",
+        )
+
         parser.add_argument(
             "--alg_cut_nce_layers",
             type=str,
@@ -185,6 +199,9 @@ class CUTModel(BaseGanModel):
             for nce_layer in self.nce_layers:
                 self.criterionNCE.append(PatchNCELoss(opt).to(self.device))
 
+            if self.opt.alg_cut_MSE_idt:
+                self.criterionIdt = torch.nn.L1Loss()
+
             # Optimizers
             self.optimizer_G = opt.optim(
                 opt,
@@ -276,6 +293,10 @@ class CUTModel(BaseGanModel):
         losses_D = []
         if opt.alg_cut_nce_idt and self.isTrain:
             losses_G += ["G_NCE_Y"]
+
+        if opt.alg_cut_MSE_idt:
+            losses_G += ["G_MSE_idt"]
+
         if opt.model_multimodal and self.isTrain:
             losses_E = ["G_z"]
             losses_G += ["G_z"]
@@ -483,7 +504,14 @@ class CUTModel(BaseGanModel):
         else:
             loss_NCE_both = self.loss_G_NCE
 
-        self.loss_G_tot += loss_NCE_both
+        if self.opt.alg_cut_MSE_idt and self.opt.alg_cut_lambda_MSE_idt > 0.0:
+            self.loss_G_MSE_idt = self.opt.alg_cut_lambda_MSE_idt * self.criterionIdt(
+                self.real_B, self.idt_B
+            )
+        else:
+            self.loss_G_MSE_idt = 0
+
+        self.loss_G_tot += loss_NCE_both + self.loss_G_MSE_idt
         self.compute_E_loss()
         self.loss_G_tot += self.loss_G_z
 
