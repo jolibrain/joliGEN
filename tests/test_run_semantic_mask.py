@@ -52,6 +52,8 @@ def test_semantic_mask(dataroot):
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
     for model in models_semantic_mask:
         json_like_dict["model_type"] = model
+        if model == "cut":
+            json_like_dict["alg_cut_MSE_idt"] = True
         json_like_dict["name"] += "_" + model
         json_like_dict_c = json_like_dict.copy()
         for Gtype in G_netG:
