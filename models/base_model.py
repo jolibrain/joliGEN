@@ -58,13 +58,15 @@ class BaseModel(ABC):
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
         self.with_amp = opt.with_amp
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.with_amp)
+        self.use_cuda = (
+            opt.use_cuda
+        )  # torch.cuda.is_available() and self.gpu_ids and self.gpu_ids[0] >= 0
+        if self.use_cuda:
+            self.scaler = torch.cuda.amp.GradScaler(enabled=self.with_amp)
         if hasattr(opt, "fs_light"):
             self.fs_light = opt.fs_light
         self.device = torch.device(
-            "cuda:{}".format(self.gpu_ids[rank])
-            if self.gpu_ids
-            else torch.device("cpu")
+            "cuda:{}".format(self.gpu_ids[rank]) if self.use_cuda else "cpu"
         )  # get device name: CPU or GPU
         self.save_dir = os.path.join(
             opt.checkpoints_dir, opt.name
@@ -769,7 +771,7 @@ class BaseModel(ABC):
                 save_path = os.path.join(self.save_dir, save_filename)
                 net = getattr(self, "net" + name)
 
-                if len(self.gpu_ids) > 1 and torch.cuda.is_available():
+                if len(self.gpu_ids) > 1 and self.use_cuda:
                     torch.save(net.module.state_dict(), save_path)
                 else:
                     torch.save(net.state_dict(), save_path)
@@ -958,8 +960,11 @@ class BaseModel(ABC):
 
         if self.niter % self.opt.train_iter_size == 0:
             for optimizer in optimizers:
-                self.scaler.step(optimizer)
-                self.scaler.update()
+                if self.use_cuda:
+                    self.scaler.step(optimizer)
+                    self.scaler.update()
+                else:
+                    optimizer.step()
                 optimizer.zero_grad()
             if self.opt.train_iter_size > 1:
                 self.iter_calculator.compute_last_step(loss_names)
@@ -1009,9 +1014,14 @@ class BaseModel(ABC):
                 getattr(self, backward)()
 
             for loss in group.loss_backward:
-                (
-                    self.scaler.scale(getattr(self, loss)) / self.opt.train_iter_size
-                ).backward(retain_graph=True)
+                if self.use_cuda:
+                    ll = (
+                        self.scaler.scale(getattr(self, loss))
+                        / self.opt.train_iter_size
+                    )
+                else:
+                    ll = getattr(self, loss) / self.opt.train_iter_size
+                ll.backward(retain_graph=True)
 
             loss_names = []
 
