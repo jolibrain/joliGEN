@@ -6,7 +6,6 @@ from .base_gan_model import BaseGanModel
 from . import networks
 
 from .modules import loss
-from .patchnce import PatchNCELoss
 
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup

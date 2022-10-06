@@ -162,4 +162,4 @@ pre-commit install
 
 **JoliGAN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).
 
-Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/taesungp/contrastive-unpaired-translation) and [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN) among others.
+Our code is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/taesungp/contrastive-unpaired-translation), [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN), [MoNCE](https://github.com/fnzhan/MoNCE) among others.
