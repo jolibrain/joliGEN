@@ -311,6 +311,7 @@ class BaseOptions:
                 "vitsmall2",
                 "vitclip16",
             ],
+            help="projected discriminator architecture"
         )
         parser.add_argument(
             "--D_no_antialias",
