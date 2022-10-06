@@ -7,6 +7,7 @@ from . import networks
 
 from .modules import loss
 from .patchnce import PatchNCELoss
+from .monce import MoNCELoss
 
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
@@ -62,6 +63,13 @@ class CUTModel(BaseGanModel):
             const=True,
             default=False,
             help="(used for single image translation) If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. Please see models/patchnce.py for more details.",
+        )
+        parser.add_argument(
+            "--alg_cut_nce_loss",
+            type=str,
+            default="patchnce",
+            choices=["patchnce", "monce"],
+            help="CUT contrastice loss",
         )
         parser.add_argument(
             "--alg_cut_netF",
@@ -183,7 +191,10 @@ class CUTModel(BaseGanModel):
             self.criterionNCE = []
 
             for nce_layer in self.nce_layers:
-                self.criterionNCE.append(PatchNCELoss(opt).to(self.device))
+                if opt.alg_cut_nce_loss == "patchnce":
+                    self.criterionNCE.append(PatchNCELoss(opt).to(self.device))
+                elif opt.alg_cut_nce_loss == "monce":
+                    self.criterionNCE.append(MoNCELoss(opt).to(self.device))
 
             # Optimizers
             self.optimizer_G = opt.optim(
