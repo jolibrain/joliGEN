@@ -47,6 +47,7 @@ Here are all the available options to call with `train.py`
 | --G_backward_compatibility_twice_resnet_blocks | flag |  | if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way). |
 | --G_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segforme configuration file for G |
 | --G_dropout | flag |  | dropout for the generator |
+| --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/>_**Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512_ |
 | --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
