@@ -3,7 +3,7 @@ import copy
 import torch
 from collections import OrderedDict
 from abc import ABC, abstractmethod
-from . import networks
+from . import gan_networks, semantic_networks
 from .modules.utils import get_scheduler
 from torchviz import make_dot
 
@@ -19,6 +19,7 @@ from .modules.fid.pytorch_fid.fid_score import (
 from util.util import save_image, tensor2im
 import numpy as np
 from util.diff_aug import DiffAugment
+from . import base_networks
 
 # for D accuracy
 from util.image_pool import ImagePool
@@ -96,7 +97,7 @@ class BaseModel(ABC):
             self.transform = get_transform(opt, grayscale=(opt.model_input_nc == 1))
             dims = 2048
             batch = 1
-            self.netFid = networks.define_inception(self.gpu_ids[0], dims)
+            self.netFid = base_networks.define_inception(self.gpu_ids[0], dims)
 
             pathA = opt.dataroot + "/trainA"
             path_sv_A = os.path.join(
@@ -249,7 +250,7 @@ class BaseModel(ABC):
 
         # define network CLS
         if self.isTrain:
-            self.netCLS = networks.define_C(**vars(opt))
+            self.netCLS = semantic_networks.define_C(**vars(opt))
 
             self.model_names += ["CLS"]
 
@@ -316,13 +317,13 @@ class BaseModel(ABC):
             if self.opt.train_mask_disjoint_f_s:
                 self.opt.train_f_s_B = True
 
-                self.netf_s_A = networks.define_f(**vars(opt))
+                self.netf_s_A = semantic_networks.define_f(**vars(opt))
                 networks_f_s.append("f_s_A")
 
-                self.netf_s_B = networks.define_f(**vars(opt))
+                self.netf_s_B = semantic_networks.define_f(**vars(opt))
                 networks_f_s.append("f_s_B")
             else:
-                self.netf_s = networks.define_f(**vars(opt))
+                self.netf_s = semantic_networks.define_f(**vars(opt))
                 networks_f_s.append("f_s")
 
             self.model_names += networks_f_s

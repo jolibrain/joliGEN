@@ -17,7 +17,7 @@ You need to implement the following functions:
 """
 import torch
 from .base_model import BaseModel
-from . import networks
+from . import gan_networks
 from .modules import loss
 
 

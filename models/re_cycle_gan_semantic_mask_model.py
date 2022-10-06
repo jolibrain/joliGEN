@@ -1,7 +1,7 @@
 import torch
 import itertools
 from .cycle_gan_semantic_mask_model import CycleGANSemanticMaskModel
-from . import networks
+from . import gan_networks
 from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F

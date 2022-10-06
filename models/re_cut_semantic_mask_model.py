@@ -1,7 +1,7 @@
 import torch
 import itertools
 from .cut_semantic_mask_model import CUTSemanticMaskModel
-from . import networks
+from . import gan_networks
 from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
