@@ -31,8 +31,7 @@ from options.test_options import TestOptions
 from data import create_dataset
 from models import create_model
 from util.visualizer import save_images
-from util import html
-
+from util import html_util
 
 if __name__ == "__main__":
     opt = TestOptions().parse()  # get test options
@@ -58,7 +57,7 @@ if __name__ == "__main__":
     if opt.load_iter > 0:  # load_iter is 0 by default
         web_dir = "{:s}_iter{:d}".format(web_dir, opt.load_iter)
     print("creating web directory", web_dir)
-    webpage = html.HTML(
+    webpage = html_util.HTML(
         web_dir,
         "Experiment = %s, Phase = %s, Epoch = %s" % (opt.name, opt.phase, opt.epoch),
     )
