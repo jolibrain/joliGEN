@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from .base_gan_model import BaseGanModel
-from . import networks
+from . import gan_networks
 
 from .modules import loss
 from .patchnce import PatchNCELoss
@@ -181,17 +181,17 @@ class CUTModel(BaseGanModel):
         if self.opt.model_multimodal:
             tmp_model_input_nc = self.opt.model_input_nc
             self.opt.model_input_nc += self.opt.train_mm_nz
-        self.netG_A = networks.define_G(**vars(opt))
+        self.netG_A = gan_networks.define_G(**vars(opt))
         if self.opt.model_multimodal:
             self.opt.model_input_nc = tmp_model_input_nc
-        self.netF = networks.define_F(**vars(opt))
+        self.netF = gan_networks.define_F(**vars(opt))
         self.netF.set_device(self.device)
         if self.opt.model_multimodal:
-            self.netE = networks.define_E(**vars(opt))
+            self.netE = gan_networks.define_E(**vars(opt))
 
         if self.isTrain:
             # Discriminator(s)
-            self.netDs = networks.define_D(**vars(opt))
+            self.netDs = gan_networks.define_D(**vars(opt))
 
             self.discriminators_names = [
                 "D_B_" + D_name for D_name in self.netDs.keys()

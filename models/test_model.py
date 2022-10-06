@@ -1,5 +1,5 @@
 from .base_model import BaseModel
-from . import networks
+from . import gan_networks
 
 
 class TestModel(BaseModel):

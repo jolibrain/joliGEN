@@ -2,7 +2,7 @@ import torch
 import itertools
 from util.image_pool import ImagePool
 from .base_model import BaseModel
-from . import networks
+from . import gan_networks
 from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F

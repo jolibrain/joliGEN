@@ -3,7 +3,7 @@ import copy
 import torch
 from collections import OrderedDict
 from abc import abstractmethod
-from . import networks
+from . import gan_networks
 from .modules.utils import get_scheduler
 from torchviz import make_dot
 from .base_model import BaseModel

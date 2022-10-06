@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from .base_gan_model import BaseGanModel
-from . import networks
+from . import gan_networks
 
 from .modules import loss
 
@@ -119,15 +119,15 @@ class CycleGanModel(BaseGanModel):
 
         # Generators
 
-        self.netG_A = networks.define_G(**vars(opt))
-        self.netG_B = networks.define_G(**vars(opt))
+        self.netG_A = gan_networks.define_G(**vars(opt))
+        self.netG_B = gan_networks.define_G(**vars(opt))
 
         # Discriminators
 
         if self.isTrain:
 
-            self.netD_As = networks.define_D(**vars(opt))
-            self.netD_Bs = networks.define_D(**vars(opt))
+            self.netD_As = gan_networks.define_D(**vars(opt))
+            self.netD_Bs = gan_networks.define_D(**vars(opt))
 
             discriminators_names_A = ["D_A_" + D_name for D_name in self.netD_As.keys()]
             discriminators_names_B = ["D_B_" + D_name for D_name in self.netD_Bs.keys()]
