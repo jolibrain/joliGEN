@@ -13,3 +13,4 @@ wget
 git+https://github.com/nupurkmr9/vision-aided-gan.git
 mmsegmentation==0.22.1
 mmcv-full==1.4.7
+einops
