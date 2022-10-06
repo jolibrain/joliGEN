@@ -29,7 +29,7 @@ Here are all the available options to call with `train.py`
 | --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/>_**Values:** instance, batch, none_ |
 | --D_proj_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file |
 | --D_proj_interp | int | -1 | whether to force projected discriminator interpolation to a value \> 224, -1 means no interpolation |
-| --D_proj_network_type | string | efficientnet | <br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16_ |
+| --D_proj_network_type | string | efficientnet | projected discriminator architecture<br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16_ |
 | --D_proj_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight |
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
 | --D_temporal_every | int | 4 |  |
@@ -48,7 +48,7 @@ Here are all the available options to call with `train.py`
 | --G_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segforme configuration file for G |
 | --G_dropout | flag |  | dropout for the generator |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/>_**Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512_ |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv_ |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
 | --G_padding_type | string | zeros | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
