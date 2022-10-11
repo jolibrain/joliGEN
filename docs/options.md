@@ -63,8 +63,10 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
+| --alg_cut_MSE_idt | flag |  | use MSENCE loss for identity mapping: MSE(G(Y), Y)) |
 | --alg_cut_flip_equivariance | flag |  | Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT |
 | --alg_cut_lambda_GAN | float | 1.0 | weight for GAN loss：GAN(G(X)) |
+| --alg_cut_lambda_MSE_idt | float | 1.0 | weight for MSE identity loss: MSE(G(X), X) |
 | --alg_cut_lambda_NCE | float | 1.0 | weight for NCE loss: NCE(G(X), X) |
 | --alg_cut_nce_T | float | 0.07 | temperature for NCE loss |
 | --alg_cut_nce_idt | flag |  | use NCE loss for identity mapping: NCE(G(Y), Y)) |
