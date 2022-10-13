@@ -477,7 +477,7 @@ class BaseGanModel(BaseModel):
             self.loss_G_tot += loss_value
 
         if self.opt.train_temporal_criterion:
-            self.loss_G_tot += self.compute_temporal_criterion_loss()
+            self.compute_temporal_criterion_loss()
 
     def compute_fake_with_context(self, fake_name, real_name):
         setattr(
