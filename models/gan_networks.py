@@ -205,7 +205,7 @@ def define_G(
             model_input_nc,
             model_output_nc,
             img_size=data_crop_size,
-            n_blocks=3,
+            n_blocks=G_nblocks,
             ngf=G_ngf,
         )
         return net
