@@ -542,6 +542,12 @@ class BaseOptions:
 
         # Online dataset creation options
         parser.add_argument(
+            "--data_online_select_category",
+            default=-1,
+            type=int,
+            help="category to select for bounding boxes, -1 means all boxes selected",
+        )
+        parser.add_argument(
             "--data_online_creation_load_size_A",
             default=[],
             nargs="*",
@@ -780,6 +786,12 @@ class BaseOptions:
                     + ", run may fail, use --G_netE accordingly"
                 )
                 warnings.warn(msg)
+
+        # bbox selection check
+        if opt.data_online_select_category != -1 and not args.data_sanitize_paths:
+            raise ValueError(
+                "Bounding box class selection requires --data_sanitize_paths"
+            )
 
         self.opt = opt
 
