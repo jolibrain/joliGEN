@@ -805,7 +805,7 @@ class BaseModel(ABC):
                 )
 
                 # onnx
-                if not "ittr" in self.opt.G_netG:
+                if not "ittr" in self.opt.G_netG and not "unet_mha" in self.opt.G_netG:
                     export_path_onnx = save_path.replace(".pth", ".onnx")
 
                     torch.onnx.export(

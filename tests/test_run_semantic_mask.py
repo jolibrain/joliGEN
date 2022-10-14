@@ -33,6 +33,9 @@ json_like_dict = {
     "train_mask_compute_miou": True,
     "train_mask_miou_every": 1,
     "train_semantic_mask": True,
+    "G_unet_mha_inner_channel": 32,
+    "G_unet_mha_num_head_channels": 16,
+    "G_nblocks": 1,
 }
 
 models_semantic_mask = [
@@ -40,7 +43,7 @@ models_semantic_mask = [
     "cycle_gan",
 ]
 
-G_netG = ["mobile_resnet_attn", "segformer_attn_conv", "ittr"]
+G_netG = ["mobile_resnet_attn", "segformer_attn_conv", "ittr", "unet_mha"]
 
 D_proj_network_type = ["efficientnet", "vitsmall"]
 

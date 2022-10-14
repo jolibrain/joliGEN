@@ -42,6 +42,7 @@ from .modules.segformer.segformer_generator import (
 )
 from .modules.ittr.ittr_generator import ITTRGenerator
 from .modules.multimodal_encoder import E_ResNet, E_NLayers
+from .modules.unet_generator_attn.unet_generator_attn import UNet as UNet_mha
 
 
 def define_G(
@@ -63,6 +64,8 @@ def define_G(
     G_config_segformer,
     G_stylegan2_num_downsampling,
     G_backward_compatibility_twice_resnet_blocks,
+    G_unet_mha_inner_channel,
+    G_unet_mha_num_head_channels,
     **unused_options
 ):
     """Create a generator
@@ -207,6 +210,19 @@ def define_G(
             img_size=data_crop_size,
             n_blocks=3,
             ngf=G_ngf,
+        )
+        return net
+    elif G_netG == "unet_mha":
+        net = UNet_mha(
+            image_size=data_crop_size,
+            in_channel=model_input_nc,
+            inner_channel=G_unet_mha_inner_channel,  # e.g. 64 in palette repo
+            out_channel=model_output_nc,
+            res_blocks=G_nblocks,  # 2 in palette repo
+            attn_res=[16],  # e.g.
+            channel_mults=(1, 2, 4, 8),  # e.g.
+            num_head_channels=G_unet_mha_num_head_channels,  # e.g. 32 in palette repo
+            tanh=True,
         )
         return net
     else:
