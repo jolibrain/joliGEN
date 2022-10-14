@@ -54,8 +54,9 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         for label in self.A_label:
             self.A_label_mask_paths.append(label.split(" ")[-1])
 
-        for label in self.B_label:
-            self.B_label_mask_paths.append(label.split(" ")[-1])
+        if hasattr(self, "B_label"):
+            for label in self.B_label:
+                self.B_label_mask_paths.append(label.split(" ")[-1])
 
         self.transform = get_transform_seg(self.opt, grayscale=(self.input_nc == 1))
         self.transform_noseg = get_transform(self.opt, grayscale=(self.input_nc == 1))

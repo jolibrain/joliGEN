@@ -102,12 +102,16 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         paths_sanitized_train_A = os.path.join(
             self.sv_dir, "paths_sanitized_train_A.txt"
         )
-        paths_sanitized_train_B = os.path.join(
-            self.sv_dir, "paths_sanitized_train_B.txt"
-        )
-        train_sanitized_exist = os.path.exists(
-            paths_sanitized_train_A
-        ) and os.path.exists(paths_sanitized_train_B)
+        if hasattr(self, "B_img_paths"):
+            paths_sanitized_train_B = os.path.join(
+                self.sv_dir, "paths_sanitized_train_B.txt"
+            )
+        if hasattr(self, "B_img_paths"):
+            train_sanitized_exist = os.path.exists(
+                paths_sanitized_train_A
+            ) and os.path.exists(paths_sanitized_train_B)
+        else:
+            train_sanitized_exist = os.path.exists(paths_sanitized_train_A)
         validation_is_needed = (
             self.opt.phase == "train" and self.opt.train_compute_D_accuracy
         )
@@ -129,9 +133,10 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
                 self.sv_dir, "/paths_sanitized_train_A.txt"
             )
-            self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
-                self.sv_dir, "/paths_sanitized_train_B.txt"
-            )
+            if hasattr(self, "B_img_paths"):
+                self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
+                    self.sv_dir, "/paths_sanitized_train_B.txt"
+                )
             if validation_is_needed:
                 (
                     self.A_img_paths_val,
@@ -162,6 +167,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 max_dataset_size=self.opt.data_max_dataset_size,
                 context_pixels=self.opt.data_online_context_pixels,
                 load_size=self.opt.data_online_creation_load_size_A,
+                select_cat=self.opt.data_online_select_category,
             )
             write_paths_file(
                 self.A_img_paths,
@@ -187,41 +193,42 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     paths_sanitized_validation_A,
                 )
             print("--- DOMAIN B ---")
-            self.B_img_paths, self.B_label_mask_paths = sanitize_paths(
-                self.B_img_paths,
-                self.B_label_mask_paths,
-                mask_delta=self.opt.data_online_creation_mask_delta_B,
-                crop_delta=self.opt.data_online_creation_crop_delta_B,
-                mask_square=self.opt.data_online_creation_mask_square_B,
-                crop_dim=self.opt.data_online_creation_crop_size_B,
-                output_dim=self.opt.data_load_size,
-                max_dataset_size=self.opt.data_max_dataset_size,
-                context_pixels=self.opt.data_online_context_pixels,
-                load_size=self.opt.data_online_creation_load_size_B,
-            )
-            write_paths_file(
-                self.B_img_paths,
-                self.B_label_mask_paths,
-                paths_sanitized_train_B,
-            )
-            if self.opt.phase == "train" and self.opt.train_compute_D_accuracy:
-                self.B_img_paths_val, self.B_label_mask_paths_val = sanitize_paths(
-                    self.B_img_paths_val,
-                    self.B_label_mask_paths_val,
+            if hasattr(self, "B_img_paths"):
+                self.B_img_paths, self.B_label_mask_paths = sanitize_paths(
+                    self.B_img_paths,
+                    self.B_label_mask_paths,
                     mask_delta=self.opt.data_online_creation_mask_delta_B,
                     crop_delta=self.opt.data_online_creation_crop_delta_B,
                     mask_square=self.opt.data_online_creation_mask_square_B,
                     crop_dim=self.opt.data_online_creation_crop_size_B,
                     output_dim=self.opt.data_load_size,
-                    max_dataset_size=self.opt.train_pool_size,
+                    max_dataset_size=self.opt.data_max_dataset_size,
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_B,
                 )
                 write_paths_file(
-                    self.B_img_paths_val,
-                    self.B_label_mask_paths_val,
-                    paths_sanitized_validation_B,
+                    self.B_img_paths,
+                    self.B_label_mask_paths,
+                    paths_sanitized_train_B,
                 )
+                if self.opt.phase == "train" and self.opt.train_compute_D_accuracy:
+                    self.B_img_paths_val, self.B_label_mask_paths_val = sanitize_paths(
+                        self.B_img_paths_val,
+                        self.B_label_mask_paths_val,
+                        mask_delta=self.opt.data_online_creation_mask_delta_B,
+                        crop_delta=self.opt.data_online_creation_crop_delta_B,
+                        mask_square=self.opt.data_online_creation_mask_square_B,
+                        crop_dim=self.opt.data_online_creation_crop_size_B,
+                        output_dim=self.opt.data_load_size,
+                        max_dataset_size=self.opt.train_pool_size,
+                        context_pixels=self.opt.data_online_context_pixels,
+                        load_size=self.opt.data_online_creation_load_size_B,
+                    )
+                    write_paths_file(
+                        self.B_img_paths_val,
+                        self.B_label_mask_paths_val,
+                        paths_sanitized_validation_B,
+                    )
             print("--------------")
 
     def get_img(
@@ -246,6 +253,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 output_dim=self.opt.data_load_size,
                 context_pixels=self.opt.data_online_context_pixels,
                 load_size=self.opt.data_online_creation_load_size_A,
+                select_cat=self.opt.data_online_select_category,
             )
 
         except Exception as e:

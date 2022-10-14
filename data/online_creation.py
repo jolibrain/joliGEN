@@ -21,6 +21,7 @@ def crop_image(
     load_size,
     get_crop_coordinates=False,
     crop_coordinates=None,
+    select_cat=-1,
 ):
 
     margin = context_pixels * 2
@@ -53,7 +54,15 @@ def crop_image(
 
         for line in f:
             if len(line) > 2:  # to make sure the current line is a real bbox
-                bboxes.append(line)
+                if select_cat != -1:
+                    bbox = line.split()
+                    cat = int(bbox[0])
+                    if cat != select_cat:
+                        continue  # skip bboxes
+                    else:
+                        bboxes.append(line)
+                else:
+                    bboxes.append(line)
             elif line != "" or line != " ":
                 print("%s does not describe a bbox" % line)
 
@@ -69,6 +78,10 @@ def crop_image(
         for i, cur_bbox in enumerate(bboxes):
             bbox = cur_bbox.split()
             cat = int(bbox[0])
+            if select_cat != -1:
+                if cat != select_cat:
+                    continue  # skip bboxes
+
             xmin = math.floor(int(bbox[1]) * ratio_x)
             ymin = math.floor(int(bbox[2]) * ratio_y)
             xmax = math.floor(int(bbox[3]) * ratio_x)
@@ -265,6 +278,7 @@ def sanitize_paths(
     output_dim,
     context_pixels,
     load_size,
+    select_cat=-1,
     max_dataset_size=float("inf"),
     verbose=False,
 ):
@@ -274,7 +288,7 @@ def sanitize_paths(
     if paths_bb is None:
         paths_bb = [None for k in range(len(paths_img))]
 
-    for path_img, path_bb in zip(paths_img, paths_bb):
+    for path_img, path_bb in tqdm(zip(paths_img, paths_bb)):
         if len(return_paths_img) >= max_dataset_size:
             break
 
@@ -293,6 +307,7 @@ def sanitize_paths(
                         output_dim=output_dim,
                         context_pixels=context_pixels,
                         load_size=load_size,
+                        select_cat=select_cat,
                     )
                 except Exception as e:
                     failed = True
