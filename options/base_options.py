@@ -180,6 +180,7 @@ class BaseOptions:
                 "segformer_attn_conv",
                 "segformer_conv",
                 "ittr",
+                "unet_mha",
             ],
             help="specify generator architecture",
         )
@@ -246,6 +247,9 @@ class BaseOptions:
             ],
             help="specify multimodal latent vector encoder",
         )
+
+        parser.add_argument("--G_unet_mha_inner_channel", default=64, type=int)
+        parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
 
         # discriminator
         parser.add_argument(
