@@ -49,12 +49,14 @@ Here are all the available options to call with `train.py`
 | --G_dropout | flag |  | dropout for the generator |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/>_**Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512_ |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr_ |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr, unet_mha_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
 | --G_padding_type | string | zeros | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
 | --G_spectral | flag |  | whether to use spectral norm in the generator |
 | --G_stylegan2_num_downsampling | int | 1 | Number of downsampling layers used by StyleGAN2Generator |
+| --G_unet_mha_inner_channel | int | 64 |  |
+| --G_unet_mha_num_head_channels | int | 32 |  |
 
 ## Algorithm-specific
 
@@ -110,6 +112,7 @@ Here are all the available options to call with `train.py`
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
 | --data_num_threads | int | 4 | \# threads for loading data |
 | --data_online_context_pixels | int | 0 | context pixel band around the crop, unused for generation, only for disc  |
+| --data_online_select_category | int | -1 | category to select for bounding boxes, -1 means all boxes selected |
 | --data_preprocess | string | resize_and_crop | scaling and cropping of images at load time<br/><br/>_**Values:** resize_and_crop, crop, scale_width, scale_width_and_crop, none_ |
 | --data_relative_paths | flag |  | whether paths to images are relative to dataroot |
 | --data_sanitize_paths | flag |  | if true, wrong images or labels paths will be removed before training |
