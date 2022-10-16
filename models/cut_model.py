@@ -89,7 +89,7 @@ class CUTModel(BaseGanModel):
             "--alg_cut_netF",
             type=str,
             default="mlp_sample",
-            choices=["sample", "mlp_sample"],
+            choices=["sample", "mlp_sample", "sample_qsattn", "mlp_sample_qsattn"],
             help="how to downsample the feature map",
         )
         parser.add_argument("--alg_cut_netF_nc", type=int, default=256)
@@ -562,8 +562,19 @@ class CUTModel(BaseGanModel):
 
         feat_k = netG_A.get_feats(src_with_z, self.nce_layers)
 
-        feat_k_pool, sample_ids = self.netF(feat_k, self.opt.alg_cut_num_patches, None)
-        feat_q_pool, _ = self.netF(feat_q, self.opt.alg_cut_num_patches, sample_ids)
+        if "qsattn" in self.opt.alg_cut_netF:
+            feat_k_pool, sample_ids, attn_mats = self.netF(
+                feat_k, self.opt.alg_cut_num_patches, None, None
+            )
+            feat_q_pool, _, _ = self.netF(
+                feat_q, self.opt.alg_cut_num_patches, sample_ids, attn_mats
+            )
+        else:
+            feat_k_pool, sample_ids = self.netF(
+                feat_k, self.opt.alg_cut_num_patches, None
+            )
+            feat_q_pool, _ = self.netF(feat_q, self.opt.alg_cut_num_patches, sample_ids)
+
         total_nce_loss = 0.0
         for f_q, f_k, crit, nce_layer in zip(
             feat_q_pool, feat_k_pool, self.criterionNCE, self.nce_layers

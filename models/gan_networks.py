@@ -30,7 +30,7 @@ from .modules.stylegan_networks import (
     StyleGAN2Generator,
     TileStyleGAN2Discriminator,
 )
-from .modules.cut_networks import PatchSampleF
+from .modules.cut_networks import PatchSampleF, PatchSampleF_QSAttn
 from .modules.projected_d.discriminator import (
     ProjectedDiscriminator,
     TemporalProjectedDiscriminator,
@@ -414,6 +414,20 @@ def define_F(
         )
     elif alg_cut_netF == "mlp_sample":
         net = PatchSampleF(
+            use_mlp=True,
+            init_type=model_init_type,
+            init_gain=model_init_gain,
+            nc=alg_cut_netF_nc,
+        )
+    elif alg_cut_netF == "sample_qsattn":
+        net = PatchSampleF_QSAttn(
+            use_mlp=False,
+            init_type=model_init_type,
+            init_gain=model_init_gain,
+            nc=alg_cut_netF_nc,
+        )
+    elif alg_cut_netF == "mlp_sample_qsattn":
+        net = PatchSampleF_QSAttn(
             use_mlp=True,
             init_type=model_init_type,
             init_gain=model_init_gain,
