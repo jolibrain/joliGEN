@@ -788,7 +788,7 @@ class BaseOptions:
                 warnings.warn(msg)
 
         # bbox selection check
-        if opt.data_online_select_category != -1 and not args.data_sanitize_paths:
+        if opt.data_online_select_category != -1 and not opt.data_sanitize_paths:
             raise ValueError(
                 "Bounding box class selection requires --data_sanitize_paths"
             )
