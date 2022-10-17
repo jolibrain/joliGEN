@@ -1025,7 +1025,7 @@ class BaseModel(ABC):
                     )
                 else:
                     ll = getattr(self, loss) / self.opt.train_iter_size
-                ll.backward(retain_graph=True)
+                ll.backward(retain_graph=False)
 
             loss_names = []
 
