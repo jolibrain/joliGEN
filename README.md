@@ -11,7 +11,7 @@ JoliGAN has a large scope of options and parameters. To not get overwhelmed, fol
 ## Use cases
 
 - AR and metaverse: replace any image element with super-realistic objects
-- Image manipulation: seamlessly insert and fuse objects in images
+- Image manipulation: seamlessly insert or remove objects/elements in images
 - Image to image translation while preserving semantic, e.g. existing source dataset annotations
 - Simulation to reality translation while preserving elements, metrics, ...
 - Image to image translation to cope with scarce data
@@ -20,18 +20,18 @@ This is achieved by combining powerful and customized generator architectures, b
 
 ## Example results
 
-### AR
-
-Real-time ring virtual try-on with GANs
-
-https://user-images.githubusercontent.com/3530657/196425879-1645788f-0fcd-4a19-82b8-33b35583cc60.mp4
-
 ### Image translation while preserving the class
 
 Mario to Sonic while preserving the action (running, jumping, ...)
 
 ![Clipboard - June 6, 2022 9 44 PM](https://user-images.githubusercontent.com/3530657/196461791-9ff55a47-1e74-4ee7-ad3b-0a915dee6ae6.png)
 ![Clipboard - June 5, 2022 12 02 PM](https://user-images.githubusercontent.com/3530657/196461802-21d3015b-f5e8-467b-9096-78fcabd1f57b.png)
+
+### AR
+
+Real-time [ring virtual try-on](https://www.linkedin.com/feed/update/urn:li:activity:6939681804303966208/) with GANs
+
+https://user-images.githubusercontent.com/3530657/196425879-1645788f-0fcd-4a19-82b8-33b35583cc60.mp4
 
 ### Style transfer while preserving label boxes (e.g. cars, pedestrians, street signs, ...)
 
@@ -53,16 +53,6 @@ Clear to rainy (BDD100K)
 Car insertion (BDD100K) with Diffusion
 ![image](https://user-images.githubusercontent.com/3530657/196428508-3eae3415-8e15-4505-9e97-41c0ba99350e.png)
 ![image](https://user-images.githubusercontent.com/3530657/196428593-6ad8e229-368a-4714-a1cc-8aa8210beaad.png)
-
-
-### Object removal
-
-Shadow removal from low res satellite imagery
-![image](https://user-images.githubusercontent.com/3530657/196461275-f1523f5e-703d-414c-a050-991951b10ec3.png)
-![image](https://user-images.githubusercontent.com/3530657/196461575-af02fd59-d35a-4eac-8ef1-585583a2af2c.png)
-
-### Sim2Real
-
 
 ## Features
 
