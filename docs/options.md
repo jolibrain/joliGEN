@@ -154,7 +154,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --cls_all_classes_as_one | flag |  | if true, all classes will be considered as the same one (ie foreground vs background) |
-| --cls_class_weights | string | None | class weights for imbalanced semantic classes |
+| --cls_class_weights | array | [] | class weights for imbalanced semantic classes |
 | --cls_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file for cls |
 | --cls_dropout | flag |  | dropout for the semantic network |
 | --cls_net | string | vgg | specify cls network [vgg|unet|segformer]<br/><br/>_**Values:** vgg, unet, segformer_ |
