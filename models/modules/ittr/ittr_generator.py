@@ -326,10 +326,10 @@ class ITTRGenerator(nn.Module):
     def compute_feats(self, x, extract_layer_ids=[]):
         feats = []
         out = self.stem(x)
-        # print('stem out size=',out.size())
-        for hpb in self.ittr:
+        for i, hpb in enumerate(self.ittr):
             out = hpb(out)
-            feats.append(out)
+            if i in extract_layer_ids:
+                feats.append(out)
         return out, feats
 
     def get_feats(self, x, extract_layer_ids=[]):
