@@ -249,6 +249,21 @@ class CycleGanModel(BaseGanModel):
         if hasattr(self, "fake_A"):
             self.data_dependent_initialize_semantic_mask(data)
 
+        visual_names_seg_A = ["input_A_label_mask", "gt_pred_f_s_real_A_max", "pfB_max"]
+
+        if hasattr(self, "input_B_label_mask"):
+            visual_names_seg_B = ["input_B_label_mask"]
+        else:
+            visual_names_seg_B = []
+
+        visual_names_seg_B += ["gt_pred_f_s_real_B_max", "pfA_max"]
+
+        self.visual_names += [visual_names_seg_A, visual_names_seg_B]
+
+        if self.opt.train_mask_out_mask and self.isTrain:
+            visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
+            self.visual_names += [visual_names_out_mask_A]
+
     def data_dependent_initialize_semantic_mask(self, data):
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
         visual_names_seg_A = ["input_A_label", "gt_pred_real_A_max", "pfB_max"]
