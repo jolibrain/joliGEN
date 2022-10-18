@@ -158,13 +158,11 @@ def crop_image(
         # if bbox is bigger than crop size max, we replace crop size max by bbox
         # So, we'll have bbox size == crop size
 
-        if crop_size_min < max(height, width):
-            crop_size_min = max(height, width)
-            if crop_size_max < max(height, width):
-                crop_size_max = max(height, width)
-                warnings.warn(
-                    f"Bbox size ({height}, {width}) > crop dim {crop_size_max} for {img_path}, using crop_dim = bbox size"
-                )
+        if crop_size_max < max(height, width):
+            crop_size_max = max(height, width)
+            warnings.warn(
+                f"Bbox size ({height}, {width}) > crop dim {crop_size_max} for {img_path}, using crop_dim = bbox size"
+            )
 
         if crop_size_max < crop_size_min:
             raise ValueError(f"Crop size cannot be computed for {img_path}")
@@ -172,10 +170,32 @@ def crop_image(
         crop_size = random.randint(crop_size_min, crop_size_max)
 
         if crop_size > min(img.shape[0], img.shape[1]):
+
             warnings.warn(
-                f"Image size ({img.shape}) > crop dim {crop_size} for {img_path}, using crop_dim = img size"
+                f"Image size ({img.shape}) < crop dim {crop_size} for {img_path}, zero padding is done on image"
             )
-            crop_size = min(img.shape[0], img.shape[1])
+
+            if crop_size > img.shape[0]:
+                y_padding = crop_size - img.shape[0]
+            else:
+                y_padding = 0
+
+            if crop_size > img.shape[1]:
+                x_padding = crop_size - img.shape[1]
+            else:
+                x_padding = 0
+
+            img = np.pad(
+                img,
+                ((y_padding, x_padding), (y_padding, x_padding), (0, 0)),
+                "constant",
+                constant_values=0,
+            )
+
+            x_max_ref += x_padding
+            x_min_ref += x_padding
+            y_max_ref += y_padding
+            y_min_ref += y_padding
 
         # Let's compute crop position
         # The final crop coordinates will be [x_crop:x_crop+crop_size+margin,y_crop:y_crop+crop_size+margin)
