@@ -137,6 +137,11 @@ class CUTModel(BaseGanModel):
 
         if "segformer" in self.opt.G_netG:
             self.opt.alg_cut_nce_layers = "0,1,2,3"
+        elif "ittr" in self.opt.G_netG:
+            self.opt.alg_cut_nce_layers = ",".join(
+                [str(k) for k in range(self.opt.G_nblocks)]
+            )
+
         self.nce_layers = [int(i) for i in self.opt.alg_cut_nce_layers.split(",")]
 
         if opt.alg_cut_nce_idt and self.isTrain:
