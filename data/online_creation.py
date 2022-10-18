@@ -152,13 +152,19 @@ def crop_image(
         # Crop size should be < crop_dim - delta
         crop_size_max = crop_dim + crop_delta
 
+        # if bbox is bigger than crop size min, we replace crop size min by bbox
+        # So, we'll have bbox size <= crop size <= crop size max
+
         # if bbox is bigger than crop size max, we replace crop size max by bbox
         # So, we'll have bbox size == crop size
-        if crop_size_max < max(height, width):
-            warnings.warn(
-                f"Bbox size ({height}, {width}) > crop dim {crop_size_max} for {img_path}, using crop_dim = bbox size"
-            )
-            crop_size_max = max(height, width)
+
+        if crop_size_min < max(height, width):
+            crop_size_min = max(height, width)
+            if crop_size_max < max(height, width):
+                crop_size_max = max(height, width)
+                warnings.warn(
+                    f"Bbox size ({height}, {width}) > crop dim {crop_size_max} for {img_path}, using crop_dim = bbox size"
+                )
 
         if crop_size_max < crop_size_min:
             raise ValueError(f"Crop size cannot be computed for {img_path}")

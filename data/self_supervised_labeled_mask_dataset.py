@@ -40,21 +40,27 @@ class SelfSupervisedLabeledMaskDataset(UnalignedLabeledMaskDataset):
             index,
         )
 
-        if self.opt.data_online_creation_rand_mask_A:
-            A_img = fill_mask_with_random(result["A"], result["A_label_mask"], -1)
-        elif self.opt.data_online_creation_color_mask_A:
-            A_img = fill_mask_with_color(result["A"], result["A_label_mask"], {})
-        else:
-            raise Exception(
-                "self supervised dataset: no self supervised method specified"
-            )
+        try:
 
-        result.update(
-            {
-                "A": A_img,
-                "B": result["A"],
-                "B_img_paths": result["A_img_paths"],
-                "B_label_mask": result["A_label_mask"].clone(),
-            }
-        )
+            if self.opt.data_online_creation_rand_mask_A:
+                A_img = fill_mask_with_random(result["A"], result["A_label_mask"], -1)
+            elif self.opt.data_online_creation_color_mask_A:
+                A_img = fill_mask_with_color(result["A"], result["A_label_mask"], {})
+            else:
+                raise Exception(
+                    "self supervised dataset: no self supervised method specified"
+                )
+
+            result.update(
+                {
+                    "A": A_img,
+                    "B": result["A"],
+                    "B_img_paths": result["A_img_paths"],
+                    "B_label_mask": result["A_label_mask"].clone(),
+                }
+            )
+        except Exception as e:
+            print(e, "self supervised data loading")
+            return None
+
         return result
