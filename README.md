@@ -38,7 +38,7 @@ Mario to Sonic while preserving the action (running, jumping, ...)
 Day to night (BDD100K) with Transformers and GANs
 ![image](https://user-images.githubusercontent.com/3530657/196472056-b342c326-056f-4680-ad8d-4bf932b1404a.png)
 
-Clear to snow (BDD100K) by applying a generator multiple times
+Clear to snow (BDD100K) by applying a generator multiple times to add snow incrementally
 ![image](https://user-images.githubusercontent.com/3530657/196426503-bfaee698-b135-493f-81a6-644881cc1a5c.png)
 
 Clear to overcast (BDD100K)
@@ -56,6 +56,8 @@ Car insertion (BDD100K) with Diffusion
 
 
 ### Object removal
+
+Shadow removal from low res satellite imagery
 ![image](https://user-images.githubusercontent.com/3530657/196461275-f1523f5e-703d-414c-a050-991951b10ec3.png)
 ![image](https://user-images.githubusercontent.com/3530657/196461575-af02fd59-d35a-4eac-8ef1-585583a2af2c.png)
 
