@@ -64,7 +64,6 @@ def define_G(
     G_config_segformer,
     G_stylegan2_num_downsampling,
     G_backward_compatibility_twice_resnet_blocks,
-    G_unet_mha_inner_channel,
     G_unet_mha_num_head_channels,
     **unused_options
 ):
@@ -216,13 +215,15 @@ def define_G(
         net = UNet_mha(
             image_size=data_crop_size,
             in_channel=model_input_nc,
-            inner_channel=G_unet_mha_inner_channel,  # e.g. 64 in palette repo
+            inner_channel=G_ngf,  # e.g. 64 in palette repo
             out_channel=model_output_nc,
             res_blocks=G_nblocks,  # 2 in palette repo
             attn_res=[16],  # e.g.
             channel_mults=(1, 2, 4, 8),  # e.g.
             num_head_channels=G_unet_mha_num_head_channels,  # e.g. 32 in palette repo
             tanh=True,
+            n_timestep_train=0,  # unused
+            n_timestep_test=0,  # unused
         )
         return net
     else:

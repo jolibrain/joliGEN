@@ -32,9 +32,6 @@ rm $ZIP_FILE
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_nosemantic.py" --dataroot "$TARGET_NOSEM_DIR"
 OUT=$?
 
-echo "Deleting target dir $DIR"
-rm -rf $DIR/*
-
 if [ $OUT != 0 ]; then
     exit 1
 fi
@@ -60,8 +57,13 @@ fi
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_self_supervised.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
-echo "Deleting target dir $DIR"
-rm -rf $DIR/*
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+###### diffusion process test
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
 
 if [ $OUT != 0 ]; then
     exit 1
