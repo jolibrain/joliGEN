@@ -3,7 +3,7 @@ import os
 import json
 
 sys.path.append("../")
-from models import networks
+from models import networks, networks_diffusion
 from options.train_options import TrainOptions
 import cv2
 import torch
@@ -30,7 +30,7 @@ def load_model(modelpath, model_in_file, device):
         opt.model_input_nc += opt.train_mm_nz
     opt.jg_dir = "../"
 
-    model = networks.define_G(**vars(opt))
+    model = networks_diffusion.define_G(**vars(opt))
     model.eval()
     model.load_state_dict(torch.load(modelpath + "/" + model_in_file))
 

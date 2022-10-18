@@ -114,10 +114,7 @@ class BaseOptions:
             "--model_type",
             type=str,
             default="cut",
-            choices=[
-                "cut",
-                "cycle_gan",
-            ],
+            choices=["cut", "cycle_gan", "palette"],
             help="chooses which model to use.",
         )
         parser.add_argument(
@@ -248,8 +245,20 @@ class BaseOptions:
             help="specify multimodal latent vector encoder",
         )
 
-        parser.add_argument("--G_unet_mha_inner_channel", default=64, type=int)
         parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
+        parser.add_argument(
+            "--G_unet_mha_n_timestep_train",
+            type=int,
+            default=2000,
+            help="Number of timesteps used for UNET mha training.",
+        )
+
+        parser.add_argument(
+            "--G_unet_mha_n_timestep_test",
+            type=int,
+            default=2000,
+            help="Number of timesteps used for UNET mha inference (test time).",
+        )
 
         # discriminator
         parser.add_argument(
