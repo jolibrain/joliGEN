@@ -200,7 +200,7 @@ class BaseOptions:
             type=str,
             choices=["reflect", "replicate", "zeros"],
             help="whether to use padding in the generator",
-            default="zeros",
+            default="reflect",
         )
         parser.add_argument(
             "--G_norm",
@@ -256,7 +256,7 @@ class BaseOptions:
         parser.add_argument(
             "--G_unet_mha_n_timestep_test",
             type=int,
-            default=2000,
+            default=1000,
             help="Number of timesteps used for UNET mha inference (test time).",
         )
 
@@ -289,7 +289,7 @@ class BaseOptions:
         parser.add_argument(
             "--D_vision_aided_backbones",
             type=str,
-            default="clip+dino",
+            default="clip+dino+swin",
             help="specify discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with +",
         )
         parser.add_argument(
