@@ -81,7 +81,7 @@ class CUTModel(BaseGanModel):
         parser.add_argument(
             "--alg_cut_nce_loss",
             type=str,
-            default="patchnce",
+            default="monce",
             choices=["patchnce", "monce"],
             help="CUT contrastice loss",
         )
