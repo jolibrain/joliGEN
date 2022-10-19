@@ -285,13 +285,18 @@ python3 train.py --dataroot /path/to/online_mario2sonic/ --checkpoints_dir /path
 ```
 
 ### Training object insertion :
- 
-You can modify the hyperparameters in `./scripts/train_cyclegan_semantic.sh` and then use the following line command.
-```
-bash ./scripts/train_cyclegan_semantic.sh dataroot
-```
-<br>
 
+Trains a diffusion model to insert glasses onto faces.
+
+```
+python3 train.py --dataroot /path/to/noglasses2glasses_ffhq/ --checkpoints_dir /path/to/checkpoints/ \
+--name noglasses2glasses --data_direction BtoA --output_display_env noglasses2glasses --gpu_ids 0,1 \
+--model_type palette --train_batch_size 4 --train_iter_size 16 --model_input_nc 3 --model_output_nc 3 \
+--data_relative_paths --train_G_ema --train_optim radam --data_dataset_mode self_supervised_labeled_mask \
+--data_load_size 256 --data_crop_size 256 --G_netG unet_mha --data_online_creation_rand_mask_A \
+--train_G_lr 0.00002 --train_n_epochs 400 --dataaug_no_rotate --output_display_freq 10000 \
+--train_optim adamw --G_nblocks 2
+```
 
 ## JoliGAN server
 
