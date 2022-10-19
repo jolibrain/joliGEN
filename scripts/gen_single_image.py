@@ -43,7 +43,6 @@ parser.add_argument(
     "--model-in-file", help="file path to generator model (.pth file)", required=True
 )
 
-parser.add_argument("--img-size", default=256, type=int, help="square image size")
 parser.add_argument("--img-in", help="image to transform", required=True)
 parser.add_argument("--img-out", help="transformed image", required=True)
 parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
