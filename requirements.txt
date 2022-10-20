@@ -3,7 +3,7 @@ torchvision==0.13.1+cu116
 numpy
 Pillow
 timm
-mmcv-full --no-binary=mmcv-full
+mmcv-full -f https://download.openmmlab.com/mmcv/dist/cu116/torch1.12/index.html
 mmsegmentation
 visdom
 torchviz
