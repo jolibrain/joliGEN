@@ -31,7 +31,7 @@ def get_models_names():
 
         try:
             find_model_using_name(model_name)
-            base_models_to_exclude = ["base", "base_gan"]
+            base_models_to_exclude = ["base", "base_gan", "base_diffusion"]
             if model_name not in base_models_to_exclude:
                 model_names |= {model_name}
         except:
