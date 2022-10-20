@@ -9,7 +9,7 @@ Here are all the available options to call with `train.py`
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
-| --model_type | string | cut | chooses which model to use.<br/><br/>_**Values:** cut, cycle_gan_ |
+| --model_type | string | cut | chooses which model to use.<br/><br/>_**Values:** cut, cycle_gan, palette_ |
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
@@ -55,7 +55,8 @@ Here are all the available options to call with `train.py`
 | --G_padding_type | string | zeros | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
 | --G_spectral | flag |  | whether to use spectral norm in the generator |
 | --G_stylegan2_num_downsampling | int | 1 | Number of downsampling layers used by StyleGAN2Generator |
-| --G_unet_mha_inner_channel | int | 64 |  |
+| --G_unet_mha_n_timestep_test | int | 2000 | Number of timesteps used for UNET mha inference (test time). |
+| --G_unet_mha_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_unet_mha_num_head_channels | int | 32 |  |
 
 ## Algorithm-specific
