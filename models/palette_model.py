@@ -82,6 +82,9 @@ class PaletteModel(BaseDiffusionModel):
         self.loss_fn = self.mse_loss
         self.sample_num = 2  # temp
 
+    def modify_commandline_options(parser, is_train=True):
+        return parser
+
     def set_input(self, data):
         """must use set_device in tensor"""
 
