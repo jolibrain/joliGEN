@@ -3,7 +3,7 @@ DIR=$1
 if [ $# -ne 1 ]
 then
     echo "Usage: $0 [DIR]"
-    exit
+    exit 1
 fi
 
 echo "Specified [$DIR]"
@@ -16,8 +16,13 @@ export PYTHONDONTWRITEBYTECODE=1
 export NCCL_P2P_DISABLE=1
 
 ####### doc auto generation
-echo "Running doc auto generation tests"
-python3 -m pytest ${current_dir}/../scripts/generate_doc.py
+echo "Running doc auto generation"
+python3 ${current_dir}/../scripts/generate_doc.py --save_to ""
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
 
 ####### no sem tests
 echo "Running no semantics training tests"
