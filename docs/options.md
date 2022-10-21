@@ -36,7 +36,7 @@ Here are all the available options to call with `train.py`
 | --D_temporal_frame_step | int | 30 | how many frames between successive frames selected |
 | --D_temporal_num_common_char | int | -1 | how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used  |
 | --D_temporal_number_frames | int | 5 | how many successive frames use for temporal loss |
-| --D_vision_aided_backbones | string | clip+dino | specify discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with + |
+| --D_vision_aided_backbones | string | clip+dino+swin | specify discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with + |
 
 ## Generator
 
@@ -52,10 +52,10 @@ Here are all the available options to call with `train.py`
 | --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr, unet_mha_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
-| --G_padding_type | string | zeros | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
+| --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
 | --G_spectral | flag |  | whether to use spectral norm in the generator |
 | --G_stylegan2_num_downsampling | int | 1 | Number of downsampling layers used by StyleGAN2Generator |
-| --G_unet_mha_n_timestep_test | int | 2000 | Number of timesteps used for UNET mha inference (test time). |
+| --G_unet_mha_n_timestep_test | int | 1000 | Number of timesteps used for UNET mha inference (test time). |
 | --G_unet_mha_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_unet_mha_num_head_channels | int | 32 |  |
 
@@ -75,7 +75,7 @@ Here are all the available options to call with `train.py`
 | --alg_cut_nce_idt | flag |  | use NCE loss for identity mapping: NCE(G(Y), Y)) |
 | --alg_cut_nce_includes_all_negatives_from_minibatch | flag |  | (used for single image translation) If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. Please see models/patchnce.py for more details. |
 | --alg_cut_nce_layers | string | 0,4,8,12,16 | compute NCE loss on which layers |
-| --alg_cut_nce_loss | string | patchnce | CUT contrastice loss<br/><br/>_**Values:** patchnce, monce_ |
+| --alg_cut_nce_loss | string | monce | CUT contrastice loss<br/><br/>_**Values:** patchnce, monce_ |
 | --alg_cut_netF | string | mlp_sample | how to downsample the feature map<br/><br/>_**Values:** sample, mlp_sample, sample_qsattn, mlp_sample_qsattn_ |
 | --alg_cut_netF_dropout | flag |  | whether to use dropout with F |
 | --alg_cut_netF_nc | int | 256 |  |
