@@ -13,6 +13,7 @@ def define_G(
     G_norm,
     G_unet_mha_n_timestep_train,
     G_unet_mha_n_timestep_test,
+    G_dropout,
     G_ngf,
     G_unet_mha_num_head_channels,
     **unused_options

@@ -12,6 +12,17 @@ import warnings
 
 
 class PaletteModel(BaseDiffusionModel):
+    @staticmethod
+    def modify_commandline_options(parser, is_train=True):
+        """Configures options specific to the Palette model"""
+        parser.add_argument(
+            "--alg_palette_lambda_G",
+            type=float,
+            default=1.0,
+            help="weight for supervised loss",
+        )
+        return parser
+
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
@@ -106,7 +117,7 @@ class PaletteModel(BaseDiffusionModel):
         else:
             loss = self.loss_fn(noise, noise_hat)
 
-        self.loss_G_tot = loss
+        self.loss_G_tot = self.opt.alg_palette_lambda_G * loss
 
     def inference(self):
         if hasattr(self.netG_A, "module"):
