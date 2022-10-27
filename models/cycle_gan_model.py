@@ -246,10 +246,15 @@ class CycleGanModel(BaseGanModel):
                 setattr(self, "loss_" + self.loss_names[i], 0)
 
     def data_dependent_initialize(self, data):
-        self.set_input(data)
-        if hasattr(self, "fake_A"):
+        self.set_input_first_gpu(data)
+        for optimizer in self.optimizers:
+            optimizer.zero_grad()
+
+        if self.opt.train_semantic_mask:
             self.data_dependent_initialize_semantic_mask(data)
 
+    def data_dependent_initialize_semantic_mask(self, data):
+        # specify the images you want to save/display. The program will call base_model.get_current_visuals
         visual_names_seg_A = ["input_A_label_mask", "gt_pred_f_s_real_A_max", "pfB_max"]
 
         if hasattr(self, "input_B_label_mask"):
@@ -263,39 +268,7 @@ class CycleGanModel(BaseGanModel):
 
         if self.opt.train_mask_out_mask and self.isTrain:
             visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
-            self.visual_names += [visual_names_out_mask_A]
-
-    def data_dependent_initialize_semantic_mask(self, data):
-        # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        visual_names_seg_A = ["input_A_label", "gt_pred_real_A_max", "pfB_max"]
-
-        if hasattr(self, "input_B_label"):
-            visual_names_seg_B = ["input_B_label"]
-        else:
-            visual_names_seg_B = []
-
-        visual_names_seg_B += ["gt_pred_real_B_max", "pfA_max"]
-
-        visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
-
-        visual_names_out_mask_B = ["real_B_out_mask", "fake_A_out_mask"]
-
-        visual_names_mask = ["fake_B_mask", "fake_A_mask"]
-
-        visual_names_mask_in = [
-            "real_B_mask",
-            "fake_B_mask",
-            "real_A_mask",
-            "fake_A_mask",
-            "real_B_mask_in",
-            "fake_B_mask_in",
-            "real_A_mask_in",
-            "fake_A_mask_in",
-        ]
-
-        self.visual_names += [visual_names_seg_A, visual_names_seg_B]
-
-        if self.opt.train_mask_out_mask:
+            visual_names_out_mask_B = ["real_B_out_mask", "fake_A_out_mask"]
             self.visual_names += [visual_names_out_mask_A, visual_names_out_mask_B]
 
     def forward_cycle_gan(self):
