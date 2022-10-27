@@ -1325,3 +1325,25 @@ class BaseModel(ABC):
             self.realmB_val, self.realsB_val, self.fakemB_val, self.fakesB_val
         )
         return self.fidB_val
+
+    def set_input_first_gpu(self, data):
+        self.set_input(data)
+        self.bs_per_gpu = self.real_A.size(0)
+        self.real_A = self.real_A[: self.bs_per_gpu]
+        self.real_B = self.real_B[: self.bs_per_gpu]
+
+        if self.opt.train_semantic_mask:
+            self.set_input_first_gpu_semantic_mask()
+
+        if self.opt.train_semantic_cls:
+            self.set_input_first_gpu_semantic_cls()
+
+    def set_input_first_gpu_semantic_mask(self):
+        self.input_A_label_mask = self.input_A_label_mask[: self.bs_per_gpu]
+        if hasattr(self, "input_B_label_mask"):
+            self.input_B_label_mask = self.input_B_label_mask[: self.bs_per_gpu]
+
+    def set_input_first_gpu_semantic_cls(self):
+        self.input_A_label_cls = self.input_A_label_cls[: self.bs_per_gpu]
+        if hasattr(self, "input_B_label_cls"):
+            self.input_B_label_cls = self.input_B_label_cls[: self.bs_per_gpu]

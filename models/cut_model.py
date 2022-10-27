@@ -354,20 +354,6 @@ class CUTModel(BaseGanModel):
                 self.loss_names[i] = cur_loss + "_avg"
                 setattr(self, "loss_" + self.loss_names[i], 0)
 
-    def set_input_first_gpu(self, data):
-        self.set_input(data)
-        self.bs_per_gpu = self.real_A.size(0)
-        self.real_A = self.real_A[: self.bs_per_gpu]
-        self.real_B = self.real_B[: self.bs_per_gpu]
-
-        if self.opt.train_semantic_mask:
-            self.set_input_first_gpu_semantic_mask(data)
-
-    def set_input_first_gpu_semantic_mask(self, data):
-        self.input_A_label_mask = self.input_A_label_mask[: self.bs_per_gpu]
-        if hasattr(self, "input_B_label_mask"):
-            self.input_B_label_mask = self.input_B_label_mask[: self.bs_per_gpu]
-
     def data_dependent_initialize(self, data):
         """
         The feature network netF is defined in terms of the shape of the intermediate, extracted
