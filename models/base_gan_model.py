@@ -39,6 +39,18 @@ class BaseGanModel(BaseModel):
         -- <modify_commandline_options>:    (optionally) add model-specific options and set default options.
     """
 
+    def modify_commandline_options(parser, is_train=True):
+        """Configures options specific for CUT model"""
+
+        parser.add_argument(
+            "--alg_gan_lambda",
+            type=float,
+            default=1.0,
+            help="weight for GAN loss：GAN(G(X))",
+        )
+
+        return parser
+
     def __init__(self, opt, rank):
         """Initialize the BaseModel class.
 
@@ -455,7 +467,7 @@ class BaseGanModel(BaseModel):
                     fake_name = None
                     real_name = None
 
-                loss_value = self.compute_G_loss_GAN_generic(
+                loss_value = self.opt.alg_gan_lambda * self.compute_G_loss_GAN_generic(
                     netD,
                     domain,
                     loss,
