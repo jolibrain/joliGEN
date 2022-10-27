@@ -30,6 +30,7 @@ class CycleGanModel(BaseGanModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         """Configures options specific for cyclegan model"""
+        parser = BaseGanModel.modify_commandline_options(parser, is_train=is_train)
         parser.set_defaults(G_dropout=False)  # default CycleGAN did not use dropout
         if is_train:
             parser.add_argument(

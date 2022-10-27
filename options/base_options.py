@@ -29,6 +29,7 @@ class BaseOptions:
             "alg": {
                 "title": "Algorithm-specific",
                 "properties": {
+                    "gan": {"title": "GAN model"},
                     "cut": {"title": "CUT model"},
                     "cyclegan": {"title": "CycleGAN model"},
                     "re": {"title": "ReCUT / ReCycleGAN"},

@@ -30,12 +30,7 @@ class CUTModel(BaseGanModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         """Configures options specific for CUT model"""
-        parser.add_argument(
-            "--alg_cut_lambda_GAN",
-            type=float,
-            default=1.0,
-            help="weight for GAN loss：GAN(G(X))",
-        )
+        parser = BaseGanModel.modify_commandline_options(parser, is_train=is_train)
         parser.add_argument(
             "--alg_cut_lambda_NCE",
             type=float,
