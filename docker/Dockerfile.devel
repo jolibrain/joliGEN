@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.6.0-devel-ubuntu20.04 AS joligan_build
+FROM nvidia/cuda:11.7.0-devel-ubuntu20.04 AS joligan_build
 
 # user jenkins
 RUN addgroup --gid 127 jenkins
