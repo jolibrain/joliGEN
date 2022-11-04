@@ -65,6 +65,7 @@ def define_G(
     G_stylegan2_num_downsampling,
     G_backward_compatibility_twice_resnet_blocks,
     G_unet_mha_num_head_channels,
+    G_unet_mha_channel_mults,
     **unused_options
 ):
     """Create a generator
@@ -219,7 +220,7 @@ def define_G(
             out_channel=model_output_nc,
             res_blocks=G_nblocks,  # 2 in palette repo
             attn_res=[16],  # e.g.
-            channel_mults=(1, 2, 4, 8),  # e.g.
+            channel_mults=G_unet_mha_channel_mults,  # e.g. (1, 2, 4, 8)
             num_head_channels=G_unet_mha_num_head_channels,  # e.g. 32 in palette repo
             tanh=True,
             n_timestep_train=0,  # unused

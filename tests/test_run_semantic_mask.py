@@ -35,6 +35,7 @@ json_like_dict = {
     "train_semantic_mask": True,
     "G_unet_mha_inner_channel": 32,
     "G_unet_mha_num_head_channels": 16,
+    "G_unet_mha_channel_mults": [1, 2],
     "G_nblocks": 1,
 }
 

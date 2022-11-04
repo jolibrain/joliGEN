@@ -261,6 +261,14 @@ class BaseOptions:
             help="Number of timesteps used for UNET mha inference (test time).",
         )
 
+        parser.add_argument(
+            "--G_unet_mha_channel_mults",
+            default=[1, 2, 4, 8],
+            nargs="*",
+            type=int,
+            help="channel multiplier for each level of the UNET mha",
+        )
+
         # discriminator
         parser.add_argument(
             "--D_ndf",
