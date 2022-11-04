@@ -55,6 +55,7 @@ Here are all the available options to call with `train.py`
 | --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
 | --G_spectral | flag |  | whether to use spectral norm in the generator |
 | --G_stylegan2_num_downsampling | int | 1 | Number of downsampling layers used by StyleGAN2Generator |
+| --G_unet_mha_channel_mults | array | [1, 2, 4, 8] | channel multiplier for each level of the UNET mha |
 | --G_unet_mha_n_timestep_test | int | 1000 | Number of timesteps used for UNET mha inference (test time). |
 | --G_unet_mha_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_unet_mha_num_head_channels | int | 32 |  |
