@@ -526,6 +526,17 @@ class TrainOptions(BaseOptions):
             default=0.0,
             help="whether to add instance noise to discriminator inputs",
         )
+        parser.add_argument(
+            "--dataaug_D_diffusion",
+            action="store_true",
+            help="whether to apply diffusion noise augmentation to discriminator inputs, projected discriminator only",
+        )
+        parser.add_argument(
+            "--dataaug_D_diffusion_every",
+            type=int,
+            default=4,
+            help="How often to perform diffusion augmentation adjustment",
+        )
 
         self.isTrain = True
         return parser

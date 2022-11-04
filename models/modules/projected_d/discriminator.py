@@ -239,6 +239,7 @@ class ProjectedDiscriminator(torch.nn.Module):
         config_path="",
         weight_path="",
         img_size=256,
+        diffusion_aug=False,
         **kwargs,
     ):
         super().__init__()
@@ -250,6 +251,7 @@ class ProjectedDiscriminator(torch.nn.Module):
             weight_path=weight_path,
             interp=self.interp,
             img_size=img_size,
+            diffusion_aug=diffusion_aug,
             **backbone_kwargs,
         )
         self.freeze_feature_network.requires_grad_(False)

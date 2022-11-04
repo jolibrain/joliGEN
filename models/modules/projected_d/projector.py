@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from .blocks import FeatureFusionBlockMatrix, FeatureFusionBlockVector
+from .diffusion import Diffusion
 import os
 
 
@@ -299,6 +300,7 @@ class Proj(nn.Module):
         weight_path="",
         interp=-1,
         img_size=256,
+        diffusion_aug=False,
         **kwargs,
     ):
         super().__init__()
@@ -324,6 +326,13 @@ class Proj(nn.Module):
         self.RESOLUTIONS = self.pretrained.RESOLUTIONS
         self.FEATS = self.pretrained.FEATS
 
+        self.diffusion_aug = diffusion_aug
+        if self.diffusion_aug:
+            self.diffusion = Diffusion(
+                t_min=5, t_max=500, beta_start=1e-4, beta_end=1e-2
+            )
+            self.diffusion_noise_sd = 0.5
+
     def forward(self, x):
         # predict feature maps
 
@@ -336,6 +345,13 @@ class Proj(nn.Module):
             "2": out2,
             "3": out3,
         }
+
+        # diffusion aug (first feature position)
+        if self.diffusion_aug:
+            out["0"] = self.diffusion(out["0"], noise_std=self.diffusion_noise_sd)
+            out["1"] = self.diffusion(out["1"], noise_std=self.diffusion_noise_sd)
+            out["2"] = self.diffusion(out["2"], noise_std=self.diffusion_noise_sd)
+            out["3"] = self.diffusion(out["3"], noise_std=self.diffusion_noise_sd)
 
         if self.proj_type == 0:
             return out

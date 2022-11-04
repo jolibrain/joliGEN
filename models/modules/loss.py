@@ -4,6 +4,8 @@ from torch import nn as nn
 import torch.nn.functional as F
 import random
 
+# import numpy as np
+
 
 class GANLoss(nn.Module):
     """Define different GAN objectives.
@@ -177,8 +179,11 @@ class DiscriminatorLoss(nn.Module):
         dataaug_APA_nimg,
         dataaug_APA_every,
         dataaug_APA,
+        dataaug_D_diffusion,
+        dataaug_D_diffusion_every,
     ):
         super().__init__()
+        self.netD = netD
         self.device = device
         self.adaptive_pseudo_augmentation_p = dataaug_APA_p
         self.adjust = 0
@@ -187,6 +192,8 @@ class DiscriminatorLoss(nn.Module):
         self.dataaug_APA_nimg = dataaug_APA_nimg
         self.dataaug_APA_every = dataaug_APA_every
         self.dataaug_APA = dataaug_APA
+        self.dataaug_D_diffusion = dataaug_D_diffusion
+        self.dataaug_D_diffusion_every = dataaug_D_diffusion_every
 
     def adaptive_pseudo_augmentation(self, real, fake):
         # Apply Adaptive Pseudo Augmentation (APA)
@@ -251,6 +258,8 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
         dataaug_D_label_smooth,
         train_gan_mode,
         dataaug_APA,
+        dataaug_D_diffusion,
+        dataaug_D_diffusion_every,
     ):
         super().__init__(
             netD,
@@ -261,6 +270,8 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
             dataaug_APA_nimg,
             dataaug_APA_every,
             dataaug_APA,
+            dataaug_D_diffusion,
+            dataaug_D_diffusion_every,
         )
         if dataaug_D_label_smooth:
             target_real_label = 0.9
@@ -285,13 +296,13 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
         super().compute_loss_D(netD, real, fake, fake_2)
         # Real
         self.pred_real = netD(self.real)
-        loss_D_real = self.criterionGAN(self.pred_real, True)
+        self.loss_D_real = self.criterionGAN(self.pred_real, True)
         # Fake
         lambda_loss = 0.5
         pred_fake = netD(self.fake.detach())
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss and calculate gradients
-        loss_D = (loss_D_real + loss_D_fake) * lambda_loss
+        loss_D = (self.loss_D_real + loss_D_fake) * lambda_loss
         return loss_D
 
     def compute_loss_G(self, netD, real, fake):
@@ -299,6 +310,24 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
         pred_fake = netD(self.fake)
         loss_D_fake = self.criterionGAN(pred_fake, True, relu=False)
         return loss_D_fake
+
+    def update(self, niter):
+        super().update(niter)
+        if (
+            self.dataaug_D_diffusion
+            and niter % self.dataaug_D_diffusion_every < self.train_batch_size
+        ):
+            kimg = 100  # kimgs needed to push diffusion to maximum level
+            target = 0.9  # augmentation target value
+            adjust = (
+                torch.sign(self.loss_D_real - target).cpu().detach().numpy()
+                * (self.train_batch_size * self.dataaug_D_diffusion_every)
+                / (kimg * 1000)
+            )
+            self.netD.freeze_feature_network.diffusion.p = (
+                self.netD.freeze_feature_network.diffusion.p + adjust
+            ).clip(min=0.0, max=1.0)
+            self.netD.freeze_feature_network.diffusion.update_T()
 
 
 class DiscriminatorContrastiveLoss(DiscriminatorLoss):
