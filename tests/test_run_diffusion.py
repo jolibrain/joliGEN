@@ -23,6 +23,7 @@ json_like_dict = {
     "dataaug_no_rotate": True,
     "G_unet_mha_inner_channel": 32,
     "G_unet_mha_num_head_channels": 16,
+    "G_unet_mha_channel_mults": [1, 2],
     "G_nblocks": 1,
     "G_padding_type": "reflect",
     "data_online_creation_rand_mask_A": True,
@@ -30,12 +31,7 @@ json_like_dict = {
 
 
 models_diffusion = ["palette"]
-
 G_netG = ["unet_mha"]
-
-D_proj_network_type = ["efficientnet", "vitsmall"]
-
-f_s_net = ["unet", "segformer"]
 
 
 def test_semantic_mask(dataroot):
