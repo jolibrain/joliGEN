@@ -255,6 +255,7 @@ def define_D(
     D_temporal_frame_step,
     data_online_context_pixels,
     D_vision_aided_backbones,
+    dataaug_D_diffusion,
     **unused_options
 ):
 
@@ -361,6 +362,7 @@ def define_D(
                 config_path=os.path.join(jg_dir, D_proj_config_segformer),
                 weight_path=weight_path,
                 img_size=data_crop_size + margin,
+                diffusion_aug=dataaug_D_diffusion,
             )
             return_nets[netD] = net  # no init since custom frozen backbone
 
