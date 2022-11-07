@@ -15,6 +15,9 @@ class PaletteModel(BaseDiffusionModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         """Configures options specific to the Palette model"""
+        parser = BaseDiffusionModel.modify_commandline_options(
+            parser, is_train=is_train
+        )
         parser.add_argument(
             "--alg_palette_lambda_G",
             type=float,
@@ -92,9 +95,6 @@ class PaletteModel(BaseDiffusionModel):
         # homemade
         self.loss_fn = self.mse_loss
         self.sample_num = 2  # temp
-
-    def modify_commandline_options(parser, is_train=True):
-        return parser
 
     def set_input(self, data):
         """must use set_device in tensor"""
