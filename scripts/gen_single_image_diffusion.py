@@ -147,24 +147,9 @@ with torch.no_grad():
     )
 
 
-# print("outtensor", out_tensor.shape, "visu", visu.shape)
-
-temp = img_tensor - out_tensor
-# print(temp.mean(), temp.min(), temp.max())
-# print(visu.shape)
-
-# out_tensor = visu[-1:]
-
 # post-processing
 out_img = out_tensor.detach().data.cpu().float().numpy()[0]
-img_np = img_tensor.detach().data.cpu().float().numpy()[0]
-cond_image = cond_image.detach().data.cpu().float().numpy()[0]
-# cond_image = torch.randn_like(cond_image)
-
 out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
-img_np = (np.transpose(img_np, (1, 2, 0)) + 1) / 2.0 * 255.0
-cond_image = (np.transpose(cond_image, (1, 2, 0)) + 1) / 2.0 * 255.0
-
 out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
 cv2.imwrite(args.img_out, out_img)
 
