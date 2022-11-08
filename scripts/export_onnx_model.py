@@ -3,16 +3,18 @@ import torch
 import numpy as np
 
 sys.path.append("../")
-from models import networks
+from models import gan_networks
 from options.train_options import TrainOptions
 import argparse
 import os
+import json
 
 from mmcv.onnx import register_extra_symbolics
 
 opset_version = 9
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--train-config", help="Path to train_config.json")
 parser.add_argument(
     "--model-in-file",
     help="file path to generator model to export (.pth file)",
@@ -50,7 +52,13 @@ if args.bw:
 else:
     input_nc = output_nc = 3
 
-opt = TrainOptions().parse_json({})
+if args.train_config:
+    with open(args.train_config) as train_config_file:
+        train_config_json = json.load(train_config_file)
+        opt = TrainOptions().parse_json(train_config_json)
+else:
+    opt = TrainOptions().parse_json({})
+
 opt.data_crop_size = args.img_size
 opt.data_load_size = args.img_size
 opt.G_attn_nb_mask_attn = 10
@@ -67,7 +75,7 @@ if "segformer" in args.model_type:
         args.model_config
     )  # e.g. '/path/to/models/configs/segformer/segformer_config_b0.py'
 opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-2]))
-model = networks.define_G(**vars(opt))
+model = gan_networks.define_G(**vars(opt))
 
 model.eval()
 model.load_state_dict(torch.load(args.model_in_file))
