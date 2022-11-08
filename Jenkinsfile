@@ -10,6 +10,7 @@ pipeline {
   stages {
     stage('Tests') {
       steps {
+        sh 'printenv | sort'
         sh 'mkdir /home/jenkins/app/checkpoints'
         sh '''
 TORCH_HOME=/home/jenkins/app/.cache/ bash ./scripts/run_tests.sh /home/jenkins/app/checkpoints/'''
