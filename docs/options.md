@@ -286,6 +286,8 @@ Here are all the available options to call with `train.py`
 | --dataaug_APA_nimg | int | 50 | APA adjustment speed, measured in how many images it takes for p to increase/decrease by one unit. |
 | --dataaug_APA_p | int | 0 | initial value of probability APA |
 | --dataaug_APA_target | float | 0.6 |  |
+| --dataaug_D_diffusion | flag |  | whether to apply diffusion noise augmentation to discriminator inputs, projected discriminator only |
+| --dataaug_D_diffusion_every | int | 4 | How often to perform diffusion augmentation adjustment |
 | --dataaug_D_label_smooth | flag |  | whether to use one-sided label smoothing with discriminator |
 | --dataaug_D_noise | float | 0.0 | whether to add instance noise to discriminator inputs |
 | --dataaug_affine | float | 0.0 | if specified, apply random affine transforms to the images for data augmentation |
