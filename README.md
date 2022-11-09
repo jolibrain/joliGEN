@@ -27,6 +27,19 @@ Mario to Sonic while preserving the action (running, jumping, ...)
 ![Clipboard - June 6, 2022 9 44 PM](https://user-images.githubusercontent.com/3530657/196461791-9ff55a47-1e74-4ee7-ad3b-0a915dee6ae6.png)
 ![Clipboard - June 5, 2022 12 02 PM](https://user-images.githubusercontent.com/3530657/196461802-21d3015b-f5e8-467b-9096-78fcabd1f57b.png)
 
+### Object insertion
+
+Car insertion (BDD100K) with Diffusion
+![image](https://user-images.githubusercontent.com/3530657/196428508-3eae3415-8e15-4505-9e97-41c0ba99350e.png)
+![image](https://user-images.githubusercontent.com/3530657/196428593-6ad8e229-368a-4714-a1cc-8aa8210beaad.png)
+
+### Object removal
+
+Glasses removal with GANs
+
+![Clipboard - November 9, 2022 4_33 PM](https://user-images.githubusercontent.com/3530657/200873590-6d1abe9a-7d86-458a-a9a5-97a1bcf4b816.png)
+![Clipboard - November 9, 2022 10_40 AM](https://user-images.githubusercontent.com/3530657/200873601-e8c2d165-af58-4b39-a0bf-ecab510981c5.png)
+
 ### AR
 
 Real-time [ring virtual try-on](https://www.linkedin.com/feed/update/urn:li:activity:6939681804303966208/) with GANs
@@ -47,12 +60,6 @@ Clear to overcast (BDD100K)
 Clear to rainy (BDD100K)
 ![image](https://user-images.githubusercontent.com/3530657/196426461-e983c48f-ce19-4e83-a490-7a73b28c8181.png)
 ![image](https://user-images.githubusercontent.com/3530657/196426623-deb7c00d-77e7-448e-827f-2423fd76b0ef.png)
-
-### Object insertion
-
-Car insertion (BDD100K) with Diffusion
-![image](https://user-images.githubusercontent.com/3530657/196428508-3eae3415-8e15-4505-9e97-41c0ba99350e.png)
-![image](https://user-images.githubusercontent.com/3530657/196428593-6ad8e229-368a-4714-a1cc-8aa8210beaad.png)
 
 ## Features
 
