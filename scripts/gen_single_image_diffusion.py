@@ -20,8 +20,6 @@ def load_model(modelpath, model_in_file, device, sampling_steps):
         train_json = json.load(jsonf)
 
     opt = TrainOptions().parse_json(train_json)
-    if opt.model_multimodal:
-        opt.model_input_nc += opt.train_mm_nz
     opt.jg_dir = "../"
 
     model = diffusion_networks.define_G(**vars(opt))
