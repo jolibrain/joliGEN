@@ -6,8 +6,10 @@ from .base_gan_model import BaseGanModel
 from . import gan_networks
 
 from .modules import loss
-from .patchnce import PatchNCELoss
-from .monce import MoNCELoss
+from .modules.NCE.patchnce import PatchNCELoss
+from .modules.NCE.monce import MoNCELoss
+from .modules.NCE.hDCE import PatchHDCELoss
+from .modules.NCE.SRC import SRC_Loss
 
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
@@ -36,6 +38,22 @@ class CUTModel(BaseGanModel):
             type=float,
             default=1.0,
             help="weight for NCE loss: NCE(G(X), X)",
+        )
+        parser.add_argument(
+            "--alg_cut_lambda_SRC",
+            type=float,
+            default=0.0,
+            help="weight for SRC (semantic relation consistency) loss: NCE(G(X), X)",
+        )
+        parser.add_argument(
+            "--alg_cut_HDCE_gamma",
+            type=float,
+            default=1.0,
+        )
+        parser.add_argument(
+            "--alg_cut_HDCE_gamma_min",
+            type=float,
+            default=1.0,
         )
         parser.add_argument(
             "--alg_cut_nce_idt",
@@ -77,7 +95,7 @@ class CUTModel(BaseGanModel):
             "--alg_cut_nce_loss",
             type=str,
             default="monce",
-            choices=["patchnce", "monce"],
+            choices=["patchnce", "monce", "SRC_hDCE"],
             help="CUT contrastice loss",
         )
         parser.add_argument(
@@ -209,6 +227,13 @@ class CUTModel(BaseGanModel):
                     self.criterionNCE.append(PatchNCELoss(opt).to(self.device))
                 elif opt.alg_cut_nce_loss == "monce":
                     self.criterionNCE.append(MoNCELoss(opt).to(self.device))
+                elif opt.alg_cut_nce_loss == "SRC_hDCE":
+                    self.criterionNCE.append(PatchHDCELoss(opt).to(self.device))
+
+            if opt.alg_cut_nce_loss == "SRC_hDCE":
+                self.criterionR = []
+                for nce_layer in self.nce_layers:
+                    self.criterionR.append(SRC_Loss(opt).to(self.device))
 
             if self.opt.alg_cut_MSE_idt:
                 self.criterionIdt = torch.nn.L1Loss()
@@ -490,13 +515,32 @@ class CUTModel(BaseGanModel):
     def compute_G_loss_cut(self):
         """Calculate NCE loss for the generator"""
 
-        if self.opt.alg_cut_lambda_NCE > 0.0:
-            self.loss_G_NCE = self.calculate_NCE_loss(self.real_A, self.fake_B)
+        # Fake losses
+        feat_q_pool, feat_k_pool = self.calculate_feats(self.real_A, self.fake_B)
+
+        if self.opt.alg_cut_lambda_SRC > 0.0 or self.opt.alg_cut_nce_loss == "SRC_hDCE":
+            self.loss_G_SRC, weight = self.calculate_R_loss(feat_q_pool, feat_k_pool)
         else:
-            self.loss_G_NCE, self.loss_NCE_bd = 0.0, 0.0
+            self.loss_G_SRC = 0.0
+            weight = None
+
+        if self.opt.alg_cut_lambda_NCE > 0.0:
+            self.loss_G_NCE = self.calculate_NCE_loss(feat_q_pool, feat_k_pool, weight)
+        else:
+            self.loss_G_NCE = 0.0
+
+        # Identity losses
+        feat_q_pool, feat_k_pool = self.calculate_feats(self.real_B, self.idt_B)
+        if self.opt.alg_cut_lambda_SRC > 0.0 or self.opt.alg_cut_nce_loss == "SRC_hDCE":
+            self.loss_G_SRC_Y, weight = self.calculate_R_loss(feat_q_pool, feat_k_pool)
+        else:
+            self.loss_G_SRC = 0.0
+            weight = None
 
         if self.opt.alg_cut_nce_idt and self.opt.alg_cut_lambda_NCE > 0.0:
-            self.loss_G_NCE_Y = self.calculate_NCE_loss(self.real_B, self.idt_B)
+            self.loss_G_NCE_Y = self.calculate_NCE_loss(
+                feat_q_pool, feat_k_pool, weight
+            )
             loss_NCE_both = (self.loss_G_NCE + self.loss_G_NCE_Y) * 0.5
         else:
             loss_NCE_both = self.loss_G_NCE
@@ -521,8 +565,7 @@ class CUTModel(BaseGanModel):
         else:
             self.loss_G_z = 0
 
-    def calculate_NCE_loss(self, src, tgt):
-        n_layers = len(self.nce_layers)
+    def calculate_feats(self, src, tgt):
         if hasattr(self.netG_A, "module"):
             netG_A = self.netG_A.module
         else:
@@ -561,13 +604,39 @@ class CUTModel(BaseGanModel):
             )
             feat_q_pool, _ = self.netF(feat_q, self.opt.alg_cut_num_patches, sample_ids)
 
+        return feat_q_pool, feat_k_pool
+
+    def calculate_NCE_loss(self, feat_q_pool, feat_k_pool, weights):
+        if weights is None:
+            weights = [None for k in range(len(feat_q_pool))]
+        n_layers = len(self.nce_layers)
         total_nce_loss = 0.0
-        for f_q, f_k, crit, nce_layer in zip(
-            feat_q_pool, feat_k_pool, self.criterionNCE, self.nce_layers
+        for f_q, f_k, crit, nce_layer, weight in zip(
+            feat_q_pool, feat_k_pool, self.criterionNCE, self.nce_layers, weights
         ):
             loss = (
-                crit(f_q, f_k, current_batch=src.shape[0]) * self.opt.alg_cut_lambda_NCE
+                crit(
+                    feat_q=f_q,
+                    feat_k=f_k,
+                    current_batch=self.get_current_batch_size(),
+                    weight=weight,
+                )
+                * self.opt.alg_cut_lambda_NCE
             )
+
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers
+
+    def calculate_R_loss(self, feat_q_pool, feat_k_pool, only_weight=False, epoch=None):
+        n_layers = len(self.nce_layers)
+
+        total_SRC_loss = 0.0
+        weights = []
+        for f_q, f_k, crit, nce_layer in zip(
+            feat_q_pool, feat_k_pool, self.criterionR, self.nce_layers
+        ):
+            loss_SRC, weight = crit(f_q, f_k, only_weight, epoch)
+            total_SRC_loss += loss_SRC * self.opt.alg_cut_lambda_SRC
+            weights.append(weight)
+        return total_SRC_loss / n_layers, weights
