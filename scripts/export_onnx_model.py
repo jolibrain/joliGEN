@@ -31,7 +31,7 @@ parser.add_argument(
     help="optional model configuration, e.g /path/to/segformer_config_b0.py",
 )
 parser.add_argument("--img-size", default=256, type=int, help="square image size")
-parser.add_argument("--cpu", action="store_true", help="whether to export for CPU")
+parser.add_argument("--cuda", action="store_true", help="whether to export using gpu")
 parser.add_argument("--bw", action="store_true", help="whether input/output is bw")
 parser.add_argument(
     "--padding-type",
@@ -80,14 +80,14 @@ model = gan_networks.define_G(**vars(opt))
 model.eval()
 model.load_state_dict(torch.load(args.model_in_file))
 
-if not args.cpu:
+if args.cuda:
     model = model.cuda()
 
 # export to ONNX via tracing
-if args.cpu:
-    device = "cpu"
-else:
+if args.cuda:
     device = "cuda"
+else:
+    device = "cpu"
 dummy_input = torch.randn(1, input_nc, args.img_size, args.img_size, device=device)
 
 

@@ -227,7 +227,7 @@ class BaseModel(ABC):
 
         if "segformer" in self.opt.G_netG:
             self.onnx_opset_version = 11
-        elif "ittr" in self.opt.G_netG:
+        elif "ittr" in self.opt.G_netG or "unet_mha" in self.opt.G_netG:
             self.onnx_opset_version = 12
         else:
             self.onnx_opset_version = 9
@@ -795,39 +795,63 @@ class BaseModel(ABC):
 
                 net = getattr(self, "net" + name)
 
-                input_nc = self.opt.model_input_nc
-                if self.opt.model_multimodal:
-                    input_nc += self.opt.train_mm_nz
-
-                dummy_input = torch.randn(
-                    1,
-                    input_nc,
-                    self.opt.data_crop_size,
-                    self.opt.data_crop_size,
-                    device=self.device,
-                )
-
                 # onnx
+
                 if (
                     not "ittr" in self.opt.G_netG
                     and not "unet_mha" in self.opt.G_netG
                     and not "palette" in self.opt.model_type
                 ):
-                    export_path_onnx = save_path.replace(".pth", ".onnx")
+                    input_nc = self.opt.model_input_nc
+                    if self.opt.model_multimodal:
+                        input_nc += self.opt.train_mm_nz
 
-                    torch.onnx.export(
-                        net,
-                        dummy_input,
-                        export_path_onnx,
-                        verbose=False,
-                        opset_version=self.onnx_opset_version,
-                    )
+                        dummy_input = torch.randn(
+                            1,
+                            input_nc,
+                            self.opt.data_crop_size,
+                            self.opt.data_crop_size,
+                            device=self.device,
+                        )
 
-                # jit
-                if self.opt.train_export_jit and not "segformer" in self.opt.G_netG:
-                    export_path_jit = save_path.replace(".pth", ".pt")
-                    jit_model = torch.jit.trace(net, dummy_input)
-                    jit_model.save(export_path_jit)
+                    # onnx
+                    if not "ittr" in self.opt.G_netG:
+                        export_path_onnx = save_path.replace(".pth", ".onnx")
+
+                        export_device = torch.device("cpu")
+                        net = net.to(export_device)
+
+                        torch.onnx.export(
+                            net,
+                            self.get_dummy_input(export_device),
+                            export_path_onnx,
+                            verbose=False,
+                            opset_version=self.onnx_opset_version,
+                        )
+                        net.to(self.device)
+
+                    # jit
+                    if self.opt.train_export_jit and not "segformer" in self.opt.G_netG:
+                        export_path_jit = save_path.replace(".pth", ".pt")
+                        jit_model = torch.jit.trace(net, self.get_dummy_input())
+                        jit_model.save(export_path_jit)
+
+    def get_dummy_input(self, device=None):
+        input_nc = self.opt.model_input_nc
+        if self.opt.model_multimodal:
+            input_nc += self.opt.train_mm_nz
+
+        if device is None:
+            device = self.device
+        dummy_input = torch.randn(
+            1,
+            input_nc,
+            self.opt.data_crop_size,
+            self.opt.data_crop_size,
+            device=device,
+        )
+
+        return dummy_input
 
     def __patch_instance_norm_state_dict(self, state_dict, module, keys, i=0):
         """Fix InstanceNorm checkpoints incompatibility (prior to 0.4)"""
