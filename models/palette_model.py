@@ -24,6 +24,13 @@ class PaletteModel(BaseDiffusionModel):
             default=1.0,
             help="weight for supervised loss",
         )
+        parser.add_argument(
+            "--alg_palette_loss",
+            type=str,
+            default="MSE",
+            choices=["L1", "MSE"],
+            help="loss for denoising model",
+        )
         return parser
 
     def __init__(self, opt, rank):
@@ -56,6 +63,10 @@ class PaletteModel(BaseDiffusionModel):
         self.optimizers.append(self.optimizer_G)
 
         # Define loss functions
+        if self.opt.alg_palette_loss == "MSE":
+            self.loss_fn = torch.nn.MSELoss()
+        elif self.opt.alg_palette_loss == "L1":
+            self.loss_fn = torch.nn.L1Loss()
 
         losses_G = ["G_tot"]
 
@@ -92,8 +103,6 @@ class PaletteModel(BaseDiffusionModel):
                 self.loss_names[i] = cur_loss + "_avg"
                 setattr(self, "loss_" + self.loss_names[i], 0)
 
-        # homemade
-        self.loss_fn = self.mse_loss
         self.sample_num = 2  # temp
 
     def set_input(self, data):
