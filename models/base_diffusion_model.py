@@ -141,6 +141,3 @@ class BaseDiffusionModel(BaseModel):
 
             if hasattr(self, "netG_B"):
                 self.compute_temporal_fake(objective_domain="A")
-
-    def mse_loss(self, output, target):
-        return F.mse_loss(output, target)
