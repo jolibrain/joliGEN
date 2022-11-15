@@ -65,6 +65,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
+| --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE_ |
 
 ### GAN model
 
