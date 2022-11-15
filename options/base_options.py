@@ -587,8 +587,9 @@ class BaseOptions:
         parser.add_argument(
             "--data_online_creation_mask_delta_A",
             type=int,
-            default=0,
-            help="mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A",
+            default=[0],
+            nargs="*",
+            help="mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square",
         )
         parser.add_argument(
             "--data_online_creation_mask_square_A",
@@ -629,8 +630,9 @@ class BaseOptions:
         parser.add_argument(
             "--data_online_creation_mask_delta_B",
             type=int,
-            default=0,
-            help="mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B",
+            default=[0],
+            nargs="*",
+            help="mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square",
         )
         parser.add_argument(
             "--data_online_creation_mask_square_B",

@@ -87,13 +87,18 @@ def crop_image(
             xmax = math.floor(int(bbox[3]) * ratio_x)
             ymax = math.floor(int(bbox[4]) * ratio_y)
 
-            if (
-                mask_delta > 0
-            ):  # increase mask box so that it can fit the reconstructed object (for semantic loss)
-                ymin -= mask_delta
-                ymax += mask_delta
-                xmin -= mask_delta
-                xmax += mask_delta
+            if len(mask_delta) == 1:
+                mask_delta_x = mask_delta[0]
+                mask_delta_y = mask_delta[0]
+            elif len(mask_delta) == 2:
+                mask_delta_x = mask_delta[0]
+                mask_delta_y = mask_delta[1]
+
+            if mask_delta_x > 0 or mask_delta_y > 0:
+                ymin -= mask_delta_y
+                ymax += mask_delta_y
+                xmin -= mask_delta_x
+                xmax += mask_delta_x
 
             if mask_square:
                 sdiff = (xmax - xmin) - (ymax - ymin)
