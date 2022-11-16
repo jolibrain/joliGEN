@@ -12,15 +12,9 @@ from .unet_attn_utils import (
     zero_module,
     normalization,
     count_flops_attn,
-    gamma_embedding,
 )
 
-from functools import partial
-
-
-class SiLU(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(x)
+from models.modules.diffusion_utils import make_beta_schedule, gamma_embedding
 
 
 class EmbedBlock(nn.Module):
@@ -138,7 +132,7 @@ class ResBlock(EmbedBlock):
 
         self.in_layers = nn.Sequential(
             normalization(channels),
-            SiLU(),
+            torch.nn.SiLU(),
             nn.Conv2d(channels, self.out_channel, 3, padding=1),
         )
 
@@ -154,7 +148,7 @@ class ResBlock(EmbedBlock):
             self.h_upd = self.x_upd = nn.Identity()
 
         self.emb_layers = nn.Sequential(
-            SiLU(),
+            torch.nn.SiLU(),
             nn.Linear(
                 emb_channels,
                 2 * self.out_channel if use_scale_shift_norm else self.out_channel,
@@ -162,7 +156,7 @@ class ResBlock(EmbedBlock):
         )
         self.out_layers = nn.Sequential(
             normalization(self.out_channel),
-            SiLU(),
+            torch.nn.SiLU(),
             nn.Dropout(p=dropout),
             zero_module(nn.Conv2d(self.out_channel, self.out_channel, 3, padding=1)),
         )
@@ -398,7 +392,7 @@ class UNet(nn.Module):
         cond_embed_dim = inner_channel * 4
         self.cond_embed = nn.Sequential(
             nn.Linear(inner_channel, cond_embed_dim),
-            SiLU(),
+            torch.nn.SiLU(),
             nn.Linear(cond_embed_dim, cond_embed_dim),
         )
 
@@ -535,7 +529,7 @@ class UNet(nn.Module):
         else:
             self.out = nn.Sequential(
                 normalization(ch),
-                SiLU(),
+                torch.nn.SiLU(),
                 zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
             )
 
@@ -595,104 +589,10 @@ class UNet(nn.Module):
 
         return feats
 
-    def set_new_noise_schedule(self, phase):
-        to_torch = partial(torch.tensor, dtype=torch.float32)
-        betas = make_beta_schedule(**self.beta_schedule[phase])
-        betas = (
-            betas.detach().cpu().numpy() if isinstance(betas, torch.Tensor) else betas
-        )
-        alphas = 1.0 - betas
-
-        (timesteps,) = betas.shape
-        setattr(self, "num_timesteps_" + phase, int(timesteps))
-
-        gammas = np.cumprod(alphas, axis=0)
-        gammas_prev = np.append(1.0, gammas[:-1])
-
-        # calculations for diffusion q(x_t | x_{t-1}) and others
-        self.register_buffer("gammas_" + phase, to_torch(gammas))
-        name = "gammas_" + phase
-        self.register_buffer(
-            "sqrt_recip_gammas_" + phase, to_torch(np.sqrt(1.0 / gammas))
-        )
-        self.register_buffer(
-            "sqrt_recipm1_gammas_" + phase, to_torch(np.sqrt(1.0 / gammas - 1))
-        )
-
-        # calculations for posterior q(x_{t-1} | x_t, x_0)
-        posterior_variance = betas * (1.0 - gammas_prev) / (1.0 - gammas)
-        # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
-        self.register_buffer(
-            "posterior_log_variance_clipped_" + phase,
-            to_torch(np.log(np.maximum(posterior_variance, 1e-20))),
-        )
-        self.register_buffer(
-            "posterior_mean_coef1_" + phase,
-            to_torch(betas * np.sqrt(gammas_prev) / (1.0 - gammas)),
-        )
-        self.register_buffer(
-            "posterior_mean_coef2_" + phase,
-            to_torch((1.0 - gammas_prev) * np.sqrt(alphas) / (1.0 - gammas)),
-        )
-
-    def predict_start_from_noise(self, y_t, t, noise, phase):
-        return (
-            self.extract(getattr(self, "sqrt_recip_gammas_" + phase), t, y_t.shape)
-            * y_t
-            - self.extract(getattr(self, "sqrt_recipm1_gammas_" + phase), t, y_t.shape)
-            * noise
-        )
-
-    def q_posterior(self, y_0_hat, y_t, t, phase):
-        posterior_mean = (
-            self.extract(getattr(self, "posterior_mean_coef1_" + phase), t, y_t.shape)
-            * y_0_hat
-            + self.extract(getattr(self, "posterior_mean_coef2_" + phase), t, y_t.shape)
-            * y_t
-        )
-        posterior_log_variance_clipped = self.extract(
-            getattr(self, "posterior_log_variance_clipped_" + phase), t, y_t.shape
-        )
-        return posterior_mean, posterior_log_variance_clipped
-
     def extract(self, a, t, x_shape=(1, 1, 1, 1)):
         b, *_ = t.shape
         out = a.gather(-1, t)
         return out.reshape(b, *((1,) * (len(x_shape) - 1)))
-
-
-def make_beta_schedule(
-    schedule, n_timestep, linear_start=1e-6, linear_end=1e-2, cosine_s=8e-3
-):
-    if schedule == "quad":
-        betas = (
-            np.linspace(
-                linear_start**0.5, linear_end**0.5, n_timestep, dtype=np.float64
-            )
-            ** 2
-        )
-    elif schedule == "linear":
-        betas = np.linspace(linear_start, linear_end, n_timestep, dtype=np.float64)
-    elif schedule == "warmup10":
-        betas = _warmup_beta(linear_start, linear_end, n_timestep, 0.1)
-    elif schedule == "warmup50":
-        betas = _warmup_beta(linear_start, linear_end, n_timestep, 0.5)
-    elif schedule == "const":
-        betas = linear_end * np.ones(n_timestep, dtype=np.float64)
-    elif schedule == "jsd":  # 1/T, 1/(T-1), 1/(T-2), ..., 1
-        betas = 1.0 / np.linspace(n_timestep, 1, n_timestep, dtype=np.float64)
-    elif schedule == "cosine":
-        timesteps = (
-            torch.arange(n_timestep + 1, dtype=torch.float64) / n_timestep + cosine_s
-        )
-        alphas = timesteps / (1 + cosine_s) * math.pi / 2
-        alphas = torch.cos(alphas).pow(2)
-        alphas = alphas / alphas[0]
-        betas = 1 - alphas[1:] / alphas[:-1]
-        betas = betas.clamp(max=0.999)
-    else:
-        raise NotImplementedError(schedule)
-    return betas
 
 
 if __name__ == "__main__":
