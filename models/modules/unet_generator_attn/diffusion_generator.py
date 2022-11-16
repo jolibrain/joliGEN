@@ -4,8 +4,14 @@ from inspect import isfunction
 from functools import partial
 import numpy as np
 from tqdm import tqdm
-from .unet_generator_attn import UNet
 from torch import nn
+
+from .unet_generator_attn import UNet
+from models.modules.diffusion_utils import (
+    set_new_noise_schedule,
+    predict_start_from_noise,
+    q_posterior,
+)
 
 
 class DiffusionGenerator(nn.Module):
@@ -61,8 +67,8 @@ class DiffusionGenerator(nn.Module):
             )
 
         # Init noise schedule
-        self.denoise_fn.set_new_noise_schedule(phase="train")
-        self.denoise_fn.set_new_noise_schedule(phase="test")
+        set_new_noise_schedule(model=self.denoise_fn, phase="train")
+        set_new_noise_schedule(model=self.denoise_fn, phase="test")
 
     def restoration(self, y_cond, y_t=None, y_0=None, mask=None, sample_num=8):
         phase = "test"
@@ -106,7 +112,8 @@ class DiffusionGenerator(nn.Module):
         noise_level = self.extract(
             getattr(self.denoise_fn, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
-        y_0_hat = self.denoise_fn.predict_start_from_noise(
+        y_0_hat = predict_start_from_noise(
+            self.denoise_fn,
             y_t,
             t=t,
             noise=self.denoise_fn(torch.cat([y_cond, y_t], dim=1), noise_level),
@@ -116,8 +123,8 @@ class DiffusionGenerator(nn.Module):
         if clip_denoised:
             y_0_hat.clamp_(-1.0, 1.0)
 
-        model_mean, posterior_log_variance = self.denoise_fn.q_posterior(
-            y_0_hat=y_0_hat, y_t=y_t, t=t, phase=phase
+        model_mean, posterior_log_variance = q_posterior(
+            self.denoise_fn, y_0_hat=y_0_hat, y_t=y_t, t=t, phase=phase
         )
         return model_mean, posterior_log_variance
 
