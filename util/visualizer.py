@@ -298,7 +298,7 @@ class Visualizer:
             % (epoch, iters, t_comp, t_data_mini_batch)
         )
         for k, v in losses.items():
-            message += "%s: %.3f " % (k, v)
+            message += "%s: %.6f " % (k, v)
 
         print(message)  # print the message
         with open(self.log_name, "a") as log_file:
