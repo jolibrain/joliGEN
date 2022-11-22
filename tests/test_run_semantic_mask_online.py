@@ -18,7 +18,7 @@ json_like_dict = {
     "data_crop_size": 180,
     "data_online_creation_crop_size_A": 420,
     "data_online_creation_crop_delta_A": 50,
-    "data_online_creation_mask_delta_A": 50,
+    "data_online_creation_mask_delta_A": [50],
     "data_online_creation_crop_size_B": 420,
     "data_online_creation_crop_delta_B": 50,
     "data_online_creation_load_size_A": [2500, 1000],
@@ -41,11 +41,12 @@ json_like_dict = {
     "train_mask_miou_every": 1,
     "D_temporal_number_frames": 2,
     "D_temporal_frame_step": 2,
+    "train_semantic_mask": True,
 }
 
 models_semantic_mask = [
-    "cycle_gan_semantic_mask",
-    "cut_semantic_mask",
+    "cycle_gan",
+    "cut",
 ]
 
 G_netG = ["mobile_resnet_attn", "segformer_attn_conv"]
