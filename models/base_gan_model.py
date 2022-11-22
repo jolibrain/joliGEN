@@ -534,6 +534,13 @@ class BaseGanModel(BaseModel):
             else:
                 train_gan_mode = self.opt.train_gan_mode
 
+            if "projected" in discriminator_name:
+                dataaug_D_diffusion = self.opt.dataaug_D_diffusion
+                dataaug_D_diffusion_every = self.opt.dataaug_D_diffusion_every
+            else:
+                dataaug_D_diffusion = False
+                dataaug_D_diffusion_every = False
+
             if "temporal" in discriminator_name:
                 setattr(
                     self,
@@ -549,6 +556,8 @@ class BaseGanModel(BaseModel):
                         dataaug_D_label_smooth=self.opt.dataaug_D_label_smooth,
                         train_gan_mode=train_gan_mode,
                         dataaug_APA=self.opt.dataaug_APA,
+                        dataaug_D_diffusion=dataaug_D_diffusion,
+                        dataaug_D_diffusion_every=dataaug_D_diffusion_every,
                     ),
                 )
 
@@ -577,12 +586,6 @@ class BaseGanModel(BaseModel):
                         ),
                     )
                 else:
-                    if "projected" in discriminator_name:
-                        dataaug_D_diffusion = self.opt.dataaug_D_diffusion
-                        dataaug_D_diffusion_every = self.opt.dataaug_D_diffusion_every
-                    else:
-                        dataaug_D_diffusion = False
-                        dataaug_D_diffusion_every = False
                     loss_calculator = loss.DiscriminatorGANLoss(
                         netD=getattr(self, "net" + discriminator_name),
                         device=self.device,
