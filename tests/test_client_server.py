@@ -103,35 +103,19 @@ def shutdown_handler(signum, frame):
     exit(0)
 
 
-def main():
+def test_client_sever(host, port):
     signal(SIGINT, shutdown_handler)
-    parser = ArgumentParser(description="Start a tiny HTTP/1.1 server")
-    parser.add_argument(
-        "--host",
-        type=str,
-        action="store",
-        default="localhost",
-        help="Server host (default: localhost)",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        action="store",
-        default=8000,
-        help="Server port (default: 8000)",
-    )
-    args = parser.parse_args()
 
-    Thread(target=start_server, daemon=True, args=[args.host, args.port]).start()
+    Thread(target=start_server, daemon=True, args=[host, port]).start()
 
     time.sleep(1)
 
     client.main_client(
         args=[
             "--host",
-            args.host,
+            host,
             "--port",
-            str(args.port),
+            str(port),
             "--method",
             "training_status",
             "--name",
@@ -144,24 +128,9 @@ def main():
     client.main_client(
         args=[
             "--host",
-            args.host,
+            host,
             "--port",
-            str(args.port),
-            "--method",
-            "stop_training",
-            "--name",
-            "test_client",
-        ]
-    )
-
-    time.sleep(1)
-
-    client.main_client(
-        args=[
-            "--host",
-            args.host,
-            "--port",
-            str(args.port),
+            str(port),
             "--method",
             "launch_training",
             "--name",
@@ -171,6 +140,17 @@ def main():
         ]
     )
 
+    time.sleep(1)
 
-if __name__ == "__main__":
-    main()
+    client.main_client(
+        args=[
+            "--host",
+            host,
+            "--port",
+            str(port),
+            "--method",
+            "stop_training",
+            "--name",
+            "test_client",
+        ]
+    )

@@ -86,7 +86,11 @@ rm $ZIP_FILE
 
 
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+OUT=$?
 
+if [ $OUT != 0 ]; then
+    exit 1
+fi
 
 ####### mask cls semantics test
 echo "Running mask and class semantics training tests"
@@ -99,6 +103,12 @@ unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_cls.py" --dataroot "$TARGET_MASK_CLS_SEM_DIR"
+
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
 
 ####### cls semantics test
 echo "Running mask and class semantics training tests"
@@ -115,19 +125,21 @@ python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_seman
 
 OUT=$?
 
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 echo "Deleting target dir $DIR"
 rm -rf $DIR/*
 
+#### Client server test
+SERVER_HOST="localhost"
+SERVER_PORT=8047
+
+python3 -m pytest ${current_dir}/../tests/test_client_server.py --host $SERVER_HOST --port $SERVER_PORT
+
+OUT=$?
+
 if [ $OUT != 0 ]; then
     exit 1
-else
-    exit 0
 fi
-
-#### Client server test
-SERVER_HOST="10.10.77.108"
-SERVER_PORT=8000
-
-python3 -m pytest ${current_dir}/../tests/client_test_server.py --host $SERVER_HOST --port $SERVER_PORT
-
-
