@@ -12,6 +12,7 @@ from torchvision.utils import save_image
 import numpy as np
 import argparse
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
+from models.modules.diffusion_utils import set_new_noise_schedule
 
 
 def load_model(modelpath, model_in_file, device, sampling_steps):
@@ -29,7 +30,7 @@ def load_model(modelpath, model_in_file, device, sampling_steps):
     # sampling steps
     if sampling_steps > 0:
         model.denoise_fn.beta_schedule["test"]["n_timestep"] = sampling_steps
-        model.denoise_fn.set_new_noise_schedule("test")
+        set_new_noise_schedule(model.denoise_fn, "test")
 
     model = model.to(device)
     return model, opt
@@ -93,7 +94,7 @@ if args.bbox_in:
             (bbox[3] - bbox[1], bbox[2] - bbox[0]), 1
         )  # ymin:ymax, xmin:xmax, ymax-ymin, xmax-xmin
 
-if args.img_width or args.img_height > 0:
+if args.img_width and args.img_height > 0:
     img = cv2.resize(img, (args.img_width, args.img_height))
     mask = cv2.resize(mask, (args.img_width, args.img_height))
 
