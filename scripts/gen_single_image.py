@@ -55,6 +55,8 @@ print("modelpath=", modelpath)
 
 if not args.cpu:
     device = torch.device("cuda:" + str(args.gpuid))
+else:
+    device = torch.device("cpu")
 model, opt = load_model(modelpath, os.path.basename(args.model_in_file), device)
 
 # reading image
