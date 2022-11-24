@@ -232,6 +232,9 @@ class BaseModel(ABC):
         else:
             self.onnx_opset_version = 9
 
+        if self.opt.output_display_env == "":
+            self.opt.output_display_env = self.opt.name
+
     def init_semantic_cls(self, opt):
 
         # specify the semantic training networks and losses.

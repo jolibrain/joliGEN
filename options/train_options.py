@@ -39,7 +39,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument(
             "--output_display_env",
             type=str,
-            default="main",
+            default="",
             help='visdom display environment name (default is "main")',
         )
         parser.add_argument(
