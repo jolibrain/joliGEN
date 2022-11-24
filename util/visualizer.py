@@ -269,7 +269,7 @@ class Visualizer:
                 Y,
                 X,
                 opts={
-                    "title": self.name + " loss over time",
+                    "title": " loss over time",
                     "legend": self.plot_data["legend"],
                     "xlabel": "epoch",
                     "ylabel": "loss",
