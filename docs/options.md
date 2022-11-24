@@ -189,7 +189,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --output_display_G_attention_masks | flag |  |  |
 | --output_display_diff_fake_real | flag |  | if True x - G(x) is displayed |
-| --output_display_env | string | main | visdom display environment name (default is "main") |
+| --output_display_env | string |  | visdom display environment name (default is "main") |
 | --output_display_freq | int | 400 | frequency of showing training results on screen |
 | --output_display_id | int | 1 | window id of the web display |
 | --output_display_ncols | int | 4 | if positive, display all images in a single visdom web panel with certain number of images per row. |
