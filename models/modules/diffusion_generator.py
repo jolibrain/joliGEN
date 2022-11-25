@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from torch import nn
 
-from .unet_generator_attn import UNet
+from models.modules.unet_generator_attn.unet_generator_attn import UNet
 from models.modules.diffusion_utils import (
     set_new_noise_schedule,
     predict_start_from_noise,
