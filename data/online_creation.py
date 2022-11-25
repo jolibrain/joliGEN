@@ -7,6 +7,7 @@ import torchvision.transforms.functional as F
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
 import warnings
+import os
 
 
 def crop_image(
@@ -310,6 +311,8 @@ def sanitize_paths(
     context_pixels,
     load_size,
     select_cat=-1,
+    data_relative_paths=False,
+    data_root_path="",
     max_dataset_size=float("inf"),
     verbose=False,
 ):
@@ -320,6 +323,11 @@ def sanitize_paths(
         paths_bb = [None for k in range(len(paths_img))]
 
     for path_img, path_bb in tqdm(zip(paths_img, paths_bb)):
+
+        if data_relative_paths:
+            path_img = os.path.join(data_root_path, path_img)
+            path_bb = os.path.join(data_root_path, path_bb)
+
         if len(return_paths_img) >= max_dataset_size:
             break
 

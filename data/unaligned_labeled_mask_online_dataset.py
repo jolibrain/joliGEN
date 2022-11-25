@@ -168,6 +168,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 context_pixels=self.opt.data_online_context_pixels,
                 load_size=self.opt.data_online_creation_load_size_A,
                 select_cat=self.opt.data_online_select_category,
+                data_relative_paths=self.opt.data_relative_paths,
+                data_root_path=self.opt.dataroot,
             )
             write_paths_file(
                 self.A_img_paths,
@@ -186,6 +188,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     max_dataset_size=self.opt.train_pool_size,
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_A,
+                    data_relative_paths=self.opt.data_relative_paths,
+                    data_root_path=self.opt.root,
                 )
                 write_paths_file(
                     self.A_img_paths_val,
@@ -205,6 +209,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     max_dataset_size=self.opt.data_max_dataset_size,
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_B,
+                    data_relative_paths=self.opt.data_relative_paths,
+                    data_root_path=self.opt.root,
                 )
                 write_paths_file(
                     self.B_img_paths,
@@ -223,6 +229,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         max_dataset_size=self.opt.train_pool_size,
                         context_pixels=self.opt.data_online_context_pixels,
                         load_size=self.opt.data_online_creation_load_size_B,
+                        data_relative_paths=self.opt.data_relative_paths,
+                        data_root_path=self.opt.root,
                     )
                     write_paths_file(
                         self.B_img_paths_val,
