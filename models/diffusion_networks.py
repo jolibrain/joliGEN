@@ -1,7 +1,7 @@
 from .modules.utils import get_norm_layer
 
 
-from .modules.unet_generator_attn.diffusion_generator import DiffusionGenerator
+from .modules.diffusion_generator import DiffusionGenerator
 
 
 def define_G(
