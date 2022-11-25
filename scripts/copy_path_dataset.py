@@ -17,12 +17,14 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-img_dir = args.dataroot_out_dir + "/" + args.domain_dir + "/img/"
-bbox_dir = args.dataroot_out_dir + "/" + args.domain_dir + "/bbox/"
+domain_dir = args.dataroot_out_dir + "/" + args.domain_dir
+img_dir = domain_dir + "/img/"
+bbox_dir = domain_dir + "/bbox/"
 img_dir_rel = args.domain_dir + "/img/"
 bbox_dir_rel = args.domain_dir + "/bbox/"
 
 try:
+    os.mkdir(domain_dir)
     os.mkdir(img_dir)
     os.mkdir(bbox_dir)
 except:
