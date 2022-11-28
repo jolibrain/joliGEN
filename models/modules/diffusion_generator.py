@@ -13,58 +13,20 @@ from models.modules.diffusion_utils import (
     q_posterior,
 )
 
+from models.modules.resnet_architecture.resnet_generator_diff import (
+    ResnetGenerator_attn_diff,
+)
+
 
 class DiffusionGenerator(nn.Module):
     def __init__(
         self,
-        unet,
-        image_size,
-        in_channel,
-        inner_channel,
-        out_channel,
-        res_blocks,
-        attn_res,
-        tanh,
-        n_timestep_train,
-        n_timestep_test,
-        dropout=0,
-        channel_mults=(1, 2, 4, 8),
-        conv_resample=True,
-        use_checkpoint=False,
-        use_fp16=False,
-        num_heads=1,
-        num_head_channels=-1,
-        num_heads_upsample=-1,
-        use_scale_shift_norm=True,
-        resblock_updown=True,
-        use_new_attention_order=False,
+        denoise_fn,
     ):
 
         super().__init__()
 
-        if unet == "unet_mha":
-            self.denoise_fn = UNet(
-                image_size=image_size,
-                in_channel=in_channel,
-                inner_channel=inner_channel,
-                out_channel=out_channel,
-                res_blocks=res_blocks,
-                attn_res=attn_res,
-                tanh=tanh,
-                n_timestep_train=n_timestep_train,
-                n_timestep_test=n_timestep_test,
-                dropout=dropout,
-                channel_mults=channel_mults,
-                conv_resample=conv_resample,
-                use_checkpoint=use_checkpoint,
-                use_fp16=use_fp16,
-                num_heads=num_heads,
-                num_head_channels=num_head_channels,
-                num_heads_upsample=num_heads_upsample,
-                use_scale_shift_norm=use_scale_shift_norm,
-                resblock_updown=resblock_updown,
-                use_new_attention_order=use_new_attention_order,
-            )
+        self.denoise_fn = denoise_fn
 
         # Init noise schedule
         set_new_noise_schedule(model=self.denoise_fn, phase="train")

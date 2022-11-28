@@ -248,14 +248,14 @@ class BaseOptions:
 
         parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
         parser.add_argument(
-            "--G_unet_mha_n_timestep_train",
+            "--G_diff_n_timestep_train",
             type=int,
             default=2000,
             help="Number of timesteps used for UNET mha training.",
         )
 
         parser.add_argument(
-            "--G_unet_mha_n_timestep_test",
+            "--G_diff_n_timestep_test",
             type=int,
             default=1000,
             help="Number of timesteps used for UNET mha inference (test time).",

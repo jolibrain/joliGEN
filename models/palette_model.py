@@ -103,7 +103,7 @@ class PaletteModel(BaseDiffusionModel):
                 self.loss_names[i] = cur_loss + "_avg"
                 setattr(self, "loss_" + self.loss_names[i], 0)
 
-        self.sample_num = 2  # temp
+        self.sample_num = 2
 
     def set_input(self, data):
         """must use set_device in tensor"""

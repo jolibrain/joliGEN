@@ -14,7 +14,7 @@ from .unet_attn_utils import (
     count_flops_attn,
 )
 
-from models.modules.diffusion_utils import make_beta_schedule, gamma_embedding
+from models.modules.diffusion_utils import gamma_embedding
 
 
 class EmbedBlock(nn.Module):
@@ -190,15 +190,18 @@ class ResBlock(EmbedBlock):
             h = self.in_layers(x)
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
-            emb_out = emb_out[..., None]
+            emb_out = emb_out.unsqueeze(-1)
+            # emb_out = emb_out[..., None]
         if self.use_scale_shift_norm:
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = torch.chunk(emb_out, 2, dim=1)
             h = out_norm(h) * (1 + scale) + shift
             h = out_rest(h)
         else:
+
             h = h + emb_out
             h = self.out_layers(h)
+
         return self.skip_connection(x) + h
 
 
