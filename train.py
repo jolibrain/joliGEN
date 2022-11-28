@@ -336,7 +336,7 @@ def get_override_options_names(remaining_args):
 
 if __name__ == "__main__":
 
-    main_parser = argparse.ArgumentParser()
+    main_parser = argparse.ArgumentParser(add_help=False)
 
     main_parser.add_argument(
         "--config_json", type=str, default="", help="path to json config"
