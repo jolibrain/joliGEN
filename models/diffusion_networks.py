@@ -2,6 +2,9 @@ from .modules.utils import get_norm_layer
 
 
 from .modules.diffusion_generator import DiffusionGenerator
+from .modules.resnet_architecture.resnet_generator_diff import ResnetGenerator_attn_diff
+from .modules.unet_generator_attn.unet_generator_attn import UNet
+from .modules.segformer.segformer_diff import SegformerGeneratorDiff_attn
 
 
 def define_G(
@@ -11,11 +14,28 @@ def define_G(
     G_nblocks,
     data_crop_size,
     G_norm,
-    G_unet_mha_n_timestep_train,
-    G_unet_mha_n_timestep_test,
+    G_diff_n_timestep_train,
+    G_diff_n_timestep_test,
     G_dropout,
     G_ngf,
     G_unet_mha_num_head_channels,
+    G_attn_nb_mask_attn,
+    G_attn_nb_mask_input,
+    G_spectral,
+    jg_dir,
+    G_padding_type,
+    G_config_segformer,
+    dropout=0,
+    channel_mults=(1, 2, 4, 8),
+    conv_resample=True,
+    use_checkpoint=False,
+    use_fp16=False,
+    num_heads=1,
+    num_head_channels=-1,
+    num_heads_upsample=-1,
+    use_scale_shift_norm=True,
+    resblock_updown=True,
+    use_new_attention_order=False,
     **unused_options
 ):
     """Create a generator
@@ -42,22 +62,60 @@ def define_G(
     norm_layer = get_norm_layer(norm_type=G_norm)
 
     if G_netG == "unet_mha":
-        net = DiffusionGenerator(
-            unet="unet_mha",
+        denoise_fn = UNet(
             image_size=data_crop_size,
             in_channel=model_input_nc * 2,
-            inner_channel=G_ngf,  # e.g. 64 in palette repo
+            inner_channel=G_ngf,
             out_channel=model_output_nc,
-            res_blocks=G_nblocks,  # 2 in palette repo
+            res_blocks=G_nblocks,
             attn_res=[16],  # e.g.
+            tanh=False,
+            n_timestep_train=G_diff_n_timestep_train,
+            n_timestep_test=G_diff_n_timestep_test,
             channel_mults=(1, 2, 4, 8),  # e.g.
             num_head_channels=G_unet_mha_num_head_channels,  # e.g. 32 in palette repo
-            tanh=False,
-            n_timestep_train=G_unet_mha_n_timestep_train,
-            n_timestep_test=G_unet_mha_n_timestep_test,
         )
-        return net
+
+    elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":
+        mobile = "mobile" in G_netG
+        denoise_fn = ResnetGenerator_attn_diff(
+            input_nc=model_input_nc * 2,
+            output_nc=model_output_nc,
+            nb_mask_attn=G_attn_nb_mask_attn,
+            nb_mask_input=G_attn_nb_mask_input,
+            n_timestep_train=G_diff_n_timestep_train,
+            n_timestep_test=G_diff_n_timestep_test,
+            ngf=G_ngf,
+            n_blocks=G_nblocks,
+            use_spectral=False,
+            padding_type="reflect",
+            mobile=mobile,
+            use_scale_shift_norm=True,
+        )
+
+    elif G_netG == "segformer_attn_conv":
+        denoise_fn = SegformerGeneratorDiff_attn(
+            jg_dir,
+            G_config_segformer,
+            model_input_nc,
+            img_size=data_crop_size,
+            nb_mask_attn=G_attn_nb_mask_attn,
+            nb_mask_input=G_attn_nb_mask_input,
+            inner_channel=G_ngf,
+            n_timestep_train=G_diff_n_timestep_train,
+            n_timestep_test=G_diff_n_timestep_test,
+            final_conv=True,
+            padding_type=G_padding_type,
+        )
+
     else:
+
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG
         )
+
+    net = DiffusionGenerator(
+        denoise_fn=denoise_fn,
+    )
+
+    return net

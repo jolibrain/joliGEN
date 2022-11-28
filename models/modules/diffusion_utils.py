@@ -99,20 +99,23 @@ def set_new_noise_schedule(model, phase):
 
 def predict_start_from_noise(model, y_t, t, noise, phase):
     return (
-        model.extract(getattr(model, "sqrt_recip_gammas_" + phase), t, y_t.shape) * y_t
-        - model.extract(getattr(model, "sqrt_recipm1_gammas_" + phase), t, y_t.shape)
-        * noise
+        extract(getattr(model, "sqrt_recip_gammas_" + phase), t, y_t.shape) * y_t
+        - extract(getattr(model, "sqrt_recipm1_gammas_" + phase), t, y_t.shape) * noise
     )
 
 
 def q_posterior(model, y_0_hat, y_t, t, phase):
     posterior_mean = (
-        model.extract(getattr(model, "posterior_mean_coef1_" + phase), t, y_t.shape)
-        * y_0_hat
-        + model.extract(getattr(model, "posterior_mean_coef2_" + phase), t, y_t.shape)
-        * y_t
+        extract(getattr(model, "posterior_mean_coef1_" + phase), t, y_t.shape) * y_0_hat
+        + extract(getattr(model, "posterior_mean_coef2_" + phase), t, y_t.shape) * y_t
     )
-    posterior_log_variance_clipped = model.extract(
+    posterior_log_variance_clipped = extract(
         getattr(model, "posterior_log_variance_clipped_" + phase), t, y_t.shape
     )
     return posterior_mean, posterior_log_variance_clipped
+
+
+def extract(a, t, x_shape=(1, 1, 1, 1)):
+    b, *_ = t.shape
+    out = a.gather(-1, t)
+    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
