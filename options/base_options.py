@@ -764,7 +764,7 @@ class BaseOptions:
 
         return dict(json_args)
 
-    def _after_parse(self, opt):
+    def _after_parse(self, opt, set_device=True):
         if hasattr(self, "isTrain"):
             opt.isTrain = self.isTrain  # train or test
         else:
@@ -783,7 +783,7 @@ class BaseOptions:
             id = int(str_id)
             if id >= 0:
                 opt.gpu_ids.append(id)
-        if len(opt.gpu_ids) > 0 and torch.cuda.is_available():
+        if set_device and len(opt.gpu_ids) > 0 and torch.cuda.is_available():
             torch.cuda.set_device(opt.gpu_ids[0])
 
         # multimodal check
@@ -894,7 +894,7 @@ class BaseOptions:
 
                 setattr(opt, action.dest, val)
 
-    def parse_json(self, json_args, save_config=False):
+    def parse_json(self, json_args, save_config=False, set_device=True):
         """
         Parse a json-like dict using the joliGAN argument parser.
 
@@ -941,7 +941,7 @@ class BaseOptions:
             self.opt = opt
             self.save_options()
 
-        return self._after_parse(opt)
+        return self._after_parse(opt, set_device)
 
     def get_schema(self, allow_nan=False):
         if not self.initialized:

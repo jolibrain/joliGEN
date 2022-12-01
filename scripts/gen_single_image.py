@@ -21,21 +21,28 @@ def get_z_random(batch_size=1, nz=8, random_type="gauss"):
     return z.detach()
 
 
-def load_model(modelpath, model_in_file, device):
+def load_model(modelpath, model_in_file, cpu, gpuid):
     train_json_path = modelpath + "/train_config.json"
     with open(train_json_path, "r") as jsonf:
         train_json = json.load(jsonf)
-    opt = TrainOptions().parse_json(train_json)
+    opt = TrainOptions().parse_json(train_json, set_device=False)
     if opt.model_multimodal:
         opt.model_input_nc += opt.train_mm_nz
     opt.jg_dir = "../"
 
+    if not cpu:
+        device = torch.device("cuda:" + str(gpuid))
+    else:
+        device = torch.device("cpu")
+
     model = gan_networks.define_G(**vars(opt))
     model.eval()
-    model.load_state_dict(torch.load(modelpath + "/" + model_in_file))
+    model.load_state_dict(
+        torch.load(modelpath + "/" + model_in_file, map_location=device)
+    )
 
     model = model.to(device)
-    return model, opt
+    return model, opt, device
 
 
 parser = argparse.ArgumentParser()
@@ -53,11 +60,9 @@ args = parser.parse_args()
 modelpath = args.model_in_file.replace(os.path.basename(args.model_in_file), "")
 print("modelpath=", modelpath)
 
-if not args.cpu:
-    device = torch.device("cuda:" + str(args.gpuid))
-else:
-    device = torch.device("cpu")
-model, opt = load_model(modelpath, os.path.basename(args.model_in_file), device)
+model, opt, device = load_model(
+    modelpath, os.path.basename(args.model_in_file), args.cpu, args.gpuid
+)
 
 # reading image
 img = cv2.imread(args.img_in)
