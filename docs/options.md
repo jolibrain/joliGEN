@@ -46,6 +46,8 @@ Here are all the available options to call with `train.py`
 | --G_attn_nb_mask_input | int | 1 |  |
 | --G_backward_compatibility_twice_resnet_blocks | flag |  | if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way). |
 | --G_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segforme configuration file for G |
+| --G_diff_n_timestep_test | int | 1000 | Number of timesteps used for UNET mha inference (test time). |
+| --G_diff_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_dropout | flag |  | dropout for the generator |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/>_**Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512_ |
@@ -56,8 +58,6 @@ Here are all the available options to call with `train.py`
 | --G_spectral | flag |  | whether to use spectral norm in the generator |
 | --G_stylegan2_num_downsampling | int | 1 | Number of downsampling layers used by StyleGAN2Generator |
 | --G_unet_mha_channel_mults | array | [1, 2, 4, 8] | channel multiplier for each level of the UNET mha |
-| --G_unet_mha_n_timestep_test | int | 1000 | Number of timesteps used for UNET mha inference (test time). |
-| --G_unet_mha_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_unet_mha_num_head_channels | int | 32 |  |
 
 ## Algorithm-specific
