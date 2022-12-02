@@ -1056,7 +1056,11 @@ class BaseModel(ABC):
                     )
                 else:
                     ll = getattr(self, loss) / self.opt.train_iter_size
-                ll.backward(retain_graph=False)
+                if self.opt.model_multimodal:
+                    retain_graph = True
+                else:
+                    retain_graph = False
+                ll.backward(retain_graph=retain_graph)
 
             loss_names = []
 
