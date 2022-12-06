@@ -198,32 +198,6 @@ class BaseGanModel(BaseModel):
             if hasattr(self, "netG_B"):
                 self.compute_temporal_fake(objective_domain="A")
 
-    def compute_temporal_fake(self, objective_domain):
-        origin_domain = "B" if objective_domain == "A" else "A"
-        netG = getattr(self, "netG_" + origin_domain)
-        temporal_fake = []
-
-        for i in range(self.opt.D_temporal_number_frames):
-            temporal_fake.append(
-                netG(getattr(self, "temporal_real_" + origin_domain)[:, i])
-            )
-
-        temporal_fake = torch.stack(temporal_fake, dim=1)
-
-        for i in range(self.opt.D_temporal_number_frames):
-            setattr(
-                self,
-                "temporal_fake_" + objective_domain + "_" + str(i),
-                temporal_fake[:, i],
-            )
-            if self.opt.data_online_context_pixels > 0:
-                self.compute_fake_with_context(
-                    fake_name="temporal_fake_" + objective_domain + "_" + str(i),
-                    real_name="temporal_real_" + origin_domain + "_" + str(i),
-                )
-
-        setattr(self, "temporal_fake_" + objective_domain, temporal_fake)
-
     def compute_D_accuracy_pred(self, real, fake, netD):
         pred_real = (netD(real).flatten() > 0.5) * 1
         pred_fake = (netD(fake).flatten() > 0.5) * 1

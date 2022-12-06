@@ -580,60 +580,6 @@ class BaseModel(ABC):
         for forward_function in self.forward_functions:
             getattr(self, forward_function)()
 
-    def forward_GAN(self):
-        """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        self.real_A_pool.query(self.real_A)
-        self.real_B_pool.query(self.real_B)
-
-        if self.opt.output_display_G_attention_masks:
-            images, attentions, outputs = self.netG_A.get_attention_masks(self.real_A)
-            for i, cur_mask in enumerate(attentions):
-                setattr(self, "attention_" + str(i), cur_mask)
-
-            for i, cur_output in enumerate(outputs):
-                setattr(self, "output_" + str(i), cur_output)
-
-            for i, cur_image in enumerate(images):
-                setattr(self, "image_" + str(i), cur_image)
-
-        if self.opt.data_online_context_pixels > 0:
-
-            bs = self.get_current_batch_size()
-            self.mask_context = torch.ones(
-                [
-                    bs,
-                    self.opt.model_input_nc,
-                    self.opt.data_crop_size + self.margin,
-                    self.opt.data_crop_size + self.margin,
-                ],
-                device=self.device,
-            )
-
-            self.mask_context[
-                :,
-                :,
-                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-                self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
-            ] = torch.zeros(
-                [
-                    bs,
-                    self.opt.model_input_nc,
-                    self.opt.data_crop_size,
-                    self.opt.data_crop_size,
-                ],
-                device=self.device,
-            )
-
-            self.mask_context_vis = torch.nn.functional.interpolate(
-                self.mask_context, size=self.real_A.shape[2:]
-            )[:, 0]
-
-        if any("temporal" in D_name for D_name in self.opt.D_netDs):
-            self.compute_temporal_fake(objective_domain="B")
-
-            if hasattr(self, "netG_B"):
-                self.compute_temporal_fake(objective_domain="A")
-
     def compute_temporal_fake(self, objective_domain):
         origin_domain = "B" if objective_domain == "A" else "A"
         netG = getattr(self, "netG_" + origin_domain)
