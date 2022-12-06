@@ -77,15 +77,18 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
+| --alg_cut_HDCE_gamma | float | 1.0 |  |
+| --alg_cut_HDCE_gamma_min | float | 1.0 |  |
 | --alg_cut_MSE_idt | flag |  | use MSENCE loss for identity mapping: MSE(G(Y), Y)) |
 | --alg_cut_flip_equivariance | flag |  | Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT |
 | --alg_cut_lambda_MSE_idt | float | 1.0 | weight for MSE identity loss: MSE(G(X), X) |
 | --alg_cut_lambda_NCE | float | 1.0 | weight for NCE loss: NCE(G(X), X) |
+| --alg_cut_lambda_SRC | float | 0.0 | weight for SRC (semantic relation consistency) loss: NCE(G(X), X) |
 | --alg_cut_nce_T | float | 0.07 | temperature for NCE loss |
 | --alg_cut_nce_idt | flag |  | use NCE loss for identity mapping: NCE(G(Y), Y)) |
 | --alg_cut_nce_includes_all_negatives_from_minibatch | flag |  | (used for single image translation) If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. Please see models/patchnce.py for more details. |
 | --alg_cut_nce_layers | string | 0,4,8,12,16 | compute NCE loss on which layers |
-| --alg_cut_nce_loss | string | monce | CUT contrastice loss<br/><br/>_**Values:** patchnce, monce_ |
+| --alg_cut_nce_loss | string | monce | CUT contrastice loss<br/><br/>_**Values:** patchnce, monce, SRC_hDCE_ |
 | --alg_cut_netF | string | mlp_sample | how to downsample the feature map<br/><br/>_**Values:** sample, mlp_sample, sample_qsattn, mlp_sample_qsattn_ |
 | --alg_cut_netF_dropout | flag |  | whether to use dropout with F |
 | --alg_cut_netF_nc | int | 256 |  |
