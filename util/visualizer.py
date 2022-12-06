@@ -7,6 +7,7 @@ from . import util, html_util
 from subprocess import Popen, PIPE
 from PIL import Image
 import json
+from torchinfo import summary
 
 if sys.version_info[0] == 2:
     VisdomExceptionBase = Exception
@@ -185,6 +186,13 @@ class Visualizer:
                         win=self.display_id + 3,
                         opts=dict(title=title + " params"),
                     )
+
+                    if self.nets_arch is not None:
+                        self.vis.text(
+                            "<pre>" + self.nets_arch + "<pre>",
+                            win=self.display_id + 4,
+                            opts=dict(title=title + " architecture "),
+                        )
 
                 except VisdomExceptionBase:
                     self.create_visdom_connections()
@@ -416,3 +424,37 @@ class Visualizer:
             ylabel="miou",
             win_id=7,
         )
+
+    def print_networks(self, nets, verbose):
+        """Print the total number of parameters in the network and (if verbose) network architecture
+
+        Parameters:
+            nets (dict) -- dict of networks to display
+            verbose (bool) -- if verbose: print the network architecture
+        """
+        print("---------- Networks initialized -------------")
+        self.nets_arch = ""
+        for name in nets.keys():
+            if isinstance(name, str):
+                net = nets[name]
+                num_params = 0
+                for param in net.parameters():
+                    num_params += param.numel()
+                if verbose:
+                    self.nets_arch += (
+                        "\n---------------------------------------------------\n"
+                    )
+                    self.nets_arch += "[Network %s]" % (name)
+                    self.nets_arch += "\n" + str(summary(net, depth=12))
+                    self.nets_arch += (
+                        "\n---------------------------------------------------\n"
+                    )
+                else:
+                    self.nets_arch = None
+
+                print(
+                    "[Network %s] Total number of parameters : %.3f M"
+                    % (name, num_params / 1e6)
+                )
+
+        print("-----------------------------------------------")

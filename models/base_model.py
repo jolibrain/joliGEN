@@ -623,8 +623,6 @@ class BaseModel(ABC):
                 else opt.train_epoch
             )
             self.load_networks(load_suffix)
-        if self.rank == 0:
-            self.print_networks(opt.output_verbose)
 
     def parallelize(self, rank):
         for name in self.model_names:
@@ -853,26 +851,12 @@ class BaseModel(ABC):
                 else:
                     net.load_state_dict(state_dict)
 
-    def print_networks(self, verbose):
-        """Print the total number of parameters in the network and (if verbose) network architecture
-
-        Parameters:
-            verbose (bool) -- if verbose: print the network architecture
-        """
-        print("---------- Networks initialized -------------")
+    def get_nets(self):
+        return_nets = {}
         for name in self.model_names:
             if isinstance(name, str):
-                net = getattr(self, "net" + name)
-                num_params = 0
-                for param in net.parameters():
-                    num_params += param.numel()
-                if verbose:
-                    print(net)
-                print(
-                    "[Network %s] Total number of parameters : %.3f M"
-                    % (name, num_params / 1e6)
-                )
-        print("-----------------------------------------------")
+                return_nets[name] = getattr(self, "net" + name)
+        return return_nets
 
     def set_requires_grad(self, nets, requires_grad=False):
         """Set requires_grad=False for all the networks to avoid unnecessary computations

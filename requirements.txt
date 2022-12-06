@@ -13,3 +13,4 @@ wget
 tqdm
 git+https://github.com/nupurkmr9/vision-aided-gan.git
 einops
+torchinfo
