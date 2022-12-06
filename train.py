@@ -105,6 +105,9 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         visualizer = Visualizer(
             opt
         )  # create a visualizer that display/save images and plots
+
+        visualizer.print_networks(nets=model.get_nets(), verbose=opt.output_verbose)
+
     total_iters = 0  # the total number of training iterations
 
     if rank == 0 and opt.train_compute_fid_val:
