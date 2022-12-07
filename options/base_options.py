@@ -151,6 +151,19 @@ class BaseOptions:
             help="multimodal model with random latent input vector",
         )
 
+        # depth network
+        parser.add_argument(
+            "--model_depth_network",
+            type=str,
+            default="DPT_Large",
+            choices=[
+                "DPT_Large",
+                "DPT_Hybrid",  # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
+                "MiDaS_small",
+            ],  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
+            help="specify depth prediction network architecture",
+        )
+
         # generator
         parser.add_argument(
             "--G_ngf",
@@ -290,6 +303,7 @@ class BaseOptions:
                 "projected_d",
                 "temporal",
                 "vision_aided",
+                "depth",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
             help="specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored.",
@@ -299,7 +313,7 @@ class BaseOptions:
             "--D_vision_aided_backbones",
             type=str,
             default="clip+dino+swin",
-            help="specify discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with +",
+            help="specify vision aided discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with +",
         )
         parser.add_argument(
             "--D_n_layers", type=int, default=3, help="only used if netD==n_layers"

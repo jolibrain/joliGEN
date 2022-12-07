@@ -4,7 +4,7 @@ import torch
 from collections import OrderedDict
 from abc import abstractmethod
 from . import gan_networks
-from .modules.utils import get_scheduler
+from .modules.utils import get_scheduler, predict_depth, download_midas_weight
 from torchviz import make_dot
 from .base_model import BaseModel
 
@@ -104,6 +104,12 @@ class BaseGanModel(BaseModel):
             self.visual_names.append(visual_names_temporal_fake_B)
             if "cycle_gan" in self.opt.model_type:
                 self.visual_names.append(visual_names_temporal_fake_A)
+
+        if "depth" in opt.D_netDs:
+            self.use_depth = True
+            self.netfreeze_depth = download_midas_weight(self.opt.model_depth_network)
+        else:
+            self.use_depth = False
 
         # Define loss functions
         losses_G = ["G_tot"]
@@ -494,6 +500,33 @@ class BaseGanModel(BaseModel):
             ),
         )
 
+    # compute_real_fake_with_depth
+    def compute_fake_real_with_depth(self, fake_name, real_name):
+        fake_depth = predict_depth(
+            getattr(self, fake_name), self.netfreeze_depth, self.opt.model_depth_network
+        )
+        real_depth = predict_depth(
+            getattr(self, real_name), self.netfreeze_depth, self.opt.model_depth_network
+        )
+        fake_depth_interp = torch.nn.functional.interpolate(
+            fake_depth.unsqueeze(0),
+            size=getattr(self, fake_name).shape[2:],
+            mode="bilinear",
+        )
+        fake_depth_interp = (
+            fake_depth_interp - fake_depth_interp.min()
+        ) / fake_depth_interp.max()
+        setattr(self, "fake_depth_B", fake_depth_interp)
+        real_depth_interp = torch.nn.functional.interpolate(
+            real_depth.unsqueeze(0),
+            size=getattr(self, real_name).shape[2:],
+            mode="bilinear",
+        )
+        real_depth_interp = (
+            real_depth_interp - real_depth_interp.min()
+        ) / real_depth_interp.max()
+        setattr(self, "real_depth_B", real_depth_interp)
+
     def set_discriminators_info(self):
         self.discriminators = []
 
@@ -574,6 +607,10 @@ class BaseGanModel(BaseModel):
                         dataaug_D_diffusion=dataaug_D_diffusion,
                         dataaug_D_diffusion_every=dataaug_D_diffusion_every,
                     )
+
+            if "depth" in discriminator_name:
+                fake_name = "fake_depth"
+                real_name = "real_depth"
 
             setattr(
                 self,

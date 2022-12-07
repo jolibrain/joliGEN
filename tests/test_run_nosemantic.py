@@ -19,12 +19,15 @@ json_like_dict = {
     "train_n_epochs": 1,
     "train_n_epochs_decay": 0,
     "data_max_dataset_size": 10,
+    "model_depth_network": "MiDaS_small",
 }
 
 models_nosemantic = [
     "cut",
     "cycle_gan",
 ]
+
+D_netDs = [["projected_d", "basic"], ["projected_d", "basic", "depth"]]
 
 
 def test_nosemantic(dataroot):
@@ -33,5 +36,9 @@ def test_nosemantic(dataroot):
     for model in models_nosemantic:
         json_like_dict["model_type"] = model
         json_like_dict["name"] += "_" + model
-        opt = TrainOptions().parse_json(json_like_dict.copy())
-        train.launch_training(opt)
+        for Dtype in D_netDs:
+            if model == "cycle_gan" and "depth" in Dtype:
+                continue  # skip
+            json_like_dict["D_netDs"] = Dtype
+            opt = TrainOptions().parse_json(json_like_dict.copy())
+            train.launch_training(opt)
