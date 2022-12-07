@@ -350,12 +350,15 @@ def define_D(
             return_nets[netD] = net
 
         elif netD == "projected_d":  # D in projected feature space
-            weight_path = os.path.join(jg_dir, D_proj_weight_segformer)
-            if D_proj_network_type == "segformer" and not os.path.exists(weight_path):
-                print(
-                    "Downloading pretrained segformer weights for projected D feature extractor."
-                )
-                download_segformer_weight(weight_path)
+            if D_proj_network_type == "segformer":
+                weight_path = os.path.join(jg_dir, D_proj_weight_segformer)
+                if not os.path.exists(weight_path):
+                    print(
+                        "Downloading pretrained segformer weights for projected D feature extractor."
+                    )
+                    download_segformer_weight(weight_path)
+            else:
+                weight_path = ""
             net = ProjectedDiscriminator(
                 D_proj_network_type,
                 interp=224 if data_crop_size + margin < 224 else D_proj_interp,
@@ -369,6 +372,17 @@ def define_D(
         elif netD == "vision_aided":
             net = VisionAidedDiscriminator(cv_type=D_vision_aided_backbones)
             return_nets[netD] = net  # no init since partly frozen
+
+        elif netD == "depth":  # default patch-based on depth
+            net = NLayerDiscriminator(
+                1,
+                D_ndf,
+                n_layers=3,
+                norm_layer=norm_layer,
+                use_dropout=D_dropout,
+                use_spectral=D_spectral,
+            )
+            return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
         elif netD == "temporal":
             # projected D temporal

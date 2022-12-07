@@ -1,5 +1,6 @@
 from torch import nn
 import torch
+from torchvision import transforms
 from torchvision.models import vgg
 import numpy as np
 from torch.nn import init
@@ -227,3 +228,24 @@ def download_segformer_weight(path):
             "There is no pretrained weight to download for %s, you need to provide a path to segformer weights."
             % model_name
         )
+
+
+def download_midas_weight(model_type="DPT_Large"):
+    midas = torch.hub.load("intel-isl/MiDaS", model_type)
+    midas.requires_grad_(False)
+    midas.eval()
+    return midas
+
+
+def predict_depth(img, midas, model_type):
+    # img must be RGB
+    input_size = 384
+    if model_type == "MiDas_small":
+        input_size = 256
+    transform = transforms.Compose(
+        [
+            transforms.Resize(384),
+        ]
+    )
+    prediction = midas(transform(img))
+    return prediction

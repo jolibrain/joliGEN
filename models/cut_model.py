@@ -183,10 +183,15 @@ class CUTModel(BaseGanModel):
             self.visual_names.append(visual_names_temporal_real_B)
             self.visual_names.append(visual_names_temporal_fake_B)
 
+        if any("depth" in D_name for D_name in self.opt.D_netDs):
+            self.visual_names.append(["real_depth_B", "fake_depth_B"])
+
         if self.isTrain:
             self.model_names = ["G_A", "F"]
             if self.opt.model_multimodal:
                 self.model_names.append("E")
+            if self.use_depth:
+                self.model_names.append("freeze_depth")
 
             self.model_names_export = ["G_A"]
 
@@ -475,6 +480,9 @@ class CUTModel(BaseGanModel):
 
         if self.opt.data_online_context_pixels > 0:
             self.compute_fake_with_context(fake_name="fake_B", real_name="real_A")
+
+        if self.use_depth:
+            self.compute_fake_real_with_depth(fake_name="fake_B", real_name="real_B")
 
         if self.opt.alg_cut_nce_idt:
             self.idt_B = self.fake[self.real_A.size(0) :]
