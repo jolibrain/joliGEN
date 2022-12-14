@@ -117,7 +117,7 @@ class SegformerGeneratorDiff_attn(BaseGenerator_attn):
         import mmcv
 
         cfg = mmcv.Config.fromfile(os.path.join(jg_dir, G_config_segformer))
-        cfg.model.backbone.in_channels = 2 * input_nc + 1  # for embedding
+        cfg.model.backbone.in_channels = input_nc + 1
         cfg.model.pretrained = None
         cfg.model.train_cfg = None
         cfg.model.auxiliary_head = cfg.model.decode_head.copy()
@@ -190,6 +190,15 @@ class SegformerGeneratorDiff_attn(BaseGenerator_attn):
 
         outs, feats = self.segformer.extract_feat(input, extract_layer_ids)
         return outs, feats
+
+    def get_feats(self, input, gammas=None, extract_layer_ids=[]):
+        if gammas is None:
+            b = input.shape[0]
+            gammas = torch.ones((b,)).to(input.device)
+        _, feats = self.compute_feats(
+            input, gammas=gammas, extract_layer_ids=extract_layer_ids
+        )
+        return feats
 
     def extract(self, a, t, x_shape=(1, 1, 1, 1)):
         b, *_ = t.shape

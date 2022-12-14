@@ -639,15 +639,18 @@ class BaseGanModel(BaseModel):
         domain_real = "A" if domain_fake == "B" else "B"
         direction = domain_real + domain_fake
 
+        if G_conditioning:
+            label = getattr(self, "fake_%s_label_cls" % domain_fake)
+        else:
+            label = getattr(self, "input_%s_label_cls" % domain_real)
+
         if not self.opt.train_cls_regression:
             loss_G_sem_cls = self.criterionCLS(
-                getattr(self, "pred_cls_fake_%s" % domain_fake),
-                getattr(self, "input_%s_label_cls" % domain_real),
+                getattr(self, "pred_cls_fake_%s" % domain_fake), label
             )
         else:
             loss_G_sem_cls = self.criterionCLS(
-                getattr(self, "pred_cls_fake_%s" % domain_fake).squeeze(1),
-                getattr(self, "input_%s_label_cls" % domain_real),
+                getattr(self, "pred_cls_fake_%s" % domain_fake).squeeze(1), label
             )
         if (
             not hasattr(self, "loss_CLS")

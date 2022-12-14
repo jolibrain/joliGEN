@@ -269,6 +269,12 @@ class BaseOptions:
             help="channel multiplier for each level of the UNET mha",
         )
 
+        parser.add_argument(
+            "--G_conditioning",
+            action="store_true",
+            help="whether to use conditioning in the generator",
+        )
+
         # discriminator
         parser.add_argument(
             "--D_ndf",

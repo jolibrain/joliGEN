@@ -17,6 +17,7 @@ from .modules.utils import (
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator
 from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
+from .modules.resnet_architecture.resnet_generator_diff import ResnetGenerator_attn_diff
 from .modules.discriminators import NLayerDiscriminator
 from .modules.discriminators import PixelDiscriminator
 
@@ -40,6 +41,7 @@ from .modules.segformer.segformer_generator import (
     SegformerBackbone,
     SegformerGenerator_attn,
 )
+from .modules.segformer.segformer_diff import SegformerGeneratorDiff_attn
 from .modules.ittr.ittr_generator import ITTRGenerator
 from .modules.multimodal_encoder import E_ResNet, E_NLayers
 from .modules.unet_generator_attn.unet_generator_attn import UNet as UNet_mha
@@ -66,6 +68,7 @@ def define_G(
     G_backward_compatibility_twice_resnet_blocks,
     G_unet_mha_num_head_channels,
     G_unet_mha_channel_mults,
+    G_conditioning,
     **unused_options
 ):
     """Create a generator
@@ -134,31 +137,37 @@ def define_G(
             norm_layer=norm_layer,
             use_dropout=G_dropout,
         )
-    elif G_netG == "resnet_attn":
-        net = ResnetGenerator_attn(
-            model_input_nc,
-            model_output_nc,
-            G_attn_nb_mask_attn,
-            G_attn_nb_mask_input,
-            G_ngf,
-            n_blocks=G_nblocks,
-            use_spectral=G_spectral,
-            padding_type=G_padding_type,
-            twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
-        )
-    elif G_netG == "mobile_resnet_attn":
-        net = ResnetGenerator_attn(
-            model_input_nc,
-            model_output_nc,
-            G_attn_nb_mask_attn,
-            G_attn_nb_mask_input,
-            G_ngf,
-            n_blocks=G_nblocks,
-            use_spectral=G_spectral,
-            padding_type=G_padding_type,
-            mobile=True,
-            twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
-        )
+    elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":
+        mobile = "mobile" in G_netG
+        if G_conditioning:
+            net = ResnetGenerator_attn_diff(
+                input_nc=model_input_nc,
+                output_nc=model_output_nc,
+                nb_mask_attn=G_attn_nb_mask_attn,
+                nb_mask_input=G_attn_nb_mask_input,
+                n_timestep_train=0,
+                n_timestep_test=0,
+                ngf=G_ngfb,
+                n_blocks=G_nblocks,
+                use_spectral=False,
+                padding_type="reflect",
+                mobile=mobile,
+                use_scale_shift_norm=True,
+            )
+        else:
+            net = ResnetGenerator_attn(
+                model_input_nc,
+                model_output_nc,
+                G_attn_nb_mask_attn,
+                G_attn_nb_mask_input,
+                G_ngf,
+                n_blocks=G_nblocks,
+                use_spectral=G_spectral,
+                padding_type=G_padding_type,
+                mobile=mobile,
+                twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
+            )
+
     elif G_netG == "stylegan2":
         net = StyleGAN2Generator(
             model_input_nc,
@@ -181,16 +190,32 @@ def define_G(
         )
         return net
     elif G_netG == "segformer_attn_conv":
-        net = SegformerGenerator_attn(
-            jg_dir,
-            G_config_segformer,
-            model_input_nc,
-            img_size=data_crop_size,
-            nb_mask_attn=G_attn_nb_mask_attn,
-            nb_mask_input=G_attn_nb_mask_input,
-            final_conv=True,
-            padding_type=G_padding_type,
-        )
+        if G_conditioning:
+            net = SegformerGeneratorDiff_attn(
+                jg_dir,
+                G_config_segformer,
+                model_input_nc,
+                img_size=data_crop_size,
+                nb_mask_attn=G_attn_nb_mask_attn,
+                nb_mask_input=G_attn_nb_mask_input,
+                inner_channel=G_ngf,
+                n_timestep_train=0,  # unused
+                n_timestep_test=0,  # unused
+                final_conv=True,
+                padding_type=G_padding_type,
+            )
+
+        else:
+            net = SegformerGenerator_attn(
+                jg_dir,
+                G_config_segformer,
+                model_input_nc,
+                img_size=data_crop_size,
+                nb_mask_attn=G_attn_nb_mask_attn,
+                nb_mask_input=G_attn_nb_mask_input,
+                final_conv=True,
+                padding_type=G_padding_type,
+            )
         return net
     elif G_netG == "segformer_conv":
         net = SegformerBackbone(

@@ -521,6 +521,6 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
         attentions, images = self.compute_attention_content(feat, emb)
         return self.compute_outputs(input, attentions, images)
 
-    def get_feats(self, input, gammas, extract_layer_ids):
-        _, feats = self.compute_feats(input, gammas, extract_layer_ids)
+    def get_feats(self, input, gammas=None, extract_layer_ids=[]):
+        _, feats, _ = self.compute_feats(input, gammas, extract_layer_ids)
         return feats

@@ -43,7 +43,7 @@ def define_G(
     Parameters:
         input_nc (int) -- the number of channels in input images
         output_nc (int) -- the number of channels in output images
-        G_netG (str) -- the architecture's name: resnet_9blocks | resnet_6blocks | unet_256 | unet_128
+        G_netG (str) -- the architecture's name: resnet_9blocks | resnet6blocks | unet_256 | unet_128
         G_norm (str) -- the name of normalization layers used in the network: batch | instance | none
 
     Returns a generator
@@ -97,7 +97,7 @@ def define_G(
         denoise_fn = SegformerGeneratorDiff_attn(
             jg_dir,
             G_config_segformer,
-            model_input_nc,
+            model_input_nc * 2 + 1,
             img_size=data_crop_size,
             nb_mask_attn=G_attn_nb_mask_attn,
             nb_mask_input=G_attn_nb_mask_input,

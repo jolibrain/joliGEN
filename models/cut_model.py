@@ -199,6 +199,7 @@ class CUTModel(BaseGanModel):
         if self.opt.model_multimodal:
             tmp_model_input_nc = self.opt.model_input_nc
             self.opt.model_input_nc += self.opt.train_mm_nz
+
         self.netG_A = gan_networks.define_G(**vars(opt))
         if self.opt.model_multimodal:
             self.opt.model_input_nc = tmp_model_input_nc
@@ -400,7 +401,9 @@ class CUTModel(BaseGanModel):
                 real_A_with_z = torch.cat([self.real_A, z_real], 1)
             else:
                 real_A_with_z = self.real_A
-            feat_temp = self.netG_A.get_feats(real_A_with_z.cpu(), self.nce_layers)
+            feat_temp = self.netG_A.get_feats(
+                real_A_with_z.cpu(), extract_layer_ids=self.nce_layers
+            )
             self.netF.data_dependent_initialize(feat_temp)
 
             if (
@@ -469,7 +472,16 @@ class CUTModel(BaseGanModel):
         else:
             self.real_with_z = self.real
 
-        self.fake = self.netG_A(self.real_with_z)
+        if self.opt.G_conditioning:
+            self.fake_B_label_cls = torch.randint(
+                high=self.opt.cls_semantic_nclasses,
+                size=[self.get_current_batch_size() * 2],
+                device=self.device,
+            )
+
+            self.fake = self.netG_A(self.real_with_z, gammas=self.fake_B_label_cls)
+        else:
+            self.fake = self.netG_A(self.real_with_z)
 
         self.fake_B = self.fake[: self.real_A.size(0)]
 
@@ -584,12 +596,12 @@ class CUTModel(BaseGanModel):
         else:
             tgt_with_z = tgt
             src_with_z = src
-        feat_q = netG_A.get_feats(tgt_with_z, self.nce_layers)
+        feat_q = netG_A.get_feats(tgt_with_z, extract_layer_ids=self.nce_layers)
 
         if self.opt.alg_cut_flip_equivariance and self.flipped_for_equivariance:
             feat_q = [torch.flip(fq, [3]) for fq in feat_q]
 
-        feat_k = netG_A.get_feats(src_with_z, self.nce_layers)
+        feat_k = netG_A.get_feats(src_with_z, extract_layer_ids=self.nce_layers)
 
         if "qsattn" in self.opt.alg_cut_netF:
             feat_k_pool, sample_ids, attn_mats = self.netF(
