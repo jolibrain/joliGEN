@@ -61,6 +61,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
                 self.dir_B, "/paths.txt"
             )  # load images from '/path/to/data/trainB'
+            if self.B_label_mask_paths == []:
+                delattr(self, "B_label_mask_paths")
             if opt.phase == "train" and opt.train_compute_D_accuracy:
                 self.dir_val_B = os.path.join(
                     opt.dataroot, "validationA"
@@ -322,9 +324,14 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 {
                     "B": B,
                     "B_img_paths": B_img_path,
-                    "B_label_mask": B_label_mask,
                 }
             )
+            if B_label_mask_path is not None:
+                result.update(
+                    {
+                        "B_label_mask": B_label_mask,
+                    }
+                )
 
         return result
 
