@@ -46,6 +46,8 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             self.B_img_paths, self.B_label = make_labeled_path_dataset(
                 self.dir_B, "/paths.txt", opt.data_max_dataset_size
             )  # load images from '/path/to/data/trainB'
+            if self.B_label == []:
+                delattr(self, "B_label")
             self.B_size = len(self.B_img_paths)  # get the size of dataset B
 
         self.A_label_mask_paths = []
@@ -73,6 +75,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         B_label_cls=None,
         index=None,
     ):
+
         # Domain A
         try:
             A_img = Image.open(A_img_path).convert("RGB")
@@ -137,9 +140,14 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 {
                     "B": B,
                     "B_img_paths": B_img_path,
-                    "B_label_mask": B_label_mask,
                 }
             )
+            if B_label_mask_path is not None:
+                result.update(
+                    {
+                        "B_label_mask": B_label_mask,
+                    }
+                )
 
         return result
 
