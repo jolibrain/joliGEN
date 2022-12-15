@@ -29,6 +29,9 @@ import torch.nn.functional as F
 from .modules import loss
 from util.discriminator import DiscriminatorInfo
 
+# For export
+from util.export.onnx import export_onnx
+
 
 class BaseModel(ABC):
     """This class is an abstract base class (ABC) for models.
@@ -743,36 +746,25 @@ class BaseModel(ABC):
 
                 if (
                     not "ittr" in self.opt.G_netG
-                    and not "unet_mha" in self.opt.G_netG
                     and not "palette" in self.opt.model_type
                 ):
                     input_nc = self.opt.model_input_nc
                     if self.opt.model_multimodal:
                         input_nc += self.opt.train_mm_nz
 
-                        dummy_input = torch.randn(
-                            1,
-                            input_nc,
-                            self.opt.data_crop_size,
-                            self.opt.data_crop_size,
-                            device=self.device,
-                        )
-
                     # onnx
                     if not "ittr" in self.opt.G_netG:
                         export_path_onnx = save_path.replace(".pth", ".onnx")
 
-                        export_device = torch.device("cpu")
-                        net = net.to(export_device)
+                        net.eval()
 
-                        torch.onnx.export(
-                            net,
-                            self.get_dummy_input(export_device),
-                            export_path_onnx,
-                            verbose=False,
+                        export_onnx(
+                            self.opt,
+                            cuda=False,  # onnx export is made on cpu
+                            model_in_file=save_path,
+                            model_out_file=export_path_onnx,
                             opset_version=self.onnx_opset_version,
                         )
-                        net.to(self.device)
 
                     # jit
                     if self.opt.train_export_jit and not "segformer" in self.opt.G_netG:
