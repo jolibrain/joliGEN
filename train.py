@@ -101,7 +101,9 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         else:
             model.single_gpu()
 
-    if rank == 0:
+    rank_0 = rank == 0
+
+    if rank_0:
         visualizer = Visualizer(
             opt
         )  # create a visualizer that display/save images and plots
@@ -110,7 +112,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
 
     total_iters = 0  # the total number of training iterations
 
-    if rank == 0 and opt.train_compute_fid_val:
+    if rank_0 and opt.train_compute_fid_val:
         model.real_A_val, model.real_B_val = dataset.get_validation_set(
             opt.train_pool_size
         )
@@ -119,7 +121,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             model.real_B_val.to(model.device),
         )
 
-    if rank == 0 and opt.output_display_networks:
+    if rank_0 and opt.output_display_networks:
         data = next(iter(dataloader))
         for path in model.save_networks_img(data):
             visualizer.display_img(path + ".png")
@@ -130,7 +132,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         epoch_start_time = time.time()  # timer for entire epoch
         iter_data_time = time.time()  # timer for data loading per iteration
         epoch_iter = 0  # the number of training iterations in current epoch, reset to 0 every epoch
-        if rank == 0:
+        if rank_0:
             visualizer.reset()  # reset the visualizer: make sure it saves the results to HTML at least once every epoch
 
         if use_temporal:
@@ -164,7 +166,8 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             total_iters += batch_size
             epoch_iter += batch_size
 
-            if rank == 0:
+            if rank_0:
+
                 if (
                     total_iters % opt.output_display_freq < batch_size
                 ):  # display images on visdom and save images to a HTML file
@@ -253,7 +256,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         if (
             epoch % opt.train_save_epoch_freq == 0
         ):  # cache our model every <save_epoch_freq> epochs
-            if rank == 0:
+            if rank_0:
                 print(
                     "saving the model at the end of epoch %d, iters %d"
                     % (epoch, total_iters)
@@ -264,7 +267,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                 model.export_networks("latest")
                 model.export_networks(epoch)
 
-        if rank == 0:
+        if rank_0:
             print(
                 "End of epoch %d / %d \t Time Taken: %d sec"
                 % (
@@ -276,7 +279,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         model.update_learning_rate()  # update learning rates at the end of every epoch.
 
     ###Let's compute final FID
-    if rank == 0 and opt.train_compute_fid_val:
+    if rank_0 and opt.train_compute_fid_val:
         cur_fid = model.compute_fid_val()
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")
 
@@ -291,7 +294,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             )
             json.dump(data, outfile)
 
-    if rank == 0:
+    if rank_0:
         print("End of training")
 
 
