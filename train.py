@@ -315,6 +315,9 @@ def launch_training(opt=None):
     else:
         dataset_temporal = None
 
+    if opt.with_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = True
+
     opt.use_cuda = torch.cuda.is_available() and opt.gpu_ids and opt.gpu_ids[0] >= 0
     if opt.use_cuda:
         mp.spawn(

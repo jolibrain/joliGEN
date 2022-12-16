@@ -97,6 +97,11 @@ class BaseOptions:
             help="whether to activate torch amp on forward passes",
         )
         parser.add_argument(
+            "--with_tf32",
+            action="store_true",
+            help="whether to activate tf32 for faster computations (Ampere GPU and beyond only)",
+        )
+        parser.add_argument(
             "--checkpoints_dir",
             type=str,
             default="./checkpoints",
