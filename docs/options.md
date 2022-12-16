@@ -15,6 +15,7 @@ Here are all the available options to call with `train.py`
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
 | --warning_mode | flag |  | whether to display warning |
 | --with_amp | flag |  | whether to activate torch amp on forward passes |
+| --with_tf32 | flag |  | whether to activate tf32 for faster computations (Ampere GPU and beyond only) |
 
 ## Discriminator
 
