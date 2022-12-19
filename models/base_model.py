@@ -756,8 +756,6 @@ class BaseModel(ABC):
                     if not "ittr" in self.opt.G_netG:
                         export_path_onnx = save_path.replace(".pth", ".onnx")
 
-                        net.eval()
-
                         export_onnx(
                             self.opt,
                             cuda=False,  # onnx export is made on cpu
