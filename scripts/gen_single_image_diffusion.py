@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import random
 
 sys.path.append("../")
 from models import diffusion_networks
@@ -44,6 +45,11 @@ parser.add_argument(
 parser.add_argument("--img-width", default=-1, type=int, help="image width")
 parser.add_argument("--img-height", default=-1, type=int, help="image height")
 
+parser.add_argument("--crop-width", default=-1, type=int, help="crop width (optional)")
+parser.add_argument(
+    "--crop-height", default=-1, type=int, help="crop height (optional)"
+)
+
 parser.add_argument("--img-in", help="image to transform", required=True)
 parser.add_argument(
     "--mask-in", help="mask used for image transformation", required=False
@@ -70,6 +76,8 @@ print("modelpath=", modelpath)
 
 if not args.cpu:
     device = torch.device("cuda:" + str(args.gpuid))
+else:
+    device = torch.device("cpu")
 model, opt = load_model(
     modelpath, os.path.basename(args.model_in_file), device, args.sampling_steps
 )
@@ -89,10 +97,34 @@ if args.bbox_in:
         for line in bboxf:
             elts = line.rstrip().split()
             bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
-    for bbox in bboxes:
-        mask[bbox[1] : bbox[3], bbox[0] : bbox[2]] = np.full(
-            (bbox[3] - bbox[1], bbox[2] - bbox[0]), 1
-        )  # ymin:ymax, xmin:xmax, ymax-ymin, xmax-xmin
+
+    if args.crop_width and args.crop_height > 0:
+        hc_width = int(args.crop_width / 2)
+        hc_height = int(args.crop_height / 2)
+        # select one bbox and crop around it
+        bbox_orig = random.choice(bboxes)
+        bbox_select = bbox_orig.copy()
+        bbox_select[0] -= max(0, hc_width)
+        bbox_select[1] -= max(0, hc_height)
+        bbox_select[2] += min(img.shape[1], hc_width)
+        bbox_select[3] += min(img.shape[0], hc_height)
+        mask = np.zeros(
+            (bbox_select[3] - bbox_select[1], bbox_select[2] - bbox_select[0]),
+            dtype=np.uint8,
+        )
+        mask[
+            hc_height : hc_height + (bbox_orig[3] - bbox_orig[1]),
+            hc_width : hc_width + bbox_orig[2] - bbox_orig[0],
+        ] = np.full((bbox_orig[3] - bbox_orig[1], bbox_orig[2] - bbox_orig[0]), 1)
+        img_orig = img.copy()
+        img = img[
+            bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
+        ]  # cropped img
+    else:
+        for bbox in bboxes:
+            mask[bbox[1] : bbox[3], bbox[0] : bbox[2]] = np.full(
+                (bbox[3] - bbox[1], bbox[2] - bbox[0]), 1
+            )  # ymin:ymax, xmin:xmax, ymax-ymin, xmax-xmin
 
 if args.img_width and args.img_height > 0:
     img = cv2.resize(img, (args.img_width, args.img_height))
@@ -105,15 +137,17 @@ tranlist = [
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     #    resize,
 ]
-# if args.img_size > 0:
-#    resize = transforms.Resize(args.img_size)
-#    tranlist.append(resize)
+
+if args.crop_width > 0 and args.crop_height > 0:
+    resize = transforms.Resize((args.crop_width, args.crop_height))
+    tranlist.append(resize)
 
 tran = transforms.Compose(tranlist)
 img_tensor = tran(img).clone().detach()
 
 mask = torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
-# mask = resize(mask).clone().detach()
+if args.crop_width > 0 and args.crop_height > 0:
+    mask = resize(mask).clone().detach()
 
 if not args.cpu:
     img_tensor = img_tensor.to(device).clone().detach()
@@ -145,11 +179,20 @@ with torch.no_grad():
         sample_num=2,
     )
 
-
 # post-processing
 out_img = out_tensor.detach().data.cpu().float().numpy()[0]
 out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
 out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
+
+if args.crop_width > 0 and args.crop_height > 0:
+    # fill out crop into original image
+    img_orig = cv2.cvtColor(img_orig, cv2.COLOR_RGB2BGR)
+    out_img = cv2.resize(
+        out_img, (bbox_select[2] - bbox_select[0], bbox_select[3] - bbox_select[1])
+    )
+    img_orig[bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]] = out_img
+    out_img = img_orig.copy()
+
 cv2.imwrite(args.img_out, out_img)
 
 print("Successfully generated image ", args.img_out)
