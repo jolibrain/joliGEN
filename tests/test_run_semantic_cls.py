@@ -30,6 +30,8 @@ json_like_dict = {
     "train_G_ema": True,
     "dataaug_no_rotate": True,
     "train_semantic_cls": True,
+    "train_export_jit": True,
+    "train_save_latest_freq": 10,
 }
 
 models_semantic_mask = [

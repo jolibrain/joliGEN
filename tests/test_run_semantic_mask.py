@@ -37,6 +37,8 @@ json_like_dict = {
     "G_unet_mha_num_head_channels": 16,
     "G_unet_mha_channel_mults": [1, 2],
     "G_nblocks": 1,
+    "train_export_jit": True,
+    "train_save_latest_freq": 10,
 }
 
 models_semantic_mask = [
