@@ -22,6 +22,8 @@ json_like_dict = {
     "train_n_epochs_decay": 0,
     "data_max_dataset_size": 10,
     "model_depth_network": "MiDaS_small",
+    "train_export_jit": True,
+    "train_save_latest_freq": 10,
 }
 
 models_nosemantic = [

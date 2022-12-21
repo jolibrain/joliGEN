@@ -44,6 +44,8 @@ json_like_dict = {
     "D_temporal_frame_step": 2,
     "train_semantic_mask": True,
     "train_temporal_criterion": True,
+    "train_export_jit": True,
+    "train_save_latest_freq": 10,
 }
 
 models_semantic_mask = [

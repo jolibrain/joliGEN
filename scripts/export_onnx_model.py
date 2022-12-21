@@ -11,7 +11,7 @@ sys.path.append(".")
 
 
 from options.train_options import TrainOptions
-from util.export.onnx import export_onnx
+from util.export import export
 
 
 if __name__ == "__main__":
@@ -50,6 +50,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--opset_version", type=int, default=9, help="ONNX opset version"
     )
+    parser.add_argument(
+        "--export_type",
+        type=str,
+        default="onnx",
+        choices=["onnx", "jit"],
+        help="onnx or jit export",
+    )
+
     args = parser.parse_args()
 
     if not args.model_out_file:
@@ -86,10 +94,11 @@ if __name__ == "__main__":
         )  # e.g. '/path/to/models/configs/segformer/segformer_config_b0.py'
     opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-2]))
 
-    export_onnx(
+    export(
         opt,
         cuda=args.cuda,
         model_in_file=args.model_in_file,
         model_out_file=model_out_file,
         opset_version=args.opset_version,
+        export_type=args.export_type,
     )

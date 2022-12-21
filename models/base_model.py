@@ -30,7 +30,7 @@ from .modules import loss
 from util.discriminator import DiscriminatorInfo
 
 # For export
-from util.export.onnx import export_onnx
+from util.export import export
 
 
 class BaseModel(ABC):
@@ -760,19 +760,27 @@ class BaseModel(ABC):
                     if not "ittr" in self.opt.G_netG:
                         export_path_onnx = save_path.replace(".pth", ".onnx")
 
-                        export_onnx(
+                        export(
                             self.opt,
                             cuda=False,  # onnx export is made on cpu
                             model_in_file=save_path,
                             model_out_file=export_path_onnx,
                             opset_version=self.onnx_opset_version,
+                            export_type="onnx",
                         )
 
                     # jit
-                    if self.opt.train_export_jit and not "segformer" in self.opt.G_netG:
+                    if self.opt.train_export_jit:
                         export_path_jit = save_path.replace(".pth", ".pt")
-                        jit_model = torch.jit.trace(net, self.get_dummy_input())
-                        jit_model.save(export_path_jit)
+
+                        export(
+                            self.opt,
+                            cuda=False,  # jit export is made on cpu
+                            model_in_file=save_path,
+                            model_out_file=export_path_jit,
+                            opset_version=self.onnx_opset_version,
+                            export_type="jit",
+                        )
 
     def get_dummy_input(self, device=None):
         input_nc = self.opt.model_input_nc
