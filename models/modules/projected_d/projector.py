@@ -3,6 +3,8 @@ import torch.nn as nn
 from .blocks import FeatureFusionBlockMatrix, FeatureFusionBlockVector
 from .diffusion import Diffusion
 import os
+from models.modules.segformer.config import load_config_file
+from models.modules.segformer.builder_from_scratch import JoliSegformer
 
 
 def _make_scratch_ccm(scratch, in_channels, cout, conv, expand=False):
@@ -163,11 +165,8 @@ def create_clip_model(model_name, config_path, weight_path, img_size):
 
 
 def create_segformer_model(model_name, config_path, weight_path, img_size):
-    from mmseg.models import build_segmentor
-    import mmcv
 
-    cfg = mmcv.Config.fromfile(config_path)
-    cfg.model.train_cfg = None
+    cfg = load_config_file(config_path)
     try:
         weights = torch.jit.load(weight_path).state_dict()
         print("Torch script weights are detected and loaded in %s" % weight_path)
@@ -177,7 +176,7 @@ def create_segformer_model(model_name, config_path, weight_path, img_size):
     if "state_dict" in weights:
         weights = weights["state_dict"]
 
-    segformer = build_segmentor(cfg.model, train_cfg=None, test_cfg=cfg.get("test_cfg"))
+    segformer = JoliSegformer(cfg)
     model = segformer.backbone
 
     weights = {

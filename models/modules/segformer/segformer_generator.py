@@ -1,11 +1,13 @@
 import os
+import json
+
 from torch import nn
+from torch.nn.functional import interpolate as resize
 
 from models.modules.resnet_architecture.resnet_generator import ResnetDecoder
 from models.modules.attn_network import BaseGenerator_attn
-from .utils import configure_encoder_decoder, configure_mit
-
-from mmseg.ops import resize
+from models.modules.segformer.config import load_config_file
+from .builder_from_scratch import JoliSegformer
 
 
 class SegformerBackbone(nn.Module):
@@ -20,22 +22,14 @@ class SegformerBackbone(nn.Module):
         padding_type="zeros",
     ):
         super().__init__()
-        import mmcv
 
-        cfg = mmcv.Config.fromfile(os.path.join(jg_dir, G_config_segformer))
-        cfg.model.backbone.in_channels = input_nc
-        cfg.model.pretrained = None
-        cfg.model.train_cfg = None
-        cfg.model.decode_head.num_classes = num_classes
-        from mmseg.models import build_segmentor
+        cfg = load_config_file(os.path.join(jg_dir, G_config_segformer))
 
-        self.net = build_segmentor(
-            cfg.model, train_cfg=None, test_cfg=cfg.get("test_cfg")
-        )
+        cfg["decode_head"]["num_classes"] = num_classes
 
-        configure_encoder_decoder(self.net)
+        self.net = JoliSegformer(cfg)
+
         self.net.img_size = img_size
-        configure_mit(self.net.backbone)
 
         self.use_final_conv = final_conv
 
@@ -50,7 +44,7 @@ class SegformerBackbone(nn.Module):
 
     def forward(self, input):
         outs, _ = self.compute_feats(input)
-        out = self.net.decode(outs)
+        out = self.net.decode_head_forward(outs)
         if self.use_final_conv:
             out = self.final_conv(out)
         return out
@@ -109,30 +103,25 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         self.use_final_conv = final_conv
         self.tanh = nn.Tanh()
 
-        import mmcv
+        cfg = load_config_file(os.path.join(jg_dir, G_config_segformer))
 
-        cfg = mmcv.Config.fromfile(os.path.join(jg_dir, G_config_segformer))
-        cfg.model.backbone.in_channels = input_nc
-        cfg.model.pretrained = None
-        cfg.model.train_cfg = None
-        cfg.model.auxiliary_head = cfg.model.decode_head.copy()
+        cfg["backbone"]["in_channels"] = input_nc
+        cfg["pretrained"] = None
+        cfg["train_cfg"] = None
+        cfg["auxiliary_head"] = cfg["decode_head"].copy()
+
         if self.use_final_conv:
             num_cls = 256
         else:
             num_cls = 3 * (self.nb_mask_attn - self.nb_mask_input)
-        cfg.model.decode_head.num_classes = num_cls
-        cfg.model.auxiliary_head.num_classes = self.nb_mask_attn
-        from mmseg.models import build_segmentor
 
-        self.segformer = build_segmentor(
-            cfg.model, train_cfg=None, test_cfg=cfg.get("test_cfg")
-        )
+        cfg["decode_head"]["num_classes"] = num_cls
+        cfg["auxiliary_head"]["num_classes"] = self.nb_mask_attn
+
+        self.segformer = JoliSegformer(cfg)
+
         self.segformer.train()
         self.softmax_ = nn.Softmax(dim=1)
-
-        configure_encoder_decoder(self.segformer)
-        self.segformer.img_size = img_size
-        configure_mit(self.segformer.backbone)
 
         self.use_final_conv = final_conv
 
@@ -149,11 +138,11 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         return outs, feats
 
     def compute_attention_content(self, outs):
-        image = self.segformer.decode(outs)
+        image = self.segformer.decode_head_forward(outs)
         if self.use_final_conv:
             image = self.final_conv(image)
 
-        attention = self.segformer.decode_2(outs)
+        attention = self.segformer.auxiliary_head_forward(outs)
         images = []
 
         for i in range(self.nb_mask_attn - self.nb_mask_input):

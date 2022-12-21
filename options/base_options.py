@@ -237,7 +237,7 @@ class BaseOptions:
         parser.add_argument(
             "--G_config_segformer",
             type=str,
-            default="models/configs/segformer/segformer_config_b0.py",
+            default="models/configs/segformer/segformer_config_b0.json",
             help="path to segforme configuration file for G",
         )
         parser.add_argument("--G_attn_nb_mask_attn", default=10, type=int)
@@ -373,7 +373,7 @@ class BaseOptions:
         parser.add_argument(
             "--D_proj_config_segformer",
             type=str,
-            default="models/configs/segformer/segformer_config_b0.py",
+            default="models/configs/segformer/segformer_config_b0.json",
             help="path to segformer configuration file",
         )
         parser.add_argument(
@@ -451,7 +451,7 @@ class BaseOptions:
         parser.add_argument(
             "--f_s_config_segformer",
             type=str,
-            default="models/configs/segformer/segformer_config_b0.py",
+            default="models/configs/segformer/segformer_config_b0.json",
             help="path to segformer configuration file for f_s",
         )
         parser.add_argument(

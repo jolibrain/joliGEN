@@ -1,3 +1,6 @@
+from models.modules.segformer.shape_convert import nlc_to_nchw
+
+
 def configure_compute_feat_mit(obj):
     def compute_feat_mit(x, extract_layer_ids=[]):
         outs = []
@@ -8,8 +11,6 @@ def configure_compute_feat_mit(obj):
             for block in layer[1]:
                 x = block(x, hw_shape)
             x = layer[2](x)
-            from mmseg.models.utils import nlc_to_nchw
-
             x = nlc_to_nchw(x, hw_shape)
             if i in obj.out_indices:
                 outs.append(x)

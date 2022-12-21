@@ -1,0 +1,26 @@
+{
+    "base": "./segformer_config_b0.json",
+    "backbone": {
+        "embed_dims": 64,
+        "num_layers": [
+            3,
+            6,
+            40,
+            3
+        ],
+        "num_heads": [
+            1,
+            2,
+            5,
+            8
+        ]
+    },
+    "decode_head": {
+        "in_channels": [
+            64,
+            128,
+            320,
+            512
+        ]
+    }
+}
