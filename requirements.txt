@@ -3,8 +3,6 @@ torchvision==0.14.0
 numpy
 Pillow
 timm
-mmcv-full --no-binary=mmcv-full
-mmsegmentation
 visdom
 torchviz
 imgaug
@@ -14,3 +12,5 @@ tqdm
 git+https://github.com/nupurkmr9/vision-aided-gan.git
 einops
 torchinfo
+addict
+

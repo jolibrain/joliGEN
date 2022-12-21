@@ -4,7 +4,6 @@ from .modules.utils import get_norm_layer
 from .modules.diffusion_generator import DiffusionGenerator
 from .modules.resnet_architecture.resnet_generator_diff import ResnetGenerator_attn_diff
 from .modules.unet_generator_attn.unet_generator_attn import UNet
-from .modules.segformer.segformer_diff import SegformerGeneratorDiff_attn
 
 
 def define_G(
@@ -91,21 +90,6 @@ def define_G(
             padding_type="reflect",
             mobile=mobile,
             use_scale_shift_norm=True,
-        )
-
-    elif G_netG == "segformer_attn_conv":
-        denoise_fn = SegformerGeneratorDiff_attn(
-            jg_dir,
-            G_config_segformer,
-            model_input_nc,
-            img_size=data_crop_size,
-            nb_mask_attn=G_attn_nb_mask_attn,
-            nb_mask_input=G_attn_nb_mask_input,
-            inner_channel=G_ngf,
-            n_timestep_train=G_diff_n_timestep_train,
-            n_timestep_test=G_diff_n_timestep_test,
-            final_conv=True,
-            padding_type=G_padding_type,
         )
 
     else:
