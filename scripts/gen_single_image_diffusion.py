@@ -190,6 +190,7 @@ if args.crop_width > 0 and args.crop_height > 0:
     out_img = cv2.resize(
         out_img, (bbox_select[2] - bbox_select[0], bbox_select[3] - bbox_select[1])
     )
+    cv2.imwrite(args.img_out + "_crop.png", out_img)
     img_orig[bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]] = out_img
     out_img = img_orig.copy()
 
