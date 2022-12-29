@@ -28,7 +28,7 @@ Here are all the available options to call with `train.py`
 | --D_no_antialias | flag |  | if specified, use stride=2 convs instead of antialiased-downsampling (sad) |
 | --D_no_antialias_up | flag |  | if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv] |
 | --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/>_**Values:** instance, batch, none_ |
-| --D_proj_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file |
+| --D_proj_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file |
 | --D_proj_interp | int | -1 | whether to force projected discriminator interpolation to a value \> 224, -1 means no interpolation |
 | --D_proj_network_type | string | efficientnet | projected discriminator architecture<br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16_ |
 | --D_proj_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight |
@@ -46,7 +46,7 @@ Here are all the available options to call with `train.py`
 | --G_attn_nb_mask_attn | int | 10 |  |
 | --G_attn_nb_mask_input | int | 1 |  |
 | --G_backward_compatibility_twice_resnet_blocks | flag |  | if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way). |
-| --G_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segforme configuration file for G |
+| --G_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segforme configuration file for G |
 | --G_diff_n_timestep_test | int | 1000 | Number of timesteps used for UNET mha inference (test time). |
 | --G_diff_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_dropout | flag |  | dropout for the generator |
@@ -156,7 +156,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --f_s_all_classes_as_one | flag |  | if true, all classes will be considered as the same one (ie foreground vs background) |
 | --f_s_class_weights | array | [] | class weights for imbalanced semantic classes |
-| --f_s_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file for f_s |
+| --f_s_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file for f_s |
 | --f_s_dropout | flag |  | dropout for the semantic network |
 | --f_s_net | string | vgg | specify f_s network [vgg|unet|segformer]<br/><br/>_**Values:** vgg, unet, segformer_ |
 | --f_s_nf | int | 64 | \# of filters in the first conv layer of classifier |
