@@ -31,13 +31,32 @@ class PaletteModel(BaseDiffusionModel):
             choices=["L1", "MSE"],
             help="loss for denoising model",
         )
+
+        parser.add_argument(
+            "--alg_palette_inference_num",
+            type=int,
+            default=-1,
+            help="nb of examples processed for inference",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
+        if self.opt.alg_palette_inference_num == -1:
+            self.inference_num = self.opt.train_batch_size
+        else:
+            self.inference_num = self.opt.alg_palette_inference_num
+
         # Visuals
-        self.visual_names.append(["gt_image", "cond_image", "mask", "output"])
+        self.visual_names.append(["gt_image", "cond_image", "mask"])
+
+        visual_outputs = []
+        for k in range(self.inference_num):
+            visual_outputs.append("output_" + str(k))
+
+        self.visual_names.append(visual_outputs)
 
         if opt.G_nblocks == 9:
             warnings.warn(
@@ -136,18 +155,23 @@ class PaletteModel(BaseDiffusionModel):
             netG = self.netG_A.module
         else:
             netG = self.netG_A
+
         if True or self.task in ["inpainting", "uncropping"]:
             self.output, self.visuals = netG.restoration(
-                self.cond_image,
-                y_t=self.cond_image,
-                y_0=self.gt_image,
-                mask=self.mask,
+                self.cond_image[: self.inference_num],
+                y_t=self.cond_image[: self.inference_num],
+                y_0=self.gt_image[: self.inference_num],
+                mask=self.mask[: self.inference_num],
                 sample_num=self.sample_num,
             )
         else:
-            self.output, self.visuals = self.restoration(
-                self.cond_image, sample_num=self.sample_num
+            self.output, self.visuals = netG.restoration(
+                self.cond_image[: self.inference_num],
+                sample_num=self.sample_num,
             )
+
+        for k in range(self.inference_num):
+            setattr(self, "output_" + str(k), self.output[k : k + 1])
 
         self.fake_B = self.visuals[-1:]
 
