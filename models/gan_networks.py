@@ -225,8 +225,6 @@ def define_G(
             channel_mults=G_unet_mha_channel_mults,  # e.g. (1, 2, 4, 8)
             num_head_channels=G_unet_mha_num_head_channels,  # e.g. 32 in palette repo
             tanh=True,
-            n_timestep_train=0,  # unused
-            n_timestep_test=0,  # unused
             norm=G_unet_mha_norm_layer,
             group_norm_size=G_unet_mha_group_norm_size,
         )

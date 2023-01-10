@@ -199,6 +199,15 @@ class PaletteModel(BaseDiffusionModel):
 
         noise, noise_hat = self.netG_A(y_0, y_cond, mask, noise)
 
+        """print("noise", noise.min(), noise.max(), noise.mean(), noise.shape)
+        print(
+            "noise_hat",
+            noise_hat.min(),
+            noise_hat.max(),
+            noise_hat.mean(),
+            noise_hat.shape,
+        )"""
+
         if mask is not None:
             temp_mask = torch.clamp(mask, min=0.0, max=1.0)
             loss = self.loss_fn(temp_mask * noise, temp_mask * noise_hat)

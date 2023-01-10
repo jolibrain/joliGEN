@@ -155,8 +155,6 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
         output_nc,
         nb_mask_attn,
         nb_mask_input,
-        n_timestep_train,
-        n_timestep_test,
         ngf=64,
         n_blocks=9,
         use_spectral=False,
@@ -406,21 +404,6 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
                 padding=1,
             ),
         )
-
-        self.beta_schedule = {
-            "train": {
-                "schedule": "linear",
-                "n_timestep": n_timestep_train,
-                "linear_start": 1e-6,
-                "linear_end": 0.01,
-            },
-            "test": {
-                "schedule": "linear",
-                "n_timestep": n_timestep_test,
-                "linear_start": 1e-4,
-                "linear_end": 0.09,
-            },
-        }
 
     # weight_init
     def weight_init(self, mean, std):

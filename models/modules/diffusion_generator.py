@@ -22,11 +22,28 @@ class DiffusionGenerator(nn.Module):
     def __init__(
         self,
         denoise_fn,
+        n_timestep_train,
+        n_timestep_test,
     ):
 
         super().__init__()
 
         self.denoise_fn = denoise_fn
+
+        self.denoise_fn.beta_schedule = {
+            "train": {
+                "schedule": "linear",
+                "n_timestep": n_timestep_train,
+                "linear_start": 1e-6,
+                "linear_end": 0.01,
+            },
+            "test": {
+                "schedule": "linear",
+                "n_timestep": n_timestep_test,
+                "linear_start": 1e-4,
+                "linear_end": 0.09,
+            },
+        }
 
         # Init noise schedule
         set_new_noise_schedule(model=self.denoise_fn, phase="train")
@@ -75,11 +92,17 @@ class DiffusionGenerator(nn.Module):
         noise_level = self.extract(
             getattr(self.denoise_fn, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
+        noise = self.denoise_fn(torch.cat([y_cond, y_t], dim=1), noise_level)
+
+        if 537 in t and False:
+            print(
+                "noise predicted", noise.min(), noise.max(), noise.mean(), noise.shape
+            )
         y_0_hat = predict_start_from_noise(
             self.denoise_fn,
             y_t,
             t=t,
-            noise=self.denoise_fn(torch.cat([y_cond, y_t], dim=1), noise_level),
+            noise=noise,
             phase=phase,
         )
 

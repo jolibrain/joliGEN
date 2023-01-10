@@ -4,6 +4,7 @@ from .modules.utils import get_norm_layer
 from .modules.diffusion_generator import DiffusionGenerator
 from .modules.resnet_architecture.resnet_generator_diff import ResnetGenerator_attn_diff
 from .modules.unet_generator_attn.unet_generator_attn import UNet
+from .modules.dit import DiT
 
 
 def define_G(
@@ -75,8 +76,6 @@ def define_G(
             num_head_channels=G_unet_mha_num_head_channels,
             tanh=False,
             dropout=G_dropout,
-            n_timestep_train=G_diff_n_timestep_train,
-            n_timestep_test=G_diff_n_timestep_test,
             channel_mults=G_unet_mha_channel_mults,
             norm=G_unet_mha_norm_layer,
             group_norm_size=G_unet_mha_group_norm_size,
@@ -89,14 +88,27 @@ def define_G(
             output_nc=model_output_nc,
             nb_mask_attn=G_attn_nb_mask_attn,
             nb_mask_input=G_attn_nb_mask_input,
-            n_timestep_train=G_diff_n_timestep_train,
-            n_timestep_test=G_diff_n_timestep_test,
             ngf=G_ngf,
             n_blocks=G_nblocks,
             use_spectral=False,
             padding_type="reflect",
             mobile=mobile,
             use_scale_shift_norm=True,
+        )
+
+    elif G_netG == "dit":
+        denoise_fn = DiT(
+            input_size=data_crop_size,
+            patch_size=8,
+            in_channels=model_input_nc * 2,
+            out_channels=model_output_nc,
+            hidden_size=320,
+            depth=28,
+            num_heads=16,
+            mlp_ratio=4.0,
+            class_dropout_prob=0.1,
+            num_classes=0,  # 1000,
+            learn_sigma=False,  # True,
         )
 
     else:
@@ -107,6 +119,8 @@ def define_G(
 
     net = DiffusionGenerator(
         denoise_fn=denoise_fn,
+        n_timestep_train=G_diff_n_timestep_train,
+        n_timestep_test=G_diff_n_timestep_test,
     )
 
     return net

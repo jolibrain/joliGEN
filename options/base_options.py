@@ -207,6 +207,7 @@ class BaseOptions:
                 "segformer_conv",
                 "ittr",
                 "unet_mha",
+                "dit",
             ],
             help="specify generator architecture",
         )

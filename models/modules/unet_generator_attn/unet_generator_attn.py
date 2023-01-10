@@ -359,8 +359,6 @@ class UNet(nn.Module):
         res_blocks,
         attn_res,
         tanh,
-        n_timestep_train,
-        n_timestep_test,
         norm,
         group_norm_size,
         dropout=0,
@@ -548,21 +546,6 @@ class UNet(nn.Module):
                 torch.nn.SiLU(),
                 zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
             )
-
-        self.beta_schedule = {
-            "train": {
-                "schedule": "linear",
-                "n_timestep": n_timestep_train,
-                "linear_start": 1e-6,
-                "linear_end": 0.01,
-            },
-            "test": {
-                "schedule": "linear",
-                "n_timestep": n_timestep_test,
-                "linear_start": 1e-4,
-                "linear_end": 0.09,
-            },
-        }
 
     def compute_feats(self, input, gammas):
 
