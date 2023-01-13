@@ -50,11 +50,11 @@ class PaletteModel(BaseDiffusionModel):
             self.inference_num = self.opt.alg_palette_inference_num
 
         # Visuals
-        self.visual_names.append(["gt_image", "cond_image", "mask"])
 
         visual_outputs = []
+        self.gen_visual_names = ["gt_image_", "cond_image_", "mask_", "output_"]
         for k in range(self.inference_num):
-            visual_outputs.append("output_" + str(k))
+            self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
 
         self.visual_names.append(visual_outputs)
 
@@ -171,7 +171,8 @@ class PaletteModel(BaseDiffusionModel):
             )
 
         for k in range(self.inference_num):
-            setattr(self, "output_" + str(k), self.output[k : k + 1])
+            for name in self.gen_visual_names:
+                setattr(self, name + str(k), getattr(self, name[:-1])[k : k + 1])
 
         self.fake_B = self.visuals[-1:]
 
