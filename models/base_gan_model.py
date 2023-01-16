@@ -702,44 +702,6 @@ class BaseGanModel(BaseModel):
         if hasattr(self, "fake_A"):
             self.compute_G_loss_semantic_cls_generic(domain_fake="A")
 
-    def compute_G_loss_semantic_cls_old(self):
-        """Calculate semantic class loss for G"""
-
-        # semantic class loss AB
-        if not self.opt.train_cls_regression:
-            self.loss_G_sem_cls_AB = self.criterionCLS(
-                self.pred_cls_fake_B, self.input_A_label_cls
-            )
-        else:
-            self.loss_G_sem_cls_AB = self.criterionCLS(
-                self.pred_cls_fake_B.squeeze(1), self.input_A_label_cls
-            )
-        if (
-            not hasattr(self, "loss_CLS")
-            or self.loss_CLS > self.opt.f_s_semantic_threshold
-        ):
-            self.loss_G_sem_cls_AB = 0 * self.loss_G_sem_cls_AB
-        self.loss_G_sem_cls_AB *= self.opt.train_sem_cls_lambda
-        self.loss_G_tot += self.loss_G_sem_cls_AB
-
-        # semantic class loss BA
-        if hasattr(self, "fake_A"):
-            if not self.opt.train_cls_regression:
-                self.loss_G_sem_cls_BA = self.criterionCLS(
-                    self.pred_cls_fake_A, self.input_B_label_cls
-                )
-            else:
-                self.loss_G_sem_cls_BA = self.criterionCLS(
-                    self.pred_cls_fake_A.squeeze(1), self.input_B_label_cls
-                )
-            if (
-                not hasattr(self, "loss_CLS")
-                or self.loss_CLS > self.opt.f_s_semantic_threshold
-            ):
-                self.loss_G_sem_cls_BA = 0 * self.loss_G_sem_cls_BA
-            self.loss_G_sem_cls_BA *= self.opt.train_sem_cls_lambda
-            self.loss_G_tot += self.loss_G_sem_cls_BA
-
     def compute_G_loss_semantic_mask(self):
         self.compute_G_loss_semantic_mask_generic(domain_fake="B")
 

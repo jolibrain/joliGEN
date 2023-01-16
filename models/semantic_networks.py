@@ -14,9 +14,9 @@ from .modules.utils import init_net
 
 def define_C(
     model_output_nc,
-    f_s_nf,
+    cls_nf,
     data_crop_size,
-    f_s_semantic_nclasses,
+    cls_semantic_nclasses,
     train_sem_cls_template,
     model_init_type,
     model_init_gain,
@@ -25,12 +25,12 @@ def define_C(
 ):
     img_size = data_crop_size
     if train_sem_cls_template == "basic":
-        netC = Classifier(model_output_nc, f_s_nf, f_s_semantic_nclasses, img_size)
+        netC = Classifier(model_output_nc, cls_nf, cls_semantic_nclasses, img_size)
     else:
         netC = torch_model(
             model_output_nc,
-            f_s_nf,
-            f_s_semantic_nclasses,
+            cls_nf,
+            cls_semantic_nclasses,
             img_size,
             train_sem_cls_template,
             train_sem_cls_pretrained,
