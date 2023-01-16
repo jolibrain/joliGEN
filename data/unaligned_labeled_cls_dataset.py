@@ -40,13 +40,14 @@ class UnalignedLabeledClsDataset(BaseDataset):
                 self.dir_A, opt.data_max_dataset_size
             )  # load images from '/path/to/data/trainA' as well as labels
             self.A_label = np.array(self.A_label)
+
         else:
+
             self.A_img_paths, self.A_label = make_labeled_path_dataset(
                 self.dir_A, "/paths.txt", opt.data_max_dataset_size
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
             self.A_label = np.array(self.A_label, dtype=np.float32)
 
-        # print('A_label',self.A_label)
         if opt.train_sem_use_label_B:
             if not os.path.isfile(self.dir_B + "/paths.txt"):
                 self.B_img_paths, self.B_label = make_labeled_dataset(
@@ -70,7 +71,7 @@ class UnalignedLabeledClsDataset(BaseDataset):
         self.transform_A = get_transform(self.opt, grayscale=(self.input_nc == 1))
         self.transform_B = get_transform(self.opt, grayscale=(self.output_nc == 1))
 
-        self.semantic_nclasses = self.opt.f_s_semantic_nclasses
+        self.semantic_nclasses = self.opt.cls_semantic_nclasses
 
     def get_img(
         self,

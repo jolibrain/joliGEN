@@ -462,14 +462,18 @@ class BaseModel(ABC):
     def set_input_semantic_cls(self, data):
         if "A_label_cls" in data:
             if not self.opt.train_cls_regression:
-                self.input_A_label_cls = data["A_label_cls"].to(self.device)
+                self.input_A_label_cls = (
+                    data["A_label_cls"].to(torch.long).to(self.device)
+                )
             else:
                 self.input_A_label_cls = (
                     data["A_label_cls"].to(torch.float).to(device=self.device)
                 )
         if "B_label_cls" in data:
             if not self.opt.train_cls_regression:
-                self.input_B_label_cls = data["B_label_cls"].to(self.device)
+                self.input_B_label_cls = (
+                    data["B_label_cls"].to(torch.long).to(self.device)
+                )
             else:
                 self.input_B_label_cls = (
                     data["B_label_cls"].to(torch.float).to(device=self.device)
