@@ -1,11 +1,13 @@
 import pytest
 import torch.multiprocessing as mp
 import sys
+from itertools import product
 
 sys.path.append(sys.path[0] + "/..")
 import train
 from options.train_options import TrainOptions
 from data import create_dataset
+
 
 json_like_dict = {
     "name": "joligan_utest",
@@ -29,16 +31,18 @@ models_nosemantic = [
 
 D_netDs = [["projected_d", "basic"], ["projected_d", "basic", "depth"]]
 
+product_list = product(models_nosemantic, D_netDs)
+
 
 def test_nosemantic(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
-    for model in models_nosemantic:
+
+    for model, Dtype in product_list:
         json_like_dict["model_type"] = model
-        json_like_dict["name"] += "_" + model
-        for Dtype in D_netDs:
-            if model == "cycle_gan" and "depth" in Dtype:
-                continue  # skip
-            json_like_dict["D_netDs"] = Dtype
-            opt = TrainOptions().parse_json(json_like_dict.copy())
-            train.launch_training(opt)
+        json_like_dict["D_netDs"] = Dtype
+        if model == "cycle_gan" and "depth" in Dtype:
+            continue  # skip
+
+        opt = TrainOptions().parse_json(json_like_dict.copy())
+        train.launch_training(opt)

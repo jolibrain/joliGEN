@@ -1,6 +1,7 @@
 import pytest
 import torch.multiprocessing as mp
 import sys
+from itertools import product
 
 sys.path.append(sys.path[0] + "/..")
 import train
@@ -33,15 +34,17 @@ json_like_dict = {
 models_diffusion = ["palette"]
 G_netG = ["unet_mha"]
 
+product_list = product(models_diffusion, G_netG)
+
 
 def test_semantic_mask(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
-    for model in models_diffusion:
-        json_like_dict["model_type"] = model
-        json_like_dict["name"] += "_" + model
+    for model, Gtype in product_list:
         json_like_dict_c = json_like_dict.copy()
-        for Gtype in G_netG:
-            json_like_dict_c["G_netG"] = Gtype
-            opt = TrainOptions().parse_json(json_like_dict_c)
-            train.launch_training(opt)
+        json_like_dict_c["model_type"] = model
+        json_like_dict_c["name"] += "_" + model
+        json_like_dict_c["G_netG"] = Gtype
+
+        opt = TrainOptions().parse_json(json_like_dict_c)
+        train.launch_training(opt)
