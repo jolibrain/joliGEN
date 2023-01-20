@@ -248,6 +248,11 @@ class BaseModel(ABC):
         if hasattr(self, "fake_A"):
             losses_G.append("G_sem_cls_BA")
 
+        if self.opt.train_sem_idt:
+            losses_G += ["G_sem_cls_idt_B"]
+            if hasattr(self, "fake_A"):
+                losses_G += ["G_sem_cls_idt_A"]
+
         losses_CLS = ["CLS"]
 
         self.loss_names_G += losses_G

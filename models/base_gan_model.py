@@ -686,16 +686,38 @@ class BaseGanModel(BaseModel):
                 getattr(self, "pred_cls_fake_%s" % domain_fake).squeeze(1),
                 getattr(self, "input_%s_label_cls" % domain_real),
             )
+
+        if self.opt.train_sem_idt:
+            if self.opt.train_sem_net_output or not hasattr(
+                self, "input_%s_label_cls" % domain_fake
+            ):
+                label_idt = getattr(self, "gt_pred_f_s_real_%s_max" % domain_fake)
+            else:
+                label_idt = getattr(self, "input_%s_label_cls" % domain_fake)
+
+            loss_G_sem_cls_idt = self.opt.train_sem_cls_lambda * self.criterioncls(
+                getattr(self, "pred_cls_idt_%s" % domain_fake), label_idt
+            )
+
+        # Check if cls is good enough
         if (
             not hasattr(self, "loss_CLS")
             or self.loss_CLS > self.opt.f_s_semantic_threshold
         ):
             loss_G_sem_cls = 0 * loss_G_sem_cls
+
+            if self.opt.train_sem_idt:
+                loss_G_sem_cls_idt = 0 * loss_G_sem_cls_idt
+
         loss_G_sem_cls *= self.opt.train_sem_cls_lambda
 
         setattr(self, "loss_G_sem_cls_%s" % direction, loss_G_sem_cls)
 
         self.loss_G_tot += loss_G_sem_cls
+
+        if self.opt.train_sem_idt:
+            setattr(self, "loss_G_sem_cls_idt_%s" % domain_fake, loss_G_sem_cls_idt)
+            self.loss_G_tot += loss_G_sem_cls_idt
 
     def compute_G_loss_semantic_cls(self):
         self.compute_G_loss_semantic_cls_generic(domain_fake="B")
