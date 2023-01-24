@@ -1,14 +1,14 @@
 import torch
 import tqdm
+import copy
+import warnings
+
 
 from .base_diffusion_model import BaseDiffusionModel
 from util.network_group import NetworkGroup
 from util.iter_calculator import IterCalculator
 from . import diffusion_networks
-
-import copy
-
-import warnings
+from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
 
 
 class PaletteModel(BaseDiffusionModel):
@@ -38,6 +38,13 @@ class PaletteModel(BaseDiffusionModel):
             default=-1,
             help="nb of examples processed for inference",
         )
+        parser.add_argument(
+            "--alg_palette_cond_image_creation",
+            type=str,
+            default="y_t",
+            choices=["y_t", "sketch", "edges"],
+            help="how cond_image is created",
+        )
 
         return parser
 
@@ -50,7 +57,6 @@ class PaletteModel(BaseDiffusionModel):
             self.inference_num = self.opt.alg_palette_inference_num
 
         # Visuals
-
         visual_outputs = []
         self.gen_visual_names = ["gt_image_", "cond_image_", "mask_", "output_"]
         for k in range(self.inference_num):
@@ -127,9 +133,17 @@ class PaletteModel(BaseDiffusionModel):
     def set_input(self, data):
         """must use set_device in tensor"""
 
-        self.cond_image = data["A"].to(self.device)
+        self.y_t = data["A"].to(self.device)
         self.gt_image = data["B"].to(self.device)
         self.mask = data["B_label_mask"].to(self.device)
+
+        if self.opt.alg_palette_cond_image_creation == "y_t":
+            self.cond_image = data["A"].to(self.device)
+        elif self.opt.alg_palette_cond_image_creation == "sketch":
+            self.cond_image = fill_img_with_sketch(self.gt_image, self.mask)
+        elif self.opt.alg_palette_cond_image_creation == "edges":
+            self.cond_image = fill_img_with_edges(self.gt_image, self.mask)
+
         self.batch_size = self.cond_image.shape[0]
 
         self.real_A = self.cond_image
@@ -158,16 +172,15 @@ class PaletteModel(BaseDiffusionModel):
 
         if True or self.task in ["inpainting", "uncropping"]:
             self.output, self.visuals = netG.restoration(
-                self.cond_image[: self.inference_num],
-                y_t=self.cond_image[: self.inference_num],
+                y_cond=self.cond_image[: self.inference_num],
+                y_t=self.y_t[: self.inference_num],
                 y_0=self.gt_image[: self.inference_num],
                 mask=self.mask[: self.inference_num],
                 sample_num=self.sample_num,
             )
         else:
             self.output, self.visuals = netG.restoration(
-                self.cond_image[: self.inference_num],
-                sample_num=self.sample_num,
+                y_cond=self.cond_image[: self.inference_num], sample_num=self.sample_num
             )
 
         for k in range(self.inference_num):
