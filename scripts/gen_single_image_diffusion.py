@@ -45,9 +45,9 @@ parser.add_argument(
 parser.add_argument("--img-width", default=-1, type=int, help="image width")
 parser.add_argument("--img-height", default=-1, type=int, help="image height")
 
-parser.add_argument("--crop-width", default=-1, type=int, help="crop width (optional)")
+parser.add_argument("--crop-width", default=-1, type=int, help="crop width added on each side of the bbox (optional)")
 parser.add_argument(
-    "--crop-height", default=-1, type=int, help="crop height (optional)"
+    "--crop-height", default=-1, type=int, help="crop height added on each side of the bbox (optional)"
 )
 
 parser.add_argument("--img-in", help="image to transform", required=True)
@@ -55,6 +55,10 @@ parser.add_argument(
     "--mask-in", help="mask used for image transformation", required=False
 )
 parser.add_argument("--bbox-in", help="bbox file used for masking")
+parser.add_argument("--bbox-width-factor", type=float, default=0.0,
+                    help="bbox width added factor of original width")
+parser.add_argument("--bbox-height-factor", type=float, default=0.0,
+                    help="bbox height added factor of original height")
 parser.add_argument("--img-out", help="transformed image", required=True)
 parser.add_argument(
     "--sampling-steps", default=-1, type=int, help="number of sampling steps"
@@ -98,16 +102,25 @@ if args.bbox_in:
             elts = line.rstrip().split()
             bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
 
-    if args.crop_width and args.crop_height > 0:
+    if args.crop_width or args.crop_height > 0:
         hc_width = int(args.crop_width / 2)
         hc_height = int(args.crop_height / 2)
         # select one bbox and crop around it
         bbox_orig = random.choice(bboxes)
+        if args.bbox_width_factor > 0.0:
+            bbox_orig[0] -= max(0, int(args.bbox_width_factor*bbox_orig[0]))
+            bbox_orig[1] += max(0, int(args.bbox_width_factor*bbox_orig[1]))
+        
         bbox_select = bbox_orig.copy()
         bbox_select[0] -= max(0, hc_width)
+        bbox_select[0] = max(0, bbox_select[0])
         bbox_select[1] -= max(0, hc_height)
-        bbox_select[2] += min(img.shape[1], hc_width)
-        bbox_select[3] += min(img.shape[0], hc_height)
+        bbox_select[1] = max(0, bbox_select[1])
+        bbox_select[2] += hc_width
+        bbox_select[2] = min(img.shape[1], bbox_select[2])
+        bbox_select[3] += hc_height
+        bbox_select[3] = min(img.shape[0], bbox_select[3])
+
         mask = np.zeros(
             (bbox_select[3] - bbox_select[1], bbox_select[2] - bbox_select[0]),
             dtype=np.uint8,
@@ -138,16 +151,10 @@ tranlist = [
     #    resize,
 ]
 
-if args.crop_width > 0 and args.crop_height > 0:
-    resize = transforms.Resize((args.crop_width, args.crop_height))
-    tranlist.append(resize)
-
 tran = transforms.Compose(tranlist)
 img_tensor = tran(img).clone().detach()
 
 mask = torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
-if args.crop_width > 0 and args.crop_height > 0:
-    mask = resize(mask).clone().detach()
 
 if not args.cpu:
     img_tensor = img_tensor.to(device).clone().detach()
@@ -184,11 +191,12 @@ out_img = out_tensor.detach().data.cpu().float().numpy()[0]
 out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
 out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
 
-if args.crop_width > 0 and args.crop_height > 0:
+if args.crop_width > 0 or args.crop_height > 0:
     # fill out crop into original image
     img_orig = cv2.cvtColor(img_orig, cv2.COLOR_RGB2BGR)
     out_img = cv2.resize(
-        out_img, (bbox_select[2] - bbox_select[0], bbox_select[3] - bbox_select[1])
+        out_img, (min(img_orig.shape[1], bbox_select[2] - bbox_select[0])
+                  , min(img_orig.shape[0],bbox_select[3] - bbox_select[1]))
     )
     cv2.imwrite(args.img_out + "_crop.png", out_img)
     img_orig[bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]] = out_img
