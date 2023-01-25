@@ -54,6 +54,8 @@ def generate(
     img_in,
     mask_in,
     bbox_in,
+    bbox_width_factor,
+    bbox_height_factor,
     crop_width,
     crop_height,
     img_width,
@@ -94,16 +96,28 @@ def generate(
                 elts = line.rstrip().split()
                 bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
 
-        if crop_width and crop_height > 0:
+        if crop_width or crop_height > 0:
             hc_width = int(crop_width / 2)
             hc_height = int(crop_height / 2)
             # select one bbox and crop around it
             bbox_orig = random.choice(bboxes)
+            if args.bbox_width_factor > 0.0:
+                bbox_orig[0] -= max(0, int(args.bbox_width_factor * bbox_orig[0]))
+                bbox_orig[2] += max(0, int(args.bbox_width_factor * bbox_orig[2]))
+            if args.bbox_height_factor > 0.0:
+                bbox_orig[1] -= max(0, int(args.bbox_height_factor * bbox_orig[1]))
+                bbox_orig[3] += max(0, int(args.bbox_height_factor * bbox_orig[3]))
+
             bbox_select = bbox_orig.copy()
             bbox_select[0] -= max(0, hc_width)
+            bbox_select[0] = max(0, bbox_select[0])
             bbox_select[1] -= max(0, hc_height)
-            bbox_select[2] += min(img.shape[1], hc_width)
-            bbox_select[3] += min(img.shape[0], hc_height)
+            bbox_select[1] = max(0, bbox_select[1])
+            bbox_select[2] += hc_width
+            bbox_select[2] = min(img.shape[1], bbox_select[2])
+            bbox_select[3] += hc_height
+            bbox_select[3] = min(img.shape[0], bbox_select[3])
+
             mask = np.zeros(
                 (bbox_select[3] - bbox_select[1], bbox_select[2] - bbox_select[0]),
                 dtype=np.uint8,
@@ -133,10 +147,6 @@ def generate(
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         #    resize,
     ]
-
-    if crop_width > 0 and crop_height > 0:
-        resize = transforms.Resize((crop_width, crop_height))
-        tranlist.append(resize)
 
     tran = transforms.Compose(tranlist)
     img_tensor = tran(img).clone().detach()
@@ -184,11 +194,15 @@ def generate(
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
     out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
 
-    if crop_width > 0 and crop_height > 0:
+    if crop_width > 0 or crop_height > 0:
         # fill out crop into original image
         img_orig = cv2.cvtColor(img_orig, cv2.COLOR_RGB2BGR)
         out_img = cv2.resize(
-            out_img, (bbox_select[2] - bbox_select[0], bbox_select[3] - bbox_select[1])
+            out_img,
+            (
+                min(img_orig.shape[1], bbox_select[2] - bbox_select[0]),
+                min(img_orig.shape[0], bbox_select[3] - bbox_select[1]),
+            ),
         )
         cv2.imwrite(img_out + "_crop.png", out_img)
         img_orig[
@@ -220,10 +234,16 @@ if __name__ == "__main__":
     parser.add_argument("--img-height", default=-1, type=int, help="image height")
 
     parser.add_argument(
-        "--crop-width", default=-1, type=int, help="crop width (optional)"
+        "--crop-width",
+        default=-1,
+        type=int,
+        help="crop width added on each side of the bbox (optional)",
     )
     parser.add_argument(
-        "--crop-height", default=-1, type=int, help="crop height (optional)"
+        "--crop-height",
+        default=-1,
+        type=int,
+        help="crop height added on each side of the bbox (optional)",
     )
 
     parser.add_argument("--img-in", help="image to transform", required=True)
@@ -231,6 +251,18 @@ if __name__ == "__main__":
         "--mask-in", help="mask used for image transformation", required=False
     )
     parser.add_argument("--bbox-in", help="bbox file used for masking")
+    parser.add_argument(
+        "--bbox-width-factor",
+        type=float,
+        default=0.0,
+        help="bbox width added factor of original width",
+    )
+    parser.add_argument(
+        "--bbox-height-factor",
+        type=float,
+        default=0.0,
+        help="bbox height added factor of original height",
+    )
     parser.add_argument("--img-out", help="transformed image", required=True)
     parser.add_argument(
         "--sampling-steps", default=-1, type=int, help="number of sampling steps"
