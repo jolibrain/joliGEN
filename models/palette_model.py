@@ -46,6 +46,13 @@ class PaletteModel(BaseDiffusionModel):
             help="how cond_image is created",
         )
 
+        parser.add_argument(
+            "--alg_palette_idt_diff_iter",
+            type=int,
+            default=-1,
+            help="compute diffusion identity loss each iteration, default -1 => never compute",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
@@ -64,11 +71,17 @@ class PaletteModel(BaseDiffusionModel):
 
         self.visual_names.append(visual_outputs)
 
+        # Options
         if opt.G_nblocks == 9:
             warnings.warn(
                 f"G_nblocks default value {opt.G_nblocks} is too high for palette model, 2 will be used instead."
             )
             opt.G_nblocks = 2
+
+        if self.opt.alg_palette_idt_diff_iter == -1:
+            self.compute_idt_diff = False
+        else:
+            self.compute_idt_diff = True
 
         # Define networks
         self.netG_A = diffusion_networks.define_G(**vars(opt))
@@ -93,7 +106,9 @@ class PaletteModel(BaseDiffusionModel):
         elif self.opt.alg_palette_loss == "L1":
             self.loss_fn = torch.nn.L1Loss()
 
-        losses_G = ["G_tot"]
+        losses_G = ["G_tot", "G_diff"]
+        if self.compute_idt_diff:
+            losses_G += ["G_diff_idt"]
 
         self.loss_names_G = losses_G
         self.loss_names = self.loss_names_G
@@ -150,10 +165,36 @@ class PaletteModel(BaseDiffusionModel):
         self.real_B = self.gt_image
 
     def compute_palette_loss(self):
-        y_0 = self.gt_image
-        y_cond = self.cond_image
-        mask = self.mask
-        noise = None
+
+        self.loss_G_diff = (
+            self.opt.alg_palette_lambda_G
+            * self.compute_palette_loss_generic(
+                y_0=self.gt_image, y_cond=self.cond_image, mask=self.mask, noise=None
+            )
+        )
+
+        if (
+            self.compute_idt_diff
+            and self.niter % self.opt.alg_palette_idt_diff_iter == 0
+        ):
+            self.loss_G_diff_idt = (
+                self.opt.alg_palette_lambda_G
+                * self.compute_palette_loss_generic(
+                    y_0=self.gt_image,
+                    y_cond=self.gt_image,
+                    mask=self.mask,
+                    noise=torch.zeros_like(self.gt_image, device=self.gt_image.device),
+                )
+            )
+
+        else:
+            self.loss_G_diff_idt = torch.zeros_like(
+                self.loss_G_diff, device=self.loss_G_diff.device
+            )
+
+        self.loss_G_tot = self.loss_G_diff + self.loss_G_diff_idt
+
+    def compute_palette_loss_generic(self, y_0, y_cond, mask, noise):
 
         noise, noise_hat = self.netG_A(y_0, y_cond, mask, noise)
 
@@ -162,7 +203,7 @@ class PaletteModel(BaseDiffusionModel):
         else:
             loss = self.loss_fn(noise, noise_hat)
 
-        self.loss_G_tot = self.opt.alg_palette_lambda_G * loss
+        return loss
 
     def inference(self):
         if hasattr(self.netG_A, "module"):
