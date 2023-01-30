@@ -58,7 +58,13 @@ class PaletteModel(BaseDiffusionModel):
 
         # Visuals
         visual_outputs = []
-        self.gen_visual_names = ["gt_image_", "cond_image_", "mask_", "output_"]
+        self.gen_visual_names = [
+            "gt_image_",
+            "cond_image_",
+            "y_t_",
+            "mask_",
+            "output_",
+        ]
         for k in range(self.inference_num):
             self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
 
