@@ -2,20 +2,23 @@ import sys
 import os
 import json
 import random
-
-sys.path.append("../")
-from models import diffusion_networks
-from options.train_options import TrainOptions
 import cv2
 import torch
 from torchvision import transforms
 from torchvision.utils import save_image
 import numpy as np
 import argparse
-from data.online_creation import fill_mask_with_random, fill_mask_with_color
+import warnings
+import math
+from tqdm import tqdm
+
+sys.path.append("../")
+from models import diffusion_networks
+from options.train_options import TrainOptions
+from data.online_creation import fill_mask_with_random, fill_mask_with_color, crop_image
 from models.modules.diffusion_utils import set_new_noise_schedule
 from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
-import warnings
+from diffusion_options import DiffusionOptions
 
 
 def load_model(modelpath, model_in_file, device, sampling_steps):
@@ -45,6 +48,15 @@ def load_model(modelpath, model_in_file, device, sampling_steps):
     return model, opt
 
 
+def to_np(img):
+
+    img = img.detach().data.cpu().float().numpy()[0]
+    img = (np.transpose(img, (1, 2, 0)) + 1) / 2.0 * 255.0
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+    return img
+
+
 def generate(
     seed,
     model_in_file,
@@ -60,7 +72,12 @@ def generate(
     crop_height,
     img_width,
     img_height,
-    img_out,
+    dir_out,
+    write,
+    previous_frame,
+    name,
+    mask_delta,
+    mask_square,
     **unused_options,
 ):
 
@@ -70,7 +87,6 @@ def generate(
 
     # loading model
     modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
-    print("modelpath=", modelpath)
 
     if not cpu:
         device = torch.device("cuda:" + str(gpuid))
@@ -80,8 +96,25 @@ def generate(
         modelpath, os.path.basename(model_in_file), device, sampling_steps
     )
 
+    if len(opt.data_online_creation_mask_delta_A) == 1:
+        opt.data_online_creation_mask_delta_A.append(
+            opt.data_online_creation_mask_delta_A[0]
+        )
+
+    if len(mask_delta) == 1:
+        mask_delta.append(mask_delta[0])
+
+    if opt.data_online_creation_mask_square_A:
+        mask_square = True
+
+    mask_delta[0] += opt.data_online_creation_mask_delta_A[0]
+    mask_delta[1] += opt.data_online_creation_mask_delta_A[1]
+
+    # Load image
+
     # reading image
     img = cv2.imread(img_in)
+    img_orig = img.copy()
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # reading the mask
@@ -90,7 +123,8 @@ def generate(
 
     bboxes = []
     if bbox_in:
-        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+
+        # mask = np.zeros(img.shape[:2], dtype=np.uint8)
         with open(bbox_in, "r") as bboxf:
             for line in bboxf:
                 elts = line.rstrip().split()
@@ -101,12 +135,12 @@ def generate(
             hc_height = int(crop_height / 2)
             # select one bbox and crop around it
             bbox_orig = random.choice(bboxes)
-            if args.bbox_width_factor > 0.0:
-                bbox_orig[0] -= max(0, int(args.bbox_width_factor * bbox_orig[0]))
-                bbox_orig[2] += max(0, int(args.bbox_width_factor * bbox_orig[2]))
-            if args.bbox_height_factor > 0.0:
-                bbox_orig[1] -= max(0, int(args.bbox_height_factor * bbox_orig[1]))
-                bbox_orig[3] += max(0, int(args.bbox_height_factor * bbox_orig[3]))
+            if bbox_width_factor > 0.0:
+                bbox_orig[0] -= max(0, int(bbox_width_factor * bbox_orig[0]))
+                bbox_orig[2] += max(0, int(bbox_width_factor * bbox_orig[2]))
+            if bbox_height_factor > 0.0:
+                bbox_orig[1] -= max(0, int(bbox_height_factor * bbox_orig[1]))
+                bbox_orig[3] += max(0, int(bbox_height_factor * bbox_orig[3]))
 
             bbox_select = bbox_orig.copy()
             bbox_select[0] -= max(0, hc_width)
@@ -118,6 +152,7 @@ def generate(
             bbox_select[3] += hc_height
             bbox_select[3] = min(img.shape[0], bbox_select[3])
 
+            """
             mask = np.zeros(
                 (bbox_select[3] - bbox_select[1], bbox_select[2] - bbox_select[0]),
                 dtype=np.uint8,
@@ -129,15 +164,82 @@ def generate(
             img_orig = img.copy()
             img = img[
                 bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
-            ]  # cropped img
+            ]  # cropped img"""
+
         else:
             for bbox in bboxes:
                 mask[bbox[1] : bbox[3], bbox[0] : bbox[2]] = np.full(
                     (bbox[3] - bbox[1], bbox[2] - bbox[0]), 1
                 )  # ymin:ymax, xmin:xmax, ymax-ymin, xmax-xmin
 
+        crop_coordinates = crop_image(
+            img_path=img_in,
+            bbox_path=bbox_in,
+            mask_delta=mask_delta,  # =opt.data_online_creation_mask_delta_A,
+            crop_delta=0,
+            mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
+            output_dim=opt.data_load_size,
+            context_pixels=opt.data_online_context_pixels,
+            load_size=opt.data_online_creation_load_size_A,
+            get_crop_coordinates=True,
+            crop_center=True,
+        )
+
+        img, mask = crop_image(
+            img_path=img_in,
+            bbox_path=bbox_in,
+            mask_delta=mask_delta,  # opt.data_online_creation_mask_delta_A,
+            crop_delta=0,
+            mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
+            output_dim=opt.data_load_size,
+            context_pixels=opt.data_online_context_pixels,
+            load_size=opt.data_online_creation_load_size_A,
+            crop_coordinates=crop_coordinates,
+            crop_center=True,
+        )
+
+        x_crop, y_crop, crop_size = crop_coordinates
+
+        bbox = bboxes[0]
+
+        bbox_select = bbox.copy()
+
+        bbox_select[0] -= mask_delta[0]
+        bbox_select[1] -= mask_delta[1]
+        bbox_select[2] += mask_delta[0]
+        bbox_select[3] += mask_delta[1]
+
+        if mask_square:
+            sdiff = (bbox_select[2] - bbox_select[0]) - (
+                bbox_select[3] - bbox_select[1]
+            )  # (xmax - xmin) - (ymax - ymin)
+            if sdiff > 0:
+                bbox_select[3] += int(sdiff / 2)
+                bbox_select[1] -= int(sdiff / 2)
+            else:
+                bbox_select[2] += -int(sdiff / 2)
+                bbox_select[0] -= -int(sdiff / 2)
+
+        bbox_select[1] += y_crop
+        bbox_select[0] += x_crop
+
+        bbox_select[3] = bbox_select[1] + crop_size
+        bbox_select[2] = bbox_select[0] + crop_size
+
+        bbox_select[1] -= opt.data_online_context_pixels
+        bbox_select[0] -= opt.data_online_context_pixels
+
+        bbox_select[3] += opt.data_online_context_pixels
+        bbox_select[2] += opt.data_online_context_pixels
+
+        img, mask = np.array(img), np.array(mask)
+
     if img_width and img_height > 0:
+
         img = cv2.resize(img, (img_width, img_height))
+
         mask = cv2.resize(mask, (img_width, img_height))
 
     # preprocessing to torch
@@ -152,8 +254,8 @@ def generate(
     img_tensor = tran(img).clone().detach()
 
     mask = torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
-    if crop_width > 0 and crop_height > 0:
-        mask = resize(mask).clone().detach()
+    """if crop_width > 0 and crop_height > 0:
+        mask = resize(mask).clone().detach()"""
 
     if not cpu:
         img_tensor = img_tensor.to(device).clone().detach()
@@ -168,19 +270,38 @@ def generate(
             img_tensor.clone().detach(), mask.clone().detach(), {}
         )
 
-    if opt.alg_palette_cond_image_creation == "y_t":
-        cond_image = y_t
+    if opt.alg_palette_cond_image_creation == "previous_frame":
+        if previous_frame is not None:
+            if isinstance(previous_frame, str):
+                # load the previous frame
+                previous_frame = cv2.imread(previous_frame)
+
+            previous_frame = cv2.cvtColor(previous_frame, cv2.COLOR_BGR2RGB)
+            previous_frame = previous_frame[
+                bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
+            ]
+            previous_frame = cv2.resize(
+                previous_frame, (opt.data_load_size, opt.data_load_size)
+            )
+            previous_frame = tran(previous_frame)
+            previous_frame = previous_frame.to(device).clone().detach().unsqueeze(0)
+
+            cond_image = previous_frame
+        else:
+            cond_image = -1 * torch.ones_like(y_t.unsqueeze(0), device=y_t.device)
+    elif opt.alg_palette_cond_image_creation == "y_t":
+        cond_image = y_t.unsqueeze(0)
     elif opt.alg_palette_cond_image_creation == "sketch":
-        cond_image = fill_img_with_sketch(img_tensor, mask)
+        cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "edges":
-        cond_image = fill_img_with_edges(img_tensor, mask)
+        cond_image = fill_img_with_edges(img_tensor.unsqueeze(0), mask.unsqueeze(0))
 
     # run through model
     y_t, cond_image, img_tensor, mask = (
         y_t.unsqueeze(0).clone().detach(),
-        cond_image.unsqueeze(0).clone().detach(),
+        cond_image.clone().detach(),
         img_tensor.unsqueeze(0).clone().detach(),
-        mask.unsqueeze(0).clone().detach(),
+        torch.clamp(mask, min=0, max=1).unsqueeze(0).clone().detach(),
     )
 
     with torch.no_grad():
@@ -188,90 +309,72 @@ def generate(
         out_tensor, visu = model.restoration(
             y_cond=cond_image, y_t=y_t, y_0=img_tensor, mask=mask, sample_num=2
         )
+        out_img = to_np(
+            out_tensor
+        )  # out_img = out_img.detach().data.cpu().float().numpy()[0]
 
-    # post-processing
-    out_img = out_tensor.detach().data.cpu().float().numpy()[0]
+    """ post-processing
+    
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
-    out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
+    out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)"""
 
-    if crop_width > 0 or crop_height > 0:
-        # fill out crop into original image
-        img_orig = cv2.cvtColor(img_orig, cv2.COLOR_RGB2BGR)
-        out_img = cv2.resize(
+    if img_width > 0 or img_height > 0 or crop_width > 0 or crop_height > 0:
+        # img_orig = cv2.cvtColor(img_orig, cv2.COLOR_RGB2BGR)
+
+        out_img_resized = cv2.resize(
             out_img,
             (
                 min(img_orig.shape[1], bbox_select[2] - bbox_select[0]),
                 min(img_orig.shape[0], bbox_select[3] - bbox_select[1]),
             ),
         )
-        cv2.imwrite(img_out + "_crop.png", out_img)
-        img_orig[
-            bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
-        ] = out_img
-        out_img = img_orig.copy()
 
-    if opt.alg_palette_cond_image_creation == "sketch":
-        cond_img = cond_image.detach().data.cpu().float().numpy()[0]
-        cond_img = (np.transpose(cond_img, (1, 2, 0)) + 1) / 2.0 * 255.0
-        cond_img = cv2.cvtColor(cond_img, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(img_out + "_cond_mask.png", cond_img)
+    out_img_real_size = img_orig.copy()
 
-    cv2.imwrite(img_out, out_img)
+    # fill out crop into original image
+    out_img_real_size[
+        bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
+    ] = out_img_resized
 
-    print("Successfully generated image ", img_out)
+    cond_img = to_np(cond_image)
+
+    if write:
+        cv2.imwrite(os.path.join(dir_out, name + "_orig.png"), img_orig)
+        cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.png"), out_img)
+        cv2.imwrite(os.path.join(dir_out, name + "_cond.png"), cond_img)
+        cv2.imwrite(os.path.join(dir_out, name + "_generated.png"), out_img_real_size)
+        cv2.imwrite(os.path.join(dir_out, name + "_y_0.png"), to_np(img_tensor))
+        cv2.imwrite(os.path.join(dir_out, name + "_y_t.png"), to_np(y_t))
+        cv2.imwrite(os.path.join(dir_out, name + "_mask.png"), to_np(mask))
+
+        print("Successfully generated image ", name)
+
+    return out_img_real_size
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--model-in-file",
-        help="file path to generator model (.pth file)",
-        required=True,
-    )
+    options = DiffusionOptions()
 
-    parser.add_argument("--img-width", default=-1, type=int, help="image width")
-    parser.add_argument("--img-height", default=-1, type=int, help="image height")
-
-    parser.add_argument(
-        "--crop-width",
-        default=-1,
-        type=int,
-        help="crop width added on each side of the bbox (optional)",
+    options.parser.add_argument("--img-in", help="image to transform", required=True)
+    options.parser.add_argument(
+        "--previous-frame", help="image to transform", default=None
     )
-    parser.add_argument(
-        "--crop-height",
-        default=-1,
-        type=int,
-        help="crop height added on each side of the bbox (optional)",
-    )
-
-    parser.add_argument("--img-in", help="image to transform", required=True)
-    parser.add_argument(
+    options.parser.add_argument(
         "--mask-in", help="mask used for image transformation", required=False
     )
-    parser.add_argument("--bbox-in", help="bbox file used for masking")
-    parser.add_argument(
-        "--bbox-width-factor",
-        type=float,
-        default=0.0,
-        help="bbox width added factor of original width",
-    )
-    parser.add_argument(
-        "--bbox-height-factor",
-        type=float,
-        default=0.0,
-        help="bbox height added factor of original height",
-    )
-    parser.add_argument("--img-out", help="transformed image", required=True)
-    parser.add_argument(
-        "--sampling-steps", default=-1, type=int, help="number of sampling steps"
-    )
-    parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
-    parser.add_argument("--gpuid", type=int, default=0, help="which GPU to use")
-    parser.add_argument(
-        "--seed", type=int, default=-1, help="random seed for reproducibility"
-    )
-    args = parser.parse_args()
+    options.parser.add_argument("--bbox-in", help="bbox file used for masking")
 
-    generate(**vars(args))
+    options.parser.add_argument(
+        "--nb_samples", help="nb of samples generated", type=int, default=1
+    )
+
+    args = options.parse()
+
+    args.write = True
+
+    real_name = args.name
+
+    for i in tqdm(range(args.nb_samples)):
+        args.name = real_name + "_" + str(i).zfill(len(str(args.nb_samples)))
+        generate(**vars(args))
