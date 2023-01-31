@@ -23,6 +23,7 @@ def crop_image(
     get_crop_coordinates=False,
     crop_coordinates=None,
     select_cat=-1,
+    crop_center=False,
 ):
 
     margin = context_pixels * 2
@@ -221,8 +222,12 @@ def crop_image(
         if x_crop_min > x_crop_max or y_crop_min > y_crop_max:
             raise ValueError(f"Crop position cannot be computed for {img_path}")
 
-        x_crop = random.randint(x_crop_min, x_crop_max)
-        y_crop = random.randint(y_crop_min, y_crop_max)
+        if crop_center:
+            x_crop = (x_crop_min + x_crop_max) // 2
+            y_crop = (y_crop_min + y_crop_max) // 2
+        else:
+            x_crop = random.randint(x_crop_min, x_crop_max)
+            y_crop = random.randint(y_crop_min, y_crop_max)
 
         if (
             x_crop < context_pixels
