@@ -18,17 +18,24 @@ def natural_keys(text):
 
 class TemporalDataset(BaseDataset):
     def __len__(self):
-        return 1000000000000
+        """Return the total number of images in the dataset.
+        As we have two datasets with potentially different number of images,
+        we take a maximum of
+        """
+        if hasattr(self, "B_img_paths"):
+            return max(self.A_size, self.B_size)
+        else:
+            return self.A_size
 
     def __init__(self, opt):
         BaseDataset.__init__(self, opt)
         super(TemporalDataset).__init__()
 
-        self.A_img_paths, self.A_label_paths = make_labeled_path_dataset(
+        self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
             self.dir_A, "/paths.txt"
         )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
 
-        self.B_img_paths, self.B_label_paths = make_labeled_path_dataset(
+        self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
             self.dir_B, "/paths.txt"
         )  # load images from '/path/to/data/trainB'
 
@@ -44,14 +51,17 @@ class TemporalDataset(BaseDataset):
 
         self.opt = opt
 
-        self.A_size = 1  # use to compute image path in base datset method (unused then)
-        self.B_size = 1
+        # self.A_size = 1  # use to compute image path in base datset method (unused then)
+        # self.B_size = 1
+        self.A_size = len(self.A_img_paths)  # get the size of dataset A
+        if os.path.exists(self.dir_B):
+            self.B_size = len(self.B_img_paths)  # get the size of dataset B
 
         # sort
         self.A_img_paths.sort(key=natural_keys)
-        self.A_label_paths.sort(key=natural_keys)
+        self.A_label_mask_paths.sort(key=natural_keys)
         self.B_img_paths.sort(key=natural_keys)
-        self.B_label_paths.sort(key=natural_keys)
+        self.B_label_mask_paths.sort(key=natural_keys)
 
     def get_img(
         self,
@@ -84,7 +94,7 @@ class TemporalDataset(BaseDataset):
 
             cur_A_img_path, cur_A_label_path = (
                 self.A_img_paths[cur_index_A],
-                self.A_label_paths[cur_index_A],
+                self.A_label_mask_paths[cur_index_A],
             )
 
             if self.opt.data_relative_paths:
@@ -126,9 +136,11 @@ class TemporalDataset(BaseDataset):
             images_A.append(cur_A_img)
             labels_A.append(cur_A_label)
 
-        images_A, _ = self.transform(images_A, labels_A)
+        images_A, labels_A = self.transform(images_A, labels_A)
 
         images_A = torch.stack(images_A)
+
+        labels_A = torch.stack(labels_A)
 
         index_B = random.randint(0, self.range_B - 1)
 
@@ -149,7 +161,7 @@ class TemporalDataset(BaseDataset):
 
             cur_B_img_path, cur_B_label_path = (
                 self.B_img_paths[cur_index_B],
-                self.B_label_paths[cur_index_B],
+                self.B_label_mask_paths[cur_index_B],
             )
 
             if self.opt.data_relative_paths:
@@ -192,8 +204,19 @@ class TemporalDataset(BaseDataset):
             images_B.append(cur_B_img)
             labels_B.append(cur_B_label)
 
-        images_B, _ = self.transform(images_B, labels_B)
+        images_B, labels_B = self.transform(images_B, labels_B)
 
         images_B = torch.stack(images_B)
 
-        return {"A": images_A, "B": images_B}
+        labels_B = torch.stack(labels_B)
+
+        result = {"A": images_A, "B": images_B}
+
+        result.update(
+            {
+                "A_label_mask": labels_A,
+                "B_label_mask": labels_B,
+            }
+        )
+
+        return result

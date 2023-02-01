@@ -532,6 +532,9 @@ class BaseOptions:
                 "self_supervised_labeled_mask_online",
                 "unaligned_labeled_mask_cls_online",
                 "aligned",
+                "nuplet_unaligned_labeled_mask",
+                "temporal",
+                "self_supervised_temporal",
             ],
             help="chooses how datasets are loaded.",
         )
