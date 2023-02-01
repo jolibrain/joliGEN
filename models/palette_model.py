@@ -2,6 +2,7 @@ import torch
 import tqdm
 import copy
 import warnings
+import random
 
 
 from .base_diffusion_model import BaseDiffusionModel
@@ -9,6 +10,7 @@ from util.network_group import NetworkGroup
 from util.iter_calculator import IterCalculator
 from . import diffusion_networks
 from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
+from data.online_creation import fill_mask_with_color
 
 
 class PaletteModel(BaseDiffusionModel):
@@ -24,6 +26,7 @@ class PaletteModel(BaseDiffusionModel):
             default=1.0,
             help="weight for supervised loss",
         )
+
         parser.add_argument(
             "--alg_palette_loss",
             type=str,
@@ -38,12 +41,20 @@ class PaletteModel(BaseDiffusionModel):
             default=-1,
             help="nb of examples processed for inference",
         )
+
         parser.add_argument(
             "--alg_palette_cond_image_creation",
             type=str,
             default="y_t",
-            choices=["y_t", "sketch", "edges"],
+            choices=["y_t", "sketch", "edges", "previous_frame"],
             help="how cond_image is created",
+        )
+
+        parser.add_argument(
+            "--alg_palette_prob_use_previous_frame",
+            type=float,
+            default=0.5,
+            help="prob to use previous frame as y cond",
         )
 
         return parser
@@ -54,11 +65,17 @@ class PaletteModel(BaseDiffusionModel):
         if self.opt.alg_palette_inference_num == -1:
             self.inference_num = self.opt.train_batch_size
         else:
-            self.inference_num = self.opt.alg_palette_inference_num
+            self.inference_num = min(
+                self.opt.alg_palette_inference_num, self.opt.train_batch_size
+            )
 
         # Visuals
         visual_outputs = []
-        self.gen_visual_names = ["gt_image_", "cond_image_", "mask_", "output_"]
+        self.gen_visual_names = ["gt_image_", "cond_image_", "y_t_", "mask_", "output_"]
+
+        if self.opt.alg_palette_cond_image_creation == "previous_frame":
+            self.gen_visual_names.insert(0, "previous_frame_")
+
         for k in range(self.inference_num):
             self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
 
@@ -133,16 +150,44 @@ class PaletteModel(BaseDiffusionModel):
     def set_input(self, data):
         """must use set_device in tensor"""
 
-        self.y_t = data["A"].to(self.device)
-        self.gt_image = data["B"].to(self.device)
-        self.mask = data["B_label_mask"].to(self.device)
+        if (
+            len(data["A"].to(self.device).shape) == 5
+        ):  # we're using temporal successive frames
+            self.previous_frame = data["A"].to(self.device)[:, 0]
+            self.y_t = data["A"].to(self.device)[:, 1]
+            self.gt_image = data["B"].to(self.device)[:, 1]
+            self.previous_frame_mask = torch.clamp(
+                data["B_label_mask"], min=0, max=1
+            ).to(self.device)[:, 0]
+            self.mask = torch.clamp(data["B_label_mask"], min=0, max=1).to(self.device)[
+                :, 1
+            ]
+        else:
+            self.y_t = data["A"].to(self.device)
+            self.gt_image = data["B"].to(self.device)
+            self.mask = torch.clamp(data["B_label_mask"], min=0, max=1).to(self.device)
 
         if self.opt.alg_palette_cond_image_creation == "y_t":
-            self.cond_image = data["A"].to(self.device)
+            self.cond_image = self.y_t
         elif self.opt.alg_palette_cond_image_creation == "sketch":
             self.cond_image = fill_img_with_sketch(self.gt_image, self.mask)
         elif self.opt.alg_palette_cond_image_creation == "edges":
             self.cond_image = fill_img_with_edges(self.gt_image, self.mask)
+        elif self.opt.alg_palette_cond_image_creation == "previous_frame":
+            cond_image_list = []
+
+            for cur_frame, cur_mask in zip(
+                self.previous_frame.cpu(),
+                self.previous_frame_mask.cpu(),
+            ):
+                if random.random() < self.opt.alg_palette_prob_use_previous_frame:
+                    cond_image_list.append(cur_frame.to(self.device))
+                else:
+                    cond_image_list.append(
+                        -1 * torch.ones_like(cur_frame, device=self.device)
+                    )
+
+                self.cond_image = torch.stack(cond_image_list)
 
         self.batch_size = self.cond_image.shape[0]
 
