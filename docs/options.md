@@ -65,10 +65,11 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, sketch, edges_ |
+| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, sketch, edges, previous_frame_ |
 | --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
 | --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE_ |
+| --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
 
 ### GAN model
 
@@ -123,7 +124,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, aligned_ |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal, self_supervised_temporal_ |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/>_**Values:** AtoB, BtoA_ |
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
