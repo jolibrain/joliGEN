@@ -121,12 +121,17 @@ class Visualizer:
         """
         if self.display_id > 0:  # show images in the browser using visdom
             ncols = self.ncols
-            if ncols > 0:  # show all the images in one visdom panel
+            if ncols >= 0:  # show all the images in one visdom panel
                 max_ncol = 0
                 for temp in visuals:
                     if max_ncol < len(temp):
                         max_ncol = len(temp)
-                ncols = min(ncols, max_ncol)
+
+                if ncols == 0:
+                    ncols = max_ncol
+                else:
+                    ncols = min(ncols, max_ncol)
+
                 h, w = next(iter(visuals[0].values())).shape[:2]
                 table_css = """<style>
                         table {border-collapse: separate; border-spacing: 4px; white-space: nowrap; text-align: center}

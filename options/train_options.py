@@ -21,8 +21,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument(
             "--output_display_ncols",
             type=int,
-            default=4,
-            help="if positive, display all images in a single visdom web panel with certain number of images per row.",
+            default=0,
+            help="if positive, display all images in a single visdom web panel with certain number of images per row.(if == 0 ncols will be computed automatically)",
         )
         parser.add_argument(
             "--output_display_id",
