@@ -110,6 +110,9 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
 
         visualizer.print_networks(nets=model.get_nets(), verbose=opt.output_verbose)
 
+        if opt.train_continue:
+            opt.train_epoch_count = visualizer.load_data()
+
     total_iters = 0  # the total number of training iterations
 
     if rank_0 and opt.train_compute_fid_val:

@@ -39,6 +39,21 @@ class TemporalDataset(BaseDataset):
             self.dir_B, "/paths.txt"
         )  # load images from '/path/to/data/trainB'
 
+        # sort
+        self.A_img_paths.sort(key=natural_keys)
+        self.A_label_mask_paths.sort(key=natural_keys)
+        self.B_img_paths.sort(key=natural_keys)
+        self.B_label_mask_paths.sort(key=natural_keys)
+
+        self.A_img_paths, self.A_label_mask_paths = (
+            self.A_img_paths[: opt.data_max_dataset_size],
+            self.A_label_mask_paths[: opt.data_max_dataset_size],
+        )
+        self.B_img_paths, self.B_label_mask_paths = (
+            self.B_img_paths[: opt.data_max_dataset_size],
+            self.B_label_mask_paths[: opt.data_max_dataset_size],
+        )
+
         self.transform = get_transform_list(self.opt, grayscale=(self.input_nc == 1))
 
         self.num_A = len(self.A_img_paths)
@@ -51,17 +66,9 @@ class TemporalDataset(BaseDataset):
 
         self.opt = opt
 
-        # self.A_size = 1  # use to compute image path in base datset method (unused then)
-        # self.B_size = 1
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
         if os.path.exists(self.dir_B):
             self.B_size = len(self.B_img_paths)  # get the size of dataset B
-
-        # sort
-        self.A_img_paths.sort(key=natural_keys)
-        self.A_label_mask_paths.sort(key=natural_keys)
-        self.B_img_paths.sort(key=natural_keys)
-        self.B_label_mask_paths.sort(key=natural_keys)
 
     def get_img(
         self,
