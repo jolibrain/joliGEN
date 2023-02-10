@@ -649,8 +649,17 @@ class BaseOptions:
             type=int,
             default=[0],
             nargs="*",
-            help="mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square",
+            help="ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square",
         )
+
+        parser.add_argument(
+            "--data_online_creation_mask_random_offset_A",
+            type=float,
+            default=[0.0],
+            nargs="*",
+            help="ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square",
+        )
+
         parser.add_argument(
             "--data_online_creation_mask_square_A",
             action="store_true",
@@ -694,6 +703,15 @@ class BaseOptions:
             nargs="*",
             help="mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square",
         )
+
+        parser.add_argument(
+            "--data_online_creation_mask_random_offset_B",
+            type=float,
+            default=[0.0],
+            nargs="*",
+            help="mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square",
+        )
+
         parser.add_argument(
             "--data_online_creation_mask_square_B",
             action="store_true",
@@ -704,6 +722,13 @@ class BaseOptions:
             type=int,
             default=0,
             help="context pixel band around the crop, unused for generation, only for disc ",
+        )
+
+        parser.add_argument(
+            "--data_online_fixed_mask_size",
+            type=int,
+            default=-1,
+            help="if >0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing) ",
         )
 
         parser.add_argument(
