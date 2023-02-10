@@ -199,7 +199,7 @@ Here are all the available options to call with `train.py`
 | --output_display_env | string |  | visdom display environment name (default is "main") |
 | --output_display_freq | int | 400 | frequency of showing training results on screen |
 | --output_display_id | int | 1 | window id of the web display |
-| --output_display_ncols | int | 4 | if positive, display all images in a single visdom web panel with certain number of images per row. |
+| --output_display_ncols | int | 0 | if positive, display all images in a single visdom web panel with certain number of images per row.(if == 0 ncols will be computed automatically) |
 | --output_display_networks | flag |  | Set True if you want to display networks on port 8000 |
 | --output_display_port | int | 8097 | visdom port of the web display |
 | --output_display_server | string | http://localhost | visdom server of the web display |
