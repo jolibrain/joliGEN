@@ -8,6 +8,7 @@ from subprocess import Popen, PIPE
 from PIL import Image
 import json
 from torchinfo import summary
+import math
 
 if sys.version_info[0] == 2:
     VisdomExceptionBase = Exception
@@ -463,3 +464,13 @@ class Visualizer:
                 )
 
         print("-----------------------------------------------")
+
+    def load_data(self):
+        if os.path.isfile(self.losses_path):
+            with open(self.losses_path, "r") as fp:
+                self.plot_data = json.load(fp)
+            next_epoch = math.ceil(self.plot_data["X"][-1])
+        else:
+            next_epoch = self.opt.train_epoch_count
+
+        return next_epoch
