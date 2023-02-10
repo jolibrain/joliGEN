@@ -162,6 +162,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 self.A_img_paths,
                 self.A_label_mask_paths,
                 mask_delta=self.opt.data_online_creation_mask_delta_A,
+                mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                 crop_delta=self.opt.data_online_creation_crop_delta_A,
                 mask_square=self.opt.data_online_creation_mask_square_A,
                 crop_dim=self.opt.data_online_creation_crop_size_A,
@@ -183,6 +184,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     self.A_img_paths_val,
                     self.A_label_mask_paths_val,
                     mask_delta=self.opt.data_online_creation_mask_delta_A,
+                    mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                     crop_delta=self.opt.data_online_creation_crop_delta_A,
                     mask_square=self.opt.data_online_creation_mask_square_A,
                     crop_dim=self.opt.data_online_creation_crop_size_A,
@@ -204,6 +206,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     self.B_img_paths,
                     self.B_label_mask_paths,
                     mask_delta=self.opt.data_online_creation_mask_delta_B,
+                    mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
                     crop_delta=self.opt.data_online_creation_crop_delta_B,
                     mask_square=self.opt.data_online_creation_mask_square_B,
                     crop_dim=self.opt.data_online_creation_crop_size_B,
@@ -224,6 +227,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         self.B_img_paths_val,
                         self.B_label_mask_paths_val,
                         mask_delta=self.opt.data_online_creation_mask_delta_B,
+                        mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
                         crop_delta=self.opt.data_online_creation_crop_delta_B,
                         mask_square=self.opt.data_online_creation_mask_square_B,
                         crop_dim=self.opt.data_online_creation_crop_size_B,
@@ -252,11 +256,13 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         index=None,
     ):
         # Domain A
+
         try:
             A_img, A_label_mask = crop_image(
                 A_img_path,
                 A_label_mask_path,
                 mask_delta=self.opt.data_online_creation_mask_delta_A,
+                mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                 crop_delta=self.opt.data_online_creation_crop_delta_A,
                 mask_square=self.opt.data_online_creation_mask_square_A,
                 crop_dim=self.opt.data_online_creation_crop_size_A,
@@ -264,6 +270,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 context_pixels=self.opt.data_online_context_pixels,
                 load_size=self.opt.data_online_creation_load_size_A,
                 select_cat=self.opt.data_online_select_category,
+                fixed_mask_size=self.opt.data_online_fixed_mask_size,
             )
 
         except Exception as e:
@@ -291,12 +298,14 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         B_img_path,
                         B_label_mask_path,
                         mask_delta=self.opt.data_online_creation_mask_delta_B,
+                        mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
                         crop_delta=self.opt.data_online_creation_crop_delta_B,
                         mask_square=self.opt.data_online_creation_mask_square_B,
                         crop_dim=self.opt.data_online_creation_crop_size_B,
                         output_dim=self.opt.data_load_size,
                         context_pixels=self.opt.data_online_context_pixels,
                         load_size=self.opt.data_online_creation_load_size_B,
+                        fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     )
                     B, B_label_mask = self.transform(B_img, B_label_mask)
 

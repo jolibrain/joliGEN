@@ -13,6 +13,7 @@ import os
 def crop_image(
     img_path,
     bbox_path,
+    mask_random_offset,
     mask_delta,
     crop_delta,
     mask_square,
@@ -24,6 +25,7 @@ def crop_image(
     crop_coordinates=None,
     select_cat=-1,
     crop_center=False,
+    fixed_mask_size=-1,
 ):
 
     margin = context_pixels * 2
@@ -102,6 +104,23 @@ def crop_image(
                 xmin -= mask_delta_x
                 xmax += mask_delta_x
 
+            if len(mask_random_offset) == 1:
+                mask_random_offset_x = mask_random_offset[0]
+                mask_random_offset_y = mask_random_offset[0]
+            elif len(mask_random_offset) == 2:
+                mask_random_offset_x = mask_random_offset[0]
+                mask_random_offset_y = mask_random_offset[1]
+
+            # from ratio to pixel gap
+            mask_random_offset_x = mask_random_offset_x * (xmax - xmin)
+            mask_random_offset_y = mask_random_offset_y * (ymax - ymin)
+
+            if mask_random_offset_x > 0 or mask_random_offset_y > 0:
+                ymin -= random.randint(0, mask_random_offset_y)
+                ymax += random.randint(0, mask_random_offset_y)
+                xmin -= random.randint(0, mask_random_offset_x)
+                xmax += random.randint(0, mask_random_offset_x)
+
             if mask_square:
                 sdiff = (xmax - xmin) - (ymax - ymin)
                 if sdiff > 0:
@@ -110,6 +129,16 @@ def crop_image(
                 else:
                     xmax += -int(sdiff / 2)
                     xmin -= -int(sdiff / 2)
+
+            if fixed_mask_size > 0:
+                xdiff = fixed_mask_size - (xmax - xmin)
+                ydiff = fixed_mask_size - (ymax - ymin)
+
+                ymax += int(ydiff / 2)
+                ymin -= int(ydiff / 2)
+
+                xmax += int(xdiff / 2)
+                xmin -= int(xdiff / 2)
 
             xmin = max(0, xmin)
             ymin = max(0, ymin)
@@ -321,6 +350,7 @@ def fill_mask_with_color(img, mask, colors):
 def sanitize_paths(
     paths_img,
     paths_bb,
+    mask_random_offset,
     mask_delta,
     crop_delta,
     mask_square,
@@ -357,6 +387,7 @@ def sanitize_paths(
                     crop_image(
                         path_img,
                         path_bb,
+                        mask_random_offset=mask_random_offset,
                         mask_delta=mask_delta,
                         crop_delta=0,
                         mask_square=mask_square,

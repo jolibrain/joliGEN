@@ -123,6 +123,7 @@ class TemporalDataset(BaseDataset):
                         cur_A_img_path,
                         cur_A_label_path,
                         mask_delta=self.opt.data_online_creation_mask_delta_A,
+                        mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                         crop_delta=self.opt.data_online_creation_crop_delta_A,
                         mask_square=self.opt.data_online_creation_mask_square_A,
                         crop_dim=self.opt.data_online_creation_crop_size_A,
@@ -130,11 +131,13 @@ class TemporalDataset(BaseDataset):
                         context_pixels=self.opt.data_online_context_pixels,
                         load_size=self.opt.data_online_creation_load_size_A,
                         get_crop_coordinates=True,
+                        fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     )
                 cur_A_img, cur_A_label = crop_image(
                     cur_A_img_path,
                     cur_A_label_path,
                     mask_delta=self.opt.data_online_creation_mask_delta_A,
+                    mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                     crop_delta=self.opt.data_online_creation_crop_delta_A,
                     mask_square=self.opt.data_online_creation_mask_square_A,
                     crop_dim=self.opt.data_online_creation_crop_size_A,
@@ -142,6 +145,7 @@ class TemporalDataset(BaseDataset):
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_A,
                     crop_coordinates=crop_coordinates,
+                    fixed_mask_size=self.opt.data_online_fixed_mask_size,
                 )
 
             except Exception as e:
@@ -209,6 +213,7 @@ class TemporalDataset(BaseDataset):
                         cur_B_img_path,
                         cur_B_label_path,
                         mask_delta=self.opt.data_online_creation_mask_delta_B,
+                        mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
                         crop_delta=self.opt.data_online_creation_crop_delta_B,
                         mask_square=self.opt.data_online_creation_mask_square_B,
                         crop_dim=self.opt.data_online_creation_crop_size_B,
@@ -216,6 +221,7 @@ class TemporalDataset(BaseDataset):
                         context_pixels=self.opt.data_online_context_pixels,
                         load_size=self.opt.data_online_creation_load_size_B,
                         crop_coordinates=crop_coordinates,
+                        fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     )
 
                 except Exception as e:
