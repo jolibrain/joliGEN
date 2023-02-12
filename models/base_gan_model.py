@@ -509,7 +509,7 @@ class BaseGanModel(BaseModel):
             getattr(self, real_name), self.netfreeze_depth, self.opt.model_depth_network
         )
         fake_depth_interp = torch.nn.functional.interpolate(
-            fake_depth.unsqueeze(0),
+            fake_depth.unsqueeze(1),
             size=getattr(self, fake_name).shape[2:],
             mode="bilinear",
         )
@@ -518,7 +518,7 @@ class BaseGanModel(BaseModel):
         ) / fake_depth_interp.max()
         setattr(self, "fake_depth_B", fake_depth_interp)
         real_depth_interp = torch.nn.functional.interpolate(
-            real_depth.unsqueeze(0),
+            real_depth.unsqueeze(1),
             size=getattr(self, real_name).shape[2:],
             mode="bilinear",
         )
