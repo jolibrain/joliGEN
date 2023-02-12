@@ -8,7 +8,7 @@ class PatchSampleF(nn.Module):
         # potential issues: currently, we use the same patch_ids for multiple images in the batch
         super(PatchSampleF, self).__init__()
         self.use_mlp = use_mlp
-        self.nc = nc  # hard-coded
+        self.nc = nc
         self.mlp_init = False
         self.init_type = init_type
         self.init_gain = init_gain

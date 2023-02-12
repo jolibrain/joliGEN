@@ -165,6 +165,15 @@ class BaseOptions:
                 "DPT_Large",
                 "DPT_Hybrid",  # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
                 "MiDaS_small",
+                "DPT_BEiT_L_512",
+                "DPT_BEiT_L_384",
+                "DPT_BEiT_B_384",
+                "DPT_SwinV2_L_384",
+                "DPT_SwinV2_B_384",
+                "DPT_SwinV2_T_256",
+                "DPT_Swin_L_384",
+                "DPT_Next_ViT_L_384",
+                "DPT_LeViT_224",
             ],  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
             help="specify depth prediction network architecture",
         )

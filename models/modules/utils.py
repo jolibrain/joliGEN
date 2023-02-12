@@ -231,7 +231,7 @@ def download_segformer_weight(path):
 
 
 def download_midas_weight(model_type="DPT_Large"):
-    midas = torch.hub.load("intel-isl/MiDaS:v3", model_type)
+    midas = torch.hub.load("intel-isl/MiDaS:v3_1", model_type)
     midas.requires_grad_(False)
     midas.eval()
     return midas
@@ -240,12 +240,16 @@ def download_midas_weight(model_type="DPT_Large"):
 def predict_depth(img, midas, model_type):
     # img must be RGB
     input_size = 384
-    if model_type == "MiDas_small":
+    if model_type == "MiDas_small" or model_type == "DPT_SwinV2_T_256":
         input_size = 256
+    elif model_type == "DPT_BEiT_L_512":
+        input_size = 512
+    elif model_type == "DPT_LeViT_224":
+        input_size = 224
     transform = transforms.Compose(
         [
-            transforms.Resize(384),
+            transforms.Resize(input_size),
         ]
     )
-    prediction = midas(transform(img))
+    prediction = midas(transform(img))  # .unsqueeze(dim=1)
     return prediction
