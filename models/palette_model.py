@@ -238,3 +238,29 @@ class PaletteModel(BaseDiffusionModel):
         super().compute_visuals()
         with torch.no_grad():
             self.inference()
+
+    def get_dummy_input(self, device=None):
+        if device is None:
+            device = self.device
+
+        input_nc = self.opt.model_input_nc
+        if self.opt.model_multimodal:
+            input_nc += self.opt.train_mm_nz
+
+        dummy_y_0 = torch.randn(
+            1, input_nc, self.opt.data_crop_size, self.opt.data_crop_size, device=device
+        )
+
+        dummy_y_cond = torch.randn(
+            1, input_nc, self.opt.data_crop_size, self.opt.data_crop_size, device=device
+        )
+
+        dummy_mask = torch.randn(
+            1, 1, self.opt.data_crop_size, self.opt.data_crop_size, device=device
+        )
+
+        dummy_noise = None
+
+        dummy_input = (dummy_y_0, dummy_y_cond, dummy_mask, dummy_noise)
+
+        return dummy_input

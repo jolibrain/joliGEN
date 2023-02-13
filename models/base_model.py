@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from . import gan_networks, semantic_networks
 from .modules.utils import get_scheduler
 from torchviz import make_dot
+from thop import profile
 
 
 from util.network_group import NetworkGroup
@@ -16,7 +17,7 @@ from .modules.fid.pytorch_fid.fid_score import (
     _compute_statistics_of_path,
     calculate_frechet_distance,
 )
-from util.util import save_image, tensor2im
+from util.util import save_image, tensor2im, delete_flop_param
 import numpy as np
 from util.diff_aug import DiffAugment
 from . import base_networks
@@ -1319,3 +1320,20 @@ class BaseModel(ABC):
         self.input_A_label_cls = self.input_A_label_cls[: self.bs_per_gpu]
         if hasattr(self, "input_B_label_cls"):
             self.input_B_label_cls = self.input_B_label_cls[: self.bs_per_gpu]
+
+    def print_flop(self):
+        model_name = "netG_A"
+        model = getattr(self, model_name)
+        input = self.get_dummy_input()
+
+        if torch.is_tensor(input):
+            input = (input,)
+
+        macs, params = profile(model, inputs=(input))
+
+        print(
+            "Network %s has %d M macs and %d M params."
+            % (model_name, macs / 1e6, params / 1e6)
+        )
+
+        delete_flop_param(model)
