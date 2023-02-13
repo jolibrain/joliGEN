@@ -35,6 +35,9 @@ class BaseDataset(data.Dataset, ABC):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         self.opt = opt
+
+        self.use_domain_B = not "self_supervised" in self.opt.data_dataset_mode
+
         self.root = opt.dataroot
         self.sv_dir = os.path.join(opt.checkpoints_dir, opt.name)
         self.warning_mode = self.opt.warning_mode
@@ -146,16 +149,21 @@ class BaseDataset(data.Dataset, ABC):
             self.dir_A = os.path.join(
                 self.opt.dataroot, self.opt.phase + "A"
             )  # create a path '/path/to/data/trainA'
-            self.dir_B = os.path.join(
-                self.opt.dataroot, self.opt.phase + "B"
-            )  # create a path '/path/to/data/trainB'
+
+            if self.use_domain_B:
+
+                self.dir_B = os.path.join(
+                    self.opt.dataroot, self.opt.phase + "B"
+                )  # create a path '/path/to/data/trainB'
         else:
             self.dir_A = os.path.join(
                 self.opt.dataroot, self.opt.phase + "B"
             )  # create a path '/path/to/data/trainB'
-            self.dir_B = os.path.join(
-                self.opt.dataroot, self.opt.phase + "A"
-            )  # create a path '/path/to/data/trainA'
+
+            if self.use_domain_B:
+                self.dir_B = os.path.join(
+                    self.opt.dataroot, self.opt.phase + "A"
+                )  # create a path '/path/to/data/trainA'
 
     def get_validation_set(self, size):
         return_A_list = []
