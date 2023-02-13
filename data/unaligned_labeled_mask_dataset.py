@@ -42,7 +42,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
 
-        if os.path.exists(self.dir_B):
+        if self.use_domain_B and os.path.exists(self.dir_B):
             self.B_img_paths, self.B_label = make_labeled_path_dataset(
                 self.dir_B, "/paths.txt", opt.data_max_dataset_size
             )  # load images from '/path/to/data/trainB'
@@ -56,7 +56,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         for label in self.A_label:
             self.A_label_mask_paths.append(label.split(" ")[-1])
 
-        if hasattr(self, "B_label"):
+        if self.use_domain_B and hasattr(self, "B_label"):
             for label in self.B_label:
                 self.B_label_mask_paths.append(label.split(" ")[-1])
 

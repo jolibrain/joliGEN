@@ -57,7 +57,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 opt.dataroot, "/paths.txt"
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
 
-        if os.path.exists(self.dir_B):
+        if self.use_domain_B and os.path.exists(self.dir_B):
             self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
                 self.dir_B, "/paths.txt"
             )  # load images from '/path/to/data/trainB'
@@ -81,14 +81,14 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 self.A_img_paths[: opt.data_max_dataset_size],
                 self.A_label_mask_paths[: opt.data_max_dataset_size],
             )
-            if os.path.exists(self.dir_B):
+            if self.use_domain_B and os.path.exists(self.dir_B):
                 self.B_img_paths, self.B_label_mask_paths = (
                     self.B_img_paths[: opt.data_max_dataset_size],
                     self.B_label_mask_paths[: opt.data_max_dataset_size],
                 )
 
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
-        if os.path.exists(self.dir_B):
+        if self.use_domain_B and os.path.exists(self.dir_B):
             self.B_size = len(self.B_img_paths)  # get the size of dataset B
 
         self.transform = get_transform_seg(self.opt, grayscale=(self.input_nc == 1))
