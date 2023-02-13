@@ -224,6 +224,16 @@ def crop_image(
         x_crop = random.randint(x_crop_min, x_crop_max)
         y_crop = random.randint(y_crop_min, y_crop_max)
 
+        if (
+            x_crop < context_pixels
+            or x_crop + crop_size + context_pixels > img.shape[1]
+            or y_crop < context_pixels
+            or y_crop + crop_size + context_pixels > img.shape[0]
+        ):
+            raise ValueError(
+                f"Image cropping failed for {img_path}.",
+            )
+
         if get_crop_coordinates:
             return x_crop - x_min_ref, y_crop - y_min_ref, crop_size
 
@@ -232,15 +242,17 @@ def crop_image(
         x_crop = x_crop + x_min_ref
         y_crop = y_crop + y_min_ref
 
-    if (
-        x_crop < context_pixels
-        or x_crop + crop_size + context_pixels > img.shape[1]
-        or y_crop < context_pixels
-        or y_crop + crop_size + context_pixels > img.shape[0]
-    ):
-        raise ValueError(
-            f"Image cropping failed for {img_path}.",
-        )
+        if x_crop < context_pixels:
+            x_crop = context_pixels
+
+        if x_crop + crop_size + context_pixels > img.shape[1]:
+            x_crop = img.shape[1] - (crop_size + context_pixels)
+
+        if y_crop < context_pixels:
+            y_crop = context_pixels
+
+        if y_crop + crop_size + context_pixels > img.shape[0]:
+            y_crop = img.shape[0] - (crop_size + context_pixels)
 
     img = img[
         y_crop - context_pixels : y_crop + crop_size + context_pixels,
