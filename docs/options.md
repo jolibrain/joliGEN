@@ -209,7 +209,7 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| --model_depth_network | string | DPT_Large | specify depth prediction network architecture<br/><br/>_**Values:** DPT_Large, DPT_Hybrid, MiDaS_small_ |
+| --model_depth_network | string | DPT_Large | specify depth prediction network architecture<br/><br/>_**Values:** DPT_Large, DPT_Hybrid, MiDaS_small, DPT_BEiT_L_512, DPT_BEiT_L_384, DPT_BEiT_B_384, DPT_SwinV2_L_384, DPT_SwinV2_B_384, DPT_SwinV2_T_256, DPT_Swin_L_384, DPT_Next_ViT_L_384, DPT_LeViT_224_ |
 | --model_init_gain | float | 0.02 | scaling factor for normal, xavier and orthogonal. |
 | --model_init_type | string | normal | network initialization<br/><br/>_**Values:** normal, xavier, kaiming, orthogonal_ |
 | --model_input_nc | int | 3 | \# of input image channels: 3 for RGB and 1 for grayscale<br/><br/>_**Values:** 1, 3_ |
