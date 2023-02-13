@@ -184,3 +184,14 @@ def flatten_json(src_json, flat_json=None, prefix=""):
         else:
             flat_json[prefix + key] = src_json[key]
     return flat_json
+
+
+def delete_flop_param(module):
+    if hasattr(module, "total_ops"):
+        del module.total_ops
+
+    if hasattr(module, "total_params"):
+        del module.total_params
+
+    for child in module.children():
+        delete_flop_param(child)
