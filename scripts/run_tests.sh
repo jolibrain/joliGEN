@@ -92,6 +92,14 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+###### diffusion process test online
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 ####### mask cls semantics test
 echo "Running mask and class semantics training tests"
 URL=https://www.deepdetect.com/joligan/datasets/daytime2dawn_dusk_lite.zip
