@@ -10,15 +10,15 @@ import warnings
 import os
 
 
-def crop_image(
-    img_path,
+def create_mask(
     bbox_path,
+    select_cat,
+    shape,
+    ratio_x,
+    ratio_y,
     mask_random_offset,
     mask_delta,
-    crop_delta,
     mask_square,
-    crop_dim,
-    output_dim,
     context_pixels,
     load_size,
     get_crop_coordinates=False,
@@ -27,24 +27,6 @@ def crop_image(
     crop_center=False,
     fixed_mask_size=-1,
 ):
-
-    margin = context_pixels * 2
-
-    try:
-        img = Image.open(img_path)
-        if load_size != []:
-            old_size = img.size
-            img = F.resize(img, load_size)
-            new_size = img.size
-            ratio_x = img.size[0] / old_size[0]
-            ratio_y = img.size[1] / old_size[1]
-        else:
-            ratio_x = 1
-            ratio_y = 1
-
-        img = np.array(img)
-    except Exception as e:
-        raise ValueError(f"failure with loading image {img_path}") from e
 
     try:
         f = open(bbox_path, "r")
@@ -74,7 +56,7 @@ def crop_image(
             raise ValueError(f"There is no bbox at {bbox_path} for image {img_path}.")
 
         # Creation of a blank mask
-        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        mask = np.zeros(shape[:2], dtype=np.uint8)
 
         # A bbox of reference will be used to compute the crop
         idx_bbox_ref = random.randint(0, len(bboxes) - 1)
@@ -142,8 +124,8 @@ def crop_image(
 
             xmin = max(0, xmin)
             ymin = max(0, ymin)
-            xmax = min(xmax, img.shape[1])
-            ymax = min(ymax, img.shape[0])
+            xmax = min(xmax, shape[1])
+            ymax = min(ymax, shape[0])
 
             mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
 
@@ -156,14 +138,14 @@ def crop_image(
                 if (
                     x_min_ref < context_pixels
                     or y_min_ref < context_pixels
-                    or x_max_ref + context_pixels > img.shape[1]
-                    or y_max_ref + context_pixels > img.shape[0]
+                    or x_max_ref + context_pixels > shape[1]
+                    or y_max_ref + context_pixels > shape[0]
                 ):
                     new_context_pixels = min(
                         x_min_ref,
                         y_min_ref,
-                        img.shape[1] - x_max_ref,
-                        img.shape[0] - y_max_ref,
+                        shape[1] - x_max_ref,
+                        shape[0] - y_max_ref,
                     )
 
                     warnings.warn(
@@ -171,6 +153,54 @@ def crop_image(
                     )
 
                     context_pixels = new_context_pixels
+
+    return (mask, x_min_ref, x_max_ref, y_min_ref, y_max_ref, context_pixels)
+
+
+def crop_image(
+    img_path,
+    bbox_path,
+    mask_delta,
+    crop_delta,
+    mask_square,
+    crop_dim,
+    output_dim,
+    context_pixels,
+    load_size,
+    get_crop_coordinates=False,
+    crop_coordinates=None,
+    select_cat=-1,
+    crop_center=False,
+):
+
+    margin = context_pixels * 2
+
+    try:
+        img = Image.open(img_path)
+        if load_size != []:
+            old_size = img.size
+            img = F.resize(img, load_size)
+            new_size = img.size
+            ratio_x = img.size[0] / old_size[0]
+            ratio_y = img.size[1] / old_size[1]
+        else:
+            ratio_x = 1
+            ratio_y = 1
+
+        img = np.array(img)
+    except Exception as e:
+        raise ValueError(f"failure with loading image {img_path}") from e
+
+    mask, x_min_ref, x_max_ref, y_min_ref, y_max_ref, context_pixels = create_mask(
+        bbox_path,
+        select_cat,
+        shape=img.shape,
+        ratio_x=ratio_x,
+        ratio_y=ratio_y,
+        mask_delta=mask_delta,
+        mask_square=mask_square,
+        context_pixels=context_pixels,
+    )
 
     height = y_max_ref - y_min_ref
     width = x_max_ref - x_min_ref

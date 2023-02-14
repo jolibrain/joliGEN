@@ -75,6 +75,12 @@ class DiffusionOptions:
 
         self.parser.add_argument("--name", help="generated img name", default="img")
 
+        self.parser.add_argument(
+            "--reconstruction_guidance",
+            action="store_true",
+            help="whether to use reconstruction_guidance",
+        )
+
     def parse(self):
         args = self.parser.parse_args()
         return args

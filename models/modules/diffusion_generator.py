@@ -99,7 +99,6 @@ class DiffusionGenerator(nn.Module):
         #### TODO add reconstruction guidance
 
         if x_a is not None:
-
             omega_t = 2.0
 
             alpha_t = self.extract(

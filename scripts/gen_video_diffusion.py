@@ -100,6 +100,7 @@ if __name__ == "__main__":
     assert out.isOpened()
 
     args.previous_frame = None
+    args.previous_frame_bbox_in = None
 
     for i, (image, label) in tqdm(enumerate(zip(images, labels)), total=len(images)):
 
@@ -124,8 +125,11 @@ if __name__ == "__main__":
 
         frame = generate(**vars(args))
 
+        args.previous_frame_bbox_in = label
+
         if args.cond == "previous":  # use_real_previous:
             args.previous_frame = image
+
         elif args.cond == "generated":
             if i == 0:
                 args.previous_frame = image

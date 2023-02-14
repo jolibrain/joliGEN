@@ -15,7 +15,12 @@ from tqdm import tqdm
 sys.path.append("../")
 from models import diffusion_networks
 from options.train_options import TrainOptions
-from data.online_creation import fill_mask_with_random, fill_mask_with_color, crop_image
+from data.online_creation import (
+    fill_mask_with_random,
+    fill_mask_with_color,
+    crop_image,
+    create_mask,
+)
 from models.modules.diffusion_utils import set_new_noise_schedule
 from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
 from diffusion_options import DiffusionOptions
@@ -36,8 +41,8 @@ def load_model(modelpath, model_in_file, device, sampling_steps):
         opt.G_nblocks = 2
 
     model = diffusion_networks.define_G(**vars(opt))
-    model.eval()
-    model.load_state_dict(torch.load(modelpath + "/" + model_in_file))
+    # model.eval()
+    model.load_state_dict(torch.load(modelpath + "/" + model_in_file), strict=False)
 
     # sampling steps
     if sampling_steps > 0:
@@ -75,9 +80,11 @@ def generate(
     dir_out,
     write,
     previous_frame,
+    previous_frame_bbox_in,
     name,
     mask_delta,
     mask_square,
+    reconstruction_guidance,
     **unused_options,
 ):
 
@@ -115,6 +122,7 @@ def generate(
     # reading image
     img = cv2.imread(img_in)
     img_orig = img.copy()
+
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # reading the mask
@@ -123,7 +131,6 @@ def generate(
 
     bboxes = []
     if bbox_in:
-
         # mask = np.zeros(img.shape[:2], dtype=np.uint8)
         with open(bbox_in, "r") as bboxf:
             for line in bboxf:
@@ -237,7 +244,6 @@ def generate(
         img, mask = np.array(img), np.array(mask)
 
     if img_width and img_height > 0:
-
         img = cv2.resize(img, (img_width, img_height))
 
         mask = cv2.resize(mask, (img_width, img_height))
@@ -297,6 +303,64 @@ def generate(
         cond_image = fill_img_with_edges(img_tensor.unsqueeze(0), mask.unsqueeze(0))
 
     # run through model
+    if (
+        reconstruction_guidance
+        and previous_frame is not None
+        and previous_frame_bbox_in is not None
+    ):
+
+        previous_frame_mask, _, _, _, _, _ = create_mask(
+            previous_frame_bbox_in,
+            select_cat=-1,
+            shape=img_orig.shape,
+            ratio_x=1,
+            ratio_y=1,
+            mask_delta=mask_delta,
+            mask_square=mask_square,
+            context_pixels=opt.data_online_context_pixels,
+        )
+
+        """crop_coordinates = crop_image(
+            img_path=img_in,
+            bbox_path=bbox_in,
+            mask_delta=mask_delta,  # =opt.data_online_creation_mask_delta_A,
+            crop_delta=0,
+            mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
+            output_dim=opt.data_load_size,
+            context_pixels=opt.data_online_context_pixels,
+            load_size=opt.data_online_creation_load_size_A,
+            get_crop_coordinates=True,
+            crop_center=True,
+        )"""
+
+        previous_frame_mask = previous_frame_mask[
+            bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
+        ]
+
+        previous_frame_mask = cv2.resize(
+            previous_frame_mask,
+            (opt.data_load_size, opt.data_load_size),
+            interpolation=cv2.INTER_NEAREST,
+        )
+
+        previous_frame_mask = torch.tensor(previous_frame_mask)
+
+        previous_frame_mask = (
+            previous_frame_mask.to(device).clone().detach().unsqueeze(0)
+        )
+
+        output_previous, _ = model.restoration(
+            y_cond=-1 * torch.ones_like(cond_image, device=cond_image.device),
+            y_t=previous_frame,
+            y_0=previous_frame,  # only used for background so we can take the previous frame generated or grount truth
+            mask=previous_frame_mask,
+            sample_num=2,
+        )
+        x_a = output_previous
+    else:
+        x_a = None
+
     y_t, cond_image, img_tensor, mask = (
         y_t.unsqueeze(0).clone().detach(),
         cond_image.clone().detach(),
@@ -304,14 +368,13 @@ def generate(
         torch.clamp(mask, min=0, max=1).unsqueeze(0).clone().detach(),
     )
 
-    with torch.no_grad():
+    out_tensor, visu = model.restoration(
+        y_cond=cond_image, y_t=y_t, y_0=img_tensor, mask=mask, sample_num=2, x_a=x_a
+    )
 
-        out_tensor, visu = model.restoration(
-            y_cond=cond_image, y_t=y_t, y_0=img_tensor, mask=mask, sample_num=2
-        )
-        out_img = to_np(
-            out_tensor
-        )  # out_img = out_img.detach().data.cpu().float().numpy()[0]
+    out_img = to_np(
+        out_tensor
+    )  # out_img = out_img.detach().data.cpu().float().numpy()[0]
 
     """ post-processing
     
@@ -360,6 +423,11 @@ if __name__ == "__main__":
     options.parser.add_argument(
         "--previous-frame", help="image to transform", default=None
     )
+
+    options.parser.add_argument(
+        "--previous-frame-bbox-in", help="image to transform", default=None
+    )
+
     options.parser.add_argument(
         "--mask-in", help="mask used for image transformation", required=False
     )
