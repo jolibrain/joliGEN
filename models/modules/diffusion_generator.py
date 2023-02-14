@@ -103,7 +103,7 @@ class DiffusionGenerator(nn.Module):
 
             alpha_t = self.extract(
                 getattr(self.denoise_fn, "alphas_" + phase), t, x_shape=(1, 1)
-            ).to(y_t.device)
+            ).to(y_t.device)[0]
 
             mse = nn.MSELoss()
 
