@@ -66,6 +66,8 @@ def set_new_noise_schedule(model, phase):
     betas = betas.detach().cpu().numpy() if isinstance(betas, torch.Tensor) else betas
     alphas = 1.0 - betas
 
+    model.register_buffer("alphas_" + phase, to_torch(alphas))
+
     (timesteps,) = betas.shape
     setattr(model, "num_timesteps_" + phase, int(timesteps))
 

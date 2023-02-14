@@ -60,6 +60,12 @@ class PaletteModel(BaseDiffusionModel):
             help="prob to use previous frame as y cond",
         )
 
+        parser.add_argument(
+            "--alg_palette_reconstruction_guidance",
+            action="store_true",
+            help="whether to use reconstruction guidance",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
@@ -76,7 +82,11 @@ class PaletteModel(BaseDiffusionModel):
         visual_outputs = []
         self.gen_visual_names = ["gt_image_", "cond_image_", "y_t_", "mask_", "output_"]
 
-        if self.opt.alg_palette_cond_image_creation == "previous_frame":
+        if (
+            self.opt.alg_palette_cond_image_creation == "previous_frame"
+            or self.opt.alg_palette_reconstruction_guidance
+        ):
+            self.gen_visual_names.insert(0, "output_previous_")
             self.gen_visual_names.insert(0, "previous_frame_")
 
         for k in range(self.inference_num):
@@ -170,8 +180,11 @@ class PaletteModel(BaseDiffusionModel):
             self.previous_frame = data["A"].to(self.device)[:, 0]
             self.y_t = data["A"].to(self.device)[:, 1]
             self.gt_image = data["B"].to(self.device)[:, 1]
+
+            self.previous_frame_gt_image = data["B"].to(self.device)[:, 0]
             self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
             self.mask = data["B_label_mask"].to(self.device)[:, 1]
+
         else:
             self.y_t = data["A"].to(self.device)
             self.gt_image = data["B"].to(self.device)
@@ -240,12 +253,27 @@ class PaletteModel(BaseDiffusionModel):
             netG = revert_sync_batchnorm(netG)
 
         if True or self.task in ["inpainting", "uncropping"]:
+            if self.opt.alg_palette_reconstruction_guidance:
+                self.output_previous, _ = netG.restoration(
+                    y_cond=-1
+                    * torch.ones_like(
+                        self.cond_image[: self.inference_num], device=self.device
+                    ),
+                    y_t=self.previous_frame[: self.inference_num],
+                    y_0=self.previous_frame_gt_image[: self.inference_num],
+                    mask=self.previous_frame_mask[: self.inference_num],
+                    sample_num=self.sample_num,
+                )
+            else:
+                self.output_previous = None
+
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[: self.inference_num],
                 y_t=self.y_t[: self.inference_num],
                 y_0=self.gt_image[: self.inference_num],
                 mask=self.mask[: self.inference_num],
                 sample_num=self.sample_num,
+                x_a=self.output_previous,
             )
         else:
             self.output, self.visuals = netG.restoration(
@@ -269,8 +297,7 @@ class PaletteModel(BaseDiffusionModel):
 
     def compute_visuals(self):
         super().compute_visuals()
-        with torch.no_grad():
-            self.inference()
+        self.inference()
 
     def get_dummy_input(self, device=None):
         if device is None:
