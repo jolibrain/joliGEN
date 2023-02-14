@@ -274,6 +274,7 @@ class BaseOptions:
         )
 
         parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
+        parser.add_argument("--G_unet_mha_num_heads", default=1, type=int)
         parser.add_argument(
             "--G_diff_n_timestep_train",
             type=int,
@@ -294,6 +295,14 @@ class BaseOptions:
             nargs="*",
             type=int,
             help="channel multiplier for each level of the UNET mha",
+        )
+
+        parser.add_argument(
+            "-G_unet_mha_attn_res",
+            default=[16],
+            nargs="*",
+            type=int,
+            help="downrate samples at which attention takes place",
         )
 
         # discriminator
