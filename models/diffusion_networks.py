@@ -17,20 +17,19 @@ def define_G(
     G_diff_n_timestep_test,
     G_dropout,
     G_ngf,
+    G_unet_mha_num_heads,
     G_unet_mha_num_head_channels,
+    G_unet_mha_channel_mults,
+    G_unet_mha_attn_res,
     G_attn_nb_mask_attn,
     G_attn_nb_mask_input,
     G_spectral,
     jg_dir,
     G_padding_type,
     G_config_segformer,
-    dropout=0,
-    channel_mults=(1, 2, 4, 8),
     conv_resample=True,
     use_checkpoint=False,
     use_fp16=False,
-    num_heads=1,
-    num_head_channels=-1,
     num_heads_upsample=-1,
     use_scale_shift_norm=True,
     resblock_updown=True,
@@ -67,12 +66,14 @@ def define_G(
             inner_channel=G_ngf,
             out_channel=model_output_nc,
             res_blocks=G_nblocks,
-            attn_res=[16],  # e.g.
+            attn_res=G_unet_mha_attn_res,
+            num_heads=G_unet_mha_num_heads,
+            num_head_channels=G_unet_mha_num_head_channels,
             tanh=False,
+            dropout=G_dropout,
             n_timestep_train=G_diff_n_timestep_train,
             n_timestep_test=G_diff_n_timestep_test,
-            channel_mults=(1, 2, 4, 8),  # e.g.
-            num_head_channels=G_unet_mha_num_head_channels,  # e.g. 32 in palette repo
+            channel_mults=G_unet_mha_channel_mults,
         )
 
     elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":
