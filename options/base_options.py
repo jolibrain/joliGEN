@@ -33,6 +33,7 @@ class BaseOptions:
                     "cut": {"title": "CUT model"},
                     "cyclegan": {"title": "CycleGAN model"},
                     "re": {"title": "ReCUT / ReCycleGAN"},
+                    "palette": {"title": "Diffusion model"},
                 },
             },
             "data": {
