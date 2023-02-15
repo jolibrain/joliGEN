@@ -346,8 +346,8 @@ def generate(
 
         previous_frame_mask = torch.tensor(previous_frame_mask)
 
-        previous_frame_mask = (
-            previous_frame_mask.to(device).clone().detach().unsqueeze(0)
+        previous_frame_mask = torch.clamp(
+            previous_frame_mask.to(device).clone().detach().unsqueeze(0), min=0, max=1
         )
 
         output_previous, _ = model.restoration(
