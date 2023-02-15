@@ -1332,8 +1332,8 @@ class BaseModel(ABC):
         macs, params = profile(model, inputs=(input))
 
         print(
-            "Network %s has %d M macs, %d flops and %d M params."
-            % (model_name, macs / 1e6, macs / 2e6, params / 1e6)
+            "Network %s has %d M macs, %d Gflops and %d M params."
+            % (model_name, macs / 1e6, macs * 2 / 1e9, params / 1e6)
         )
 
         delete_flop_param(model)
