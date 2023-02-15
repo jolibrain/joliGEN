@@ -14,3 +14,4 @@ einops
 torchinfo
 addict
 thop
+pydantic
