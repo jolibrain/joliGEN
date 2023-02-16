@@ -47,7 +47,7 @@ G_netG = ["unet_mha"]
 product_list = product(models_diffusion, G_netG)
 
 
-def test_semantic_mask(dataroot):
+def test_diffusion_online(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
     for model, Gtype in product_list:

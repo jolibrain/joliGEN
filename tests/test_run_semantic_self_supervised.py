@@ -51,7 +51,7 @@ f_s_net = ["unet", "segformer"]
 product_list = product(models_semantic_mask, G_netG, D_proj_network_type, f_s_net)
 
 
-def test_semantic_mask(dataroot):
+def test_semantic_self_supervised(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 
