@@ -65,13 +65,6 @@ Here are all the available options to call with `train.py`
 
 ## Algorithm-specific
 
-| Parameter | Type | Default | Description |
-| --- | --- | --- | --- |
-| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, sketch, edges, previous_frame_ |
-| --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
-| --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
-| --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE_ |
-| --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
 
 ### GAN model
 
@@ -120,6 +113,16 @@ Here are all the available options to call with `train.py`
 | --alg_re_no_train_P_fake_images | flag |  | if True, P wont be trained over fake images projections |
 | --alg_re_nuplet_size | int | 3 | Number of frames loaded |
 | --alg_re_projection_threshold | float | 1.0 | threshold of the real images projection loss below with fake projection and fake reconstruction losses are applied |
+
+### Diffusion model
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, sketch, edges, previous_frame_ |
+| --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
+| --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
+| --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE_ |
+| --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
 
 ## Datasets
 
