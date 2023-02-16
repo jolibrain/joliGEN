@@ -129,16 +129,18 @@ if __name__ == "__main__":
 
         if args.cond == "previous":  # use_real_previous:
             args.previous_frame = image
-
         elif args.cond == "generated":
             if i == 0:
                 args.previous_frame = image
                 # args.write = True
                 continue
             args.previous_frame = frame
-
         elif args.cond == "zero":
-            args.previous_frame = None
+            if i == 0:
+                if reconstruction_guidance:
+                    args.previous_frame = frame
+                else:
+                    args.previous_frame = None
 
         colored_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
 

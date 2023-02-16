@@ -85,6 +85,7 @@ def generate(
     mask_delta,
     mask_square,
     reconstruction_guidance,
+    cond,
     **unused_options,
 ):
 
@@ -276,25 +277,27 @@ def generate(
             img_tensor.clone().detach(), mask.clone().detach(), {}
         )
 
+    if previous_frame is not None:
+        if isinstance(previous_frame, str):
+            # load the previous frame
+            previous_frame = cv2.imread(previous_frame)
+
+        previous_frame = cv2.cvtColor(previous_frame, cv2.COLOR_BGR2RGB)
+        previous_frame = previous_frame[
+            bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
+        ]
+        previous_frame = cv2.resize(
+            previous_frame, (opt.data_load_size, opt.data_load_size)
+        )
+        previous_frame = tran(previous_frame)
+        previous_frame = previous_frame.to(device).clone().detach().unsqueeze(0)
+
     if opt.alg_palette_cond_image_creation == "previous_frame":
-        if previous_frame is not None:
-            if isinstance(previous_frame, str):
-                # load the previous frame
-                previous_frame = cv2.imread(previous_frame)
-
-            previous_frame = cv2.cvtColor(previous_frame, cv2.COLOR_BGR2RGB)
-            previous_frame = previous_frame[
-                bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
-            ]
-            previous_frame = cv2.resize(
-                previous_frame, (opt.data_load_size, opt.data_load_size)
-            )
-            previous_frame = tran(previous_frame)
-            previous_frame = previous_frame.to(device).clone().detach().unsqueeze(0)
-
-            cond_image = previous_frame
-        else:
+        if cond == "zero" or previous_frame is None:
             cond_image = -1 * torch.ones_like(y_t.unsqueeze(0), device=y_t.device)
+        else:
+            cond_image = previous_frame
+
     elif opt.alg_palette_cond_image_creation == "y_t":
         cond_image = y_t.unsqueeze(0)
     elif opt.alg_palette_cond_image_creation == "sketch":
