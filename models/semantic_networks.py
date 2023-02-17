@@ -9,7 +9,7 @@ from .modules.classifiers import (
 from .modules.UNet_classification import UNet
 from .modules.segformer.segformer_generator import Segformer
 
-from .modules.utils import init_net
+from .modules.utils import init_net, get_weights
 
 
 def define_C(
