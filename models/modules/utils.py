@@ -231,7 +231,7 @@ def download_segformer_weight(path):
 
 
 def download_midas_weight(model_type="DPT_Large"):
-    midas = torch.hub.load("intel-isl/MiDaS:v3_1", model_type)
+    midas = torch.hub.load("intel-isl/MiDaS:v3_1", model_type, skip_validation=True)
     midas.requires_grad_(False)
     midas.eval()
     return midas
