@@ -11,6 +11,7 @@ from .unet_attn_utils import (
     checkpoint,
     zero_module,
     normalization,
+    normalization1d,
     count_flops_attn,
 )
 
@@ -114,6 +115,7 @@ class ResBlock(EmbedBlock):
         channels,
         emb_channels,
         dropout,
+        norm,
         out_channel=None,
         use_conv=False,
         use_scale_shift_norm=False,
@@ -131,7 +133,7 @@ class ResBlock(EmbedBlock):
         self.use_scale_shift_norm = use_scale_shift_norm
 
         self.in_layers = nn.Sequential(
-            normalization(channels),
+            normalization(channels, norm),
             torch.nn.SiLU(),
             nn.Conv2d(channels, self.out_channel, 3, padding=1),
         )
@@ -155,7 +157,7 @@ class ResBlock(EmbedBlock):
             ),
         )
         self.out_layers = nn.Sequential(
-            normalization(self.out_channel),
+            normalization(self.out_channel, norm),
             torch.nn.SiLU(),
             nn.Dropout(p=dropout),
             zero_module(nn.Conv2d(self.out_channel, self.out_channel, 3, padding=1)),
@@ -230,7 +232,7 @@ class AttentionBlock(nn.Module):
             ), f"q,k,v channels {channels} is not divisible by num_head_channels {num_head_channels}"
             self.num_heads = channels // num_head_channels
         self.use_checkpoint = use_checkpoint
-        self.norm = normalization(channels)
+        self.norm = normalization1d(channels)
         self.qkv = nn.Conv1d(channels, channels * 3, 1)
         if use_new_attention_order:
             # split qkv before split heads
@@ -359,6 +361,8 @@ class UNet(nn.Module):
         tanh,
         n_timestep_train,
         n_timestep_test,
+        norm,
+        group_norm_size,
         dropout=0,
         channel_mults=(1, 2, 4, 8),
         conv_resample=True,
@@ -392,6 +396,9 @@ class UNet(nn.Module):
         self.num_head_channels = num_head_channels
         self.num_heads_upsample = num_heads_upsample
 
+        if norm == "groupnorm":
+            norm = norm + str(group_norm_size)
+
         cond_embed_dim = inner_channel * 4
         self.cond_embed = nn.Sequential(
             nn.Linear(inner_channel, cond_embed_dim),
@@ -416,6 +423,7 @@ class UNet(nn.Module):
                         out_channel=int(mult * inner_channel),
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
+                        norm=norm,
                     )
                 ]
                 ch = int(mult * inner_channel)
@@ -444,6 +452,7 @@ class UNet(nn.Module):
                             use_checkpoint=use_checkpoint,
                             use_scale_shift_norm=use_scale_shift_norm,
                             down=True,
+                            norm=norm,
                         )
                         if resblock_updown
                         else Downsample(ch, conv_resample, out_channel=out_ch)
@@ -461,6 +470,7 @@ class UNet(nn.Module):
                 dropout,
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
+                norm=norm,
             ),
             AttentionBlock(
                 ch,
@@ -475,6 +485,7 @@ class UNet(nn.Module):
                 dropout,
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
+                norm=norm,
             ),
         )
         self._feature_size += ch
@@ -491,6 +502,7 @@ class UNet(nn.Module):
                         out_channel=int(inner_channel * mult),
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
+                        norm=norm,
                     )
                 ]
                 ch = int(inner_channel * mult)
@@ -515,6 +527,7 @@ class UNet(nn.Module):
                             use_checkpoint=use_checkpoint,
                             use_scale_shift_norm=use_scale_shift_norm,
                             up=True,
+                            norm=norm,
                         )
                         if resblock_updown
                         else Upsample(ch, conv_resample, out_channel=out_ch)
@@ -525,13 +538,13 @@ class UNet(nn.Module):
 
         if tanh:
             self.out = nn.Sequential(
-                normalization(ch),
+                normalization(ch, norm),
                 zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
                 nn.Tanh(),
             )
         else:
             self.out = nn.Sequential(
-                normalization(ch),
+                normalization(ch, norm),
                 torch.nn.SiLU(),
                 zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
             )

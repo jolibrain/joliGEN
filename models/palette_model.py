@@ -11,6 +11,7 @@ from util.iter_calculator import IterCalculator
 from . import diffusion_networks
 from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
 from data.online_creation import fill_mask_with_color
+from .modules.unet_generator_attn.unet_attn_utils import revert_sync_batchnorm
 
 
 class PaletteModel(BaseDiffusionModel):
@@ -215,6 +216,9 @@ class PaletteModel(BaseDiffusionModel):
         else:
             netG = self.netG_A
 
+        if self.opt.G_unet_mha_norm_layer == "batchnorm":
+            netG = revert_sync_batchnorm(netG)
+
         if True or self.task in ["inpainting", "uncropping"]:
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[: self.inference_num],
@@ -233,6 +237,9 @@ class PaletteModel(BaseDiffusionModel):
                 setattr(self, name + str(k), getattr(self, name[:-1])[k : k + 1])
 
         self.fake_B = self.visuals[-1:]
+
+        if self.opt.G_unet_mha_norm_layer == "batchnorm":
+            netG = torch.nn.SyncBatchNorm.convert_sync_batchnorm(netG)
 
     def compute_visuals(self):
         super().compute_visuals()

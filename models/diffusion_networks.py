@@ -27,6 +27,10 @@ def define_G(
     jg_dir,
     G_padding_type,
     G_config_segformer,
+    G_unet_mha_norm_layer,
+    G_unet_mha_group_norm_size,
+    dropout=0,
+    channel_mults=(1, 2, 4, 8),
     conv_resample=True,
     use_checkpoint=False,
     use_fp16=False,
@@ -74,6 +78,8 @@ def define_G(
             n_timestep_train=G_diff_n_timestep_train,
             n_timestep_test=G_diff_n_timestep_test,
             channel_mults=G_unet_mha_channel_mults,
+            norm=G_unet_mha_norm_layer,
+            group_norm_size=G_unet_mha_group_norm_size,
         )
 
     elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":
