@@ -7,10 +7,34 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from .switchable_norm import SwitchNorm2d
 
-class GroupNorm32(nn.GroupNorm):
+
+class GroupNorm(nn.Module):
+    def __init__(self, group_size, channels):
+        super().__init__()
+        self.norm = nn.GroupNorm(group_size, channels)
+
     def forward(self, x):
-        return super().forward(x.float()).type(x.dtype)
+        return self.norm(x.float()).type(x.dtype)
+
+
+class BatchNorm2dC(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.norm = nn.BatchNorm2d(channels, track_running_stats=False)
+
+    def forward(self, x):
+        return self.norm(x.float()).type(x.dtype)
+
+
+class BatchInstanceNorm1dC(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.norm = nn.InstanceNorm1d(channels)
+
+    def forward(self, x):
+        return self.norm(x.float()).type(x.dtype)
 
 
 def zero_module(module):
@@ -38,14 +62,30 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def normalization(channels):
+def normalization(channels, norm):
     """
     Make a standard normalization layer.
 
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
-    return GroupNorm32(32, channels)
+    if "groupnorm" in norm:
+        group_norm_size = int(norm.split("groupnorm")[1])
+        return GroupNorm(group_norm_size, channels)
+    elif norm == "instancenorm":
+        return GroupNorm(channels, channels)
+    elif norm == "layernorm":
+        return GroupNorm(1, channels)
+    elif norm == "batchnorm":
+        return BatchNorm2dC(channels)
+    elif norm == "switchablenorm":
+        return SwitchNorm2d(channels)
+    else:
+        raise ValueError("%s is not implemented for unet attn generator" % norm)
+
+
+def normalization1d(channels):
+    return BatchInstanceNorm1dC(channels)
 
 
 def checkpoint(func, inputs, params, flag):
@@ -115,3 +155,44 @@ def count_flops_attn(model, _x, y):
     # the combination of the value vectors.
     matmul_ops = 2 * b * (num_spatial**2) * c
     model.total_ops += torch.DoubleTensor([matmul_ops])
+
+
+class BatchNormXd(nn.modules.batchnorm._BatchNorm):
+    def _check_input_dim(self, input):
+        # The only difference between BatchNorm1d, BatchNorm2d, BatchNorm3d, etc
+        # is this method that is overwritten by the sub-class
+        # This original goal of this method was for tensor sanity checks
+        # If you're ok bypassing those sanity checks (eg. if you trust your inference
+        # to provide the right dimensional inputs), then you can just use this method
+        # for easy conversion from SyncBatchNorm
+        # (unfortunately, SyncBatchNorm does not store the original class - if it did
+        #  we could return the one that was originally created)
+        return
+
+
+def revert_sync_batchnorm(module):
+    # this is very similar to the function that it is trying to revert:
+    # https://github.com/pytorch/pytorch/blob/c8b3686a3e4ba63dc59e5dcfe5db3430df256833/torch/nn/modules/batchnorm.py#L679
+    module_output = module
+    if isinstance(module, nn.modules.batchnorm.SyncBatchNorm):
+        new_cls = BatchNormXd
+        module_output = BatchNormXd(
+            module.num_features,
+            module.eps,
+            module.momentum,
+            module.affine,
+            module.track_running_stats,
+        )
+        if module.affine:
+            with torch.no_grad():
+                module_output.weight = module.weight
+                module_output.bias = module.bias
+        module_output.running_mean = module.running_mean
+        module_output.running_var = module.running_var
+        module_output.num_batches_tracked = module.num_batches_tracked
+        if hasattr(module, "qconfig"):
+            module_output.qconfig = module.qconfig
+    for name, child in module.named_children():
+        module_output.add_module(name, revert_sync_batchnorm(child))
+    del module
+    return module_output

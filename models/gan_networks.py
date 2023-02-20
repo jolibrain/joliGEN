@@ -66,6 +66,8 @@ def define_G(
     G_backward_compatibility_twice_resnet_blocks,
     G_unet_mha_num_head_channels,
     G_unet_mha_channel_mults,
+    G_unet_mha_norm_layer,
+    G_unet_mha_group_norm_size,
     **unused_options
 ):
     """Create a generator
@@ -225,6 +227,8 @@ def define_G(
             tanh=True,
             n_timestep_train=0,  # unused
             n_timestep_test=0,  # unused
+            norm=G_unet_mha_norm_layer,
+            group_norm_size=G_unet_mha_group_norm_size,
         )
         return net
     else:

@@ -306,6 +306,25 @@ class BaseOptions:
             help="downrate samples at which attention takes place",
         )
 
+        parser.add_argument(
+            "--G_unet_mha_norm_layer",
+            type=str,
+            choices=[
+                "groupnorm",
+                "batchnorm",
+                "layernorm",
+                "instancenorm",
+                "switchablenorm",
+            ],
+            default="group32norm",
+        )
+
+        parser.add_argument(
+            "--G_unet_mha_group_norm_size",
+            type=int,
+            default=32,
+        )
+
         # discriminator
         parser.add_argument(
             "--D_ndf",
