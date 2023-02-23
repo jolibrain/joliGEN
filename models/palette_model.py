@@ -3,6 +3,7 @@ import tqdm
 import copy
 import warnings
 import random
+import math
 
 
 from .base_diffusion_model import BaseDiffusionModel
@@ -12,6 +13,7 @@ from . import diffusion_networks
 from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
 from data.online_creation import fill_mask_with_color
 from .modules.unet_generator_attn.unet_attn_utils import revert_sync_batchnorm
+from .modules.loss import MultiScaleDiffusionLoss
 
 
 class PaletteModel(BaseDiffusionModel):
@@ -32,7 +34,7 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_loss",
             type=str,
             default="MSE",
-            choices=["L1", "MSE"],
+            choices=["L1", "MSE", "multiscale"],
             help="loss for denoising model",
         )
 
@@ -110,8 +112,19 @@ class PaletteModel(BaseDiffusionModel):
             self.loss_fn = torch.nn.MSELoss()
         elif self.opt.alg_palette_loss == "L1":
             self.loss_fn = torch.nn.L1Loss()
+        elif self.opt.alg_palette_loss == "multiscale":
+            self.loss_fn = MultiScaleDiffusionLoss(img_size=self.opt.data_crop_size)
 
         losses_G = ["G_tot"]
+
+        if self.opt.alg_palette_loss == "multiscale":
+            img_size = self.opt.data_crop_size
+            img_size_log = math.floor(math.log2(img_size))
+            min_size = 32
+            min_size_log = math.floor(math.log2(min_size))
+
+            for k in range(min_size_log, img_size_log + 1):
+                losses_G.append("G_" + str(2**k))
 
         self.loss_names_G = losses_G
         self.loss_names = self.loss_names_G
@@ -204,6 +217,16 @@ class PaletteModel(BaseDiffusionModel):
             loss = self.loss_fn(temp_mask * noise, temp_mask * noise_hat)
         else:
             loss = self.loss_fn(noise, noise_hat)
+
+        if isinstance(loss, dict):
+            loss_tot = torch.zeros(size=(), device=noise.device)
+
+            for cur_size, cur_loss in loss.items():
+
+                setattr(self, "loss_G_" + cur_size, cur_loss)
+                loss_tot += cur_loss
+
+            loss = loss_tot
 
         self.loss_G_tot = self.opt.alg_palette_lambda_G * loss
 

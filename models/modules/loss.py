@@ -3,6 +3,7 @@ import torchvision
 from torch import nn as nn
 import torch.nn.functional as F
 import random
+import math
 
 # import numpy as np
 
@@ -391,3 +392,42 @@ class DiscriminatorContrastiveLoss(DiscriminatorLoss):
     def compute_loss_G(self, netD, real, fake):
         loss_G = self.criterionContrastive(-netD(self.real), -netD(self.fake))
         return loss_G
+
+
+class MultiScaleDiffusionLoss(nn.Module):
+    """
+    Multiscale diffusion loss such as in 2301.11093.
+    """
+
+    def __init__(self, img_size):
+        super().__init__()
+
+        self.log_size = math.floor(math.log2(img_size))
+
+        self.min_size = 32
+        self.min_log_size = int(math.log2(self.min_size))
+
+        self.nb_downsampling = self.log_size - self.min_log_size + 1
+
+        self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
+        self.loss = torch.nn.MSELoss()
+
+    def forward(self, noise, noise_hat):
+        losses = {}
+
+        cur_noise = noise
+        cur_noise_hat = noise_hat
+
+        for k in range(self.nb_downsampling):
+            cur_size = cur_noise.shape[-1]
+
+            # we don't divide by cur_size **2 such as in the paper because it's alreadOBy done within the MSE loss module
+            # we multiply the loss by min_size/2 to match the range of MSE loss (usual loss for diffusion processes)
+            losses[str(cur_size)] = self.loss(cur_noise, cur_noise_hat) * (
+                self.min_size / (2 * cur_size)
+            )
+
+            cur_noise = self.pool(cur_noise)
+            cur_noise_hat = self.pool(cur_noise_hat)
+
+        return losses
