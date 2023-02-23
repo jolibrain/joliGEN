@@ -156,16 +156,12 @@ class PaletteModel(BaseDiffusionModel):
             self.previous_frame = data["A"].to(self.device)[:, 0]
             self.y_t = data["A"].to(self.device)[:, 1]
             self.gt_image = data["B"].to(self.device)[:, 1]
-            self.previous_frame_mask = torch.clamp(
-                data["B_label_mask"], min=0, max=1
-            ).to(self.device)[:, 0]
-            self.mask = torch.clamp(data["B_label_mask"], min=0, max=1).to(self.device)[
-                :, 1
-            ]
+            self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
+            self.mask = data["B_label_mask"].to(self.device)[:, 1]
         else:
             self.y_t = data["A"].to(self.device)
             self.gt_image = data["B"].to(self.device)
-            self.mask = torch.clamp(data["B_label_mask"], min=0, max=1).to(self.device)
+            self.mask = data["B_label_mask"].to(self.device)
 
         if self.opt.alg_palette_cond_image_creation == "y_t":
             self.cond_image = self.y_t
@@ -203,7 +199,8 @@ class PaletteModel(BaseDiffusionModel):
         noise, noise_hat = self.netG_A(y_0, y_cond, mask, noise)
 
         if mask is not None:
-            loss = self.loss_fn(mask * noise, mask * noise_hat)
+            temp_mask = torch.clamp(mask, min=0.0, max=1.0)
+            loss = self.loss_fn(temp_mask * noise, temp_mask * noise_hat)
         else:
             loss = self.loss_fn(noise, noise_hat)
 
@@ -230,7 +227,13 @@ class PaletteModel(BaseDiffusionModel):
 
         for k in range(self.inference_num):
             for name in self.gen_visual_names:
-                setattr(self, name + str(k), getattr(self, name[:-1])[k : k + 1])
+                cur_name = name + str(k)
+                cur_tensor = getattr(self, name[:-1])[k : k + 1]
+
+                if "mask" in name:
+                    cur_tensor = cur_tensor.squeeze(0)
+
+                setattr(self, cur_name, cur_tensor)
 
         self.fake_B = self.visuals[-1:]
 

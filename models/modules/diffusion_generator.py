@@ -52,7 +52,8 @@ class DiffusionGenerator(nn.Module):
             t = torch.full((b,), i, device=y_cond.device, dtype=torch.long)
             y_t = self.p_sample(y_t, t, y_cond=y_cond, phase=phase)
             if mask is not None:
-                y_t = y_0 * (1.0 - mask) + mask * y_t
+                temp_mask = torch.clamp(mask, min=0.0, max=1.0)
+                y_t = y_0 * (1.0 - temp_mask) + temp_mask * y_t
             if i % sample_inter == 0:
                 ret_arr = torch.cat([ret_arr, y_t], dim=0)
         return y_t, ret_arr
@@ -122,8 +123,11 @@ class DiffusionGenerator(nn.Module):
         )
 
         if mask is not None:
+            temp_mask = torch.clamp(mask, min=0.0, max=1.0)
             noise_hat = self.denoise_fn(
-                torch.cat([y_cond, y_noisy * mask + (1.0 - mask) * y_0], dim=1),
+                torch.cat(
+                    [y_cond, y_noisy * temp_mask + (1.0 - temp_mask) * y_0], dim=1
+                ),
                 sample_gammas,
             )
         else:
