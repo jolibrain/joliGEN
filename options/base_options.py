@@ -316,7 +316,7 @@ class BaseOptions:
                 "instancenorm",
                 "switchablenorm",
             ],
-            default="group32norm",
+            default="groupnorm",
         )
 
         parser.add_argument(
