@@ -19,7 +19,7 @@ USER jenkins
 RUN mkdir /home/jenkins/app
 WORKDIR /home/jenkins/app
 ADD requirements.txt .
-RUN pip3 install -r requirements.txt
+RUN pip3 install -r requirements.txt --upgrade
 RUN pip3 install uvicorn fastapi
 RUN mkdir .cache && mkdir .cache/torch 
 RUN export TORCH_HOME=/home/jenkins/app/.cache/torch
