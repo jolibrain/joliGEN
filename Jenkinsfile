@@ -1,5 +1,6 @@
 pipeline {
   agent {
+    node { label 'joligan' }
     dockerfile {
       filename 'docker/Dockerfile.devel'
       additionalBuildArgs '--no-cache'
