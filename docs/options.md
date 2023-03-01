@@ -60,6 +60,8 @@ Here are all the available options to call with `train.py`
 | --G_stylegan2_num_downsampling | int | 1 | Number of downsampling layers used by StyleGAN2Generator |
 | --G_unet_mha_attn_res | array | [16] | downrate samples at which attention takes place |
 | --G_unet_mha_channel_mults | array | [1, 2, 4, 8] | channel multiplier for each level of the UNET mha |
+| --G_unet_mha_group_norm_size | int | 32 |  |
+| --G_unet_mha_norm_layer | string | groupnorm | <br/><br/>_**Values:** groupnorm, batchnorm, layernorm, instancenorm, switchablenorm_ |
 | --G_unet_mha_num_head_channels | int | 32 |  |
 | --G_unet_mha_num_heads | int | 1 |  |
 
