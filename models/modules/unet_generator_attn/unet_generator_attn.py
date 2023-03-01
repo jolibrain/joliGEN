@@ -461,6 +461,8 @@ class UNet(nn.Module):
                 ds *= 2
                 self._feature_size += ch
 
+        self.input_block_chans = input_block_chans
+
         self.middle_block = EmbedSequential(
             ResBlock(
                 ch,
