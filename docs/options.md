@@ -123,7 +123,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, sketch, edges, previous_frame_ |
 | --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
-| --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE_ |
+| --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE, multiscale_ |
 | --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
 
 ## Datasets
@@ -137,6 +137,7 @@ Here are all the available options to call with `train.py`
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
 | --data_num_threads | int | 4 | \# threads for loading data |
 | --data_online_context_pixels | int | 0 | context pixel band around the crop, unused for generation, only for disc  |
+| --data_online_fixed_mask_size | int | -1 | if \>0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing)  |
 | --data_online_select_category | int | -1 | category to select for bounding boxes, -1 means all boxes selected |
 | --data_preprocess | string | resize_and_crop | scaling and cropping of images at load time<br/><br/>_**Values:** resize_and_crop, crop, scale_width, scale_width_and_crop, none_ |
 | --data_relative_paths | flag |  | whether paths to images are relative to dataroot |
@@ -154,8 +155,10 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_crop_size_B | int | 512 | crop to this size during online creation, it needs to be greater than bbox size for domain B |
 | --data_online_creation_load_size_A | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
-| --data_online_creation_mask_delta_A | array | [0] | mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square |
+| --data_online_creation_mask_delta_A | array | [0] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square |
 | --data_online_creation_mask_delta_B | array | [0] | mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square |
+| --data_online_creation_mask_random_offset_A | array | [0.0] | ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square |
+| --data_online_creation_mask_random_offset_B | array | [0.0] | mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
 | --data_online_creation_mask_square_B | flag |  | whether masks should be squared for domain B |
 | --data_online_creation_rand_mask_A | flag |  | Perform task of replacing noised masks by objects |
