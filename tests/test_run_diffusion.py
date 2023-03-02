@@ -28,6 +28,7 @@ json_like_dict = {
     "G_nblocks": 1,
     "G_padding_type": "reflect",
     "data_online_creation_rand_mask_A": True,
+    "G_diff_n_timestep_test": 10,
 }
 
 

@@ -137,7 +137,7 @@ if __name__ == "__main__":
             args.previous_frame = frame
         elif args.cond == "zero":
             if i == 0:
-                if reconstruction_guidance:
+                if args.reconstruction_guidance:
                     args.previous_frame = frame
                 else:
                     args.previous_frame = None
