@@ -20,11 +20,6 @@ def create_mask(
     mask_delta,
     mask_square,
     context_pixels,
-    load_size,
-    get_crop_coordinates=False,
-    crop_coordinates=None,
-    select_cat=-1,
-    crop_center=False,
     fixed_mask_size=-1,
 ):
 
@@ -160,6 +155,7 @@ def create_mask(
 def crop_image(
     img_path,
     bbox_path,
+    mask_random_offset,
     mask_delta,
     crop_delta,
     mask_square,
@@ -171,6 +167,7 @@ def crop_image(
     crop_coordinates=None,
     select_cat=-1,
     crop_center=False,
+    fixed_mask_size=-1,
 ):
 
     margin = context_pixels * 2
@@ -197,9 +194,11 @@ def crop_image(
         shape=img.shape,
         ratio_x=ratio_x,
         ratio_y=ratio_y,
+        mask_random_offset=mask_random_offset,
         mask_delta=mask_delta,
         mask_square=mask_square,
         context_pixels=context_pixels,
+        fixed_mask_size=fixed_mask_size,
     )
 
     height = y_max_ref - y_min_ref
