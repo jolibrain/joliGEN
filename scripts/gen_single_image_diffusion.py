@@ -92,6 +92,39 @@ def to_np(img):
 
     return img
 
+def resize_bbox(bbox, mask_delta, mask_square, opt, x_crop=None, y_crop=None, crop_size=None):
+    bbox_select = bbox.copy()
+
+    bbox_select[0] -= mask_delta[0]
+    bbox_select[1] -= mask_delta[1]
+    bbox_select[2] += mask_delta[0]
+    bbox_select[3] += mask_delta[1]
+
+    if mask_square:
+        sdiff = (bbox_select[2] - bbox_select[0]) - (
+            bbox_select[3] - bbox_select[1]
+        )  # (xmax - xmin) - (ymax - ymin)
+        if sdiff > 0:
+            bbox_select[3] += int(sdiff / 2)
+            bbox_select[1] -= int(sdiff / 2)
+        else:
+            bbox_select[2] += -int(sdiff / 2)
+            bbox_select[0] -= -int(sdiff / 2)
+
+    if x_crop is not None and y_crop is not None and crop_size is not None:
+        bbox_select[1] += y_crop
+        bbox_select[0] += x_crop
+
+        bbox_select[3] = bbox_select[1] + crop_size
+        bbox_select[2] = bbox_select[0] + crop_size
+
+    bbox_select[1] -= opt.data_online_context_pixels
+    bbox_select[0] -= opt.data_online_context_pixels
+
+    bbox_select[3] += opt.data_online_context_pixels
+    bbox_select[2] += opt.data_online_context_pixels
+
+    return bbox_select
 
 def resize_bbox(
     bbox, mask_delta, mask_square, opt, x_crop=None, y_crop=None, crop_size=None
