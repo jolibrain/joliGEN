@@ -6,6 +6,7 @@ import cv2
 import torch
 from torchvision import transforms
 from torchvision.utils import save_image
+from torchvision.transforms import Resize
 import numpy as np
 import argparse
 import warnings
@@ -17,7 +18,7 @@ from models import diffusion_networks
 from options.train_options import TrainOptions
 from data.online_creation import fill_mask_with_random, fill_mask_with_color, crop_image
 from models.modules.diffusion_utils import set_new_noise_schedule
-from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
+from util.mask_generation import fill_img_with_sketch, fill_img_with_edges, fill_img_with_canny
 from diffusion_options import DiffusionOptions
 
 
@@ -112,6 +113,10 @@ def generate(
     mask_delta,
     mask_square,
     bbox_id,
+    transfer,
+    source_img,
+    source_bbox,
+    source_id,
     **unused_options,
 ):
 
