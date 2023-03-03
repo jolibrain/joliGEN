@@ -111,6 +111,7 @@ def generate(
     name,
     mask_delta,
     mask_square,
+    bbox_id,
     **unused_options,
 ):
 
@@ -167,7 +168,7 @@ def generate(
             hc_width = int(crop_width / 2)
             hc_height = int(crop_height / 2)
             # select one bbox and crop around it
-            bbox_orig = random.choice(bboxes)
+            bbox_orig = bboxes[bbox_id]
             if bbox_width_factor > 0.0:
                 bbox_orig[0] -= max(0, int(bbox_width_factor * bbox_orig[0]))
                 bbox_orig[2] += max(0, int(bbox_width_factor * bbox_orig[2]))
@@ -217,6 +218,7 @@ def generate(
             load_size=opt.data_online_creation_load_size_A,
             get_crop_coordinates=True,
             crop_center=True,
+            bbox_id=bbox_id,
         )
 
         img, mask = crop_image(
@@ -231,41 +233,14 @@ def generate(
             load_size=opt.data_online_creation_load_size_A,
             crop_coordinates=crop_coordinates,
             crop_center=True,
+            bbox_id=bbox_id,
         )
 
         x_crop, y_crop, crop_size = crop_coordinates
 
-        bbox = bboxes[0]
+        bbox = bboxes[bbox_id]
 
-        bbox_select = bbox.copy()
-
-        bbox_select[0] -= mask_delta[0]
-        bbox_select[1] -= mask_delta[1]
-        bbox_select[2] += mask_delta[0]
-        bbox_select[3] += mask_delta[1]
-
-        if mask_square:
-            sdiff = (bbox_select[2] - bbox_select[0]) - (
-                bbox_select[3] - bbox_select[1]
-            )  # (xmax - xmin) - (ymax - ymin)
-            if sdiff > 0:
-                bbox_select[3] += int(sdiff / 2)
-                bbox_select[1] -= int(sdiff / 2)
-            else:
-                bbox_select[2] += -int(sdiff / 2)
-                bbox_select[0] -= -int(sdiff / 2)
-
-        bbox_select[1] += y_crop
-        bbox_select[0] += x_crop
-
-        bbox_select[3] = bbox_select[1] + crop_size
-        bbox_select[2] = bbox_select[0] + crop_size
-
-        bbox_select[1] -= opt.data_online_context_pixels
-        bbox_select[0] -= opt.data_online_context_pixels
-
-        bbox_select[3] += opt.data_online_context_pixels
-        bbox_select[2] += opt.data_online_context_pixels
+        bbox_select = resize_bbox(bbox, mask_delta, mask_square, opt, x_crop, y_crop, crop_size)
 
         img, mask = np.array(img), np.array(mask)
 
@@ -325,7 +300,138 @@ def generate(
     elif opt.alg_palette_cond_image_creation == "y_t":
         cond_image = y_t.unsqueeze(0)
     elif opt.alg_palette_cond_image_creation == "sketch":
-        cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+        if transfer:
+            if source_bbox is not None:
+                # img_bus_path = '/data3/beniz/data/mapillary/images/04dkjiUmbNagx0nBB8VZJQ.jpg'
+                img_bus_path = source_img # '/data3/beniz/data/mapillary/images/DSdC0LB71avSiBqw1r9kJg.jpg'
+                bbox_bus_path = source_bbox # '/data3/beniz/data/mapillary/dd_cls/partially/bbox/DSdC0LB71avSiBqw1r9kJg.txt'
+                # bbox_bus_path = '/data3/beniz/data/mapillary/dd_cls/partially/bbox/04dkjiUmbNagx0nBB8VZJQ.txt'
+                crop_coordinates_bus = crop_image(
+                    img_path=img_bus_path,
+                    bbox_path=bbox_bus_path,
+                    mask_delta=mask_delta,  # =opt.data_online_creation_mask_delta_A,
+                    crop_delta=0,
+                    mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+                    crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
+                    output_dim=opt.data_load_size,
+                    context_pixels=opt.data_online_context_pixels,
+                    load_size=opt.data_online_creation_load_size_A,
+                    get_crop_coordinates=True,
+                    crop_center=True,
+                    bbox_id=source_id,
+                )
+                img_bus, mask_bus = crop_image(
+                    img_path=img_bus_path,
+                    bbox_path=bbox_bus_path,
+                    mask_delta=mask_delta,  # opt.data_online_creation_mask_delta_A,
+                    crop_delta=0,
+                    mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+                    crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
+                    output_dim=opt.data_load_size,
+                    context_pixels=opt.data_online_context_pixels,
+                    load_size=opt.data_online_creation_load_size_A,
+                    crop_coordinates=crop_coordinates_bus,
+                    crop_center=True,
+                    bbox_id=source_id,
+                )
+                x_crop_bus, y_crop_bus, crop_size_bus = crop_coordinates_bus
+                with open(bbox_bus_path, 'r') as f:
+                    bbox_bus = f.readlines()[0].split()[1:]
+                bbox_bus = [int(i) for i in bbox_bus]
+                bbox_select_bus = resize_bbox(bbox_bus, mask_delta, mask_square, opt)
+
+                img_bus, mask_bus = np.array(img_bus), np.array(mask_bus)
+
+                img_tensor_bus = tran(img_bus).clone().detach()
+                mask_bus = torch.from_numpy(np.array(mask_bus, dtype=np.int64)).unsqueeze(0)
+                if not cpu:
+                    img_tensor_bus = img_tensor_bus.to(device).clone().detach()
+                    mask_bus = mask_bus.to(device).clone().detach()
+
+                cond_image_bus = fill_img_with_sketch(img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0))
+                cond_image = img_tensor.clone().detach()
+                cond_image = cond_image[None, :, :, :]
+                bbox_orig = resize_bbox(bbox, mask_delta, mask_square, opt)
+
+                bbox_orig_w = bbox_orig[2] - bbox_orig[0]
+                bbox_orig_h = bbox_orig[3] - bbox_orig[1]
+                bbox_w = bbox_select_bus[2] - bbox_select_bus[0]
+                bbox_h = bbox_select_bus[3] - bbox_select_bus[1]
+
+                if mask_square:
+                    bbox_orig_w = max(bbox_orig_h, bbox_orig_w)
+                    bbox_orig_h = max(bbox_orig_h, bbox_orig_w)
+                    bbox_w = max(bbox_h, bbox_w)
+                    bbox_h = max(bbox_h, bbox_w)
+                    left_side = int((crop_size_bus - bbox_w)/2)
+                    right_side = crop_size_bus - left_side
+                    up_side = int((crop_size_bus - bbox_h)/2)
+                    down_side = crop_size_bus - up_side
+                else:
+                    left_side = abs(x_crop_bus)
+                    right_side = left_side + bbox_w
+                    up_side = abs(y_crop_bus)
+                    down_side = up_side + bbox_h
+
+                mask_2D_bus = mask_bus.cpu()[0,:,:]    # Convert mask to a 2D array
+                coords = np.column_stack(np.where(mask_2D_bus > 0))   # Get the coordinates of the white pixels in the mask
+                x_0, y_0, w, h = cv2.boundingRect(coords)
+
+                left_side_orig = abs(x_crop)
+                right_side_orig = left_side_orig + bbox_orig_w
+                up_side_orig = abs(y_crop)
+                down_side_orig = up_side_orig + bbox_orig_h
+                side = int((256 - bbox_w)/2)
+                # side_orig = int((256 - bbox_orig_w)/2)
+                # bus_sketch = cond_image_bus[:, :, side:side + bbox_w, side:side + bbox_h]
+                bus_sketch = cond_image_bus[:, :, y_0:y_0 + h, x_0:x_0 + w]
+                # bus_sketch = cond_image_bus[:, :, up_side:down_side, left_side:right_side]
+                resizer = Resize((bbox_orig_h, bbox_orig_w))
+                resized_bus_sketch = resizer(bus_sketch)
+                # cond_image[:, :, side_orig:side_orig + bbox_orig_w, side_orig:side_orig + bbox_orig_h] = resized_bus_sketch
+                cond_image[:, :, up_side_orig:down_side_orig, left_side_orig:right_side_orig] = resized_bus_sketch
+            else:
+                bbox_orig = resize_bbox(bbox, mask_delta, mask_square, opt)
+                bbox_orig_w = bbox_orig[2] - bbox_orig[0]
+                bbox_orig_h = bbox_orig[3] - bbox_orig[1]
+
+                if bbox_orig_w >= 256:
+                    bbox_orig_w = 256
+                    x_crop=0
+                if bbox_orig_h >= 256:
+                    y_crop = 0
+                    bbox_orig_h = 256
+
+                left_side_orig = abs(x_crop)
+                right_side_orig = left_side_orig + bbox_orig_w
+                up_side_orig = abs(y_crop)
+                down_side_orig = up_side_orig + bbox_orig_h
+
+                cond_image = img_tensor.clone().detach()
+                cond_image = cond_image[None, :, :, :]
+
+                transfer_img = cv2.imread(source_img)
+                transfer_tensor = torch.from_numpy(transfer_img).unsqueeze(0)
+                transfer_tensor = transfer_tensor.permute(0, 3, 1, 2)
+                transfer_tensor = transfer_tensor / 255.0
+                """
+                white_img = torch.ones((1, transfer_tensor.shape[2], transfer_tensor.shape[3]), dtype=torch.float32)
+                white_img = white_img / 255.0
+                sketch_tensor = fill_img_with_sketch(transfer_tensor, white_img.unsqueeze(0))
+                """
+                white_mask = torch.all(transfer_tensor >= 0.9, dim=1)
+
+                # Set non-white pixels to rgb 240, 240, 240
+                transfer_tensor[:, 0][~white_mask] = 0.0
+                transfer_tensor[:, 1][~white_mask] = 0.0
+                transfer_tensor[:, 2][~white_mask] = 0.0
+
+                resizer = Resize((bbox_orig_h, bbox_orig_w))
+                resized_transfer_img = resizer(transfer_tensor)
+                cond_image[:, :, up_side_orig:down_side_orig, left_side_orig:right_side_orig] = resized_transfer_img
+
+        else:
+            cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "edges":
         cond_image = fill_img_with_edges(img_tensor.unsqueeze(0), mask.unsqueeze(0))
 
@@ -364,24 +470,29 @@ def generate(
 
     out_img_real_size = img_orig.copy()
 
+    bbox_select[0] = max(0, bbox_select[0])
+    bbox_select[2] = max(crop_size, bbox_select[2])
+    bbox_select[1] = max(0, bbox_select[1])
+    bbox_select[3] = max(crop_size, bbox_select[3])
     # fill out crop into original image
     out_img_real_size[
         bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
     ] = out_img_resized
 
     cond_img = to_np(cond_image)
-
     if write:
-        cv2.imwrite(os.path.join(dir_out, name + "_orig.png"), img_orig)
-        cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.png"), out_img)
-        cv2.imwrite(os.path.join(dir_out, name + "_cond.png"), cond_img)
-        cv2.imwrite(os.path.join(dir_out, name + "_generated.png"), out_img_real_size)
-        cv2.imwrite(os.path.join(dir_out, name + "_y_0.png"), to_np(img_tensor))
-        cv2.imwrite(os.path.join(dir_out, name + "_y_t.png"), to_np(y_t))
-        cv2.imwrite(os.path.join(dir_out, name + "_mask.png"), to_np(mask))
+        if not os.path.exists(dir_out):
+            os.makedirs(dir_out)
+        cv2.imwrite(os.path.join(dir_out, name + "_orig.jpg"), img_orig)
+        cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.jpg"), out_img)
+        cv2.imwrite(os.path.join(dir_out, name + "_cond.jpg"), cond_img)
+        cv2.imwrite(os.path.join(dir_out, name + "_generated.jpg"), out_img_real_size)
+        cv2.imwrite(os.path.join(dir_out, name + "_y_0.jpg"), to_np(img_tensor))
+        cv2.imwrite(os.path.join(dir_out, name + "_y_t.jpg"), to_np(y_t))
+        cv2.imwrite(os.path.join(dir_out, name + "_mask.jpg"), to_np(mask))
 
         print("Successfully generated image ", name)
-
+    
     return out_img_real_size
 
 
