@@ -898,6 +898,14 @@ class BaseOptions:
                 "Bounding box class selection requires --data_sanitize_paths"
             )
 
+        # vitclip16 projector only works with input size 224
+        if opt.D_proj_network_type == "vitclip16":
+            if opt.D_proj_interp != 224:
+                warnings.warn(
+                    "ViT-B/16 (vitclip16) projector only works with input size 224, setting D_proj_interp to 224"
+                )
+            opt.D_proj_interp = 224
+
         self.opt = opt
 
         return self.opt
