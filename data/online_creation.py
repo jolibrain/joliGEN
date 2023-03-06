@@ -342,7 +342,7 @@ def sanitize_paths(
     return_paths_bb = []
 
     if paths_bb is None:
-        paths_bb = [None for k in range(len(paths_img))]
+        paths_bb = [None for _ in range(len(paths_img))]
 
     for path_img, path_bb in tqdm(zip(paths_img, paths_bb)):
         if data_relative_paths:

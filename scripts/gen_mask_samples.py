@@ -66,7 +66,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--transfer",
         action="store_true",
-        help="wether to transfer conditioning from another image",
+        help="whether to transfer conditioning from another image",
     )
     parser.add_argument(
         "--source-img",
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--create-collage",
         action="store_true",
-        help="wether to create a collage to compare generations",
+        help="whether to create a collage to compare generations",
     )
     args = parser.parse_args()
 

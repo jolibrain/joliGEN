@@ -366,6 +366,7 @@ def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=200):
 
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
     edges = cv2.Canny((to_sketch * 255).astype(np.uint8), low_threshold, high_threshold)
+
     # edges = np.transpose(edges, (2, 0, 1))
     edges = torch.from_numpy(edges).unsqueeze(0).unsqueeze(0)
     img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = edges
@@ -399,6 +400,7 @@ def fill_img_with_hed_Caffe(img, mask):
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(np.where(mask_2D > 0.9))
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
+
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
 
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
