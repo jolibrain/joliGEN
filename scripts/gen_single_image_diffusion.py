@@ -271,6 +271,7 @@ def transfer_cond(
             left_side = int((crop_size_bus - bbox_w) / 2)
             right_side = crop_size_bus - left_side
             up_side = int((crop_size_bus - bbox_h) / 2)
+
             down_side = crop_size_bus - up_side
         else:
             left_side = abs(x_crop_bus)
@@ -282,6 +283,7 @@ def transfer_cond(
         coords = np.column_stack(
             np.where(mask_2D_bus > 0)
         )  # Get the coordinates of the white pixels in the mask
+
         x_0, y_0, w, h = cv2.boundingRect(coords)
 
         left_side_orig = abs(x_crop)
@@ -331,6 +333,7 @@ def transfer_cond(
 
         resizer = Resize((bbox_orig_h, bbox_orig_w))
         resized_transfer_img = resizer(transfer_tensor)
+
         cond_image[
             :, :, up_side_orig:down_side_orig, left_side_orig:right_side_orig
         ] = resized_transfer_img
