@@ -91,7 +91,7 @@ def resize_bbox(bbox, mask_delta, mask_square, opt, x_crop=None, y_crop=None, cr
 
     return bbox_select
 
-def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_bbox, mask_delta, mask_square, opt, device):
+def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_delta, mask_square, opt, device):
     if source_bbox is not None:
         # img_bus_path = '/data3/beniz/data/mapillary/images/04dkjiUmbNagx0nBB8VZJQ.jpg'
         img_bus_path = source_img # '/data3/beniz/data/mapillary/images/DSdC0LB71avSiBqw1r9kJg.jpg'
