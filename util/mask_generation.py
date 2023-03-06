@@ -63,7 +63,7 @@ def fill_img_with_canny(img, mask):
 
 def fill_img_with_hed(img, mask):
     """
-    Easy way from pretrained Caffe model with openCV.
+    From pretrained Caffe model with openCV.
     """
 
     img_orig = img.clone()
