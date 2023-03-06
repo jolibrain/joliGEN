@@ -1,28 +1,37 @@
-import sys
-import os
+import argparse
+import collections
 import json
+import math
+import os
 import random
+import re
+import sys
+import warnings
+
 import cv2
+import numpy as np
 import torch
 from torchvision import transforms
-from torchvision.utils import save_image
 from torchvision.transforms import Resize
-import numpy as np
-import argparse
-import warnings
-import math
+from torchvision.utils import save_image
 from tqdm import tqdm
 
 sys.path.append("../")
-from models import diffusion_networks
-from options.train_options import TrainOptions
-from data.online_creation import fill_mask_with_random, fill_mask_with_color, crop_image
-from models.modules.diffusion_utils import set_new_noise_schedule
-from util.mask_generation import fill_img_with_sketch, fill_img_with_edges, fill_img_with_canny, fill_img_with_hed
 from diffusion_options import DiffusionOptions
 
+from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
+from models import diffusion_networks
+from models.modules.diffusion_utils import set_new_noise_schedule
+from options.train_options import TrainOptions
+from util.mask_generation import (
+    fill_img_with_canny,
+    fill_img_with_edges,
+    fill_img_with_hed,
+    fill_img_with_sketch,
+)
 
-def load_model(modelpath, model_in_file, device, sampling_steps):
+
+def load_model(modelpath, model_in_file, device, sampling_steps, is_norm):
     train_json_path = modelpath + "train_config.json"
     with open(train_json_path, "r") as jsonf:
         train_json = json.load(jsonf)
@@ -38,7 +47,32 @@ def load_model(modelpath, model_in_file, device, sampling_steps):
 
     model = diffusion_networks.define_G(**vars(opt))
     model.eval()
-    model.load_state_dict(torch.load(modelpath + model_in_file))
+    expected_keys = model.state_dict()
+    if is_norm:
+        sd = torch.load(modelpath + model_in_file)
+        for key in list(sd.keys()):
+            if (
+                key.startswith("denoise_fn.input_blocks")
+                or key.startswith("denoise_fn.output_blocks")
+                or key.startswith("denoise_fn.middle_block")
+                or key.startswith("denoise_fn.out")
+            ):
+                if key.endswith(".weight") or key.endswith(".bias"):
+                    match = re.search(r"\d+.(norm|bias).", key)
+                    if not match:
+                        # Modify the key to insert ".norm" just before the
+                        # ".weight" or ".bias"
+                        new_key = key.replace(".weight", ".norm.weight").replace(
+                            ".bias", ".norm.bias"
+                        )
+                        # Move the value to the new key and delete the old key
+                        sd[new_key] = sd[key]
+    else:
+        sd = torch.load(modelpath + model_in_file)
+
+    state_dict = {k: v for k, v in sd.items() if k in expected_keys}
+
+    model.load_state_dict(state_dict)
 
     # sampling steps
     if sampling_steps > 0:
@@ -50,14 +84,16 @@ def load_model(modelpath, model_in_file, device, sampling_steps):
 
 
 def to_np(img):
-
     img = img.detach().data.cpu().float().numpy()[0]
     img = (np.transpose(img, (1, 2, 0)) + 1) / 2.0 * 255.0
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     return img
 
-def resize_bbox(bbox, mask_delta, mask_square, opt, x_crop=None, y_crop=None, crop_size=None):
+
+def resize_bbox(
+    bbox, mask_delta, mask_square, opt, x_crop=None, y_crop=None, crop_size=None
+):
     bbox_select = bbox.copy()
 
     bbox_select[0] -= mask_delta[0]
@@ -91,11 +127,22 @@ def resize_bbox(bbox, mask_delta, mask_square, opt, x_crop=None, y_crop=None, cr
 
     return bbox_select
 
-def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_delta, mask_square, opt, device):
+
+def transfer_cond(
+    img_tensor,
+    bbox,
+    source_img,
+    source_bbox,
+    source_id,
+    mask_delta,
+    mask_square,
+    opt,
+    device,
+):
     if source_bbox is not None:
         # img_bus_path = '/data3/beniz/data/mapillary/images/04dkjiUmbNagx0nBB8VZJQ.jpg'
-        img_bus_path = source_img # '/data3/beniz/data/mapillary/images/DSdC0LB71avSiBqw1r9kJg.jpg'
-        bbox_bus_path = source_bbox # '/data3/beniz/data/mapillary/dd_cls/partially/bbox/DSdC0LB71avSiBqw1r9kJg.txt'
+        img_bus_path = source_img  # '/data3/beniz/data/mapillary/images/DSdC0LB71avSiBqw1r9kJg.jpg'
+        bbox_bus_path = source_bbox  # '/data3/beniz/data/mapillary/dd_cls/partially/bbox/DSdC0LB71avSiBqw1r9kJg.txt'
         # bbox_bus_path = '/data3/beniz/data/mapillary/dd_cls/partially/bbox/04dkjiUmbNagx0nBB8VZJQ.txt'
         crop_coordinates_bus = crop_image(
             img_path=img_bus_path,
@@ -103,6 +150,7 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_del
             mask_delta=mask_delta,  # =opt.data_online_creation_mask_delta_A,
             crop_delta=0,
             mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            mask_random_offset=None,
             crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
             output_dim=opt.data_load_size,
             context_pixels=opt.data_online_context_pixels,
@@ -117,6 +165,7 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_del
             mask_delta=mask_delta,  # opt.data_online_creation_mask_delta_A,
             crop_delta=0,
             mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            mask_random_offset=None,
             crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
             output_dim=opt.data_load_size,
             context_pixels=opt.data_online_context_pixels,
@@ -126,7 +175,7 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_del
             bbox_id=source_id,
         )
         x_crop_bus, y_crop_bus, crop_size_bus = crop_coordinates_bus
-        with open(bbox_bus_path, 'r') as f:
+        with open(bbox_bus_path, "r") as f:
             bbox_bus = f.readlines()[0].split()[1:]
         bbox_bus = [int(i) for i in bbox_bus]
         bbox_select_bus = resize_bbox(bbox_bus, mask_delta, mask_square, opt)
@@ -140,13 +189,21 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_del
             mask_bus = mask_bus.to(device).clone().detach()
 
         if opt.alg_palette_cond_image_creation == "sketch":
-            cond_image_bus = fill_img_with_sketch(img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0))
+            cond_image_bus = fill_img_with_sketch(
+                img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
+            )
         elif opt.alg_palette_cond_image_creation == "canny":
-            cond_image_bus = fill_img_with_canny(img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0))
+            cond_image_bus = fill_img_with_canny(
+                img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
+            )
         elif opt.alg_palette_cond_image_creation == "edges":
-            cond_image_bus = fill_img_with_edges(img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0))
+            cond_image_bus = fill_img_with_edges(
+                img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
+            )
         elif opt.alg_palette_cond_image_creation == "hed":
-            cond_image_bus = fill_img_with_hed(img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0))
+            cond_image_bus = fill_img_with_hed(
+                img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
+            )
 
         cond_image = img_tensor.clone().detach()
         ##- resize to [1, 3, w, h]
@@ -163,9 +220,9 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_del
             bbox_orig_h = max(bbox_orig_h, bbox_orig_w)
             bbox_w = max(bbox_h, bbox_w)
             bbox_h = max(bbox_h, bbox_w)
-            left_side = int((crop_size_bus - bbox_w)/2)
+            left_side = int((crop_size_bus - bbox_w) / 2)
             right_side = crop_size_bus - left_side
-            up_side = int((crop_size_bus - bbox_h)/2)
+            up_side = int((crop_size_bus - bbox_h) / 2)
             down_side = crop_size_bus - up_side
         else:
             left_side = abs(x_crop_bus)
@@ -173,8 +230,10 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_del
             up_side = abs(y_crop_bus)
             down_side = up_side + bbox_h
 
-        mask_2D_bus = mask_bus.cpu()[0,:,:]    # Convert mask to a 2D array
-        coords = np.column_stack(np.where(mask_2D_bus > 0))   # Get the coordinates of the white pixels in the mask
+        mask_2D_bus = mask_bus.cpu()[0, :, :]  # Convert mask to a 2D array
+        coords = np.column_stack(
+            np.where(mask_2D_bus > 0)
+        )  # Get the coordinates of the white pixels in the mask
         x_0, y_0, w, h = cv2.boundingRect(coords)
 
         left_side_orig = abs(x_crop)
@@ -182,12 +241,14 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_del
         up_side_orig = abs(y_crop)
         down_side_orig = up_side_orig + bbox_orig_h
 
-        bus_sketch = cond_image_bus[:, :, y_0:y_0 + h, x_0:x_0 + w]
+        bus_sketch = cond_image_bus[:, :, y_0 : y_0 + h, x_0 : x_0 + w]
 
         resizer = Resize((bbox_orig_h, bbox_orig_w))
         resized_bus_sketch = resizer(bus_sketch)
 
-        cond_image[:, :, up_side_orig:down_side_orig, left_side_orig:right_side_orig] = resized_bus_sketch
+        cond_image[
+            :, :, up_side_orig:down_side_orig, left_side_orig:right_side_orig
+        ] = resized_bus_sketch
         return cond_image
     else:
         bbox_orig = resize_bbox(bbox, mask_delta, mask_square, opt)
@@ -222,13 +283,17 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, mask_del
 
         resizer = Resize((bbox_orig_h, bbox_orig_w))
         resized_transfer_img = resizer(transfer_tensor)
-        cond_image[:, :, up_side_orig:down_side_orig, left_side_orig:right_side_orig] = resized_transfer_img
+        cond_image[
+            :, :, up_side_orig:down_side_orig, left_side_orig:right_side_orig
+        ] = resized_transfer_img
 
         return cond_image
+
 
 def generate(
     seed,
     model_in_file,
+    model_norm,
     cpu,
     gpuid,
     sampling_steps,
@@ -254,7 +319,6 @@ def generate(
     source_id,
     **unused_options,
 ):
-
     # seed
     if seed >= 0:
         torch.manual_seed(seed)
@@ -267,7 +331,7 @@ def generate(
     else:
         device = torch.device("cpu")
     model, opt = load_model(
-        modelpath, os.path.basename(model_in_file), device, sampling_steps
+        modelpath, os.path.basename(model_in_file), device, sampling_steps, model_norm
     )
 
     if len(opt.data_online_creation_mask_delta_A) == 1:
@@ -297,7 +361,6 @@ def generate(
 
     bboxes = []
     if bbox_in:
-
         # mask = np.zeros(img.shape[:2], dtype=np.uint8)
         with open(bbox_in, "r") as bboxf:
             for line in bboxf:
@@ -352,6 +415,7 @@ def generate(
             mask_delta=mask_delta,  # =opt.data_online_creation_mask_delta_A,
             crop_delta=0,
             mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            mask_random_offset=None,
             crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
             output_dim=opt.data_load_size,
             context_pixels=opt.data_online_context_pixels,
@@ -367,6 +431,7 @@ def generate(
             mask_delta=mask_delta,  # opt.data_online_creation_mask_delta_A,
             crop_delta=0,
             mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            mask_random_offset=None,
             crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
             output_dim=opt.data_load_size,
             context_pixels=opt.data_online_context_pixels,
@@ -380,12 +445,13 @@ def generate(
 
         bbox = bboxes[bbox_id]
 
-        bbox_select = resize_bbox(bbox, mask_delta, mask_square, opt, x_crop, y_crop, crop_size)
+        bbox_select = resize_bbox(
+            bbox, mask_delta, mask_square, opt, x_crop, y_crop, crop_size
+        )
 
         img, mask = np.array(img), np.array(mask)
 
     if img_width and img_height > 0:
-
         img = cv2.resize(img, (img_width, img_height))
 
         mask = cv2.resize(mask, (img_width, img_height))
@@ -441,22 +507,68 @@ def generate(
         cond_image = y_t.unsqueeze(0)
     elif opt.alg_palette_cond_image_creation == "sketch":
         if transfer:
-            cond_image = transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_bbox, mask_delta, mask_square, opt, device)
+            cond_image = transfer_cond(
+                img_tensor,
+                bbox,
+                source_img,
+                source_bbox,
+                source_id,
+                source_bbox,
+                mask_delta,
+                mask_square,
+                opt,
+                device,
+            )
         else:
-            cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+            cond_image = fill_img_with_sketch(
+                img_tensor.unsqueeze(0), mask.unsqueeze(0)
+            )
     elif opt.alg_palette_cond_image_creation == "canny":
         if transfer:
-            cond_image = transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_bbox, mask_delta, mask_square, opt, device)
+            cond_image = transfer_cond(
+                img_tensor,
+                bbox,
+                source_img,
+                source_bbox,
+                source_id,
+                source_bbox,
+                mask_delta,
+                mask_square,
+                opt,
+                device,
+            )
         else:
             cond_image = fill_img_with_canny(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "hed":
         if transfer:
-            cond_image = transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_bbox, mask_delta, mask_square, opt, device)
+            cond_image = transfer_cond(
+                img_tensor,
+                bbox,
+                source_img,
+                source_bbox,
+                source_id,
+                source_bbox,
+                mask_delta,
+                mask_square,
+                opt,
+                device,
+            )
         else:
             cond_image = fill_img_with_hed(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "edges":
         if transfer:
-            cond_image = transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_bbox, mask_delta, mask_square, opt, device)
+            cond_image = transfer_cond(
+                img_tensor,
+                bbox,
+                source_img,
+                source_bbox,
+                source_id,
+                source_bbox,
+                mask_delta,
+                mask_square,
+                opt,
+                device,
+            )
         else:
             cond_image = fill_img_with_edges(img_tensor.unsqueeze(0), mask.unsqueeze(0))
 
@@ -469,7 +581,6 @@ def generate(
     )
 
     with torch.no_grad():
-
         out_tensor, visu = model.restoration(
             y_cond=cond_image, y_t=y_t, y_0=img_tensor, mask=mask, sample_num=2
         )
@@ -517,12 +628,11 @@ def generate(
         cv2.imwrite(os.path.join(dir_out, name + "_mask.jpg"), to_np(mask))
 
         print("Successfully generated image ", name)
-    
+
     return out_img_real_size
 
 
 if __name__ == "__main__":
-
     options = DiffusionOptions()
 
     options.parser.add_argument("--img-in", help="image to transform", required=True)

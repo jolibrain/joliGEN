@@ -1,13 +1,14 @@
 import math
-import numpy as np
+import os
 import random
-from PIL import Image
+import warnings
+
+import numpy as np
 import torch
 import torchvision.transforms.functional as F
+from PIL import Image
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
-import warnings
-import os
 
 
 def crop_image(
@@ -28,7 +29,6 @@ def crop_image(
     crop_center=False,
     fixed_mask_size=-1,
 ):
-
     margin = context_pixels * 2
 
     try:
@@ -78,9 +78,9 @@ def crop_image(
         mask = np.zeros(img.shape[:2], dtype=np.uint8)
 
         # A bbox of reference will be used to compute the crop
-        idx_bbox_ref = bbox_id # random.randint(0, len(bboxes) - 1)
+        idx_bbox_ref = bbox_id  # random.randint(0, len(bboxes) - 1)
 
-        #for i, cur_bbox in enumerate(bboxes):
+        # for i, cur_bbox in enumerate(bboxes):
         cur_bbox = bboxes[bbox_id]
         bbox = cur_bbox.split()
         cat = int(bbox[0])
@@ -154,7 +154,6 @@ def crop_image(
     # Let's compute crop size
 
     if crop_coordinates is None:
-
         # We compute the range within which crop size should be
 
         # Crop size should be > height, width bbox (to keep the bbox within the crop)
@@ -182,7 +181,6 @@ def crop_image(
         crop_size = random.randint(crop_size_min, crop_size_max)
 
         if crop_size > min(img.shape[0], img.shape[1]):
-
             warnings.warn(
                 f"Image size ({img.shape}) < crop dim {crop_size} for {img_path}, zero padding is done on image"
             )
@@ -344,10 +342,9 @@ def sanitize_paths(
     return_paths_bb = []
 
     if paths_bb is None:
-        paths_bb = [None for k in range(len(paths_img))]
+        paths_bb = [None for _ in range(len(paths_img))]
 
     for path_img, path_bb in tqdm(zip(paths_img, paths_bb)):
-
         if data_relative_paths:
             path_img = os.path.join(data_root_path, path_img)
             path_bb = os.path.join(data_root_path, path_bb)
