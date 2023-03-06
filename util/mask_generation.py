@@ -2,6 +2,8 @@ import torch
 from torchvision.transforms import Grayscale
 import cv2
 import numpy as np
+import urllib.request
+import os
 
 
 def fill_img_with_sketch(img, mask):
@@ -60,12 +62,14 @@ def fill_img_with_canny(img, mask):
     return img_orig
 
 def fill_img_with_hed(img, mask):
+    """
+    Easy way from pretrained Caffe model with openCV.
+    """
 
     img_orig = img.clone()
     mask_2D = mask.cpu()[0,:,:][0]    # Convert mask to a 2D array
     coords = np.column_stack(np.where(mask_2D > 0))   # Get the coordinates of the white pixels in the mask
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(np.int))
-    ## TODO check if [:, :, w, h] or invert w and h ?
     to_sketch = img_orig[:, :, x_0:x_0 + w, y_0:y_0 + h]
 
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
@@ -76,8 +80,26 @@ def fill_img_with_hed(img, mask):
 
     blob = cv2.dnn.blobFromImage(img_to_sketch, scalefactor=1.0, size=(W, H), swapRB=False, crop=False)
 
-    net = cv2.dnn.readNetFromCaffe("https://github.com/s9xie/hed/blob/94fb22f10cbfec8d84fbc0642b224022014b6bd6/examples/hed/deploy.prototxt",
-                                   "http://vcl.ucsd.edu/hed/hed_pretrained_bsds.caffemodel")
+    proto_url = 'https://raw.githubusercontent.com/richzhang/colorization/caffe/models/colorization_deploy_v2.prototxt'
+    weights_url = 'http://eecs.berkeley.edu/~rich.zhang/projects/2016_colorization/files/demo_v2/colorization_release_v2.caffemodel'
+    
+    p_filename = 'deploy.protoxt'
+    w_filename = 'pretrained_hed.caffemodel'
+    folder = '../models/modules/caffe'
+
+    p_path = os.path.join(folder, p_filename)
+    w_path = os.path.join(folder, w_filename)
+
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    # Download file from URL and save it as local file
+    if not os.path.exists(p_path):
+        urllib.request.urlretrieve(proto_url, p_path)
+    if not os.path.exists(w_path):
+        urllib.request.urlretrieve(weights_url, w_path)
+    ## Load the pretrained Caffe model
+    net = cv2.dnn.readNetFromCaffe(p_path, w_path)
     net.setInput(blob)
     hed = net.forward()
     hed = cv2.resize(hed[0, 0], (W, H))
@@ -88,4 +110,3 @@ def fill_img_with_hed(img, mask):
     img_orig[:, :, x_0:x_0 + w, y_0:y_0 + h] = hed
 
     return img_orig
-
