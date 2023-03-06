@@ -55,6 +55,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--seed", type=int, default=-1, help="random seed for reproducibility"
     )
+
     parser.add_argument(
         "--nimgs", default=1, type=int, help="number of different images to iterate"
     )
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--transfer",
         action="store_true",
-        help="whether to transfer conditioning from another image",
+        help="wether to transfer conditioning from another image",
     )
     parser.add_argument(
         "--source-img",
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--create-collage",
         action="store_true",
-        help="whether to create a collage to compare generations",
+        help="wether to create a collage to compare generations",
     )
     args = parser.parse_args()
 
@@ -139,6 +140,7 @@ if __name__ == "__main__":
 
                 if args.create_collage:
                     extensions = ("_y_0.jpg", "_cond.jpg", "_generated_crop.jpg")
+
                     img_paths = [
                         os.path.join(args.dir_out, args.name + ext)
                         for ext in extensions
