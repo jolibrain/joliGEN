@@ -18,7 +18,7 @@ from models import diffusion_networks
 from options.train_options import TrainOptions
 from data.online_creation import fill_mask_with_random, fill_mask_with_color, crop_image
 from models.modules.diffusion_utils import set_new_noise_schedule
-from util.mask_generation import fill_img_with_sketch, fill_img_with_edges, fill_img_with_canny
+from util.mask_generation import fill_img_with_sketch, fill_img_with_edges, fill_img_with_canny, fill_img_with_hed
 from diffusion_options import DiffusionOptions
 
 
@@ -145,6 +145,8 @@ def transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_b
             cond_image_bus = fill_img_with_canny(img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0))
         elif opt.alg_palette_cond_image_creation == "edges":
             cond_image_bus = fill_img_with_edges(img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0))
+        elif opt.alg_palette_cond_image_creation == "hed":
+            cond_image_bus = fill_img_with_hed(img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0))
 
         cond_image = img_tensor.clone().detach()
         ##- resize to [1, 3, w, h]
@@ -447,6 +449,11 @@ def generate(
             cond_image = transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_bbox, mask_delta, mask_square, opt, device)
         else:
             cond_image = fill_img_with_canny(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+    elif opt.alg_palette_cond_image_creation == "hed":
+        if transfer:
+            cond_image = transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_bbox, mask_delta, mask_square, opt, device)
+        else:
+            cond_image = fill_img_with_hed(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "edges":
         if transfer:
             cond_image = transfer_cond(img_tensor, bbox, source_img, source_bbox, source_id, source_bbox, mask_delta, mask_square, opt, device)
