@@ -1,5 +1,4 @@
 import argparse
-import collections
 import json
 import math
 import os
