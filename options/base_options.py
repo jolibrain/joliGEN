@@ -906,6 +906,12 @@ class BaseOptions:
                 )
             opt.D_proj_interp = 224
 
+        # diffusion D + vitsmall check
+        if opt.dataaug_D_diffusion and "vit" in opt.D_proj_network_type:
+            raise ValueError(
+                "ViT type projectors are not yet compatible with diffusion augmentation at discriminator level"
+            )
+
         self.opt = opt
 
         return self.opt
