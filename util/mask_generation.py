@@ -4,7 +4,195 @@ import urllib.request
 import cv2
 import numpy as np
 import torch
+from einops import rearrange
 from torchvision.transforms import Grayscale
+
+
+class Network(torch.nn.Module):
+    def __init__(self, model_path):
+        super().__init__()
+
+        self.netVggOne = torch.nn.Sequential(
+            torch.nn.Conv2d(
+                in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(
+                in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+        )
+
+        self.netVggTwo = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Conv2d(
+                in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(
+                in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+        )
+
+        self.netVggThr = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Conv2d(
+                in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(
+                in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(
+                in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+        )
+
+        self.netVggFou = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Conv2d(
+                in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(
+                in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(
+                in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+        )
+
+        self.netVggFiv = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Conv2d(
+                in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(
+                in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(
+                in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+            ),
+            torch.nn.ReLU(inplace=False),
+        )
+
+        self.netScoreOne = torch.nn.Conv2d(
+            in_channels=64, out_channels=1, kernel_size=1, stride=1, padding=0
+        )
+        self.netScoreTwo = torch.nn.Conv2d(
+            in_channels=128, out_channels=1, kernel_size=1, stride=1, padding=0
+        )
+        self.netScoreThr = torch.nn.Conv2d(
+            in_channels=256, out_channels=1, kernel_size=1, stride=1, padding=0
+        )
+        self.netScoreFou = torch.nn.Conv2d(
+            in_channels=512, out_channels=1, kernel_size=1, stride=1, padding=0
+        )
+        self.netScoreFiv = torch.nn.Conv2d(
+            in_channels=512, out_channels=1, kernel_size=1, stride=1, padding=0
+        )
+
+        self.netCombine = torch.nn.Sequential(
+            torch.nn.Conv2d(
+                in_channels=5, out_channels=1, kernel_size=1, stride=1, padding=0
+            ),
+            torch.nn.Sigmoid(),
+        )
+
+        self.load_state_dict(
+            {
+                strKey.replace("module", "net"): tenWeight
+                for strKey, tenWeight in torch.load(model_path).items()
+            }
+        )
+
+    def forward(self, tenInput):
+        tenInput = tenInput * 255.0
+        tenInput = tenInput - torch.tensor(
+            data=[104.00698793, 116.66876762, 122.67891434],
+            dtype=tenInput.dtype,
+            device=tenInput.device,
+        ).view(1, 3, 1, 1)
+
+        tenVggOne = self.netVggOne(tenInput)
+        tenVggTwo = self.netVggTwo(tenVggOne)
+        tenVggThr = self.netVggThr(tenVggTwo)
+        tenVggFou = self.netVggFou(tenVggThr)
+        tenVggFiv = self.netVggFiv(tenVggFou)
+
+        tenScoreOne = self.netScoreOne(tenVggOne)
+        tenScoreTwo = self.netScoreTwo(tenVggTwo)
+        tenScoreThr = self.netScoreThr(tenVggThr)
+        tenScoreFou = self.netScoreFou(tenVggFou)
+        tenScoreFiv = self.netScoreFiv(tenVggFiv)
+
+        tenScoreOne = torch.nn.functional.interpolate(
+            input=tenScoreOne,
+            size=(tenInput.shape[2], tenInput.shape[3]),
+            mode="bilinear",
+            align_corners=False,
+        )
+        tenScoreTwo = torch.nn.functional.interpolate(
+            input=tenScoreTwo,
+            size=(tenInput.shape[2], tenInput.shape[3]),
+            mode="bilinear",
+            align_corners=False,
+        )
+        tenScoreThr = torch.nn.functional.interpolate(
+            input=tenScoreThr,
+            size=(tenInput.shape[2], tenInput.shape[3]),
+            mode="bilinear",
+            align_corners=False,
+        )
+        tenScoreFou = torch.nn.functional.interpolate(
+            input=tenScoreFou,
+            size=(tenInput.shape[2], tenInput.shape[3]),
+            mode="bilinear",
+            align_corners=False,
+        )
+        tenScoreFiv = torch.nn.functional.interpolate(
+            input=tenScoreFiv,
+            size=(tenInput.shape[2], tenInput.shape[3]),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        return self.netCombine(
+            torch.cat(
+                [tenScoreOne, tenScoreTwo, tenScoreThr, tenScoreFou, tenScoreFiv], 1
+            )
+        )
+
+
+class HEDdetector:
+    def __init__(self):
+        dir = os.path.dirname(__file__)
+        model_dir = os.path.join(dir, "../models/configs/pretrained/")
+        remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/network-bsds500.pth"
+        modelpath = os.path.join(model_dir, "network-bsds500.pth")
+        if not os.path.exists(modelpath):
+            from basicsr.utils.download_util import load_file_from_url
+
+            load_file_from_url(remote_model_path, model_dir=model_dir)
+        self.netNetwork = Network(modelpath).cuda().eval()
+
+    def __call__(self, input_image):
+        assert input_image.ndim == 3
+        input_image = input_image[:, :, ::-1].copy()
+        with torch.no_grad():
+            image_hed = torch.from_numpy(input_image).float().cuda()
+            image_hed = image_hed / 255.0
+            image_hed = rearrange(image_hed, "h w c -> 1 c h w")
+            edge = self.netNetwork(image_hed)[0]
+            edge = (edge.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+            return edge[0]
 
 
 def fill_img_with_sketch(img, mask):
@@ -45,7 +233,7 @@ def fill_img_with_edges(img, mask):
     return mask * edges + (1 - mask) * img
 
 
-def fill_img_with_canny(img, mask):
+def fill_img_with_canny(img, mask, low_threshold=250, high_threshold=500):
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(
@@ -56,7 +244,7 @@ def fill_img_with_canny(img, mask):
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
 
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
-    edges = cv2.Canny((to_sketch * 255).astype(np.uint8), 250, 500)
+    edges = cv2.Canny((to_sketch * 255).astype(np.uint8), low_threshold, high_threshold)
     # edges = np.transpose(edges, (2, 0, 1))
     edges = torch.from_numpy(edges).unsqueeze(0).unsqueeze(0)
     img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = edges
@@ -65,15 +253,20 @@ def fill_img_with_canny(img, mask):
 
 
 def fill_img_with_hed(img, mask):
+    apply_hed = HEDdetector()
+    detected_map = apply_hed(img)
+    print(detected_map.shape)
+
+
+def fill_img_with_hed_Caffe(img, mask):
     """
     From pretrained Caffe model with openCV.
     """
 
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
-    coords = np.column_stack(
-        np.where(mask_2D > 0)
-    )  # Get the coordinates of the white pixels in the mask
+    coords = np.column_stack(np.where(mask_2D > 0))
+    # Get the coordinates of the white pixels in the mask
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(np.int))
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
 
@@ -117,3 +310,13 @@ def fill_img_with_hed(img, mask):
     img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = hed
 
     return img_orig
+
+
+def fill_img_with_hough(img, mask):
+    return None
+
+
+if __name__ == "__main__":
+    img = torch.rand(1, 3, 256, 256).squeeze(0)
+    mask = torch.rand(1, 1, 256, 256).squeeze(0)
+    fill_img_with_hed(img, mask)

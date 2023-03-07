@@ -119,7 +119,7 @@ if __name__ == "__main__":
                 args.previous_frame = None
                 args.bbox_id = j
                 ##- save orig, mask, out
-                if args.bbox_use >= 0:
+                if args.bbox_use >= 0 and args.bbox_use < bbox_count:
                     if j != args.bbox_use:
                         continue
                     else:
