@@ -171,6 +171,36 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             total_iters += batch_size
             epoch_iter += batch_size
 
+            if (
+                total_iters % opt.output_print_freq < batch_size
+            ):  # print training losses and save logging information to the disk
+
+                losses = model.get_current_losses()
+
+                float_losses = {}
+
+                for name, value in losses.items():
+
+                    if len(opt.gpu_ids) > 1:
+
+                        torch.distributed.all_reduce(
+                            value, op=torch.distributed.ReduceOp.SUM
+                        )  # loss value is summed accross gpus
+
+                    float_losses[name] = float(value / len(opt.gpu_ids))
+
+                losses = float_losses
+
+                if rank_0:
+
+                    visualizer.print_current_losses(
+                        epoch, epoch_iter, losses, t_comp, t_data_mini_batch
+                    )
+                    if opt.output_display_id > 0:
+                        visualizer.plot_current_losses(
+                            epoch, float(epoch_iter) / dataset_size, losses
+                        )
+
             if rank_0:
                 if (
                     total_iters % opt.output_display_freq < batch_size
@@ -184,18 +214,6 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                         params=model.get_display_param(),
                         first=(total_iters == batch_size),
                     )
-
-                if (
-                    total_iters % opt.output_print_freq < batch_size
-                ):  # print training losses and save logging information to the disk
-                    losses = model.get_current_losses()
-                    visualizer.print_current_losses(
-                        epoch, epoch_iter, losses, t_comp, t_data_mini_batch
-                    )
-                    if opt.output_display_id > 0:
-                        visualizer.plot_current_losses(
-                            epoch, float(epoch_iter) / dataset_size, losses
-                        )
 
                 if (
                     total_iters % opt.train_save_latest_freq < batch_size

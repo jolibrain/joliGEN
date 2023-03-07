@@ -11,7 +11,7 @@ from .modules.NCE.monce import MoNCELoss
 from .modules.NCE.hDCE import PatchHDCELoss
 from .modules.NCE.SRC import SRC_Loss
 
-from util.iter_calculator import IterCalculator
+
 from util.network_group import NetworkGroup
 import util.util as util
 from util.util import gaussian
@@ -388,11 +388,7 @@ class CUTModel(BaseGanModel):
         self.forward_functions.insert(1, "forward_cut")
 
         # Itercalculator
-        if self.opt.train_iter_size > 1:
-            self.iter_calculator = IterCalculator(self.loss_names)
-            for i, cur_loss in enumerate(self.loss_names):
-                self.loss_names[i] = cur_loss + "_avg"
-                setattr(self, "loss_" + self.loss_names[i], 0)
+        self.iter_calculator_init()
 
     def data_dependent_initialize(self, data):
         """

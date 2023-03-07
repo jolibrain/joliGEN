@@ -8,7 +8,6 @@ import math
 
 from .base_diffusion_model import BaseDiffusionModel
 from util.network_group import NetworkGroup
-from util.iter_calculator import IterCalculator
 from . import diffusion_networks
 from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
 from data.online_creation import fill_mask_with_color
@@ -160,12 +159,7 @@ class PaletteModel(BaseDiffusionModel):
         self.loss_names = self.loss_names_G.copy()
 
         # Itercalculator
-        if self.opt.train_iter_size > 1:
-
-            self.iter_calculator = IterCalculator(self.loss_names)
-            for i, cur_loss in enumerate(self.loss_names):
-                self.loss_names[i] = cur_loss + "_avg"
-                setattr(self, "loss_" + self.loss_names[i], 0)
+        self.iter_calculator_init()
 
         self.sample_num = 2
 

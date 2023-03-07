@@ -10,6 +10,7 @@ from . import semantic_networks
 from .modules.utils import get_scheduler
 from torchviz import make_dot
 from thop import profile
+from contextlib import ExitStack
 
 from util.network_group import NetworkGroup
 
@@ -31,6 +32,12 @@ import torch.nn.functional as F
 # For D loss computing
 from .modules import loss
 from util.discriminator import DiscriminatorInfo
+
+# For export
+from util.export import export
+
+# Iter Calculator
+from util.iter_calculator import IterCalculator
 
 
 class BaseModel(ABC):
@@ -709,9 +716,8 @@ class BaseModel(ABC):
         errors_ret = OrderedDict()
         for name in self.loss_names:
             if isinstance(name, str):
-                errors_ret[name] = float(
-                    getattr(self, "loss_" + name)
-                )  # float(...) works for both scalar tensor and float number
+                errors_ret[name] = getattr(self, "loss_" + name)
+
         return errors_ret
 
     def save_networks(self, epoch):
@@ -918,11 +924,6 @@ class BaseModel(ABC):
                     getattr(self, "loss_" + loss_name).clone()
                     / self.opt.train_iter_size
                 )
-                if len(self.opt.gpu_ids) > 1:
-                    torch.distributed.all_reduce(
-                        value, op=torch.distributed.ReduceOp.SUM
-                    )  # loss value is summed accross gpus
-                    value = value / len(self.opt.gpu_ids)
                 if torch.is_tensor(value):
                     value = value.detach()
                 self.iter_calculator.compute_step(loss_name, value)
@@ -967,69 +968,81 @@ class BaseModel(ABC):
 
         self.niter = self.niter + 1
 
-        if torch.__version__[0] == "2" and self.opt.with_torch_compile:
-            torch._dynamo.config.suppress_errors = (
-                True  # automatic fall back to eager mode
-            )
+        with ExitStack() as stack:
+            if torch.__version__[0] == "2" and self.opt.with_torch_compile:
+                torch._dynamo.config.suppress_errors = (
+                    True  # automatic fall back to eager mode
+                )
 
-        for group in self.networks_groups:
-            for network in self.model_names:
-                if network in group.networks_to_optimize:
-                    self.set_requires_grad(getattr(self, "net" + network), True)
-                else:
-                    self.set_requires_grad(getattr(self, "net" + network), False)
-
-            if not group.forward_functions is None:
-                with torch.cuda.amp.autocast(enabled=self.with_amp):
-                    for forward in group.forward_functions:
-                        if (
-                            torch.__version__[0] == "2"
-                            and self.opt.with_torch_compile
-                            and self.niter == 1
-                        ):
-                            print("Torch compile forward function=", forward)
-                            setattr(
-                                self, forward, torch.compile(getattr(self, forward))
-                            )
-                        getattr(self, forward)()
-
-            for backward in group.backward_functions:
-                if (
-                    torch.__version__[0] == "2"
-                    and self.opt.with_torch_compile
-                    and self.niter == 1
-                ):
-                    print("Torch compile backward function=", backward)
-                    setattr(self, backward, torch.compile(getattr(self, backward)))
-                getattr(self, backward)()
-
-            for loss in group.loss_backward:
-                if self.use_cuda:
-                    ll = (
-                        self.scaler.scale(getattr(self, loss))
-                        / self.opt.train_iter_size
-                    )
-                else:
-                    ll = getattr(self, loss) / self.opt.train_iter_size
-                if self.opt.model_multimodal:
-                    retain_graph = True
-                else:
-                    retain_graph = False
-                ll.backward(retain_graph=retain_graph)
-
-            loss_names = []
-
-            for temp in group.loss_names_list:
-                loss_names += getattr(self, temp)
-            self.compute_step(group.optimizer, loss_names)
-
-            if self.opt.train_G_ema:
+            # print(self.niter,self.opt.train_iter_size,                self.niter % self.opt.train_iter_size,                self.niter % self.opt.train_iter_size != 0,            )
+            if len(self.opt.gpu_ids) > 1 and self.niter % self.opt.train_iter_size != 0:
                 for network in self.model_names:
-                    if network in group.networks_to_ema:
-                        self.ema_step(network)
 
-        for cur_object in self.objects_to_update:
-            cur_object.update(self.niter)
+                    stack.enter_context(getattr(self, "net" + network).no_sync())
+
+            for group in self.networks_groups:
+
+                for network in self.model_names:
+                    if network in group.networks_to_optimize:
+                        self.set_requires_grad(getattr(self, "net" + network), True)
+                    else:
+                        self.set_requires_grad(getattr(self, "net" + network), False)
+
+                if not group.forward_functions is None:
+                    with torch.cuda.amp.autocast(enabled=self.with_amp):
+                        for forward in group.forward_functions:
+
+                            if (
+                                torch.__version__[0] == "2"
+                                and self.opt.with_torch_compile
+                                and self.niter == 1
+                            ):
+                                print("Torch compile forward function=", forward)
+                                setattr(
+                                    self, forward, torch.compile(getattr(self, forward))
+                                )
+
+                            getattr(self, forward)()
+
+                for backward in group.backward_functions:
+                    if (
+                        torch.__version__[0] == "2"
+                        and self.opt.with_torch_compile
+                        and self.niter == 1
+                    ):
+                        print("Torch compile backward function=", backward)
+                        setattr(self, backward, torch.compile(getattr(self, backward)))
+
+                    getattr(self, backward)()
+
+                for loss in group.loss_backward:
+                    if self.use_cuda:
+                        ll = (
+                            self.scaler.scale(getattr(self, loss))
+                            / self.opt.train_iter_size
+                        )
+                    else:
+                        ll = getattr(self, loss) / self.opt.train_iter_size
+                    if self.opt.model_multimodal:
+                        retain_graph = True
+                    else:
+                        retain_graph = False
+                    ll.backward(retain_graph=retain_graph)
+
+                loss_names = []
+
+                for temp in group.loss_names_list:
+                    loss_names += getattr(self, temp)
+
+                self.compute_step(group.optimizer, loss_names)
+
+                if self.opt.train_G_ema:
+                    for network in self.model_names:
+                        if network in group.networks_to_ema:
+                            self.ema_step(network)
+
+            for cur_object in self.objects_to_update:
+                cur_object.update(self.niter)
 
     def compute_miou_f_s_generic(self, pred, target):
         target = self.one_hot(target)
@@ -1352,3 +1365,15 @@ class BaseModel(ABC):
         )
 
         delete_flop_param(model)
+
+    def iter_calculator_init(self):
+
+        if self.opt.train_iter_size > 1:
+            self.iter_calculator = IterCalculator(self.loss_names)
+            for i, cur_loss in enumerate(self.loss_names):
+                self.loss_names[i] = cur_loss + "_avg"
+                setattr(
+                    self,
+                    "loss_" + self.loss_names[i],
+                    torch.zeros(size=(), device=self.device),
+                )
