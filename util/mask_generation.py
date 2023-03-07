@@ -317,6 +317,82 @@ class HEDdetector:
             return edge[0]
 
 
+def deccode_output_score_and_ptss(tpMap, topk_n=200, ksize=5):
+    """
+    tpMap:
+    center: tpMap[1, 0, :, :]
+    displacement: tpMap[1, 1:5, :, :]
+    """
+    b, c, h, w = tpMap.shape
+    assert b == 1, "only support bsize==1"
+    displacement = tpMap[:, 1:5, :, :][0]
+    center = tpMap[:, 0, :, :]
+    heat = torch.sigmoid(center)
+    hmax = F.max_pool2d(heat, (ksize, ksize), stride=1, padding=(ksize - 1) // 2)
+    keep = (hmax == heat).float()
+    heat = heat * keep
+    heat = heat.reshape(
+        -1,
+    )
+
+    scores, indices = torch.topk(heat, topk_n, dim=-1, largest=True)
+    yy = torch.floor_divide(indices, w).unsqueeze(-1)
+    xx = torch.fmod(indices, w).unsqueeze(-1)
+    ptss = torch.cat((yy, xx), dim=-1)
+
+    ptss = ptss.detach().cpu().numpy()
+    scores = scores.detach().cpu().numpy()
+    displacement = displacement.detach().cpu().numpy()
+    displacement = displacement.transpose((1, 2, 0))
+    return ptss, scores, displacement
+
+
+def pred_lines(image, model, input_shape=[256, 256], score_thr=0.10, dist_thr=20.0):
+    h, w, _ = image.shape
+    h_ratio, w_ratio = [h / input_shape[0], w / input_shape[1]]
+
+    resized_image = np.concatenate(
+        [
+            cv2.resize(
+                image, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA
+            ),
+            np.ones([input_shape[0], input_shape[1], 1]),
+        ],
+        axis=-1,
+    )
+
+    resized_image = resized_image.transpose((2, 0, 1))
+    batch_image = np.expand_dims(resized_image, axis=0).astype("float32")
+    batch_image = (batch_image / 127.5) - 1.0
+
+    batch_image = torch.from_numpy(batch_image).float().cuda()
+    outputs = model(batch_image)
+    pts, pts_score, vmap = deccode_output_score_and_ptss(outputs, 200, 3)
+    start = vmap[:, :, :2]
+    end = vmap[:, :, 2:]
+    dist_map = np.sqrt(np.sum((start - end) ** 2, axis=-1))
+
+    segments_list = []
+    for center, score in zip(pts, pts_score):
+        y, x = center
+        distance = dist_map[y, x]
+        if score > score_thr and distance > dist_thr:
+            disp_x_start, disp_y_start, disp_x_end, disp_y_end = vmap[y, x, :]
+            x_start = x + disp_x_start
+            y_start = y + disp_y_start
+            x_end = x + disp_x_end
+            y_end = y + disp_y_end
+            segments_list.append([x_start, y_start, x_end, y_end])
+
+    lines = 2 * np.array(segments_list)  # 256 > 512
+    lines[:, 0] = lines[:, 0] * w_ratio
+    lines[:, 1] = lines[:, 1] * h_ratio
+    lines[:, 2] = lines[:, 2] * w_ratio
+    lines[:, 3] = lines[:, 3] * h_ratio
+
+    return lines
+
+
 class Network(torch.nn.Module):
     def __init__(self, model_path):
         super().__init__()
@@ -504,6 +580,13 @@ class HEDdetector:
             return edge[0]
 
 
+def tensor_to_cv2(tensor):
+    array = tensor.numpy()
+    array = np.transpose(array, (1, 2, 0)) * 255
+    image = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
+    return image
+
+
 def fill_img_with_sketch(img, mask):
     grayscale = Grayscale(3)
     gray = grayscale(img)
@@ -549,6 +632,7 @@ def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=200):
         np.where(mask_2D > 0.9)
     )  # Get the coordinates of the white pixels in the mask
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
+
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
 
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
@@ -567,6 +651,7 @@ def fill_img_with_hed(img, mask):
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(np.where(mask_2D > 0.9))
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
+
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
 
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
