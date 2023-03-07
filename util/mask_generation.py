@@ -1,4 +1,5 @@
 import os
+import sys
 import urllib.request
 
 import cv2
@@ -7,6 +8,8 @@ import torch
 from einops import rearrange
 from torch.nn import functional as F
 from torchvision.transforms import Grayscale
+
+sys.path.append("../")
 
 
 def deccode_output_score_and_ptss(tpMap, topk_n=200, ksize=5):
@@ -83,6 +86,45 @@ def pred_lines(image, model, input_shape=[256, 256], score_thr=0.10, dist_thr=20
     lines[:, 3] = lines[:, 3] * h_ratio
 
     return lines
+
+
+class MLSDdetector:
+    def __init__(self):
+        dir = os.path.dirname(__file__)
+        model_dir = os.path.join(dir, "../models/configs/pretrained/")
+        remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/mlsd_large_512_fp32.pth"
+        model_path = os.path.join(model_dir, "mlsd_large_512_fp32.pth")
+        if not os.path.exists(model_path):
+            from basicsr.utils.download_util import load_file_from_url
+
+            load_file_from_url(remote_model_path, model_dir=model_dir)
+        from models.mbv2_mlsd_large import MobileV2_MLSD_Large
+
+        model = MobileV2_MLSD_Large()
+        model.load_state_dict(torch.load(model_path), strict=True)
+        self.model = model.cuda().eval()
+
+    def __call__(self, input_image, thr_v, thr_d):
+        assert input_image.ndim == 3
+        img = input_image
+        img_output = np.zeros_like(img)
+        try:
+            with torch.no_grad():
+                lines = pred_lines(
+                    img, self.model, [img.shape[0], img.shape[1]], thr_v, thr_d
+                )
+                for line in lines:
+                    x_start, y_start, x_end, y_end = [int(val) for val in line]
+                    cv2.line(
+                        img_output,
+                        (x_start, y_start),
+                        (x_end, y_end),
+                        [255, 255, 255],
+                        1,
+                    )
+        except Exception as e:
+            pass
+        return img_output[:, :, 0]
 
 
 class Network(torch.nn.Module):
@@ -412,7 +454,24 @@ def fill_img_with_hed_Caffe(img, mask):
 
 
 def fill_img_with_hough(img, mask):
-    return None
+    apply_hed = HEDdetector()
+    img_orig = img.clone()
+    mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
+    coords = np.column_stack(
+        np.where(mask_2D > 0)
+    )  # Get the coordinates of the white pixels in the mask
+    x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
+    ## TODO check if [:, :, w, h] or invert w and h ?
+    to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
+
+    to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
+    to_sketch = (to_sketch * 255).astype(np.uint8)
+    apply_mlsd = MLSDdetector()
+    detected_map = apply_mlsd(to_sketch) / 255
+    detected_map_resized = torch.from_numpy(detected_map).unsqueeze(0).unsqueeze(0)
+    img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized
+
+    return img_orig
 
 
 if __name__ == "__main__":
@@ -428,4 +487,6 @@ if __name__ == "__main__":
     )
     tensor_mask = torch.from_numpy(np.transpose(mask, (2, 0, 1))).float()
     tensor_mask = tensor_mask / 255.0
-    img_detect = fill_img_with_hed(tensor_image.unsqueeze(0), tensor_mask.unsqueeze(0))
+    img_detect = fill_img_with_hough(
+        tensor_image.unsqueeze(0), tensor_mask.unsqueeze(0)
+    )
