@@ -75,6 +75,14 @@ class DiffusionOptions:
 
         self.parser.add_argument("--name", help="generated img name", default="img")
 
+        self.parser.add_argument(
+            "--sampling_method",
+            type=str,
+            default="ddpm",
+            choices=["ddpm", "ddim"],
+            help="choose the sampling method between ddpm and ddim",
+        )
+
     def parse(self):
         args = self.parser.parse_args()
         return args

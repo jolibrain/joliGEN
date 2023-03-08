@@ -19,14 +19,13 @@ from models.modules.resnet_architecture.resnet_generator_diff import (
 
 
 class DiffusionGenerator(nn.Module):
-    def __init__(
-        self,
-        denoise_fn,
-    ):
+    def __init__(self, denoise_fn, sampling_method):
 
         super().__init__()
 
         self.denoise_fn = denoise_fn
+
+        self.sampling_method = sampling_method
 
         # Init noise schedule
         set_new_noise_schedule(model=self.denoise_fn, phase="train")
@@ -99,7 +98,15 @@ class DiffusionGenerator(nn.Module):
         model_mean, model_log_variance = self.p_mean_variance(
             y_t=y_t, t=t, clip_denoised=clip_denoised, y_cond=y_cond, phase=phase
         )
-        noise = torch.randn_like(y_t) if any(t > 0) else torch.zeros_like(y_t)
+
+        if self.sampling_method == "ddpm":
+            noise = torch.randn_like(y_t) if any(t > 0) else torch.zeros_like(y_t)
+        elif self.sampling_method == "ddim":
+            noise = torch.zeros_like(y_t)
+        else:
+            raise ValueError(
+                "%s sampling method is not implemented" % self.sampling_method
+            )
         return model_mean + noise * (0.5 * model_log_variance).exp()
 
     def forward(self, y_0, y_cond, mask, noise):
@@ -136,3 +143,6 @@ class DiffusionGenerator(nn.Module):
             )
 
         return noise, noise_hat
+
+    def set_new_sampling_method(self, sampling_method):
+        self.sampling_method = sampling_method

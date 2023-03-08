@@ -11,6 +11,7 @@ import argparse
 import warnings
 import math
 from tqdm import tqdm
+import re
 
 sys.path.append("../")
 from models import diffusion_networks
@@ -21,7 +22,7 @@ from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
 from diffusion_options import DiffusionOptions
 
 
-def load_model(modelpath, model_in_file, device, sampling_steps):
+def load_model(modelpath, model_in_file, device, sampling_steps, sampling_method):
     train_json_path = modelpath + "/train_config.json"
     with open(train_json_path, "r") as jsonf:
         train_json = json.load(jsonf)
@@ -43,6 +44,8 @@ def load_model(modelpath, model_in_file, device, sampling_steps):
     if sampling_steps > 0:
         model.denoise_fn.beta_schedule["test"]["n_timestep"] = sampling_steps
         set_new_noise_schedule(model.denoise_fn, "test")
+
+    model.set_new_sampling_method(sampling_method)
 
     model = model.to(device)
     return model, opt
@@ -78,6 +81,7 @@ def generate(
     name,
     mask_delta,
     mask_square,
+    sampling_method,
     **unused_options,
 ):
 
@@ -93,7 +97,11 @@ def generate(
     else:
         device = torch.device("cpu")
     model, opt = load_model(
-        modelpath, os.path.basename(model_in_file), device, sampling_steps
+        modelpath,
+        os.path.basename(model_in_file),
+        device,
+        sampling_steps,
+        sampling_method,
     )
 
     if len(opt.data_online_creation_mask_delta_A) == 1:
@@ -176,6 +184,7 @@ def generate(
             img_path=img_in,
             bbox_path=bbox_in,
             mask_delta=mask_delta,  # =opt.data_online_creation_mask_delta_A,
+            mask_random_offset=opt.data_online_creation_mask_random_offset_A,
             crop_delta=0,
             mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
             crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
@@ -190,6 +199,7 @@ def generate(
             img_path=img_in,
             bbox_path=bbox_in,
             mask_delta=mask_delta,  # opt.data_online_creation_mask_delta_A,
+            mask_random_offset=opt.data_online_creation_mask_random_offset_A,
             crop_delta=0,
             mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
             crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim

@@ -29,6 +29,7 @@ def define_G(
     G_config_segformer,
     G_unet_mha_norm_layer,
     G_unet_mha_group_norm_size,
+    alg_palette_sampling_method,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
     conv_resample=True,
@@ -106,7 +107,7 @@ def define_G(
         )
 
     net = DiffusionGenerator(
-        denoise_fn=denoise_fn,
+        denoise_fn=denoise_fn, sampling_method=alg_palette_sampling_method
     )
 
     return net
