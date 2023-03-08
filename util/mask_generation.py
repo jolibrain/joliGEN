@@ -9,7 +9,7 @@ from einops import rearrange
 from torch.nn import functional as F
 from torchvision.transforms import Grayscale
 
-sys.path.append("../")
+sys.path.append("./../")
 
 
 def deccode_output_score_and_ptss(tpMap, topk_n=200, ksize=5):
@@ -123,6 +123,7 @@ class MLSDdetector:
                         1,
                     )
         except Exception as e:
+            print(e)
             pass
         return img_output[:, :, 0]
 
@@ -453,9 +454,15 @@ def fill_img_with_hed_Caffe(img, mask):
     return img_orig
 
 
-def fill_img_with_hough(img, mask):
+
+
+
+def fill_img_with_hough(img, mask, value_threshold=1e-04, distance_threshold=20.0, with_canny=False):
     apply_hed = HEDdetector()
-    img_orig = img.clone()
+    if with_canny:
+        img_orig = fill_img_with_canny(img, mask)
+    else:
+        img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(
         np.where(mask_2D > 0)
@@ -466,8 +473,13 @@ def fill_img_with_hough(img, mask):
 
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
     to_sketch = (to_sketch * 255).astype(np.uint8)
+    to_sketch = to_sketch
     apply_mlsd = MLSDdetector()
-    detected_map = apply_mlsd(to_sketch) / 255
+    detected_map = (
+        apply_mlsd(to_sketch, thr_v=value_threshold, thr_d=distance_threshold) / 255
+    )
+    # reverse black and white
+    detected_map = 1 - detected_map
     detected_map_resized = torch.from_numpy(detected_map).unsqueeze(0).unsqueeze(0)
     img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized
 
@@ -475,6 +487,7 @@ def fill_img_with_hough(img, mask):
 
 
 if __name__ == "__main__":
+    print(sys.path)
     img = cv2.imread(
         "/data3/killian/mapillary/tlse79/4pAOUUhR5UkZqGOWlf07AA_2_2_y_0.jpg"
     )
