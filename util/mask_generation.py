@@ -49,7 +49,6 @@ def deccode_output_score_and_ptss(tpMap, topk_n=200, ksize=5):
 def pred_lines(image, model, input_shape=[256, 256], score_thr=0.10, dist_thr=20.0):
     h, w, _ = image.shape
     h_ratio, w_ratio = [h / input_shape[0], w / input_shape[1]]
-
     resized_image = np.concatenate(
         [
             cv2.resize(
@@ -109,6 +108,7 @@ class MLSDdetector:
         assert input_image.ndim == 3
         img = input_image
         img_output = np.zeros_like(img)
+        img_um = cv2.UMat(img_output)
         try:
             with torch.no_grad():
                 lines = pred_lines(
@@ -117,15 +117,19 @@ class MLSDdetector:
                 for line in lines:
                     x_start, y_start, x_end, y_end = [int(val) for val in line]
                     cv2.line(
-                        img_output,
+                        img_um,
                         (x_start, y_start),
                         (x_end, y_end),
                         [255, 255, 255],
                         1,
                     )
+
         except Exception as e:
+            print(e)
             pass
-        return img_output[:, :, 0]
+
+        img_with_line = img_um.get()
+        return img_with_line[:, :, 0]
 
 
 class Network(torch.nn.Module):
@@ -351,7 +355,7 @@ def fill_img_with_edges(img, mask):
     return mask * edges + (1 - mask) * img
 
 
-def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=300):
+def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=200):
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(
@@ -379,7 +383,7 @@ def fill_img_with_hed(img, mask):
 
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
     to_sketch = (to_sketch * 255).astype(np.uint8)
-    detected_map = 1 - apply_hed(to_sketch) / 255
+    detected_map = apply_hed(to_sketch) / 255
     detected_map_resized = torch.from_numpy(detected_map).unsqueeze(0).unsqueeze(0)
     img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized
 
@@ -431,7 +435,7 @@ def fill_img_with_hed_Caffe(img, mask):
     net.setInput(blob)
     hed = net.forward()
     hed = cv2.resize(hed[0, 0], (W, H))
-    hed = (255 * hed).astype("uint8")
+    hed = (hed).astype("uint8")
 
     hed = torch.from_numpy(hed).unsqueeze(0).unsqueeze(0)
 
@@ -451,8 +455,7 @@ def fill_img_with_hough(
     coords = np.column_stack(np.where(mask_2D > 0.9))
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
     ## TODO check if [:, :, w, h] or invert w and h ?
-    to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
-
+    to_sketch = img_orig.clone()
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
     to_sketch = (to_sketch * 255).astype(np.uint8)
     to_sketch = to_sketch
@@ -460,10 +463,11 @@ def fill_img_with_hough(
     detected_map = apply_mlsd(
         to_sketch, thr_v=value_threshold, thr_d=distance_threshold
     )
-    # reverse black and white
-    detected_map = 1 - detected_map / 255
+    detected_map = detected_map / 255
     detected_map_resized = torch.from_numpy(detected_map).unsqueeze(0).unsqueeze(0)
-    img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized
+    img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized[
+        :, :, x_0 : x_0 + w, y_0 : y_0 + h
+    ]
 
     return img_orig
 
