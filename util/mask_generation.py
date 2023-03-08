@@ -801,7 +801,7 @@ def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(
-        np.where(mask_2D == 1)
+        np.where(mask_2D > 0.9)
     )  # Get the coordinates of the white pixels in the mask
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
     to_sketch = img_orig.clone()
