@@ -428,6 +428,7 @@ class MLSDdetector:
                         1,
                     )
         except Exception as e:
+            print(e)
             pass
         return img_output[:, :, 0]
 
@@ -777,6 +778,7 @@ def fill_img_with_hough(
         to_sketch, thr_v=value_threshold, thr_d=distance_threshold
     )
     detected_map = detected_map / 255
+
     detected_map_resized = torch.from_numpy(detected_map).unsqueeze(0).unsqueeze(0)
     img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized[
         :, :, x_0 : x_0 + w, y_0 : y_0 + h
@@ -807,6 +809,7 @@ def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
 
 
 if __name__ == "__main__":
+    print(sys.path)
     img = cv2.imread(
         "/data3/killian/mapillary/tlse79/4pAOUUhR5UkZqGOWlf07AA_2_2_y_0.jpg"
     )
