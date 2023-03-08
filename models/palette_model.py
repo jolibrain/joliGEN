@@ -60,6 +60,14 @@ class PaletteModel(BaseDiffusionModel):
             help="prob to use previous frame as y cond",
         )
 
+        parser.add_argument(
+            "--alg_palette_sampling_method",
+            type=str,
+            default="ddpm",
+            choices=["ddpm", "ddim"],
+            help="choose the sampling method between ddpm and ddim",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
