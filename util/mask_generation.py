@@ -351,11 +351,11 @@ def fill_img_with_edges(img, mask):
     return mask * edges + (1 - mask) * img
 
 
-def fill_img_with_canny(img, mask, low_threshold=250, high_threshold=500):
+def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=300):
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(
-        np.where(mask_2D == 1)
+        np.where(mask_2D > 0.9)
     )  # Get the coordinates of the white pixels in the mask
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
@@ -373,7 +373,7 @@ def fill_img_with_hed(img, mask):
     apply_hed = HEDdetector()
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
-    coords = np.column_stack(np.where(mask_2D == 1))
+    coords = np.column_stack(np.where(mask_2D > 0.9))
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
 
@@ -393,7 +393,7 @@ def fill_img_with_hed_Caffe(img, mask):
 
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
-    coords = np.column_stack(np.where(mask_2D == 1))
+    coords = np.column_stack(np.where(mask_2D > 0.9))
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
 
@@ -441,15 +441,14 @@ def fill_img_with_hed_Caffe(img, mask):
 
 
 def fill_img_with_hough(
-    img, mask, value_threshold=1e-04, distance_threshold=20.0, with_canny=False
+    img, mask, value_threshold=1e-05, distance_threshold=10.0, with_canny=False
 ):
-    apply_hed = HEDdetector()
     if with_canny:
         img_orig = fill_img_with_canny(img, mask)
     else:
         img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
-    coords = np.column_stack(np.where(mask_2D == 1))
+    coords = np.column_stack(np.where(mask_2D > 0.9))
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
     ## TODO check if [:, :, w, h] or invert w and h ?
     to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
@@ -458,8 +457,8 @@ def fill_img_with_hough(
     to_sketch = (to_sketch * 255).astype(np.uint8)
     to_sketch = to_sketch
     apply_mlsd = MLSDdetector()
-    detected_map = (
-        apply_mlsd(to_sketch, thr_v=value_threshold, thr_d=distance_threshold)
+    detected_map = apply_mlsd(
+        to_sketch, thr_v=value_threshold, thr_d=distance_threshold
     )
     # reverse black and white
     detected_map = 1 - detected_map / 255
@@ -473,7 +472,7 @@ def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(
-        np.where(mask_2D == 1)
+        np.where(mask_2D > 0.9)
     )  # Get the coordinates of the white pixels in the mask
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
     to_sketch = img_orig.clone()
@@ -483,7 +482,9 @@ def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
         predict_depth(img=to_sketch, midas=midas_w, model_type=depth_network) / 255
     )
     depth_map = depth_map.unsqueeze(0)
-    img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = depth_map[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
+    img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = depth_map[
+        :, :, x_0 : x_0 + w, y_0 : y_0 + h
+    ]
 
     return img_orig
 
