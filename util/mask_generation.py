@@ -5,9 +5,13 @@ import urllib.request
 import cv2
 import numpy as np
 import torch
+from basicsr.utils.download_util import load_file_from_url
 from einops import rearrange
 from torch.nn import functional as F
 from torchvision.transforms import Grayscale
+
+from models.mbv2_mlsd_large import MobileV2_MLSD_Large
+from models.modules.utils import download_midas_weight, predict_depth
 
 sys.path.append("./../")
 
@@ -95,10 +99,7 @@ class MLSDdetector:
         remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/mlsd_large_512_fp32.pth"
         model_path = os.path.join(model_dir, "mlsd_large_512_fp32.pth")
         if not os.path.exists(model_path):
-            from basicsr.utils.download_util import load_file_from_url
-
             load_file_from_url(remote_model_path, model_dir=model_dir)
-        from models.mbv2_mlsd_large import MobileV2_MLSD_Large
 
         model = MobileV2_MLSD_Large()
         model.load_state_dict(torch.load(model_path), strict=True)
@@ -298,8 +299,6 @@ class HEDdetector:
         remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/network-bsds500.pth"
         modelpath = os.path.join(model_dir, "network-bsds500.pth")
         if not os.path.exists(modelpath):
-            from basicsr.utils.download_util import load_file_from_url
-
             load_file_from_url(remote_model_path, model_dir=model_dir)
         self.netNetwork = Network(modelpath).cuda().eval()
 
@@ -313,13 +312,6 @@ class HEDdetector:
             edge = self.netNetwork(image_hed)[0]
             edge = (edge.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
             return edge[0]
-
-
-def tensor_to_cv2(tensor):
-    array = tensor.numpy()
-    array = np.transpose(array, (1, 2, 0)) * 255
-    image = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
-    return image
 
 
 def fill_img_with_sketch(img, mask):
@@ -454,10 +446,9 @@ def fill_img_with_hed_Caffe(img, mask):
     return img_orig
 
 
-
-
-
-def fill_img_with_hough(img, mask, value_threshold=1e-04, distance_threshold=20.0, with_canny=False):
+def fill_img_with_hough(
+    img, mask, value_threshold=1e-04, distance_threshold=20.0, with_canny=False
+):
     apply_hed = HEDdetector()
     if with_canny:
         img_orig = fill_img_with_canny(img, mask)
@@ -482,6 +473,25 @@ def fill_img_with_hough(img, mask, value_threshold=1e-04, distance_threshold=20.
     detected_map = 1 - detected_map
     detected_map_resized = torch.from_numpy(detected_map).unsqueeze(0).unsqueeze(0)
     img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized
+
+    return img_orig
+
+
+def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
+    img_orig = img.clone()
+    mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
+    coords = np.column_stack(
+        np.where(mask_2D > 0)
+    )  # Get the coordinates of the white pixels in the mask
+    x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
+    ## TODO check if [:, :, w, h] or invert w and h ?
+    to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
+
+    # to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
+    midas_w = download_midas_weight(model_type=depth_network)
+    depth_map = predict_depth(img=to_sketch, midas=midas_w, model_type=depth_network)
+    depth_map = depth_map.unsqueeze(0)
+    img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = depth_map
 
     return img_orig
 

@@ -24,8 +24,11 @@ from models.modules.diffusion_utils import set_new_noise_schedule
 from options.train_options import TrainOptions
 from util.mask_generation import (
     fill_img_with_canny,
+    fill_img_with_depth,
     fill_img_with_edges,
     fill_img_with_hed,
+    fill_img_with_hed_Caffe,
+    fill_img_with_hough,
     fill_img_with_sketch,
 )
 
@@ -201,6 +204,14 @@ def transfer_cond(
             )
         elif opt.alg_palette_cond_image_creation == "hed":
             cond_image_bus = fill_img_with_hed(
+                img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
+            )
+        elif opt.alg_palette_cond_image_creation == "hough":
+            cond_image_bus = fill_img_with_hough(
+                img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
+            )
+        elif opt.alg_palette_cond_image_creation == "depth":
+            cond_image_bus = fill_img_with_depth(
                 img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
             )
 
@@ -554,6 +565,38 @@ def generate(
             )
         else:
             cond_image = fill_img_with_hed(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+    elif opt.alg_palette_cond_image_creation == "hough":
+        if transfer:
+            cond_image = transfer_cond(
+                img_tensor,
+                bbox,
+                source_img,
+                source_bbox,
+                source_id,
+                source_bbox,
+                mask_delta,
+                mask_square,
+                opt,
+                device,
+            )
+        else:
+            cond_image = fill_img_with_hough(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+    elif opt.alg_palette_cond_image_creation == "depth":
+        if transfer:
+            cond_image = transfer_cond(
+                img_tensor,
+                bbox,
+                source_img,
+                source_bbox,
+                source_id,
+                source_bbox,
+                mask_delta,
+                mask_square,
+                opt,
+                device,
+            )
+        else:
+            cond_image = fill_img_with_depth(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "edges":
         if transfer:
             cond_image = transfer_cond(
