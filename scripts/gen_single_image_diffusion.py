@@ -95,6 +95,16 @@ def to_np(img):
     return img
 
 
+totensor = transforms.ToTensor()
+tranlist = [
+    totensor,
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    #    resize,
+]
+
+tran = transforms.Compose(tranlist)
+
+
 def resize_bbox(
     bbox, mask_delta, mask_square, opt, x_crop=None, y_crop=None, crop_size=None
 ):
@@ -474,14 +484,7 @@ def generate(
         mask = cv2.resize(mask, (img_width, img_height))
 
     # preprocessing to torch
-    totensor = transforms.ToTensor()
-    tranlist = [
-        totensor,
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        #    resize,
-    ]
 
-    tran = transforms.Compose(tranlist)
     img_tensor = tran(img).clone().detach()
 
     mask = torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
