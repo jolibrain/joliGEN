@@ -202,7 +202,7 @@ def transfer_cond(
             cond_image_bus = fill_img_with_canny(
                 img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
             )
-        elif opt.alg_palette_cond_image_creation == "edges":
+        elif opt.alg_palette_cond_image_creation == "edges":  # same as canny
             cond_image_bus = fill_img_with_edges(
                 img_tensor_bus.unsqueeze(0), mask_bus.unsqueeze(0)
             )
