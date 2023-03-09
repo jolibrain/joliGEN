@@ -460,7 +460,6 @@ def fill_img_with_hough(
     coords = np.column_stack(np.where(mask_2D > 0.9))
 
     x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
-    ## TODO check if [:, :, w, h] or invert w and h ?
     to_sketch = img_orig.clone()
     to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
     to_sketch = (to_sketch * 255).astype(np.uint8)
