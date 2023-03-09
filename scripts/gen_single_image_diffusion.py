@@ -155,6 +155,10 @@ def transfer_cond(
     opt,
     device,
 ):
+    if device == "cpu":
+        cpu = True
+    else:
+        cpu = False
     if source_bbox is not None:
         # img_bus_path = '/data3/beniz/data/mapillary/images/04dkjiUmbNagx0nBB8VZJQ.jpg'
         img_bus_path = source_img  # '/data3/beniz/data/mapillary/images/DSdC0LB71avSiBqw1r9kJg.jpg'
