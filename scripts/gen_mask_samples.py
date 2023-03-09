@@ -145,14 +145,14 @@ if __name__ == "__main__":
                         os.path.join(args.dir_out, args.name + ext)
                         for ext in extensions
                     ]
-                    for i in range(len(img_paths)):
-                        image = cv2.imread(img_paths[i])
-                        if i % 3 == 0:
+                    for k in range(len(img_paths)):
+                        image = cv2.imread(img_paths[k])
+                        if k % 3 == 0:
                             row = image
                         else:
                             row = cv2.hconcat([row, image])
 
-                        if i == len(img_paths) - 1 or i % 3 == 2:
+                        if k == len(img_paths) - 1 or k % 3 == 2:
                             if img.shape[0] == 1:
                                 img = row
                             else:
