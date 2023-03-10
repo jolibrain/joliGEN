@@ -26,6 +26,7 @@ def crop_image(
     select_cat=-1,
     crop_center=False,
     fixed_mask_size=-1,
+    bbox_ref_id=-1,
 ):
 
     margin = context_pixels * 2
@@ -69,6 +70,12 @@ def crop_image(
                     bboxes.append(line)
             elif line != "" or line != " ":
                 print("%s does not describe a bbox" % line)
+
+        # If a bbox ref is given, only select for that box
+        if bbox_ref_id >= 0:
+            bboxes_tmp = []
+            bboxes_tmp.append(bboxes[bbox_ref_id])
+            bboxes = bboxes_tmp
 
         if len(bboxes) == 0:
             raise ValueError(f"There is no bbox at {bbox_path} for image {img_path}.")
