@@ -125,6 +125,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
 | --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE, multiscale_ |
 | --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
+| --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/>_**Values:** ddpm, ddim_ |
 
 ## Datasets
 
