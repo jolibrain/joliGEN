@@ -1,25 +1,33 @@
-import sys
-import os
+import argparse
 import json
+import math
+import os
 import random
+import re
+import sys
+import warnings
+
 import cv2
+import numpy as np
 import torch
 from torchvision import transforms
 from torchvision.utils import save_image
-import numpy as np
-import argparse
-import warnings
-import math
 from tqdm import tqdm
-import re
 
 sys.path.append("../")
-from models import diffusion_networks
-from options.train_options import TrainOptions
-from data.online_creation import fill_mask_with_random, fill_mask_with_color, crop_image
-from models.modules.diffusion_utils import set_new_noise_schedule
-from util.mask_generation import fill_img_with_sketch, fill_img_with_edges
 from diffusion_options import DiffusionOptions
+
+from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
+from models import diffusion_networks
+from models.modules.diffusion_utils import set_new_noise_schedule
+from options.train_options import TrainOptions
+from util.mask_generation import (
+    fill_img_with_canny,
+    fill_img_with_depth,
+    fill_img_with_hed,
+    fill_img_with_hough,
+    fill_img_with_sketch,
+)
 
 
 def load_model(modelpath, model_in_file, device, sampling_steps, sampling_method):
@@ -235,7 +243,6 @@ def generate(
         img, mask = np.array(img), np.array(mask)
 
     if img_width > 0 and img_height > 0:
-
         img = cv2.resize(img, (img_width, img_height))
 
         mask = cv2.resize(mask, (img_width, img_height))
@@ -291,8 +298,14 @@ def generate(
         cond_image = y_t.unsqueeze(0)
     elif opt.alg_palette_cond_image_creation == "sketch":
         cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
-    elif opt.alg_palette_cond_image_creation == "edges":
-        cond_image = fill_img_with_edges(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+    elif opt.alg_palette_cond_image_creation == "canny":
+        cond_image = fill_img_with_canny(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+    elif opt.alg_palette_cond_image_creation == "hed":
+        cond_image = fill_img_with_hed(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+    elif opt.alg_palette_cond_image_creation == "hough":
+        cond_image = fill_img_with_hough(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+    elif opt.alg_palette_cond_image_creation == "depth":
+        cond_image = fill_img_with_depth(img_tensor.unsqueeze(0), mask.unsqueeze(0))
 
     # run through model
     y_t, cond_image, img_tensor, mask = (

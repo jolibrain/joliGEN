@@ -1,13 +1,15 @@
 """This module contains simple helper functions """
 from __future__ import print_function
-import torch
-import numpy as np
-from PIL import Image
+
 import os
+
+import numpy as np
+import requests
+import torch
+from PIL import Image
 
 
 def display_mask(mask):
-
     dict_col = np.array(
         [
             [0, 0, 0],  # black
@@ -74,6 +76,20 @@ def tensor2im(input_image, imtype=np.uint8):
     else:  # if it is a numpy array, do nothing
         image_numpy = input_image
     return image_numpy.astype(imtype)
+
+
+def load_file_from_url(url, directory):
+    # Create the directory if it doesn't exist
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # Extract the filename from the URL
+    filename = url.split("/")[-1]
+
+    # Download the file
+    response = requests.get(url)
+    with open(os.path.join(directory, filename), "wb") as f:
+        f.write(response.content)
 
 
 def diagnose_network(net, name="network"):
