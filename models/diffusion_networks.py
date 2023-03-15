@@ -3,7 +3,7 @@ from .modules.utils import get_norm_layer
 
 from .modules.diffusion_generator import DiffusionGenerator
 from .modules.resnet_architecture.resnet_generator_diff import ResnetGenerator_attn_diff
-from .modules.unet_generator_attn.unet_generator_attn import UNet
+from .modules.unet_generator_attn.unet_generator_attn import UNet, UViT
 
 
 def define_G(
@@ -29,6 +29,7 @@ def define_G(
     G_config_segformer,
     G_unet_mha_norm_layer,
     G_unet_mha_group_norm_size,
+    G_uvit_num_transformer_blocks,
     alg_palette_sampling_method,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
@@ -83,6 +84,26 @@ def define_G(
             group_norm_size=G_unet_mha_group_norm_size,
         )
 
+    elif G_netG == "uvit":
+        denoise_fn = UViT(
+            image_size=data_crop_size,
+            in_channel=model_input_nc * 2,
+            inner_channel=G_ngf,
+            out_channel=model_output_nc,
+            res_blocks=G_nblocks,
+            attn_res=G_unet_mha_attn_res,
+            num_heads=G_unet_mha_num_heads,
+            num_head_channels=G_unet_mha_num_head_channels,
+            tanh=False,
+            dropout=G_dropout,
+            n_timestep_train=G_diff_n_timestep_train,
+            n_timestep_test=G_diff_n_timestep_test,
+            channel_mults=G_unet_mha_channel_mults,
+            norm=G_unet_mha_norm_layer,
+            group_norm_size=G_unet_mha_group_norm_size,
+            num_transformer_blocks=G_uvit_num_transformer_blocks,
+        )
+
     elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":
         mobile = "mobile" in G_netG
         denoise_fn = ResnetGenerator_attn_diff(
@@ -101,7 +122,6 @@ def define_G(
         )
 
     else:
-
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG
         )

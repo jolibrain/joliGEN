@@ -207,6 +207,7 @@ class BaseOptions:
                 "segformer_conv",
                 "ittr",
                 "unet_mha",
+                "uvit",
             ],
             help="specify generator architecture",
         )
@@ -276,6 +277,12 @@ class BaseOptions:
 
         parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
         parser.add_argument("--G_unet_mha_num_heads", default=1, type=int)
+        parser.add_argument(
+            "--G_uvit_num_transformer_blocks",
+            default=6,
+            type=int,
+            help="Number of transformer blocks in UViT",
+        )
         parser.add_argument(
             "--G_diff_n_timestep_train",
             type=int,

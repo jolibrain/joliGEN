@@ -7,6 +7,11 @@ import torch.nn.functional as F
 
 import numpy as np
 
+from einops import rearrange
+from einops.layers.torch import Rearrange
+
+from positional_encodings.torch_encodings import PositionalEncoding1D, Summer
+
 from .unet_attn_utils import (
     checkpoint,
     zero_module,
@@ -200,7 +205,6 @@ class ResBlock(EmbedBlock):
             h = out_norm(h) * (1 + scale) + shift
             h = out_rest(h)
         else:
-
             h = h + emb_out
             h = self.out_layers(h)
 
@@ -221,6 +225,7 @@ class AttentionBlock(nn.Module):
         num_head_channels=-1,
         use_checkpoint=False,
         use_new_attention_order=False,
+        use_transformer=False,
     ):
         super().__init__()
         self.channels = channels
@@ -232,6 +237,7 @@ class AttentionBlock(nn.Module):
             ), f"q,k,v channels {channels} is not divisible by num_head_channels {num_head_channels}"
             self.num_heads = channels // num_head_channels
         self.use_checkpoint = use_checkpoint
+        self.use_transformer = use_transformer
         self.norm = normalization1d(channels)
         self.qkv = nn.Conv1d(channels, channels * 3, 1)
         if use_new_attention_order:
@@ -248,7 +254,10 @@ class AttentionBlock(nn.Module):
 
     def _forward(self, x):
         b, c, *spatial = x.shape
-        x = x.reshape(b, c, -1)
+        if self.use_transformer:
+            x = x.reshape(b, -1, c)
+        else:
+            x = x.reshape(b, c, -1)
         qkv = self.qkv(self.norm(x))
         h = self.attention(qkv)
         h = self.proj_out(h)
@@ -375,7 +384,6 @@ class UNet(nn.Module):
         resblock_updown=True,
         use_new_attention_order=False,
     ):
-
         super().__init__()
 
         if num_heads_upsample == -1:
@@ -565,7 +573,6 @@ class UNet(nn.Module):
         }
 
     def compute_feats(self, input, gammas):
-
         if gammas is None:
             b = input.shape[0]
             gammas = torch.ones((b,)).to(input.device)
@@ -586,7 +593,274 @@ class UNet(nn.Module):
         return outs, feats, emb
 
     def forward(self, input, gammas=None):
+        h, hs, emb = self.compute_feats(input, gammas=gammas)
 
+        for i, module in enumerate(self.output_blocks):
+            h = torch.cat([h, hs.pop()], dim=1)
+            h = module(h, emb)
+        h = h.type(input.dtype)
+        return self.out(h)
+
+    def get_feats(self, input, extract_layer_ids):
+        _, hs, _ = self.compute_feats(input, gammas=None)
+        feats = []
+
+        for i, feat in enumerate(hs):
+            if i in extract_layer_ids:
+                feats.append(feat)
+
+        return feats
+
+    def extract(self, a, t, x_shape=(1, 1, 1, 1)):
+        b, *_ = t.shape
+        out = a.gather(-1, t)
+        return out.reshape(b, *((1,) * (len(x_shape) - 1)))
+
+
+# Transformer blocks
+class LayerNorm(nn.Module):
+    def __init__(self, dim, scale=True, normalize_dim=2):
+        super().__init__()
+        self.g = nn.Parameter(torch.ones(dim)) if scale else 1
+
+        self.scale = scale
+        self.normalize_dim = normalize_dim
+
+    def forward(self, x):
+        normalize_dim = self.normalize_dim
+        scale = (
+            append_dims(self.g, x.ndim - self.normalize_dim - 1) if self.scale else 1
+        )
+
+        eps = 1e-5 if x.dtype == torch.float32 else 1e-3
+        var = torch.var(x, dim=normalize_dim, unbiased=False, keepdim=True)
+        mean = torch.mean(x, dim=normalize_dim, keepdim=True)
+        return (x - mean) * var.clamp(min=eps).rsqrt() * scale
+
+
+class FeedForward(EmbedBlock):
+    def __init__(self, dim, emb_dim, norm, mult=4, dropout=0.0):
+        super().__init__()
+        # self.norm = normalization(dim, norm)
+        self.norm = LayerNorm(dim, scale=False)
+        dim_hidden = dim * mult
+
+        self.to_scale_shift = nn.Sequential(
+            nn.SiLU(), nn.Linear(emb_dim, dim_hidden * 2), Rearrange("b d -> b 1 d")
+        )
+
+        to_scale_shift_linear = self.to_scale_shift[-2]
+        nn.init.zeros_(to_scale_shift_linear.weight)
+        nn.init.zeros_(to_scale_shift_linear.bias)
+
+        self.proj_in = nn.Sequential(nn.Linear(dim, dim_hidden, bias=False), nn.SiLU())
+
+        self.proj_out = nn.Sequential(
+            nn.Dropout(dropout), nn.Linear(dim_hidden, dim, bias=False)
+        )
+
+    def forward(self, x, emb):
+        x = self.norm(x)
+        x = self.proj_in(x)
+
+        scale, shift = self.to_scale_shift(emb).chunk(2, dim=-1)
+        x = x * (scale + 1) + shift
+
+        return self.proj_out(x)
+
+
+class UViT(nn.Module):
+    """
+    Implemented from 230111093
+    """
+
+    def __init__(
+        self,
+        image_size,
+        in_channel,
+        inner_channel,
+        out_channel,
+        res_blocks,
+        attn_res,
+        tanh,
+        n_timestep_train,
+        n_timestep_test,
+        norm,
+        group_norm_size,
+        dropout=0.2,
+        channel_mults=(1, 2, 4, 8),
+        conv_resample=True,
+        use_checkpoint=False,
+        use_fp16=False,
+        num_heads=1,
+        num_head_channels=-1,
+        num_heads_upsample=-1,
+        use_scale_shift_norm=True,
+        resblock_updown=True,
+        use_new_attention_order=False,
+        num_transformer_blocks=6,
+    ):
+        super().__init__()
+
+        if num_heads_upsample == -1:
+            num_heads_upsample = num_heads
+
+        self.image_size = image_size
+        self.in_channel = in_channel
+        self.inner_channel = inner_channel
+        self.out_channel = out_channel
+        self.res_blocks = res_blocks
+        self.attn_res = attn_res
+        self.dropout = dropout
+        self.channel_mults = channel_mults
+        self.conv_resample = conv_resample
+        self.use_checkpoint = use_checkpoint
+        self.dtype = torch.float16 if use_fp16 else torch.float32
+        self.num_heads = num_heads
+        self.num_head_channels = num_head_channels
+        self.num_heads_upsample = num_heads_upsample
+
+        if norm == "groupnorm":
+            norm = norm + str(group_norm_size)
+
+        cond_embed_dim = inner_channel * 4
+        self.cond_embed = nn.Sequential(
+            nn.Linear(inner_channel, cond_embed_dim),
+            torch.nn.SiLU(),
+            nn.Linear(cond_embed_dim, cond_embed_dim),
+        )
+
+        ch = input_ch = int(channel_mults[0] * inner_channel)
+        self.input_blocks = nn.ModuleList(
+            [EmbedSequential(nn.Conv2d(in_channel, ch, 3, padding=1))]
+        )
+        self._feature_size = ch
+        input_block_chans = [ch]
+        ds = 1
+        for level, mult in enumerate(channel_mults):
+            for _ in range(res_blocks):
+                layers = [
+                    ResBlock(
+                        ch,
+                        cond_embed_dim,
+                        dropout,
+                        out_channel=int(mult * inner_channel),
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        norm=norm,
+                    )
+                ]
+                ch = int(mult * inner_channel)
+                self.input_blocks.append(EmbedSequential(*layers))
+                self._feature_size += ch
+                input_block_chans.append(ch)
+            if level != len(channel_mults) - 1:
+                out_ch = ch
+                self.input_blocks.append(
+                    EmbedSequential(Downsample(ch, conv_resample, out_channel=out_ch))
+                )
+                ch = out_ch
+                input_block_chans.append(ch)
+                ds *= 2
+                self._feature_size += ch
+
+        self.learned_sinusoidal_dim = ch
+        self.sinu_pos_emb = PositionalEncoding1D(self.learned_sinusoidal_dim)
+
+        self.middle_blocks = nn.ModuleList()
+        for _ in range(num_transformer_blocks):
+            layers = [
+                FeedForward(ch, cond_embed_dim, norm, dropout=dropout),
+                AttentionBlock(
+                    ch,
+                    use_checkpoint=use_checkpoint,
+                    num_heads=num_heads,
+                    num_head_channels=num_head_channels,
+                    use_new_attention_order=use_new_attention_order,
+                    use_transformer=True,
+                ),
+            ]
+            self.middle_blocks.append(EmbedSequential(*layers))
+
+        self.output_blocks = nn.ModuleList([])
+        for level, mult in list(enumerate(channel_mults))[::-1]:
+            for i in range(res_blocks + 1):
+                ich = input_block_chans.pop()
+                layers = [
+                    ResBlock(
+                        ch + ich,
+                        cond_embed_dim,
+                        dropout,
+                        out_channel=int(inner_channel * mult),
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        norm=norm,
+                    )
+                ]
+                ch = int(inner_channel * mult)
+                if level and i == res_blocks:
+                    out_ch = ch
+                    layers.append(Upsample(ch, conv_resample, out_channel=out_ch))
+                    ds //= 2
+                self.output_blocks.append(EmbedSequential(*layers))
+                self._feature_size += ch
+
+        if tanh:
+            self.out = nn.Sequential(
+                normalization(ch, norm),
+                zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
+                nn.Tanh(),
+            )
+        else:
+            self.out = nn.Sequential(
+                normalization(ch, norm),
+                torch.nn.SiLU(),
+                zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
+            )
+
+        self.beta_schedule = {
+            "train": {
+                "schedule": "linear",
+                "n_timestep": n_timestep_train,
+                "linear_start": 1e-6,
+                "linear_end": 0.01,
+            },
+            "test": {
+                "schedule": "linear",
+                "n_timestep": n_timestep_test,
+                "linear_start": 1e-4,
+                "linear_end": 0.09,
+            },
+        }
+
+    def compute_feats(self, input, gammas):
+        if gammas is None:
+            b = input.shape[0]
+            gammas = torch.ones((b,)).to(input.device)
+
+        gammas = gammas.view(-1)
+
+        emb = self.cond_embed(gamma_embedding(gammas, self.inner_channel))
+
+        hs = []
+
+        h = input.type(torch.float32)
+        for module in self.input_blocks:
+            h = module(h, emb)
+            hs.append(h)
+
+        B, C, H, W = h.shape
+        h = h.reshape(B, H * W, C)
+        hpos = self.sinu_pos_emb(h)
+        h += hpos  # adding positional encoding
+        for module in self.middle_blocks:
+            h = module(h, emb)
+        h = h.reshape(B, C, H, W)
+
+        outs, feats = h, hs
+        return outs, feats, emb
+
+    def forward(self, input, gammas=None):
         h, hs, emb = self.compute_feats(input, gammas=gammas)
 
         for i, module in enumerate(self.output_blocks):
