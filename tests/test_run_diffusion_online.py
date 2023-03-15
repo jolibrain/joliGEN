@@ -41,7 +41,7 @@ json_like_dict = {
 
 
 models_diffusion = ["palette"]
-G_netG = ["unet_mha"]
+G_netG = ["unet_mha", "uvit"]
 
 
 product_list = product(models_diffusion, G_netG)
