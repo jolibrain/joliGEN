@@ -4,8 +4,8 @@ import urllib.request
 
 import cv2
 import numpy as np
+import requests
 import torch
-from basicsr.utils.download_util import load_file_from_url
 from einops import rearrange
 from torch.nn import functional as F
 from torchvision.transforms import Grayscale
@@ -14,6 +14,20 @@ from models.mbv2_mlsd_large import MobileV2_MLSD_Large
 from models.modules.utils import download_midas_weight, predict_depth
 
 sys.path.append("./../")
+
+
+def load_file_from_url(url, directory):
+    # Create the directory if it doesn't exist
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # Extract the filename from the URL
+    filename = url.split("/")[-1]
+
+    # Download the file
+    response = requests.get(url)
+    with open(os.path.join(directory, filename), "wb") as f:
+        f.write(response.content)
 
 
 def deccode_output_score_and_ptss(tpMap, topk_n=200, ksize=5):
