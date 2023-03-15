@@ -112,7 +112,7 @@ class MLSDdetector:
         remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/mlsd_large_512_fp32.pth"
         model_path = os.path.join(model_dir, "mlsd_large_512_fp32.pth")
         if not os.path.exists(model_path):
-            load_file_from_url(remote_model_path, model_dir=model_dir)
+            load_file_from_url(remote_model_path, model_dir)
 
         model = MobileV2_MLSD_Large()
         model.load_state_dict(torch.load(model_path), strict=True)
@@ -316,7 +316,7 @@ class HEDdetector:
         remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/network-bsds500.pth"
         modelpath = os.path.join(model_dir, "network-bsds500.pth")
         if not os.path.exists(modelpath):
-            load_file_from_url(remote_model_path, model_dir=model_dir)
+            load_file_from_url(remote_model_path, model_dir)
         self.netNetwork = Network(modelpath).cuda().eval()
 
     def __call__(self, input_image):
