@@ -3,7 +3,7 @@ import copy
 import torch
 from collections import OrderedDict
 from abc import ABC, abstractmethod
-from . import gan_networks, semantic_networks
+from . import semantic_networks
 from .modules.utils import get_scheduler
 from torchviz import make_dot
 from thop import profile
@@ -29,9 +29,6 @@ import torch.nn.functional as F
 # For D loss computing
 from .modules import loss
 from util.discriminator import DiscriminatorInfo
-
-# For export
-from util.export import export
 
 
 class BaseModel(ABC):
@@ -154,7 +151,6 @@ class BaseModel(ABC):
                 )
                 np.savez(path_sv_B, mu=self.realmB, sigma=self.realsB)
             else:
-
                 print("Mu and sigma loaded for domain B")
                 self.realmB, self.realsB = _compute_statistics_of_path(
                     path_sv_B,
@@ -240,7 +236,6 @@ class BaseModel(ABC):
             self.opt.output_display_env = self.opt.name
 
     def init_semantic_cls(self, opt):
-
         # specify the semantic training networks and losses.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
@@ -298,7 +293,6 @@ class BaseModel(ABC):
             self.networks_groups.append(self.group_CLS)
 
     def init_semantic_mask(self, opt):
-
         # specify the semantic training networks and losses.
         # The training/test scripts will call <BaseModel.get_current_losses>
         losses_G = ["G_sem_mask_AB"]
@@ -401,7 +395,6 @@ class BaseModel(ABC):
         return parser
 
     def set_input(self, data):
-
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
         Parameters:
             input (dict): include the data itself and its metadata information.
@@ -486,12 +479,10 @@ class BaseModel(ABC):
                 )
 
     def set_input_temporal(self, data_temporal):
-
         self.temporal_real_A_with_context = data_temporal["A"].to(self.device)
         self.temporal_real_B_with_context = data_temporal["B"].to(self.device)
 
         if self.opt.data_online_context_pixels > 0:
-
             self.temporal_real_A = self.temporal_real_A_with_context[
                 :,
                 :,
@@ -558,7 +549,6 @@ class BaseModel(ABC):
             )
 
             if self.opt.data_online_context_pixels > 0:
-
                 setattr(
                     self,
                     "temporal_real_B_" + str(i),
@@ -758,6 +748,9 @@ class BaseModel(ABC):
                     not "ittr" in self.opt.G_netG
                     and not "palette" in self.opt.model_type
                 ):
+                    # For export
+                    from util.export import export
+
                     input_nc = self.opt.model_input_nc
                     if self.opt.model_multimodal:
                         input_nc += self.opt.train_mm_nz
@@ -911,7 +904,6 @@ class BaseModel(ABC):
     def compute_step(
         self, optimizers_names, loss_names
     ):  # loss_names are only use to compute average values over iter_size
-
         optimizers = []
         for optimizer_name in optimizers_names:
             optimizers.append(getattr(self, optimizer_name))
@@ -1162,7 +1154,6 @@ class BaseModel(ABC):
                 and hasattr(self, "input_B_label_mask")
                 and len(self.input_B_label_mask) > 0
             ):
-
                 label_B = self.input_B_label_mask
                 label_B_in = label_B.unsqueeze(1)
                 label_B_inv = (
@@ -1246,7 +1237,6 @@ class BaseModel(ABC):
         )
 
     def get_current_fids(self):
-
         fids = OrderedDict()
 
         if hasattr(self, "netG_B"):
