@@ -31,6 +31,8 @@ def define_G(
     G_unet_mha_group_norm_size,
     G_uvit_num_transformer_blocks,
     alg_palette_sampling_method,
+    alg_palette_scaling_factor,
+    alg_palette_normalize_yt,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
     conv_resample=True,
