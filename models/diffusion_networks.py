@@ -129,8 +129,8 @@ def define_G(
     net = DiffusionGenerator(
         denoise_fn=denoise_fn,
         sampling_method=alg_palette_sampling_method,
-        scaling_factor=0.3,
-        normalize_yt=True,
+        scaling_factor=alg_palette_scaling_factor,
+        normalize_yt=alg_palette_normalize_yt,
     )
 
     return net

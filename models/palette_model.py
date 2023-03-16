@@ -68,6 +68,19 @@ class PaletteModel(BaseDiffusionModel):
             help="choose the sampling method between ddpm and ddim",
         )
 
+        parser.add_argument(
+            "--alg_palette_scaling_factor",
+            type=float,
+            default=1.0,
+            help="the scaling factor applied to ground truth image when added to noise at training time",
+        )
+
+        parser.add_argument(
+            "--alg_palette_normalize_yt",
+            action="store_true",
+            help="whether to normalize the noisy image before feeding it to the denoising neural network",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
