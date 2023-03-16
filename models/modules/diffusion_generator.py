@@ -19,11 +19,13 @@ from models.modules.resnet_architecture.resnet_generator_diff import (
 
 
 class DiffusionGenerator(nn.Module):
-    def __init__(self, denoise_fn, sampling_method):
+    def __init__(self, denoise_fn, sampling_method, scaling_factor, normalize_yt):
 
         super().__init__()
 
         self.denoise_fn = denoise_fn
+        self.scaling_factor = scaling_factor
+        self.normalize_yt = normalize_yt
 
         self.sampling_method = sampling_method
 
@@ -49,6 +51,11 @@ class DiffusionGenerator(nn.Module):
             total=self.denoise_fn.num_timesteps_test,
         ):
             t = torch.full((b,), i, device=y_cond.device, dtype=torch.long)
+            y_t = (
+                y_t / y_t.std(axis=(1, 2, 3), keepdims=True)
+                if self.normalize_yt
+                else y_t
+            )
             y_t = self.p_sample(y_t, t, y_cond=y_cond, phase=phase)
             if mask is not None:
                 temp_mask = torch.clamp(mask, min=0.0, max=1.0)
@@ -74,11 +81,14 @@ class DiffusionGenerator(nn.Module):
         noise_level = self.extract(
             getattr(self.denoise_fn, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
+
+        noise = self.denoise_fn(torch.cat([y_cond, y_t], dim=1), noise_level)
+
         y_0_hat = predict_start_from_noise(
             self.denoise_fn,
             y_t,
             t=t,
-            noise=self.denoise_fn(torch.cat([y_cond, y_t], dim=1), noise_level),
+            noise=noise,
             phase=phase,
         )
 
@@ -92,7 +102,10 @@ class DiffusionGenerator(nn.Module):
 
     def q_sample(self, y_0, sample_gammas, noise=None):
         noise = self.default(noise, lambda: torch.randn_like(y_0))
-        return sample_gammas.sqrt() * y_0 + (1 - sample_gammas).sqrt() * noise
+        return (
+            sample_gammas.sqrt() * y_0 * self.scaling_factor
+            + (1 - sample_gammas).sqrt() * noise
+        )
 
     def p_sample(self, y_t, t, phase, clip_denoised=True, y_cond=None):
         model_mean, model_log_variance = self.p_mean_variance(
@@ -127,6 +140,12 @@ class DiffusionGenerator(nn.Module):
         noise = self.default(noise, lambda: torch.randn_like(y_0))
         y_noisy = self.q_sample(
             y_0=y_0, sample_gammas=sample_gammas.view(-1, 1, 1, 1), noise=noise
+        )
+
+        y_noisy = (
+            y_noisy / y_noisy.std(axis=(1, 2, 3), keepdims=True)
+            if self.normalize_yt
+            else y_t
         )
 
         if mask is not None:
