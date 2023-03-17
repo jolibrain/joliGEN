@@ -76,6 +76,7 @@ class PaletteModel(BaseDiffusionModel):
                 "depth",
                 "hed",
                 "hough",
+                "random_sketch",
             ],
             help="how cond_image is created",
         )
