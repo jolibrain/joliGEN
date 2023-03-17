@@ -418,6 +418,23 @@ def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=200):
 
 def fill_img_with_hed(img, mask):
     apply_hed = HEDdetector()
+    device = img.device
+    edges_list = []
+    for cur_img in img:
+        cur_img = (
+            (torch.einsum("chw->hwc", cur_img).cpu().numpy() + 1) * 255 / 2
+        ).astype(np.uint8)
+        detected_map = apply_hed(cur_img)
+        detected_map = (
+            (((torch.tensor(detected_map, device=device) / 255) * 2) - 1)
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
+        edges_list.append(detected_map)
+    edges = torch.cat(edges_list, dim=0)
+    mask = torch.clamp(mask, 0, 1)
+
+    return mask * edges + (1 - mask) * img
     batch_output = torch.zeros_like(img)
     for i in range(img.shape[0]):
         img_orig = img[i].clone()
