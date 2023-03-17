@@ -52,7 +52,7 @@ Here are all the available options to call with `train.py`
 | --G_dropout | flag |  | dropout for the generator |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/>_**Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512_ |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr, unet_mha_ |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
 | --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
@@ -64,6 +64,7 @@ Here are all the available options to call with `train.py`
 | --G_unet_mha_norm_layer | string | groupnorm | <br/><br/>_**Values:** groupnorm, batchnorm, layernorm, instancenorm, switchablenorm_ |
 | --G_unet_mha_num_head_channels | int | 32 |  |
 | --G_unet_mha_num_heads | int | 1 |  |
+| --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
 
 ## Algorithm-specific
 
