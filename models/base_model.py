@@ -1,13 +1,15 @@
 import os
 import copy
 import torch
+
+if torch.__version__[0] == "2":
+    import torch._dynamo
 from collections import OrderedDict
 from abc import ABC, abstractmethod
 from . import semantic_networks
 from .modules.utils import get_scheduler
 from torchviz import make_dot
 from thop import profile
-
 
 from util.network_group import NetworkGroup
 
@@ -745,8 +747,8 @@ class BaseModel(ABC):
                 # onnx
 
                 if (
-                    not "ittr" in self.opt.G_netG
-                    and not "palette" in self.opt.model_type
+                    not "palette"
+                    in self.opt.model_type  # Note: export is for generators from GANs only at the moment
                 ):
                     # For export
                     from util.export import export
@@ -756,7 +758,9 @@ class BaseModel(ABC):
                         input_nc += self.opt.train_mm_nz
 
                     # onnx
-                    if not "ittr" in self.opt.G_netG:
+                    if not "ittr" in self.opt.G_netG and not (
+                        torch.__version__[0] == "2" and "segformer" in self.opt.G_netG
+                    ):  # XXX: segformer export fails with ONNX and Pytorch2
                         export_path_onnx = save_path.replace(".pth", ".onnx")
 
                         export(
@@ -963,6 +967,11 @@ class BaseModel(ABC):
 
         self.niter = self.niter + 1
 
+        if torch.__version__[0] == "2" and self.opt.with_torch_compile:
+            torch._dynamo.config.suppress_errors = (
+                True  # automatic fall back to eager mode
+            )
+
         for group in self.networks_groups:
             for network in self.model_names:
                 if network in group.networks_to_optimize:
@@ -973,9 +982,25 @@ class BaseModel(ABC):
             if not group.forward_functions is None:
                 with torch.cuda.amp.autocast(enabled=self.with_amp):
                     for forward in group.forward_functions:
+                        if (
+                            torch.__version__[0] == "2"
+                            and self.opt.with_torch_compile
+                            and self.niter == 1
+                        ):
+                            print("Torch compile forward function=", forward)
+                            setattr(
+                                self, forward, torch.compile(getattr(self, forward))
+                            )
                         getattr(self, forward)()
 
             for backward in group.backward_functions:
+                if (
+                    torch.__version__[0] == "2"
+                    and self.opt.with_torch_compile
+                    and self.niter == 1
+                ):
+                    print("Torch compile backward function=", backward)
+                    setattr(self, backward, torch.compile(getattr(self, backward)))
                 getattr(self, backward)()
 
             for loss in group.loss_backward:
