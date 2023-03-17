@@ -10,6 +10,7 @@ from .modules.NCE.patchnce import PatchNCELoss
 from .modules.NCE.monce import MoNCELoss
 from .modules.NCE.hDCE import PatchHDCELoss
 from .modules.NCE.SRC import SRC_Loss
+from .modules.NCE.vicreg import VICRegLoss
 
 
 from util.network_group import NetworkGroup
@@ -95,7 +96,7 @@ class CUTModel(BaseGanModel):
             "--alg_cut_nce_loss",
             type=str,
             default="monce",
-            choices=["patchnce", "monce", "SRC_hDCE"],
+            choices=["patchnce", "monce", "SRC_hDCE", "vicreg"],
             help="CUT contrastice loss",
         )
         parser.add_argument(
@@ -244,6 +245,9 @@ class CUTModel(BaseGanModel):
                     self.criterionNCE.append(MoNCELoss(opt).to(self.device))
                 elif opt.alg_cut_nce_loss == "SRC_hDCE":
                     self.criterionNCE.append(PatchHDCELoss(opt).to(self.device))
+
+                elif opt.alg_cut_nce_loss == "vicreg":
+                    self.criterionNCE.append(VICRegLoss().to(self.device))
 
             if opt.alg_cut_nce_loss == "SRC_hDCE":
                 self.criterionR = []
