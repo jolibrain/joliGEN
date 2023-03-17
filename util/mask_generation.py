@@ -370,6 +370,31 @@ def fill_img_with_edges(img, mask):
 
 
 def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=200):
+    batch_output = torch.zeros_like(img)
+    for i in range(img.shape[0]):
+        img_orig = img[i].clone()
+        mask_2D = mask.cpu()[i].squeeze(0)  # Convert mask to a 2D array
+        coords = np.column_stack(
+            np.where(mask_2D > 0.9)
+        )  # Get the coordinates of the white pixels in the mask
+        x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
+
+        to_sketch = img_orig[:, x_0 : x_0 + w, y_0 : y_0 + h]
+        print(to_sketch.shape)
+        to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
+        print(to_sketch)
+        cv2.imwrite("test.png", to_sketch * 255)
+        edges = cv2.Canny(
+            (to_sketch * 255).astype(np.uint8), low_threshold, high_threshold
+        )
+        if list(mask_2D[mask_2D > 0]) == []:
+            batch_output[i] = img_orig
+        else:
+            edges = torch.from_numpy(edges).unsqueeze(0).unsqueeze(0)
+            img_orig[:, x_0 : x_0 + w, y_0 : y_0 + h] = edges
+            batch_output[i] = img_orig
+    return batch_output
+    """
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(
@@ -387,24 +412,31 @@ def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=200):
     img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = edges
 
     return img_orig
+    """
 
 
 def fill_img_with_hed(img, mask):
     apply_hed = HEDdetector()
-    img_orig = img.clone()
-    mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
-    coords = np.column_stack(np.where(mask_2D > 0.9))
-    x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
+    batch_output = torch.zeros_like(img)
+    for i in range(img.shape[0]):
+        img_orig = img[i].clone()
+        mask_2D = mask.cpu()[i][0, :, :]  # Convert mask to a 2D array
+        coords = np.column_stack(
+            np.where(mask_2D > 0.9)
+        )  # Get the coordinates of the white pixels in the mask
+        x_0, y_0, w, h = cv2.boundingRect(coords.astype(int))
 
-    to_sketch = img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h]
+        to_sketch = img_orig[:, x_0 : x_0 + w, y_0 : y_0 + h]
 
-    to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
-    to_sketch = (to_sketch * 255).astype(np.uint8)
-    detected_map = apply_hed(to_sketch) / 255
-    detected_map_resized = torch.from_numpy(detected_map).unsqueeze(0).unsqueeze(0)
-    img_orig[:, :, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized
+        to_sketch = np.transpose(to_sketch.squeeze().cpu().numpy(), (1, 2, 0))
 
-    return img_orig
+        to_sketch = (to_sketch * 255).astype(np.uint8)
+        detected_map = apply_hed(to_sketch) / 255
+        detected_map_resized = torch.from_numpy(detected_map).unsqueeze(0)
+        img_orig[:, x_0 : x_0 + w, y_0 : y_0 + h] = detected_map_resized
+        batch_output[i] = img_orig
+
+    return batch_output
 
 
 def fill_img_with_hed_Caffe(img, mask):

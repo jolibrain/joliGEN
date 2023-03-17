@@ -18,25 +18,27 @@ See options/base_options.py and options/train_options.py for more training optio
 See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
 See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
 """
+import argparse
+import json
+import os
+import signal
 import time
-from options.train_options import TrainOptions
+import warnings
+
+import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
+
 from data import (
+    create_dataloader,
     create_dataset,
     create_dataset_temporal,
-    create_dataloader,
     create_iterable_dataloader,
 )
 from models import create_model
-from util.visualizer import Visualizer
+from options.train_options import TrainOptions
 from util.util import flatten_json
-import torch.multiprocessing as mp
-import os
-import torch.distributed as dist
-import signal
-import torch
-import json
-import warnings
-import argparse
+from util.visualizer import Visualizer
 
 
 def setup(rank, world_size, port):
@@ -159,12 +161,10 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             t_data_mini_batch = iter_start_time - iter_data_time
 
             model.set_input(data)  # unpack data from dataloader and apply preprocessing
-
             if use_temporal:
                 model.set_input_temporal(temporal_data)
 
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
-
             t_comp = (time.time() - iter_start_time) / opt.train_batch_size
 
             batch_size = model.get_current_batch_size() * len(opt.gpu_ids)
@@ -174,15 +174,12 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             if (
                 total_iters % opt.output_print_freq < batch_size
             ):  # print training losses and save logging information to the disk
-
                 losses = model.get_current_losses()
 
                 float_losses = {}
 
                 for name, value in losses.items():
-
                     if len(opt.gpu_ids) > 1:
-
                         torch.distributed.all_reduce(
                             value, op=torch.distributed.ReduceOp.SUM
                         )  # loss value is summed accross gpus
@@ -192,7 +189,6 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                 losses = float_losses
 
                 if rank_0:
-
                     visualizer.print_current_losses(
                         epoch, epoch_iter, losses, t_comp, t_data_mini_batch
                     )

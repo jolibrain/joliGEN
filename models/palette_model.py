@@ -67,7 +67,16 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_cond_image_creation",
             type=str,
             default="y_t",
-            choices=["y_t", "sketch", "edges", "previous_frame"],
+            choices=[
+                "y_t",
+                "sketch",
+                "edges",
+                "previous_frame",
+                "canny",
+                "depth",
+                "hed",
+                "hough",
+            ],
             help="how cond_image is created",
         )
 
