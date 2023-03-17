@@ -435,6 +435,7 @@ def fill_img_with_hed(img, mask):
     mask = torch.clamp(mask, 0, 1)
 
     return mask * edges + (1 - mask) * img
+    """
     batch_output = torch.zeros_like(img)
     for i in range(img.shape[0]):
         img_orig = img[i].clone()
@@ -455,6 +456,7 @@ def fill_img_with_hed(img, mask):
         batch_output[i] = img_orig
 
     return batch_output
+    """
 
 
 def fill_img_with_hed_Caffe(img, mask):
@@ -517,9 +519,29 @@ def fill_img_with_hough(
     img, mask, value_threshold=1e-05, distance_threshold=10.0, with_canny=False
 ):
     if with_canny:
-        img_orig = fill_img_with_canny(img, mask)
-    else:
-        img_orig = img.clone()
+        img = fill_img_with_canny(img, mask)
+
+    device = img.device
+    apply_mlsd = MLSDdetector()
+    edges_list = []
+    for cur_img in img:
+        cur_img = (
+            (torch.einsum("chw->hwc", cur_img).cpu().numpy() + 1) * 255 / 2
+        ).astype(np.uint8)
+        detected_map = apply_mlsd(
+            cur_img, thr_v=value_threshold, thr_d=distance_threshold
+        )
+        detected_map = (
+            (((torch.tensor(detected_map, device=device) / 255) * 2) - 1)
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
+        edges_list.append(detected_map)
+    edges = torch.cat(edges_list, dim=0)
+    mask = torch.clamp(mask, 0, 1)
+
+    return mask * edges + (1 - mask) * img
+    """
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(np.where(mask_2D > 0.9))
 
@@ -540,9 +562,33 @@ def fill_img_with_hough(
     ]
 
     return img_orig
+    """
 
 
 def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
+    device = img.device
+    apply_mlsd = MLSDdetector()
+    midas_w = download_midas_weight(model_type=depth_network)
+    edges_list = []
+    for cur_img in img:
+        cur_img = torch.from_numpy(
+            np.transpose(
+                ((torch.einsum("chw->hwc", cur_img).cpu() + 1) * 255 / 2).numpy(),
+                (2, 0, 1),
+            )
+        ).float()
+        depth_map = predict_depth(
+            img=cur_img.unsqueeze(0), midas=midas_w, model_type=depth_network
+        )
+        depth_map = (
+            ((torch.tensor(depth_map, device=device) / 255) * 2) - 1
+        ).unsqueeze(0)
+        edges_list.append(depth_map)
+    edges = torch.cat(edges_list, dim=0)
+    mask = torch.clamp(mask, 0, 1)
+
+    return mask * edges + (1 - mask) * img
+    """
     img_orig = img.clone()
     mask_2D = mask.cpu()[0, :, :][0]  # Convert mask to a 2D array
     coords = np.column_stack(
@@ -561,3 +607,4 @@ def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
     ]
 
     return img_orig
+    """
