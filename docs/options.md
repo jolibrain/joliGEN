@@ -16,6 +16,7 @@ Here are all the available options to call with `train.py`
 | --warning_mode | flag |  | whether to display warning |
 | --with_amp | flag |  | whether to activate torch amp on forward passes |
 | --with_tf32 | flag |  | whether to activate tf32 for faster computations (Ampere GPU and beyond only) |
+| --with_torch_compile | flag |  | whether to activate torch.compile for some forward and backward functions (experimental) |
 
 ## Discriminator
 
