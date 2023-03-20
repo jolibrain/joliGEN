@@ -154,6 +154,16 @@ class CUTModel(BaseGanModel):
             self.opt.alg_cut_nce_layers = ",".join(
                 [str(k) for k in range(self.opt.G_nblocks)]
             )
+        elif "unet" in self.opt.G_netG:
+            self.opt.alg_cut_nce_layers = ",".join(
+                str(self.opt.G_nblocks * i - 1)
+                for i in range(1, len(self.opt.G_unet_mha_channel_mults) + 1)
+            )
+        elif "uvit" in self.opt.G_netG:
+            self.opt.alg_cut_nce_layers = ",".join(
+                str(self.opt.G_nblocks * i - 1)
+                for i in range(1, len(self.opt.G_unet_mha_channel_mults) + 1)
+            )
 
         self.nce_layers = [int(i) for i in self.opt.alg_cut_nce_layers.split(",")]
 
