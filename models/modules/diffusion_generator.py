@@ -145,7 +145,7 @@ class DiffusionGenerator(nn.Module):
         y_noisy = (
             y_noisy / y_noisy.std(axis=(1, 2, 3), keepdims=True)
             if self.normalize_yt
-            else y_t
+            else y_noisy
         )
 
         if mask is not None:
