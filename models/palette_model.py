@@ -244,7 +244,7 @@ class PaletteModel(BaseDiffusionModel):
         else:
             netG = self.netG_A
 
-        if self.opt.G_unet_mha_norm_layer == "batchnorm":
+        if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = revert_sync_batchnorm(netG)
 
         if True or self.task in ["inpainting", "uncropping"]:
@@ -272,7 +272,7 @@ class PaletteModel(BaseDiffusionModel):
 
         self.fake_B = self.visuals[-1:]
 
-        if self.opt.G_unet_mha_norm_layer == "batchnorm":
+        if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = torch.nn.SyncBatchNorm.convert_sync_batchnorm(netG)
 
     def compute_visuals(self):
