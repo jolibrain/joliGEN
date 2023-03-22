@@ -238,8 +238,19 @@ class PaletteModel(BaseDiffusionModel):
 
                 self.cond_image = torch.stack(cond_image_list)
         elif self.opt.alg_palette_cond_image_creation == "random_sketch":
-            fill_img_with_random_sketch = random_edge_mask()
-            self.cond_image = fill_img_with_random_sketch(self.gt_image, self.mask)
+            randomize_batch = True
+            if randomize_batch:
+                cond_images = []
+                for image, mask in zip(self.gt_image, self.mask):
+                    fill_img_with_random_sketch = random_edge_mask()
+                    batch_cond_image = fill_img_with_random_sketch(
+                        image.unsqueeze(0), mask.unsqueeze(0)
+                    ).squeeze(0)
+                    cond_images.append(batch_cond_image)
+                self.cond_image = torch.stack(cond_images)
+            else:
+                fill_img_with_random_sketch = random_edge_mask()
+                self.cond_image = fill_img_with_random_sketch(self.gt_image, self.mask)
 
         self.batch_size = self.cond_image.shape[0]
 
