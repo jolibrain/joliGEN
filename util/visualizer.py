@@ -64,26 +64,37 @@ class Visualizer:
         Step 4: create a logging file to store training losses
         """
         self.opt = opt  # cache the option
+        self.display_type = opt.output_display_type
         self.display_id = opt.output_display_id
         self.use_html = opt.isTrain and not opt.output_no_html
         self.win_size = opt.output_display_winsize
         self.name = opt.name
-        self.port = opt.output_display_port
         self.saved = False
         self.metrics_dict = {}
         if (
-            self.display_id > 0
+            "visdom" in self.display_type and self.display_id > 0
         ):  # connect to a visdom server given <display_port> and <display_server>
             import visdom
 
             self.ncols = opt.output_display_ncols
             self.vis = visdom.Visdom(
-                server=opt.output_display_server,
-                port=opt.output_display_port,
+                server=self.opt.output_display_visdom_server,
+                port=self.opt.output_display_visdom_port,
                 env=opt.output_display_env,
             )
             if not self.vis.check_connection():
                 self.create_visdom_connections()
+
+        if "aim" in self.display_type:
+            import aim
+
+            self.aim_run = aim.Run(
+                experiment=opt.name,
+                repo="aim://"
+                + self.opt.output_display_aim_server
+                + ":"
+                + str(self.opt.output_display_aim_port),
+            )
 
         if (
             self.use_html
@@ -112,7 +123,15 @@ class Visualizer:
         print("Command: %s" % cmd)
         Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
 
-    def display_current_results(self, visuals, epoch, save_result, params=[]):
+    def display_current_results(
+        self, visuals, epoch, save_result, params=[], first=False
+    ):
+        if "visdom" in self.display_type:
+            self.display_current_results_visdom(visuals, epoch, save_result, params)
+        if "aim" in self.display_type:
+            self.display_current_results_aim(visuals, epoch, save_result, params, first)
+
+    def display_current_results_visdom(self, visuals, epoch, save_result, params=[]):
         """Display current results on visdom; save current results to an HTML file.
 
         Parameters:
@@ -258,6 +277,16 @@ class Visualizer:
                 util.save_image(image_numpy, img_path)
 
     def plot_current_losses(self, epoch, counter_ratio, losses):
+        if "visdom" in self.display_type:
+            self.plot_current_losses_visdom(epoch, counter_ratio, losses)
+        if "aim" in self.display_type:
+            self.plot_current_losses_aim(epoch, counter_ratio, losses)
+
+    def plot_current_losses_aim(self, epoch, counter_ratio, losses):
+        """display the current losses on aim"""
+        self.aim_run.track(losses, epoch=epoch, context={"train": True})
+
+    def plot_current_losses_visdom(self, epoch, counter_ratio, losses):
         """display the current losses on visdom display: dictionary of error labels and values
 
         Parameters:
@@ -317,6 +346,27 @@ class Visualizer:
         print(message)  # print the message
         with open(self.log_name, "a") as log_file:
             log_file.write("%s\n" % message)  # save the message
+
+    def display_current_results_aim(
+        self, visuals, epoch, save_result, params=[], first=False
+    ):
+        """Display results on aim"""
+        if first == True:  # fist call, record params
+            self.aim_run["params"] = params  # hyper parameters
+
+        # images
+        import aim
+
+        aim_images = []
+        for visual_group in visuals:
+            for label, image in visual_group.items():
+                image_numpy = util.tensor2im(image)
+                aim_images.append(
+                    aim.Image(Image.fromarray(image_numpy), caption=label)
+                )
+        self.aim_run.track(
+            aim_images, name="generated", epoch=epoch, context={"train": True}
+        )
 
     def display_img(self, img_path):
         im = Image.open(img_path)

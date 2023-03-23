@@ -25,16 +25,28 @@ class TrainOptions(BaseOptions):
             help="if positive, display all images in a single visdom web panel with certain number of images per row.(if == 0 ncols will be computed automatically)",
         )
         parser.add_argument(
+            "--output_display_type",
+            default="visdom",
+            nargs="*",
+            help="output display, either visdom or aim",
+        )
+        parser.add_argument(
             "--output_display_id",
             type=int,
             default=1,
             help="window id of the web display",
         )
         parser.add_argument(
-            "--output_display_server",
+            "--output_display_visdom_server",
             type=str,
             default="http://localhost",
             help="visdom server of the web display",
+        )
+        parser.add_argument(
+            "--output_display_aim_server",
+            type=str,
+            default="http://localhost",
+            help="aim server of the web display",
         )
         parser.add_argument(
             "--output_display_env",
@@ -43,10 +55,16 @@ class TrainOptions(BaseOptions):
             help='visdom display environment name (default is "main")',
         )
         parser.add_argument(
-            "--output_display_port",
+            "--output_display_visdom_port",
             type=int,
             default=8097,
             help="visdom port of the web display",
+        )
+        parser.add_argument(
+            "--output_display_aim_port",
+            type=int,
+            default=53800,
+            help="aim port of the web display",
         )
         parser.add_argument(
             "--output_update_html_freq",

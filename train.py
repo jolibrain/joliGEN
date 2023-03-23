@@ -62,7 +62,6 @@ def signal_handler(sig, frame):
 
 
 def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
-
     if not opt.warning_mode:
         warnings.simplefilter("ignore")
 
@@ -152,7 +151,6 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         for i, data_list in enumerate(
             dataloaders
         ):  # inner loop (minibatch) within one epoch
-
             data = data_list[0]
             if use_temporal:
                 temporal_data = data_list[1]
@@ -174,7 +172,6 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             epoch_iter += batch_size
 
             if rank_0:
-
                 if (
                     total_iters % opt.output_display_freq < batch_size
                 ):  # display images on visdom and save images to a HTML file
@@ -185,6 +182,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                         epoch,
                         save_result,
                         params=model.get_display_param(),
+                        first=(total_iters == batch_size),
                     )
 
                 if (
@@ -351,7 +349,6 @@ def get_override_options_names(remaining_args):
 
 
 if __name__ == "__main__":
-
     main_parser = argparse.ArgumentParser(add_help=False)
 
     main_parser.add_argument(
@@ -361,7 +358,6 @@ if __name__ == "__main__":
     main_opt, remaining_args = main_parser.parse_known_args()
 
     if main_opt.config_json != "":
-
         override_options_names = get_override_options_names(remaining_args)
 
         if not "--dataroot" in remaining_args:
