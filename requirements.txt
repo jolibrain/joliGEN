@@ -17,3 +17,4 @@ thop
 pydantic
 positional_encodings
 onnx
+aim
