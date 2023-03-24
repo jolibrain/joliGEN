@@ -422,7 +422,7 @@ class UNet(nn.Module):
         input_block_chans = [ch]
         ds = 1
         for level, mult in enumerate(channel_mults):
-            for _ in range(res_blocks):
+            for _ in range(res_blocks[level]):
                 layers = [
                     ResBlock(
                         ch,
@@ -500,7 +500,7 @@ class UNet(nn.Module):
 
         self.output_blocks = nn.ModuleList([])
         for level, mult in list(enumerate(channel_mults))[::-1]:
-            for i in range(res_blocks + 1):
+            for i in range(res_blocks[level] + 1):
                 ich = input_block_chans.pop()
                 layers = [
                     ResBlock(
@@ -524,7 +524,7 @@ class UNet(nn.Module):
                             use_new_attention_order=use_new_attention_order,
                         )
                     )
-                if level and i == res_blocks:
+                if level and i == res_blocks[level]:
                     out_ch = ch
                     layers.append(
                         ResBlock(
@@ -738,7 +738,7 @@ class UViT(nn.Module):
         input_block_chans = [ch]
         ds = 1
         for level, mult in enumerate(channel_mults):
-            for _ in range(res_blocks):
+            for _ in range(res_blocks[level]):
                 layers = [
                     ResBlock(
                         ch,
@@ -784,7 +784,7 @@ class UViT(nn.Module):
 
         self.output_blocks = nn.ModuleList([])
         for level, mult in list(enumerate(channel_mults))[::-1]:
-            for i in range(res_blocks + 1):
+            for i in range(res_blocks[level] + 1):
                 ich = input_block_chans.pop()
                 layers = [
                     ResBlock(
@@ -798,7 +798,7 @@ class UViT(nn.Module):
                     )
                 ]
                 ch = int(inner_channel * mult)
-                if level and i == res_blocks:
+                if level and i == res_blocks[level]:
                     out_ch = ch
                     layers.append(Upsample(ch, conv_resample, out_channel=out_ch))
                     ds //= 2
@@ -893,7 +893,7 @@ if __name__ == "__main__":
         in_channel=c,
         inner_channel=64,
         out_channel=3,
-        res_blocks=2,
+        res_blocks=[2, 2, 2, 2],
         attn_res=[8],
     )
     x = torch.randn((b, c, h, w))

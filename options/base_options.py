@@ -282,12 +282,14 @@ class BaseOptions:
 
         parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
         parser.add_argument("--G_unet_mha_num_heads", default=1, type=int)
+
         parser.add_argument(
             "--G_uvit_num_transformer_blocks",
             default=6,
             type=int,
             help="Number of transformer blocks in UViT",
         )
+
         parser.add_argument(
             "--G_diff_n_timestep_train",
             type=int,
@@ -300,6 +302,14 @@ class BaseOptions:
             type=int,
             default=1000,
             help="Number of timesteps used for UNET mha inference (test time).",
+        )
+
+        parser.add_argument(
+            "--G_unet_mha_res_blocks",
+            default=[2, 2, 2, 2],
+            nargs="*",
+            type=int,
+            help="distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults",
         )
 
         parser.add_argument(
