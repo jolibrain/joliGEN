@@ -93,7 +93,7 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_cond_list",
             nargs="+",
             type=str,
-            default=["canny, hed, depth, hough"],
+            default=["canny", "hed", "depth", "hough"],
             help="what to use for random sketch",
         )
 
