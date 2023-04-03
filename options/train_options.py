@@ -26,8 +26,10 @@ class TrainOptions(BaseOptions):
         )
         parser.add_argument(
             "--output_display_type",
-            default="visdom",
+            type=str,
+            default=["visdom"],
             nargs="*",
+            choices=["visdom", "aim"],
             help="output display, either visdom or aim",
         )
         parser.add_argument(
