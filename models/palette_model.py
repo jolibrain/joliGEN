@@ -8,38 +8,13 @@ import tqdm
 
 from data.online_creation import fill_mask_with_color
 from util.iter_calculator import IterCalculator
-from util.mask_generation import (
-    fill_img_with_canny,
-    fill_img_with_depth,
-    fill_img_with_edges,
-    fill_img_with_hed,
-    fill_img_with_hough,
-    fill_img_with_sketch,
-)
+from util.mask_generation import random_edge_mask
 from util.network_group import NetworkGroup
 
 from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
 from .modules.loss import MultiScaleDiffusionLoss
 from .modules.unet_generator_attn.unet_attn_utils import revert_sync_batchnorm
-
-
-def random_edge_mask(fn_list):
-    edge_fns = []
-    for fn in fn_list:
-        if fn == "canny":
-            edge_fns.append(fill_img_with_canny)
-        elif fn == "hed":
-            edge_fns.append(fill_img_with_hed)
-        elif fn == "hough":
-            edge_fns.append(fill_img_with_hough)
-        elif fn == "depth":
-            edge_fns.append(fill_img_with_depth)
-        elif fn == "sketch":
-            edge_fns.append(fill_img_with_sketch)
-        else:
-            raise NotImplementedError(f"Unknown edge function {fn}")
-    return random.choice(edge_fns)
 
 
 class PaletteModel(BaseDiffusionModel):
@@ -77,25 +52,20 @@ class PaletteModel(BaseDiffusionModel):
             default="y_t",
             choices=[
                 "y_t",
-                "sketch",
-                "edges",
                 "previous_frame",
-                "canny",
-                "depth",
-                "hed",
-                "hough",
-                "random_sketch",
+                "computed_sketch",
             ],
             help="how cond_image is created",
         )
 
         parser.add_argument(
-            "--alg_palette_cond_list",
+            "--alg_palette_computed_sketch_list",
             nargs="+",
             type=str,
-            default=["canny", "hed", "depth", "hough"],
+            default=["canny", "hed"],
             help="what to use for random sketch",
             choices=[
+                "sketch",
                 "canny",
                 "depth",
                 "hed",
@@ -232,18 +202,6 @@ class PaletteModel(BaseDiffusionModel):
 
         if self.opt.alg_palette_cond_image_creation == "y_t":
             self.cond_image = self.y_t
-        elif self.opt.alg_palette_cond_image_creation == "sketch":
-            self.cond_image = fill_img_with_sketch(self.gt_image, self.mask)
-        elif self.opt.alg_palette_cond_image_creation == "edges":
-            self.cond_image = fill_img_with_edges(self.gt_image, self.mask)
-        elif self.opt.alg_palette_cond_image_creation == "canny":
-            self.cond_image = fill_img_with_canny(self.gt_image, self.mask)
-        elif self.opt.alg_palette_cond_image_creation == "hed":
-            self.cond_image = fill_img_with_hed(self.gt_image, self.mask)
-        elif self.opt.alg_palette_cond_image_creation == "hough":
-            self.cond_image = fill_img_with_hough(self.gt_image, self.mask)
-        elif self.opt.alg_palette_cond_image_creation == "depth":
-            self.cond_image = fill_img_with_depth(self.gt_image, self.mask)
         elif self.opt.alg_palette_cond_image_creation == "previous_frame":
             cond_image_list = []
 
@@ -259,13 +217,13 @@ class PaletteModel(BaseDiffusionModel):
                     )
 
                 self.cond_image = torch.stack(cond_image_list)
-        elif self.opt.alg_palette_cond_image_creation == "random_sketch":
+        elif self.opt.alg_palette_cond_image_creation == "computed_sketch":
             randomize_batch = True
             if randomize_batch:
                 cond_images = []
                 for image, mask in zip(self.gt_image, self.mask):
                     fill_img_with_random_sketch = random_edge_mask(
-                        fn_list=self.opt.alg_palette_cond_list
+                        fn_list=self.opt.alg_palette_computed_sketch_list
                     )
                     batch_cond_image = fill_img_with_random_sketch(
                         image.unsqueeze(0), mask.unsqueeze(0)
@@ -274,7 +232,7 @@ class PaletteModel(BaseDiffusionModel):
                 self.cond_image = torch.stack(cond_images)
             else:
                 fill_img_with_random_sketch = random_edge_mask(
-                    fn_list=self.opt.alg_palette_cond_list
+                    fn_list=self.opt.alg_palette_computed_sketch_list
                 )
                 self.cond_image = fill_img_with_random_sketch(self.gt_image, self.mask)
 

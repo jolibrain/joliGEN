@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import urllib.request
 
@@ -29,33 +30,6 @@ def fill_img_with_sketch(img, mask):
     mask = torch.clamp(mask, 0, 1)
 
     return mask * thresh + (1 - mask) * img
-
-
-def fill_img_with_edges(img, mask):
-    """Deprecated. Use fill_img_with_canny instead."""
-
-    device = img.device
-
-    edges_list = []
-
-    for cur_img in img:
-        cur_img = (
-            (torch.einsum("chw->hwc", cur_img).cpu().numpy() + 1) * 255 / 2
-        ).astype(np.uint8)
-        edges = cv2.Canny(cur_img, 100, 150)
-        edges = (
-            (((torch.tensor(edges, device=device) / 255) * 2) - 1)
-            .unsqueeze(0)
-            .unsqueeze(0)
-        )
-
-        edges_list.append(edges)
-
-    edges = torch.cat(edges_list, dim=0)
-
-    mask = torch.clamp(mask, 0, 1)
-
-    return mask * edges + (1 - mask) * img
 
 
 def fill_img_with_canny(img, mask, low_threshold=150, high_threshold=200):
@@ -157,3 +131,21 @@ def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
     mask = torch.clamp(mask, 0, 1)
 
     return mask * edges + (1 - mask) * img
+
+
+def random_edge_mask(fn_list):
+    edge_fns = []
+    for fn in fn_list:
+        if fn == "canny":
+            edge_fns.append(fill_img_with_canny)
+        elif fn == "hed":
+            edge_fns.append(fill_img_with_hed)
+        elif fn == "hough":
+            edge_fns.append(fill_img_with_hough)
+        elif fn == "depth":
+            edge_fns.append(fill_img_with_depth)
+        elif fn == "sketch":
+            edge_fns.append(fill_img_with_sketch)
+        else:
+            raise NotImplementedError(f"Unknown edge function {fn}")
+    return random.choice(edge_fns)

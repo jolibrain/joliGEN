@@ -24,7 +24,6 @@ from options.train_options import TrainOptions
 from util.mask_generation import (
     fill_img_with_canny,
     fill_img_with_depth,
-    fill_img_with_edges,
     fill_img_with_hed,
     fill_img_with_hough,
     fill_img_with_sketch,
@@ -311,8 +310,6 @@ def generate(
         cond_image = y_t.unsqueeze(0)
     elif opt.alg_palette_cond_image_creation == "sketch":
         cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
-    elif opt.alg_palette_cond_image_creation == "edges":
-        cond_image = fill_img_with_edges(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "canny":
         cond_image = fill_img_with_canny(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "hed":
