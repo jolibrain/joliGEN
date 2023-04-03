@@ -24,13 +24,21 @@ from .modules.loss import MultiScaleDiffusionLoss
 from .modules.unet_generator_attn.unet_attn_utils import revert_sync_batchnorm
 
 
-def random_edge_mask():
-    edge_fns = [
-        fill_img_with_canny,
-        fill_img_with_depth,
-        fill_img_with_hed,
-        fill_img_with_hough,
-    ]
+def random_edge_mask(fn_list):
+    edge_fns = []
+    for fn in fn_list:
+        if fn == "canny":
+            edge_fns.append(fill_img_with_canny)
+        elif fn == "hed":
+            edge_fns.append(fill_img_with_hed)
+        elif fn == "hough":
+            edge_fns.append(fill_img_with_hough)
+        elif fn == "depth":
+            edge_fns.append(fill_img_with_depth)
+        elif fn == "sketch":
+            edge_fns.append(fill_img_with_sketch)
+        else:
+            raise NotImplementedError(f"Unknown edge function {fn}")
     return random.choice(edge_fns)
 
 
@@ -79,6 +87,14 @@ class PaletteModel(BaseDiffusionModel):
                 "random_sketch",
             ],
             help="how cond_image is created",
+        )
+
+        parser.add_argument(
+            "--alg_palette_cond_list",
+            nargs="+",
+            type=str,
+            default=["canny, hed, depth, hough"],
+            help="what to use for random sketch",
         )
 
         parser.add_argument(
@@ -242,14 +258,18 @@ class PaletteModel(BaseDiffusionModel):
             if randomize_batch:
                 cond_images = []
                 for image, mask in zip(self.gt_image, self.mask):
-                    fill_img_with_random_sketch = random_edge_mask()
+                    fill_img_with_random_sketch = random_edge_mask(
+                        fn_list=self.opt.alg_palette_cond_list
+                    )
                     batch_cond_image = fill_img_with_random_sketch(
                         image.unsqueeze(0), mask.unsqueeze(0)
                     ).squeeze(0)
                     cond_images.append(batch_cond_image)
                 self.cond_image = torch.stack(cond_images)
             else:
-                fill_img_with_random_sketch = random_edge_mask()
+                fill_img_with_random_sketch = random_edge_mask(
+                    fn_list=self.opt.alg_palette_cond_list
+                )
                 self.cond_image = fill_img_with_random_sketch(self.gt_image, self.mask)
 
         self.batch_size = self.cond_image.shape[0]
