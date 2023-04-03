@@ -76,10 +76,15 @@ class PaletteModel(BaseDiffusionModel):
             type=str,
             default="y_t",
             choices=[
+                "y_t",
+                "sketch",
+                "edges",
+                "previous_frame",
                 "canny",
                 "depth",
                 "hed",
                 "hough",
+                "random_sketch",
             ],
             help="how cond_image is created",
         )
@@ -91,15 +96,10 @@ class PaletteModel(BaseDiffusionModel):
             default=["canny", "hed", "depth", "hough"],
             help="what to use for random sketch",
             choices=[
-                "y_t",
-                "sketch",
-                "edges",
-                "previous_frame",
                 "canny",
                 "depth",
                 "hed",
                 "hough",
-                "random_sketch",
             ],
         )
 
