@@ -47,7 +47,7 @@ Here are all the available options to call with `train.py`
 | --G_attn_nb_mask_attn | int | 10 |  |
 | --G_attn_nb_mask_input | int | 1 |  |
 | --G_backward_compatibility_twice_resnet_blocks | flag |  | if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way). |
-| --G_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segforme configuration file for G |
+| --G_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file for G |
 | --G_diff_n_timestep_test | int | 1000 | Number of timesteps used for UNET mha inference (test time). |
 | --G_diff_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_dropout | flag |  | dropout for the generator |
