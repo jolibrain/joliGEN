@@ -247,7 +247,14 @@ class CUTModel(BaseGanModel):
                     self.criterionNCE.append(PatchHDCELoss(opt).to(self.device))
 
                 elif opt.alg_cut_nce_loss == "vicreg":
-                    self.criterionNCE.append(VICRegLoss().to(self.device))
+                    self.criterionNCE.append(
+                        VICRegLoss(
+                            inv_coeff=25.0,
+                            var_coeff=25.0,
+                            cov_coeff=1.0,
+                            gamma=1.0,
+                        ).to(self.device)
+                    )
 
             if opt.alg_cut_nce_loss == "SRC_hDCE":
                 self.criterionR = []
@@ -359,6 +366,8 @@ class CUTModel(BaseGanModel):
         for discriminator in self.discriminators:
             losses_G.append(discriminator.loss_name_G)
             losses_D.append(discriminator.loss_name_D)
+
+        losses_G.extend(["inv", "var", "cov"])
 
         self.loss_names_G += losses_G
         self.loss_names_D += losses_D
@@ -629,20 +638,32 @@ class CUTModel(BaseGanModel):
             weights = [None for k in range(len(feat_q_pool))]
         n_layers = len(self.nce_layers)
         total_nce_loss = 0.0
+
+        inv = 0
+        var = 0
+        cov = 0
+
         for f_q, f_k, crit, nce_layer, weight in zip(
             feat_q_pool, feat_k_pool, self.criterionNCE, self.nce_layers, weights
         ):
-            loss = (
-                crit(
-                    feat_q=f_q,
-                    feat_k=f_k,
-                    current_batch=self.get_current_batch_size(),
-                    weight=weight,
-                )
-                * self.opt.alg_cut_lambda_NCE
+            metrics = crit(
+                feat_q=f_q,
+                feat_k=f_k,
+                current_batch=self.get_current_batch_size(),
+                weight=weight,
             )
 
+            inv += metrics["inv-loss"]
+            var += metrics["var-loss"]
+            cov += metrics["cov-loss"]
+
+            loss = metrics["loss"] * self.opt.alg_cut_lambda_NCE
+
             total_nce_loss += loss.mean()
+
+        self.loss_inv = inv / n_layers
+        self.loss_var = var / n_layers
+        self.loss_cov = cov / n_layers
 
         return total_nce_loss / n_layers
 

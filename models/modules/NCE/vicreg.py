@@ -18,6 +18,7 @@ class VICRegLoss(nn.Module):
         self.var_coeff = var_coeff
         self.cov_coeff = cov_coeff
         self.gamma = gamma
+        self.alg_cut_nce_includes_all_negatives_from_minibatch = False
 
     def representation_loss(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Computes the representation loss.
@@ -37,49 +38,48 @@ class VICRegLoss(nn.Module):
         """
         return F.mse_loss(x, y)
 
-    def variance_loss(self, x: torch.Tensor) -> torch.Tensor:
-        """Computes the variance loss.
-        Push the representations across the batch
-        to be different between each other.
-        Avoid the model to collapse to a single point.
-
-        The gamma parameter is used as a threshold so that
-        the model is no longer penalized if its std is above
-        that threshold.
-
+    @staticmethod
+    def variance_loss(x: torch.Tensor, gamma: float) -> torch.Tensor:
+        """Computes the local variance loss.
+        This is slightly different than the global variance loss because the
+        variance is computed per patch.
         ---
         Args:
             x: Features map.
-                Shape of [batch_size, representation_size].
-
+                Shape of [batch_size, n_patches, representation_size].
         ---
         Returns:
             The variance loss.
                 Shape of [1,].
         """
-        x = x - x.mean(dim=0)
-        std = x.std(dim=0)
-        var_loss = F.relu(self.gamma - std).mean()
+
+        x = x - x.mean(dim=1, keepdim=True)
+        std = torch.sqrt(x.var(dim=1) + 0.0001)
+        # std = x.std(dim=1)
+
+        var_loss = F.relu(gamma - std).mean()
         return var_loss
 
-    def covariance_loss(self, x: torch.Tensor) -> torch.Tensor:
-        """Computes the covariance loss.
-        Decorrelates the embeddings' dimensions, which pushes
-        the model to capture more information per dimension.
-
+    @staticmethod
+    def covariance_loss(x: torch.Tensor) -> torch.Tensor:
+        """Computes the local covariance loss.
+        This is slightly different than the global covariance loss because the
+        covariance is computed per patch.
         ---
         Args:
             x: Features map.
-                Shape of [batch_size, representation_size].
-
+                Shape of [batch_size, n_patches, representation_size].
         ---
         Returns:
             The covariance loss.
                 Shape of [1,].
         """
-        x = x - x.mean(dim=0)
-        cov = (x.T @ x) / (x.shape[0] - 1)
-        cov_loss = cov.fill_diagonal_(0.0).pow(2).sum() / x.shape[1]
+        x = x - x.mean(dim=1, keepdim=True)
+        x_T = x.transpose(1, 2)
+        cov = (x_T @ x) / (x.shape[1] - 1)
+
+        non_diag = ~torch.eye(x.shape[2], device=x.device, dtype=torch.bool)
+        cov_loss = cov[..., non_diag].pow(2).sum() / (x.shape[2] * x.shape[0])
         return cov_loss
 
     # def forward(self, x: torch.Tensor, y: torch.Tensor) -> Dict[str, torch.Tensor]:
@@ -101,16 +101,30 @@ class VICRegLoss(nn.Module):
                 Dictionary where values are of shape of [1,].
         """
 
+        dim = feat_q.shape[1]
+
+        if self.alg_cut_nce_includes_all_negatives_from_minibatch:
+            # reshape features as if they are all negatives of minibatch of size 1.
+            self.batch_dim_for_bmm = 1
+        else:
+            self.batch_dim_for_bmm = current_batch
+
+        feat_q = feat_q.view(self.batch_dim_for_bmm, -1, dim)
+        feat_k = feat_k.view(self.batch_dim_for_bmm, -1, dim)
+
         x = feat_q
         y = feat_k
 
         metrics = dict()
         metrics["inv-loss"] = self.inv_coeff * self.representation_loss(x, y)
         metrics["var-loss"] = (
-            self.var_coeff * (self.variance_loss(x) + self.variance_loss(y)) / 2
+            self.var_coeff
+            * (self.variance_loss(x, self.gamma) + self.variance_loss(y, self.gamma))
+            / 2
         )
         metrics["cov-loss"] = (
             self.cov_coeff * (self.covariance_loss(x) + self.covariance_loss(y)) / 2
         )
         metrics["loss"] = sum(metrics.values())
-        return metrics["loss"]
+
+        return metrics
