@@ -1138,7 +1138,7 @@ class BaseOptions:
 
                         if action.nargs == "+":
                             field["items"]["enum"] = action.choices
-                            if isinstance(action.choices[0], str):
+                            if isinstance(action.default[0], str):
                                 cur_type = "string"
                             field["items"]["type"] = cur_type
 
