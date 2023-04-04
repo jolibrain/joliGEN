@@ -254,7 +254,7 @@ class BaseOptions:
             "--G_config_segformer",
             type=str,
             default="models/configs/segformer/segformer_config_b0.json",
-            help="path to segforme configuration file for G",
+            help="path to segformer configuration file for G",
         )
         parser.add_argument("--G_attn_nb_mask_attn", default=10, type=int)
 
