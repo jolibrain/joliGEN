@@ -1,43 +1,45 @@
-import os
 import copy
+import os
+
 import torch
 
 if torch.__version__[0] == "2":
     import torch._dynamo
-from collections import OrderedDict
+
 from abc import ABC, abstractmethod
-from . import semantic_networks
-from .modules.utils import get_scheduler
-from torchviz import make_dot
-from thop import profile
+from collections import OrderedDict
 from contextlib import ExitStack
 
-from util.network_group import NetworkGroup
+import numpy as np
+import torch.nn.functional as F
+from thop import profile
+from torchviz import make_dot
 
 # for FID
 from data.base_dataset import get_transform
-from .modules.fid.pytorch_fid.fid_score import (
-    _compute_statistics_of_path,
-    calculate_frechet_distance,
-)
-from util.util import save_image, tensor2im, delete_flop_param
-import numpy as np
 from util.diff_aug import DiffAugment
-from . import base_networks
-
-# for D accuracy
-from util.image_pool import ImagePool
-import torch.nn.functional as F
-
-# For D loss computing
-from .modules import loss
 from util.discriminator import DiscriminatorInfo
 
 # For export
 from util.export import export
 
+# for D accuracy
+from util.image_pool import ImagePool
+
 # Iter Calculator
 from util.iter_calculator import IterCalculator
+from util.network_group import NetworkGroup
+from util.util import delete_flop_param, save_image, tensor2im
+
+from . import base_networks, semantic_networks
+
+# For D loss computing
+from .modules import loss
+from .modules.fid.pytorch_fid.fid_score import (
+    _compute_statistics_of_path,
+    calculate_frechet_distance,
+)
+from .modules.utils import get_scheduler
 
 
 class BaseModel(ABC):
@@ -894,13 +896,20 @@ class BaseModel(ABC):
             net = getattr(self, "net" + name)
             path = self.opt.checkpoints_dir + self.opt.name + "/networks/" + name
             if not "Decoder" in name:
-                temp = net(self.real_A)
+                y_0 = self.gt_image
+                y_cond = self.cond_image
+                mask = self.mask
+                noise = None
+
+                noise, noise_hat = net(y_0, y_cond, mask, noise)
+                # temp = net(self.real_A)
+                temp = noise_hat
             else:
                 temp = net(self.netG_A(self.real_A).detach())
             make_dot(temp, params=dict(net.named_parameters())).render(
                 path, format="png"
             )
-            paths.append(path)
+            # paths.append(path)
 
         return paths
 
@@ -977,11 +986,9 @@ class BaseModel(ABC):
             # print(self.niter,self.opt.train_iter_size,                self.niter % self.opt.train_iter_size,                self.niter % self.opt.train_iter_size != 0,            )
             if len(self.opt.gpu_ids) > 1 and self.niter % self.opt.train_iter_size != 0:
                 for network in self.model_names:
-
                     stack.enter_context(getattr(self, "net" + network).no_sync())
 
             for group in self.networks_groups:
-
                 for network in self.model_names:
                     if network in group.networks_to_optimize:
                         self.set_requires_grad(getattr(self, "net" + network), True)
@@ -991,7 +998,6 @@ class BaseModel(ABC):
                 if not group.forward_functions is None:
                     with torch.cuda.amp.autocast(enabled=self.with_amp):
                         for forward in group.forward_functions:
-
                             if (
                                 torch.__version__[0] == "2"
                                 and self.opt.with_torch_compile
@@ -1367,7 +1373,6 @@ class BaseModel(ABC):
         delete_flop_param(model)
 
     def iter_calculator_init(self):
-
         if self.opt.train_iter_size > 1:
             self.iter_calculator = IterCalculator(self.loss_names)
             for i, cur_loss in enumerate(self.loss_names):
