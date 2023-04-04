@@ -894,13 +894,20 @@ class BaseModel(ABC):
             net = getattr(self, "net" + name)
             path = self.opt.checkpoints_dir + self.opt.name + "/networks/" + name
             if not "Decoder" in name:
-                temp = net(self.real_A)
+                y_0 = self.gt_image
+                y_cond = self.cond_image
+                mask = self.mask
+                noise = None
+
+                noise, noise_hat = net(y_0, y_cond, mask, noise)
+                # temp = net(self.real_A)
+                temp = noise_hat
             else:
                 temp = net(self.netG_A(self.real_A).detach())
             make_dot(temp, params=dict(net.named_parameters())).render(
                 path, format="png"
             )
-            paths.append(path)
+            # paths.append(path)
 
         return paths
 
@@ -1365,6 +1372,7 @@ class BaseModel(ABC):
         )
 
         delete_flop_param(model)
+
 
     def iter_calculator_init(self):
 
