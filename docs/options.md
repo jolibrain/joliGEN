@@ -217,7 +217,7 @@ Here are all the available options to call with `train.py`
 | --output_display_id | int | 1 | window id of the web display |
 | --output_display_ncols | int | 0 | if positive, display all images in a single visdom web panel with certain number of images per row.(if == 0 ncols will be computed automatically) |
 | --output_display_networks | flag |  | Set True if you want to display networks on port 8000 |
-| --output_display_type | string | visdom | output display, either visdom or aim |
+| --output_display_type | array | ['visdom'] | output display, either visdom or aim<br/><br/>_**Values:** visdom, aim_ |
 | --output_display_visdom_port | int | 8097 | visdom port of the web display |
 | --output_display_visdom_server | string | http://localhost | visdom server of the web display |
 | --output_display_winsize | int | 256 | display window size for both visdom and HTML |
