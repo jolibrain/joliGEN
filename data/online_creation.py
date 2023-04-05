@@ -27,6 +27,7 @@ def crop_image(
     crop_center=False,
     fixed_mask_size=-1,
     bbox_ref_id=-1,
+    inverted_mask=False,
 ):
 
     margin = context_pixels * 2
@@ -309,6 +310,13 @@ def crop_image(
         y_crop : y_crop + crop_size + margin,
         x_crop : x_crop + crop_size + margin,
     ]
+
+    # invert mask if required
+    if inverted_mask:
+        mask[mask > 0] = 2
+        mask[mask == 0] = 1
+        mask[mask == 2] = 0
+
     mask = Image.fromarray(mask)
     mask = F.resize(mask, output_dim + margin, interpolation=InterpolationMode.NEAREST)
 

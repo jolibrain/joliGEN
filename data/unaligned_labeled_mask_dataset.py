@@ -102,6 +102,11 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         if self.opt.f_s_all_classes_as_one:
             A_label_mask = (A_label_mask >= 1) * 1
 
+        if self.opt.data_inverted_mask:
+            A_label_mask[A_label_mask >= 1] = 2
+            A_label_mask[A_label_mask == 0] = 1
+            A_label_mask[A_label_mask == 2] = 0
+
         result = {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask}
 
         # Domain B
@@ -135,6 +140,11 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             else:
                 B = self.transform_noseg(B_img)
                 B_label_mask = []
+
+            if self.opt.data_inverted_mask:
+                A_label_mask[A_label_mask >= 1] = 2
+                A_label_mask[A_label_mask == 0] = 1
+                A_label_mask[A_label_mask == 2] = 0
 
             result.update(
                 {
