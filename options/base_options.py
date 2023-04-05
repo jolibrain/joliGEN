@@ -754,6 +754,12 @@ class BaseOptions:
         )
 
         parser.add_argument(
+            "--data_inverted_mask",
+            action="store_true",
+            help="whether to invert the mask, i.e. around the bbox",
+        )
+
+        parser.add_argument(
             "--data_sanitize_paths",
             action="store_true",
             help="if true, wrong images or labels paths will be removed before training",
