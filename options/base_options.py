@@ -648,6 +648,11 @@ class BaseOptions:
             help="category to select for bounding boxes, -1 means all boxes selected",
         )
         parser.add_argument(
+            "--data_online_single_bbox",
+            action="store_true",
+            help="whether to only allow a single bbox per online crop",
+        )
+        parser.add_argument(
             "--data_online_creation_load_size_A",
             default=[],
             nargs="*",
