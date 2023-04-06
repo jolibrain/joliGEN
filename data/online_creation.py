@@ -32,7 +32,7 @@ def crop_image(
     margin = context_pixels * 2
 
     try:
-        img = Image.open(img_path)
+        img = Image.open(img_path).convert("RGB")
         if load_size != []:
             old_size = img.size
             img = F.resize(img, load_size)
