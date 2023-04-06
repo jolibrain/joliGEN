@@ -272,6 +272,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 select_cat=self.opt.data_online_select_category,
                 fixed_mask_size=self.opt.data_online_fixed_mask_size,
                 inverted_mask=self.opt.data_inverted_mask,
+                single_bbox=self.opt.data_online_single_bbox,
             )
 
         except Exception as e:
@@ -308,6 +309,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         load_size=self.opt.data_online_creation_load_size_B,
                         fixed_mask_size=self.opt.data_online_fixed_mask_size,
                         inverted_mask=self.opt.data_inverted_mask,
+                        single_bbox=self.opt.data_online_single_bbox,
                     )
                     B, B_label_mask = self.transform(B_img, B_label_mask)
 

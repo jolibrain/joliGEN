@@ -28,6 +28,7 @@ def crop_image(
     fixed_mask_size=-1,
     bbox_ref_id=-1,
     inverted_mask=False,
+    single_bbox=False,
 ):
 
     margin = context_pixels * 2
@@ -71,6 +72,10 @@ def crop_image(
                     bboxes.append(line)
             elif line != "" or line != " ":
                 print("%s does not describe a bbox" % line)
+
+        # If one bbox only per crop
+        if single_bbox and bbox_ref_id == -1:
+            bbox_ref_id = np.random.randint(low=0, high=len(bboxes))
 
         # If a bbox ref is given, only select for that box
         if bbox_ref_id >= 0:
