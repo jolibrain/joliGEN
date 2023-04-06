@@ -11,6 +11,7 @@ from .modules.NCE.monce import MoNCELoss
 from .modules.NCE.hDCE import PatchHDCELoss
 from .modules.NCE.SRC import SRC_Loss
 from .modules.NCE.vicreg import VICRegLoss
+from .modules.NCE.vicreg_fair import VICRegFairLoss
 
 
 from util.network_group import NetworkGroup
@@ -96,7 +97,7 @@ class CUTModel(BaseGanModel):
             "--alg_cut_nce_loss",
             type=str,
             default="monce",
-            choices=["patchnce", "monce", "SRC_hDCE", "vicreg"],
+            choices=["patchnce", "monce", "SRC_hDCE", "vicreg", "vicregfair"],
             help="CUT contrastice loss",
         )
         parser.add_argument(
@@ -256,6 +257,16 @@ class CUTModel(BaseGanModel):
                         ).to(self.device)
                     )
 
+                elif opt.alg_cut_nce_loss == "vicregfair":
+                    self.criterionNCE.append(
+                        VICRegFairLoss(
+                            sim_coeff=25.0,
+                            std_coeff=15.0,
+                            cov_coeff=1.0,
+                            gamma=1.0,
+                        ).to(self.device)
+                    )
+
             if opt.alg_cut_nce_loss == "SRC_hDCE":
                 self.criterionR = []
                 for nce_layer in self.nce_layers:
@@ -367,7 +378,8 @@ class CUTModel(BaseGanModel):
             losses_G.append(discriminator.loss_name_G)
             losses_D.append(discriminator.loss_name_D)
 
-        losses_G.extend(["inv", "var", "cov"])
+        if "vicreg" in opt.alg_cut_nce_loss:
+            losses_G.extend(["inv", "var", "cov"])
 
         self.loss_names_G += losses_G
         self.loss_names_D += losses_D
@@ -652,18 +664,26 @@ class CUTModel(BaseGanModel):
                 current_batch=self.get_current_batch_size(),
                 weight=weight,
             )
+            print("f_q", f_q.shape)
 
-            inv += metrics["inv-loss"]
-            var += metrics["var-loss"]
-            cov += metrics["cov-loss"]
+            if "vicreg" in self.opt.alg_cut_nce_loss:
 
-            loss = metrics["loss"] * self.opt.alg_cut_lambda_NCE
+                inv += metrics["inv-loss"]
+                var += metrics["var-loss"]
+                cov += metrics["cov-loss"]
+                loss = metrics["loss"] * self.opt.alg_cut_lambda_NCE
+
+            else:
+
+                loss = metrics * self.opt.alg_cut_lambda_NCE
 
             total_nce_loss += loss.mean()
 
-        self.loss_inv = inv / n_layers
-        self.loss_var = var / n_layers
-        self.loss_cov = cov / n_layers
+        if "vicreg" in self.opt.alg_cut_nce_loss:
+
+            self.loss_inv = inv / n_layers
+            self.loss_var = var / n_layers
+            self.loss_cov = cov / n_layers
 
         return total_nce_loss / n_layers
 
