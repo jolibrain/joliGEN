@@ -137,6 +137,7 @@ Here are all the available options to call with `train.py`
 | --data_crop_size | int | 256 | then crop to this size |
 | --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal, self_supervised_temporal_ |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/>_**Values:** AtoB, BtoA_ |
+| --data_inverted_mask | flag |  | whether to invert the mask, i.e. around the bbox |
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
 | --data_num_threads | int | 4 | \# threads for loading data |
