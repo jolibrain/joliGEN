@@ -144,6 +144,7 @@ Here are all the available options to call with `train.py`
 | --data_online_context_pixels | int | 0 | context pixel band around the crop, unused for generation, only for disc  |
 | --data_online_fixed_mask_size | int | -1 | if \>0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing)  |
 | --data_online_select_category | int | -1 | category to select for bounding boxes, -1 means all boxes selected |
+| --data_online_single_bbox | flag |  | whether to only allow a single bbox per online crop |
 | --data_preprocess | string | resize_and_crop | scaling and cropping of images at load time<br/><br/>_**Values:** resize_and_crop, crop, scale_width, scale_width_and_crop, none_ |
 | --data_relative_paths | flag |  | whether paths to images are relative to dataroot |
 | --data_sanitize_paths | flag |  | if true, wrong images or labels paths will be removed before training |
