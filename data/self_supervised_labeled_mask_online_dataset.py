@@ -59,7 +59,7 @@ class SelfSupervisedLabeledMaskOnlineDataset(UnalignedLabeledMaskOnlineDataset):
                 }
             )
         except Exception as e:
-            print(e, "self supervised data loading")
+            print(e, "self supervised data loading from ", A_img_path)
             return None
 
         return result

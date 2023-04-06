@@ -275,7 +275,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             )
 
         except Exception as e:
-            print(e, "domain A data loading")
+            print(e, "domain A data loading for ", A_img_path)
             return None
 
         A, A_label_mask = self.transform(A_img, A_label_mask)
@@ -328,7 +328,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     B_label_mask = []
 
             except Exception as e:
-                print(e, "domain B data loading")
+                print(e, "domain B data loading for ", B_img_path)
                 return None
 
             result.update(
