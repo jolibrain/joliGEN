@@ -241,6 +241,13 @@ def crop_image(
                 constant_values=0,
             )
 
+            mask = np.pad(
+                mask,
+                ((y_padding, x_padding), (y_padding, x_padding)),
+                "constant",
+                constant_values=0,
+            )
+
             x_max_ref += x_padding
             x_min_ref += x_padding
             y_max_ref += y_padding
