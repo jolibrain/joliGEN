@@ -52,7 +52,6 @@ def load_model(modelpath, model_in_file, device, sampling_steps, sampling_method
 
 
 def to_np(img):
-
     img = img.detach().data.cpu().float().numpy()[0]
     img = (np.transpose(img, (1, 2, 0)) + 1) / 2.0 * 255.0
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
@@ -71,6 +70,7 @@ def generate(
     bbox_in,
     bbox_width_factor,
     bbox_height_factor,
+    bbox_ref_id,
     crop_width,
     crop_height,
     img_width,
@@ -84,7 +84,6 @@ def generate(
     sampling_method,
     **unused_options,
 ):
-
     # seed
     if seed >= 0:
         torch.manual_seed(seed)
@@ -131,18 +130,21 @@ def generate(
 
     bboxes = []
     if bbox_in:
-
         # mask = np.zeros(img.shape[:2], dtype=np.uint8)
         with open(bbox_in, "r") as bboxf:
             for line in bboxf:
                 elts = line.rstrip().split()
                 bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
 
-        if crop_width or crop_height > 0:
+        if bbox_ref_id == -1:
+            # sample a bbox here since we are calling crop_image multiple times
+            bbox_idx = random.choice(range(len(bboxes)))
+        else:
+            bbox_idx = bbox_ref_id
+
+        if crop_width > 0 or crop_height > 0:
             hc_width = int(crop_width / 2)
             hc_height = int(crop_height / 2)
-            # select one bbox and crop around it
-            bbox_idx = random.choice(range(len(bboxes)))
             bbox_orig = bboxes[bbox_idx]
             if bbox_width_factor > 0.0:
                 bbox_orig[0] -= max(0, int(bbox_width_factor * bbox_orig[0]))
@@ -151,6 +153,7 @@ def generate(
                 bbox_orig[1] -= max(0, int(bbox_height_factor * bbox_orig[1]))
                 bbox_orig[3] += max(0, int(bbox_height_factor * bbox_orig[3]))
 
+            # TODO: unused?
             bbox_select = bbox_orig.copy()
             bbox_select[0] -= max(0, hc_width)
             bbox_select[0] = max(0, bbox_select[0])
@@ -160,26 +163,8 @@ def generate(
             bbox_select[2] = min(img.shape[1], bbox_select[2])
             bbox_select[3] += hc_height
             bbox_select[3] = min(img.shape[0], bbox_select[3])
-
-            """
-            mask = np.zeros(
-                (bbox_select[3] - bbox_select[1], bbox_select[2] - bbox_select[0]),
-                dtype=np.uint8,
-            )
-            mask[
-                hc_height : hc_height + (bbox_orig[3] - bbox_orig[1]),
-                hc_width : hc_width + bbox_orig[2] - bbox_orig[0],
-            ] = np.full((bbox_orig[3] - bbox_orig[1], bbox_orig[2] - bbox_orig[0]), 1)
-            img_orig = img.copy()
-            img = img[
-                bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
-            ]  # cropped img"""
-
         else:
-            for bbox in bboxes:
-                mask[bbox[1] : bbox[3], bbox[0] : bbox[2]] = np.full(
-                    (bbox[3] - bbox[1], bbox[2] - bbox[0]), 1
-                )  # ymin:ymax, xmin:xmax, ymax-ymin, xmax-xmin
+            bbox = bboxes[bbox_idx]
 
         crop_coordinates = crop_image(
             img_path=img_in,
@@ -215,7 +200,7 @@ def generate(
 
         x_crop, y_crop, crop_size = crop_coordinates
 
-        bbox = bboxes[0]
+        bbox = bboxes[bbox_idx]
 
         bbox_select = bbox.copy()
 
@@ -249,7 +234,7 @@ def generate(
 
         img, mask = np.array(img), np.array(mask)
 
-    if img_width and img_height > 0:
+    if img_width > 0 and img_height > 0:
 
         img = cv2.resize(img, (img_width, img_height))
 
@@ -318,7 +303,6 @@ def generate(
     )
 
     with torch.no_grad():
-
         out_tensor, visu = model.restoration(
             y_cond=cond_image, y_t=y_t, y_0=img_tensor, mask=mask, sample_num=2
         )
@@ -366,7 +350,6 @@ def generate(
 
 
 if __name__ == "__main__":
-
     options = DiffusionOptions()
 
     options.parser.add_argument("--img-in", help="image to transform", required=True)
@@ -380,6 +363,9 @@ if __name__ == "__main__":
 
     options.parser.add_argument(
         "--nb_samples", help="nb of samples generated", type=int, default=1
+    )
+    options.parser.add_argument(
+        "--bbox_ref_id", help="bbox id to use", type=int, default=-1
     )
 
     args = options.parse()
