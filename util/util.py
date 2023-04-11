@@ -330,3 +330,11 @@ def delete_flop_param(module):
 
     for child in module.children():
         delete_flop_param(child)
+
+
+def pairs_of_floats(arg):
+    return [float(x) for x in arg.split(",")]
+
+
+def pairs_of_ints(arg):
+    return [int(x) for x in arg.split(",")]

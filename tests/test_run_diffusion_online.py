@@ -1,12 +1,13 @@
-import pytest
-import torch.multiprocessing as mp
 import sys
 from itertools import product
 
+import pytest
+import torch.multiprocessing as mp
+
 sys.path.append(sys.path[0] + "/..")
 import train
-from options.train_options import TrainOptions
 from data import create_dataset
+from options.train_options import TrainOptions
 
 json_like_dict = {
     "name": "joligen_utest",
@@ -18,7 +19,8 @@ json_like_dict = {
     "data_crop_size": 128,
     "data_online_creation_crop_size_A": 420,
     "data_online_creation_crop_delta_A": 50,
-    "data_online_creation_mask_delta_A": [50],
+    "data_online_creation_mask_delta_A": [[50]],
+    "data_online_creation_mask_delta_A_ratio": [[0.2, 0.2]],
     "data_online_creation_crop_size_B": 420,
     "data_online_creation_crop_delta_B": 50,
     "data_online_creation_load_size_A": [2500, 1000],

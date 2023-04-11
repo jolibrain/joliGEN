@@ -1,5 +1,7 @@
 import argparse
 
+from util.util import pairs_of_floats, pairs_of_ints
+
 
 class DiffusionOptions:
     def __init__(self):
@@ -63,10 +65,17 @@ class DiffusionOptions:
 
         self.parser.add_argument(
             "--mask_delta",
-            type=int,
-            default=[0],
-            nargs="*",
-            help="mask offset to allow generation of a bigger object, format : width (x) height (y) or only one size if square",
+            default=[[0]],
+            nargs="+",
+            type=pairs_of_ints,
+            help="mask offset to allow generation of a bigger object, format : width (x) height (y) for each class or only one size if square",
+        )
+        self.parser.add_argument(
+            "--mask_delta_ratio",
+            default=[[0]],
+            nargs="+",
+            type=pairs_of_floats,
+            help="ratio mask offset to allow generation of a bigger object, format : width (x),height (y) for each class or only one size if square",
         )
 
         self.parser.add_argument(

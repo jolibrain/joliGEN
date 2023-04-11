@@ -1,13 +1,14 @@
 import math
-import numpy as np
+import os
 import random
-from PIL import Image
+import warnings
+
+import numpy as np
 import torch
 import torchvision.transforms.functional as F
+from PIL import Image
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
-import warnings
-import os
 
 
 def crop_image(
@@ -32,7 +33,6 @@ def crop_image(
     override_class=-1,
     min_crop_bbox_ratio=None,
 ):
-
     margin = context_pixels * 2
 
     try:
@@ -111,12 +111,48 @@ def crop_image(
             xmax = math.floor(int(bbox[3]) * ratio_x)
             ymax = math.floor(int(bbox[4]) * ratio_y)
 
+            bbox_width = xmax - xmin
+            bbox_height = ymax - ymin
+
             if len(mask_delta) == 1:
-                mask_delta_x = mask_delta[0]
-                mask_delta_y = mask_delta[0]
-            elif len(mask_delta) == 2:
-                mask_delta_x = mask_delta[0]
-                mask_delta_y = mask_delta[1]
+                if isinstance(mask_delta[0][0], float):
+                    if len(mask_delta[0]) == 1:
+                        mask_delta_x = mask_delta[0][0] * bbox_width
+                        mask_delta_y = mask_delta[0][0] * bbox_height
+                    else:
+                        mask_delta_x = mask_delta[0][0] * bbox_width
+                        mask_delta_y = mask_delta[0][1] * bbox_height
+                elif isinstance(mask_delta[0][0], int):
+                    if len(mask_delta[0]) == 1:
+                        mask_delta_x = mask_delta[0][0]
+                        mask_delta_y = mask_delta[0][0]
+                    else:
+                        mask_delta_x = mask_delta[0][0]
+                        mask_delta_y = mask_delta[0][1]
+                else:
+                    raise ValueError("mask_delta value is incorrect.")
+            else:
+                assert cat - 1 in range(len(mask_delta)), "cat not in mask_delta"
+                mask_delta_cat = mask_delta[cat - 1]
+                if isinstance(mask_delta[0][0], float):
+                    if len(mask_delta_cat) == 1:
+                        mask_delta_x = mask_delta_cat[0] * bbox_width
+                        mask_delta_y = mask_delta_cat[0] * bbox_height
+                    else:
+                        mask_delta_x = mask_delta_cat[0] * bbox_width
+                        mask_delta_y = mask_delta_cat[1] * bbox_height
+                elif isinstance(mask_delta[0][0], int):
+                    if len(mask_delta_cat) == 1:
+                        mask_delta_x = mask_delta_cat[0]
+                        mask_delta_y = mask_delta_cat[0]
+                    else:
+                        mask_delta_x = mask_delta_cat[0]
+                        mask_delta_y = mask_delta_cat[1]
+                else:
+                    raise ValueError("mask_delta value is incorrect.")
+
+            mask_delta_x = int(mask_delta_x)
+            mask_delta_y = int(mask_delta_y)
 
             if mask_delta_x > 0 or mask_delta_y > 0:
                 ymin -= mask_delta_y
@@ -199,7 +235,6 @@ def crop_image(
     # Let's compute crop size
 
     if crop_coordinates is None:
-
         # We compute the range within which crop size should be
 
         # Crop size should be > height, width bbox (to keep the bbox within the crop)
@@ -234,7 +269,6 @@ def crop_image(
         crop_size = random.randint(crop_size_min, crop_size_max)
 
         if crop_size > min(img.shape[0], img.shape[1]):
-
             warnings.warn(
                 f"Image size ({img.shape}) < crop dim {crop_size} for {img_path}, zero padding is done on image"
             )
@@ -429,7 +463,6 @@ def sanitize_paths(
         paths_bb = [None for k in range(len(paths_img))]
 
     for path_img, path_bb in tqdm(zip(paths_img, paths_bb)):
-
         if data_relative_paths:
             path_img = os.path.join(data_root_path, path_img)
             path_bb = os.path.join(data_root_path, path_bb)

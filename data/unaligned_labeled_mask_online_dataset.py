@@ -1,18 +1,16 @@
 import os.path
-from data.base_dataset import BaseDataset, get_transform, get_transform_seg
-from data.image_folder import make_dataset, make_labeled_path_dataset, make_dataset_path
-from data.online_creation import (
-    crop_image,
-    sanitize_paths,
-    write_paths_file,
-)
-from PIL import Image
 import random
-import numpy as np
-import torchvision.transforms as transforms
-import torch
-import torchvision.transforms.functional as F
 import warnings
+
+import numpy as np
+import torch
+import torchvision.transforms as transforms
+import torchvision.transforms.functional as F
+from PIL import Image
+
+from data.base_dataset import BaseDataset, get_transform, get_transform_seg
+from data.image_folder import make_dataset, make_dataset_path, make_labeled_path_dataset
+from data.online_creation import crop_image, sanitize_paths, write_paths_file
 
 
 class UnalignedLabeledMaskOnlineDataset(BaseDataset):
@@ -168,10 +166,18 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         # Domain A
 
         try:
+            if (
+                len(self.opt.data_online_creation_mask_delta_A_ratio[0]) == 1
+                and self.opt.data_online_creation_mask_delta_A_ratio[0][0] == 0
+            ):
+                mask_delta_A = self.opt.data_online_creation_mask_delta_A
+            else:
+                mask_delta_A = self.opt.data_online_creation_mask_delta_A_ratio
+
             A_img, A_label_mask, A_ref_bbox = crop_image(
                 A_img_path,
                 A_label_mask_path,
-                mask_delta=self.opt.data_online_creation_mask_delta_A,
+                mask_delta=mask_delta_A,
                 mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                 crop_delta=self.opt.data_online_creation_crop_delta_A,
                 mask_square=self.opt.data_online_creation_mask_square_A,
@@ -212,11 +218,19 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         # Domain B
         if B_img_path is not None:
             try:
+                if (
+                    len(self.opt.data_online_creation_mask_delta_B_ratio[0]) == 1
+                    and self.opt.data_online_creation_mask_delta_B_ratio[0][0] == 0
+                ):
+                    mask_delta_B = self.opt.data_online_creation_mask_delta_B
+                else:
+                    mask_delta_B = self.opt.data_online_creation_mask_delta_B_ratio
+
                 if B_label_mask_path is not None:
                     B_img, B_label_mask, B_ref_bbox = crop_image(
                         B_img_path,
                         B_label_mask_path,
-                        mask_delta=self.opt.data_online_creation_mask_delta_B,
+                        mask_delta=mask_delta_B,
                         mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
                         crop_delta=self.opt.data_online_creation_crop_delta_B,
                         mask_square=self.opt.data_online_creation_mask_square_B,

@@ -12,7 +12,7 @@ import data
 import models
 from models.modules.classifiers import TORCH_MODEL_CLASSES
 from util import util
-from util.util import MAX_INT, flatten_json
+from util.util import MAX_INT, flatten_json, pairs_of_floats, pairs_of_ints
 
 TRAIN_JSON_FILENAME = "train_config.json"
 
@@ -686,10 +686,18 @@ class BaseOptions:
         )
         parser.add_argument(
             "--data_online_creation_mask_delta_A",
-            type=int,
-            default=[0],
-            nargs="*",
-            help="ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square",
+            default=[[0]],
+            type=pairs_of_ints,
+            nargs="+",
+            help="mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square",
+        )
+
+        parser.add_argument(
+            "--data_online_creation_mask_delta_A_ratio",
+            default=[[0.0]],
+            type=pairs_of_floats,
+            nargs="+",
+            help="ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square",
         )
 
         parser.add_argument(
@@ -738,10 +746,18 @@ class BaseOptions:
         )
         parser.add_argument(
             "--data_online_creation_mask_delta_B",
-            type=int,
-            default=[0],
-            nargs="*",
-            help="mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square",
+            default=[[0]],
+            type=pairs_of_ints,
+            nargs="+",
+            help="mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : width (y),height (x) for each class or only one size if square",
+        )
+
+        parser.add_argument(
+            "--data_online_creation_mask_delta_B_ratio",
+            default=[[0.0]],
+            type=pairs_of_floats,
+            nargs="+",
+            help="ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : width (x),height (y) for each class or only one size if square",
         )
 
         parser.add_argument(
@@ -1041,10 +1057,18 @@ class BaseOptions:
                     val = action.default
                     check_type = action.type
 
+                special_type = False
+
                 if check_type is None:
                     check_type = str
                 elif check_type is util.str2bool:
                     check_type = bool
+                elif (
+                    check_type is util.pairs_of_floats
+                    or check_type is util.pairs_of_ints
+                ):
+                    check_type = list
+                    special_type = True
 
                 names = {action.dest}
                 for opt_name in action.option_strings:
@@ -1061,9 +1085,11 @@ class BaseOptions:
                             val = float(val)
 
                         elif action.nargs == "+" or action.nargs == "*":
-                            if not isinstance(val, list) or not all(
-                                isinstance(elt, check_type) for elt in val
-                            ):
+                            if (
+                                not isinstance(val, list)
+                                or (not all(isinstance(elt, check_type) for elt in val))
+                            ) and not special_type:
+                                print(val)
                                 raise ValueError(
                                     "%s: Bad type (%s, should be list of %s)"
                                     % (name, str(type(val)), str(check_type))

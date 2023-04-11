@@ -201,19 +201,20 @@ def generate(
     conditioning = opt.alg_palette_conditioning
     print("conditioning=", conditioning)
 
-    if len(opt.data_online_creation_mask_delta_A) == 1:
-        opt.data_online_creation_mask_delta_A.append(
-            opt.data_online_creation_mask_delta_A[0]
-        )
+    if not isinstance(mask_delta[0], list):
+        if len(opt.data_online_creation_mask_delta_A) == 1:
+            opt.data_online_creation_mask_delta_A.append(
+                opt.data_online_creation_mask_delta_A[0]
+            )
 
-    if len(mask_delta) == 1:
-        mask_delta.append(mask_delta[0])
+        if len(mask_delta) == 1:
+            mask_delta.append(mask_delta[0])
 
-    if opt.data_online_creation_mask_square_A:
-        mask_square = True
+        if opt.data_online_creation_mask_square_A:
+            mask_square = True
 
-    mask_delta[0] += opt.data_online_creation_mask_delta_A[0]
-    mask_delta[1] += opt.data_online_creation_mask_delta_A[1]
+        mask_delta[0] += opt.data_online_creation_mask_delta_A[0]
+        mask_delta[1] += opt.data_online_creation_mask_delta_A[1]
 
     # Load image
 
@@ -313,10 +314,16 @@ def generate(
 
         bbox_select = bbox.copy()
 
-        bbox_select[0] -= mask_delta[0]
-        bbox_select[1] -= mask_delta[1]
-        bbox_select[2] += mask_delta[0]
-        bbox_select[3] += mask_delta[1]
+        if not isinstance(mask_delta[0][0], float):
+            bbox_select[0] -= mask_delta[cls - 1][0]
+            bbox_select[1] -= mask_delta[cls - 1][1]
+            bbox_select[2] += mask_delta[cls - 1][0]
+            bbox_select[3] += mask_delta[cls - 1][1]
+        else:
+            bbox_select[0] *= 1 + mask_delta[cls - 1][0]
+            bbox_select[1] *= 1 + mask_delta[cls - 1][1]
+            bbox_select[2] *= 1 + mask_delta[cls - 1][0]
+            bbox_select[3] *= 1 + mask_delta[cls - 1][1]
 
         if mask_square:
             sdiff = (bbox_select[2] - bbox_select[0]) - (
@@ -771,6 +778,12 @@ if __name__ == "__main__":
     )
 
     args = options.parse()
+
+    if len(args.mask_delta_ratio[0]) == 1 and args.mask_delta_ratio[0][0] == 0.0:
+        mask_delta = args.mask_delta
+    else:
+        mask_delta = args.mask_delta_ratio
+    args.mask_delta = mask_delta
 
     args.write = True
 
