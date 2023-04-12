@@ -10,6 +10,7 @@ from .modules.UNet_classification import UNet
 from .modules.segformer.segformer_generator import Segformer
 
 from .modules.utils import init_net, get_weights
+from .modules.sam.sam_inference import load_sam_weight
 
 
 def define_C(
@@ -46,6 +47,7 @@ def define_f(
     model_init_gain,
     f_s_config_segformer,
     f_s_weight_segformer,
+    f_s_weight_sam,
     jg_dir,
     data_crop_size,
     **unused_options
@@ -92,5 +94,14 @@ def define_f(
 
                 net.net.load_state_dict(weights, strict=False)
         return net
+    elif f_s_net == "sam":
+        if "vit_h" in f_s_weight_sam:
+            model_type = "vit_h"
+        elif "vit_l" in f_s_weight_sam:
+            model_type = "vit_l"
+        elif "vit_b" in f_s_weight_sam:
+            model_type = "vit_b"
+        net, mg = load_sam_weight(f_s_weight_sam, model_type=model_type)
+        return net, mg
 
     return init_net(net, model_init_type, model_init_gain)

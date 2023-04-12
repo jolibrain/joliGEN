@@ -40,6 +40,7 @@ from .modules.fid.pytorch_fid.fid_score import (
     calculate_frechet_distance,
 )
 from .modules.utils import get_scheduler
+from .modules.sam.sam_inference import predict_sam
 
 
 class BaseModel(ABC):
@@ -321,7 +322,10 @@ class BaseModel(ABC):
             if hasattr(self, "fake_A"):
                 losses_G += ["G_out_mask_BA"]
 
-        losses_f_s = ["f_s"]
+        if opt.f_s_net != "sam":
+            losses_f_s = ["f_s"]
+        else:
+            losses_f_s = []
 
         self.loss_names_G += losses_G
         self.loss_names_f_s = losses_f_s
@@ -331,7 +335,11 @@ class BaseModel(ABC):
         # define networks (both generator and discriminator)
         if self.isTrain:
             networks_f_s = []
-            if self.opt.train_mask_disjoint_f_s:
+            if self.opt.f_s_net == "sam":
+                self.netf_s, self.f_s_mg = semantic_networks.define_f(**vars(opt))
+                networks_f_s.append("f_s")
+
+            elif self.opt.train_mask_disjoint_f_s:
                 self.opt.train_f_s_B = True
 
                 self.netf_s_A = semantic_networks.define_f(**vars(opt))
@@ -350,7 +358,10 @@ class BaseModel(ABC):
             if opt.f_s_class_weights:
                 print("Using f_s class weights=", opt.f_s_class_weights)
                 tweights = torch.FloatTensor(opt.f_s_class_weights).to(self.device)
-            self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
+            if opt.f_s_net != "sam":
+                self.criterionf_s = torch.nn.modules.CrossEntropyLoss(weight=tweights)
+            else:
+                self.criterionf_s = torch.nn.MSELoss()
 
             if opt.train_mask_out_mask:
                 if opt.train_mask_loss_out_mask == "L1":
@@ -362,35 +373,37 @@ class BaseModel(ABC):
                         opt.train_mask_charbonnier_eps
                     )
 
-            if self.opt.train_mask_disjoint_f_s:
-                self.optimizer_f_s = opt.optim(
-                    opt,
-                    itertools.chain(
-                        self.netf_s_A.parameters(), self.netf_s_B.parameters()
-                    ),
-                    lr=opt.train_sem_lr_f_s,
-                    betas=(opt.train_beta1, opt.train_beta2),
-                )
-            else:
-                self.optimizer_f_s = opt.optim(
-                    opt,
-                    self.netf_s.parameters(),
-                    lr=opt.train_sem_lr_f_s,
-                    betas=(opt.train_beta1, opt.train_beta2),
-                )
+            if self.opt.f_s_net != "sam":
+                if self.opt.train_mask_disjoint_f_s:
+                    self.optimizer_f_s = opt.optim(
+                        opt,
+                        itertools.chain(
+                            self.netf_s_A.parameters(), self.netf_s_B.parameters()
+                        ),
+                        lr=opt.train_sem_lr_f_s,
+                        betas=(opt.train_beta1, opt.train_beta2),
+                    )
+                else:
+                    self.optimizer_f_s = opt.optim(
+                        opt,
+                        self.netf_s.parameters(),
+                        lr=opt.train_sem_lr_f_s,
+                        betas=(opt.train_beta1, opt.train_beta2),
+                    )
 
-            self.optimizers.append(self.optimizer_f_s)
+                self.optimizers.append(self.optimizer_f_s)
 
             ###Making groups
-            self.group_f_s = NetworkGroup(
-                networks_to_optimize=networks_f_s,
-                forward_functions=None,
-                backward_functions=["compute_f_s_loss"],
-                loss_names_list=["loss_names_f_s"],
-                optimizer=["optimizer_f_s"],
-                loss_backward=["loss_f_s"],
-            )
-            self.networks_groups.append(self.group_f_s)
+            if opt.f_s_net != "sam":
+                self.group_f_s = NetworkGroup(
+                    networks_to_optimize=networks_f_s,
+                    forward_functions=None,
+                    backward_functions=["compute_f_s_loss"],
+                    loss_names_list=["loss_names_f_s"],
+                    optimizer=["optimizer_f_s"],
+                    loss_backward=["loss_f_s"],
+                )
+                self.networks_groups.append(self.group_f_s)
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -883,7 +896,9 @@ class BaseModel(ABC):
             if net is not None:
                 for name, param in net.named_parameters():
                     if (
-                        not "freeze" in name and not "cv_ensemble" in name
+                        not "freeze" in name
+                        and not "cv_ensemble" in name
+                        and not ("f_s" in name and self.opt.f_s_net == "sam")
                     ):  # cv_ensemble is for vision-aided
                         param.requires_grad = requires_grad
                     else:
@@ -1035,6 +1050,19 @@ class BaseModel(ABC):
                         retain_graph = False
                     ll.backward(retain_graph=retain_graph)
 
+                # debug
+                # for network_name in self.model_names:
+                #     if 'f_s' in network_name:
+                #         print('network=',network_name)
+                #         network = getattr(self, "net" + network_name)
+                #         for p in network.parameters():
+                #             print('requires_grad=',p.requires_grad)
+                #             if not p.grad is None:
+                #                 print(p.grad.norm())
+                #             else:
+                #                 print('None')
+                # debug
+
                 loss_names = []
 
                 for temp in group.loss_names_list:
@@ -1100,9 +1128,42 @@ class BaseModel(ABC):
         )
         return one_hot.scatter_(1, tensor.unsqueeze(1), 1.0)
 
+    def compute_fake_real_masks(self):
+        fake_mask = self.netf_s(self.real_A)
+        fake_mask = F.gumbel_softmax(fake_mask, tau=1.0, hard=True, dim=1)
+        real_mask = self.netf_s(self.real_B)
+        real_mask = F.gumbel_softmax(real_mask, tau=1.0, hard=True, dim=1)
+        setattr(self, "fake_mask_B_inv", fake_mask.argmax(dim=1))
+        setattr(self, "real_mask_B_inv", real_mask.argmax(dim=1))
+        setattr(self, "fake_mask_B", fake_mask)
+        setattr(self, "real_mask_B", real_mask)
+
     def compute_f_s_loss(self):
         """Calculate segmentation loss for f_s"""
         self.loss_f_s = 0
+
+        if "mask" in self.opt.D_netDs:
+            for discriminator in self.discriminators:
+                if "mask" in discriminator.name:
+                    disc = discriminator
+            domain = "B"
+            netD = getattr(self, disc.name)
+            loss = getattr(self, disc.loss_type)
+            fake_name = disc.fake_name + "_" + domain
+            real_name = disc.real_name + "_" + domain
+            self.compute_fake_real_masks()
+            self.loss_D_mask_value = (
+                self.opt.alg_gan_lambda
+                * self.compute_G_loss_GAN_generic(
+                    netD,
+                    domain,
+                    loss,
+                    fake_name=fake_name,
+                    real_name=real_name,
+                )
+            )
+            self.loss_f_s = self.loss_D_mask_value
+
         if not self.opt.train_mask_no_train_f_s_A:
             label_A = self.input_A_label_mask
             # forward only real source image through semantic classifier
@@ -1151,27 +1212,43 @@ class BaseModel(ABC):
     def forward_semantic_mask(self):
         d = 1
 
-        if self.opt.train_mask_disjoint_f_s:
-            f_s = self.netf_s_A
+        if self.opt.f_s_net == "sam":
+            self.pred_f_s_real_A = predict_sam(self.real_A, self.f_s_mg)
+            self.input_A_label_mask = self.pred_f_s_real_A
+            self.gt_pred_f_s_real_A_max = (
+                self.input_A_label_mask > 0.0
+            ).float()  # Note: this is different than clamping
         else:
-            f_s = self.netf_s
+            if self.opt.train_mask_disjoint_f_s:
+                f_s = self.netf_s_A
+            else:
+                f_s = self.netf_s
+            self.pred_f_s_real_A = f_s(self.real_A)
 
-        self.pred_f_s_real_A = f_s(self.real_A)
-        self.gt_pred_f_s_real_A = F.log_softmax(self.pred_f_s_real_A, dim=d)
-        self.gt_pred_f_s_real_A_max = self.gt_pred_f_s_real_A.argmax(dim=d)
+            self.gt_pred_f_s_real_A = F.log_softmax(self.pred_f_s_real_A, dim=d)
+            self.gt_pred_f_s_real_A_max = self.gt_pred_f_s_real_A.argmax(dim=d)
 
         if self.opt.train_mask_disjoint_f_s:
             f_s = self.netf_s_B
         else:
             f_s = self.netf_s
 
-        self.pred_f_s_real_B = f_s(self.real_B)
-        self.gt_pred_f_s_real_B = F.log_softmax(self.pred_f_s_real_B, dim=d)
-        self.gt_pred_f_s_real_B_max = self.gt_pred_f_s_real_B.argmax(dim=d)
+        if self.opt.f_s_net == "sam":
+            self.pred_f_s_real_B = predict_sam(self.real_B, self.f_s_mg)
+            self.input_B_label_mask = self.pred_f_s_real_B
+            self.gt_pred_f_s_real_B_max = (self.input_B_label_mask > 0.0).float()
+        else:
+            self.pred_f_s_real_B = f_s(self.real_B)
+            self.gt_pred_f_s_real_B = F.log_softmax(self.pred_f_s_real_B, dim=d)
+            self.gt_pred_f_s_real_B_max = self.gt_pred_f_s_real_B.argmax(dim=d)
 
-        self.pred_f_s_fake_B = f_s(self.fake_B)
-        self.pfB = F.log_softmax(self.pred_f_s_fake_B, dim=d)  # .argmax(dim=d)
-        self.pfB_max = self.pfB.argmax(dim=d)
+        if self.opt.f_s_net == "sam":
+            self.pred_f_s_fake_B = predict_sam(self.fake_B, self.f_s_mg).to(self.device)
+            self.pfB_max = (self.pred_f_s_fake_B > 0.0).float()
+        else:
+            self.pred_f_s_fake_B = f_s(self.fake_B)
+            self.pfB = F.log_softmax(self.pred_f_s_fake_B, dim=d)
+            self.pfB_max = self.pfB.argmax(dim=d)
 
         # fake A
         if hasattr(self, "fake_A"):
@@ -1180,26 +1257,37 @@ class BaseModel(ABC):
             self.pfA_max = self.pfA.argmax(dim=d)
 
         if self.opt.train_sem_idt:
-            self.pred_f_s_idt_B = f_s(self.idt_B)
-            self.pred_f_s_idt_B = F.log_softmax(self.pred_f_s_idt_B, dim=d)
+            if self.opt.f_s_net == "sam":
+                self.pred_f_s_idt_B = predict_sam(self.idt_B, self.f_s_mg)
+                self.pfB_idt_max = (self.pred_f_s_idt_B > 0.0).float()
+            else:
+                self.pred_f_s_idt_B = f_s(self.idt_B)
+                self.pred_f_s_idt_B = F.log_softmax(self.pred_f_s_idt_B, dim=d)
+                self.pfB_idt_max = self.pred_f_s_idt_B.argmax(dim=d)
 
         if hasattr(self, "criterionMask"):
             label_A = self.input_A_label_mask
-            label_A_in = label_A.unsqueeze(1)
             label_A_inv = (
                 torch.tensor(np.ones(label_A.size())).to(self.device) - label_A > 0.5
             )
             label_A_inv = label_A_inv.unsqueeze(1)
+            if "mask" in self.opt.D_netDs:
+                label_A_pred = self.gt_pred_f_s_real_A_max
+                label_A_inv_pred = (
+                    torch.tensor(np.ones(label_A_pred.size())).to(self.device)
+                    - label_A_pred
+                    > 0.5
+                )
+                self.fake_B_out_mask = self.fake_B * label_A_inv_pred
+            else:
+                self.fake_B_out_mask = self.fake_B * label_A_inv
             self.real_A_out_mask = self.real_A * label_A_inv
-            self.fake_B_out_mask = self.fake_B * label_A_inv
-
             if (
                 hasattr(self, "fake_A")
                 and hasattr(self, "input_B_label_mask")
                 and len(self.input_B_label_mask) > 0
             ):
                 label_B = self.input_B_label_mask
-                label_B_in = label_B.unsqueeze(1)
                 label_B_inv = (
                     torch.tensor(np.ones(label_B.size())).to(self.device) - label_B > 0
                 )
@@ -1346,6 +1434,14 @@ class BaseModel(ABC):
             self.set_input_first_gpu_semantic_cls()
 
     def set_input_first_gpu_semantic_mask(self):
+        if self.opt.f_s_net == "sam" and not hasattr(self, "input_A_label_mask"):
+            self.input_A_label_mask = torch.randn(
+                1,
+                1,
+                self.opt.data_crop_size,
+                self.opt.data_crop_size,
+                device=self.device,
+            )
         self.input_A_label_mask = self.input_A_label_mask[: self.bs_per_gpu]
         if hasattr(self, "input_B_label_mask"):
             self.input_B_label_mask = self.input_B_label_mask[: self.bs_per_gpu]

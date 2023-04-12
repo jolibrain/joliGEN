@@ -261,6 +261,7 @@ def define_D(
     data_online_context_pixels,
     D_vision_aided_backbones,
     dataaug_D_diffusion,
+    f_s_semantic_nclasses,
     **unused_options
 ):
 
@@ -408,6 +409,17 @@ def define_D(
             )
 
             return_nets[netD] = net  # no init since custom frozen backbone
+
+        elif netD == "mask":
+            net = NLayerDiscriminator(
+                f_s_semantic_nclasses,  # as number of input dimension, i.e. one-hot from gumbel-softmax
+                D_ndf,
+                n_layers=3,
+                norm_layer=norm_layer,
+                use_dropout=D_dropout,
+                use_spectral=D_spectral,
+            )
+            return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
         else:
             raise NotImplementedError(

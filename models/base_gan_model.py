@@ -435,6 +435,8 @@ class BaseGanModel(BaseModel):
         """Calculate GAN losses for generator(s)"""
 
         for discriminator in self.discriminators:
+            if "mask" in discriminator.name:
+                continue
             if self.niter % discriminator.compute_every == 0:
                 domain = discriminator.name.split("_")[1]
                 netD = getattr(self, discriminator.name)
@@ -611,6 +613,9 @@ class BaseGanModel(BaseModel):
             if "depth" in discriminator_name:
                 fake_name = "fake_depth"
                 real_name = "real_depth"
+            elif "mask" in discriminator_name:
+                fake_name = "fake_mask"
+                real_name = "real_mask"
 
             setattr(
                 self,
@@ -691,7 +696,11 @@ class BaseGanModel(BaseModel):
             if self.opt.train_sem_net_output or not hasattr(
                 self, "input_%s_label_cls" % domain_fake
             ):
-                label_idt = getattr(self, "gt_pred_f_s_real_%s_max" % domain_fake)
+                label_idt = (
+                    getattr(self, "gt_pred_f_s_real_%s_max" % domain_fake)
+                    .clone()
+                    .detach()
+                )
             else:
                 label_idt = getattr(self, "input_%s_label_cls" % domain_fake)
 
@@ -738,10 +747,12 @@ class BaseGanModel(BaseModel):
 
         if self.opt.train_mask_for_removal:
             label_fake = torch.zeros_like(self.input_A_label_mask)
-        elif self.opt.train_sem_net_output:
-            label_fake = getattr(self, "gt_pred_f_s_real_%s_max" % domain_real)
+        elif self.opt.train_sem_net_output or "mask" in self.opt.D_netDs:
+            label_fake = getattr(
+                self, "gt_pred_f_s_real_%s_max" % domain_real
+            )  # argmax
         else:
-            label_fake = getattr(self, "input_%s_label_mask" % domain_real)
+            label_fake = getattr(self, "input_%s_label_mask" % domain_real)  # logits
 
         loss_G_sem_mask = self.opt.train_sem_mask_lambda * self.criterionf_s(
             getattr(self, "pred_f_s_fake_%s" % domain_fake), label_fake
@@ -753,9 +764,11 @@ class BaseGanModel(BaseModel):
             elif self.opt.train_sem_net_output or not hasattr(
                 self, "input_%s_label_mask" % domain_fake
             ):
-                label_idt = getattr(self, "gt_pred_f_s_real_%s_max" % domain_fake)
+                label_idt = getattr(
+                    self, "gt_pred_f_s_real_%s_max" % domain_fake
+                )  # argmax
             else:
-                label_idt = getattr(self, "input_%s_label_mask" % domain_fake)
+                label_idt = getattr(self, "input_%s_label_mask" % domain_fake)  # logits
 
             loss_G_sem_mask_idt = self.opt.train_sem_mask_lambda * self.criterionf_s(
                 getattr(self, "pred_f_s_idt_%s" % domain_fake), label_idt
@@ -765,7 +778,7 @@ class BaseGanModel(BaseModel):
         if (
             not hasattr(self, "loss_f_s")
             or self.loss_f_s > self.opt.f_s_semantic_threshold
-        ):
+        ) and self.opt.f_s_net != "sam":
             loss_G_sem_mask_ = 0 * loss_G_sem_mask
             if self.opt.train_sem_idt:
                 loss_G_sem_mask_idt = 0 * loss_G_sem_mask_idt
