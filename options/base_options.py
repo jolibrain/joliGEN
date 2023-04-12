@@ -1,16 +1,18 @@
 import argparse
-import os
-import math
-from collections import defaultdict
-from util import util
-import torch
-import models
-import data
-from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
-from util.util import MAX_INT, flatten_json
 import json
-from models.modules.classifiers import TORCH_MODEL_CLASSES
+import math
+import os
 import warnings
+from argparse import _HelpAction, _StoreConstAction, _SubParsersAction
+from collections import defaultdict
+
+import torch
+
+import data
+import models
+from models.modules.classifiers import TORCH_MODEL_CLASSES
+from util import util
+from util.util import MAX_INT, flatten_json
 
 TRAIN_JSON_FILENAME = "train_config.json"
 
@@ -756,6 +758,12 @@ class BaseOptions:
             type=int,
             default=-1,
             help="if >0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing) ",
+        )
+
+        parser.add_argument(
+            "--data_refined_mask",
+            action="store_true",
+            help="whether to use refined mask with sam",
         )
 
         parser.add_argument(

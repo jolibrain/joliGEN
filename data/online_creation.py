@@ -1,13 +1,14 @@
 import math
-import numpy as np
+import os
 import random
-from PIL import Image
+import warnings
+
+import numpy as np
 import torch
 import torchvision.transforms.functional as F
+from PIL import Image
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
-import warnings
-import os
 
 
 def crop_image(
@@ -29,8 +30,9 @@ def crop_image(
     bbox_ref_id=-1,
     inverted_mask=False,
     single_bbox=False,
+    output_sam=True,
+    device="cuda",
 ):
-
     margin = context_pixels * 2
 
     try:
@@ -158,7 +160,12 @@ def crop_image(
             xmax = min(xmax, img.shape[1])
             ymax = min(ymax, img.shape[0])
 
-            mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
+            if output_sam:
+                mask = gen_mask_from_bbox(
+                    img, np.array([xmin, ymin, xmax, ymax]), device=device, cat=cat
+                )
+            else:
+                mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
 
             if i == idx_bbox_ref:
                 x_min_ref = xmin
@@ -191,7 +198,6 @@ def crop_image(
     # Let's compute crop size
 
     if crop_coordinates is None:
-
         # We compute the range within which crop size should be
 
         # Crop size should be > height, width bbox (to keep the bbox within the crop)
@@ -219,7 +225,6 @@ def crop_image(
         crop_size = random.randint(crop_size_min, crop_size_max)
 
         if crop_size > min(img.shape[0], img.shape[1]):
-
             warnings.warn(
                 f"Image size ({img.shape}) < crop dim {crop_size} for {img_path}, zero padding is done on image"
             )
@@ -317,7 +322,6 @@ def crop_image(
     img = Image.fromarray(img)
 
     img = F.resize(img, output_dim + margin)
-
     mask = mask[
         y_crop : y_crop + crop_size + margin,
         x_crop : x_crop + crop_size + margin,
@@ -398,7 +402,6 @@ def sanitize_paths(
         paths_bb = [None for k in range(len(paths_img))]
 
     for path_img, path_bb in tqdm(zip(paths_img, paths_bb)):
-
         if data_relative_paths:
             path_img = os.path.join(data_root_path, path_img)
             path_bb = os.path.join(data_root_path, path_bb)

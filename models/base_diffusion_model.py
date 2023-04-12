@@ -1,32 +1,27 @@
-import os
 import copy
-import torch
-from collections import OrderedDict
+import os
 from abc import abstractmethod
-from .modules.utils import get_scheduler
-from torchviz import make_dot
-from .base_model import BaseModel
+from collections import OrderedDict
+from inspect import isfunction
 
-from util.network_group import NetworkGroup
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torchviz import make_dot
+from tqdm import tqdm
 
 # for FID
 from data.base_dataset import get_transform
+from util.diff_aug import DiffAugment
+from util.network_group import NetworkGroup
+from util.util import save_image, tensor2im
+
+from .base_model import BaseModel
 from .modules.fid.pytorch_fid.fid_score import (
     _compute_statistics_of_path,
     calculate_frechet_distance,
 )
-from util.util import save_image, tensor2im
-import numpy as np
-from util.diff_aug import DiffAugment
-
-
-from inspect import isfunction
-
-
-import torch.nn.functional as F
-
-
-from tqdm import tqdm
+from .modules.utils import download_sam_weights, get_scheduler, predict_sam_mask
 
 
 class BaseDiffusionModel(BaseModel):
@@ -73,16 +68,26 @@ class BaseDiffusionModel(BaseModel):
 
         self.loss_functions_G = ["compute_G_loss_diffusion"]
         self.forward_functions = ["forward_diffusion"]
+        if opt.data_refined_mask:
+            self.use_sam = True
+            self.netfreeze_sam = download_sam_weights()
+        else:
+            self.use_sam = False
+
+        if opt.data_refined_mask:
+            self.use_sam = True
+            self.freezenet_sam = download_sam_weights()
+            self.freezenet_sam.model.to(self.device)
+        else:
+            self.use_sam = False
 
     def init_semantic_cls(self, opt):
-
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
         super().init_semantic_cls(opt)
 
     def init_semantic_mask(self, opt):
-
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
@@ -105,7 +110,6 @@ class BaseDiffusionModel(BaseModel):
                 setattr(self, "image_" + str(i), cur_image)
 
         if self.opt.data_online_context_pixels > 0:
-
             bs = self.get_current_batch_size()
             self.mask_context = torch.ones(
                 [
@@ -141,3 +145,32 @@ class BaseDiffusionModel(BaseModel):
 
             if hasattr(self, "netG_B"):
                 self.compute_temporal_fake(objective_domain="A")
+
+    def compute_mask_with_sam(self, img, rect_mask):
+        # get bbox and cat from rect_mask
+
+        boxes = torch.zeros((rect_mask.shape[0], 4))
+        categories = []
+
+        for i in range(rect_mask.shape[0]):
+            mask = rect_mask[i].squeeze()
+            indices = torch.nonzero(mask)
+            x_min = indices[:, 1].min()
+            y_min = indices[:, 0].min()
+            x_max = indices[:, 1].max()
+            y_max = indices[:, 0].max()
+            boxes[i] = torch.tensor([x_min, y_min, x_max, y_max])
+            categories.append(int(torch.unique(mask)[1]))
+
+        boxes = boxes.to(self.device)
+        sam_masks = torch.zeros_like(rect_mask)
+
+        for i in range(rect_mask.shape[0]):
+            mask = predict_sam_mask(
+                img=img[i],
+                bbox=np.array(boxes[i].cpu()),
+                predictor=self.freezenet_sam,
+                cat=categories[i],
+            )
+            sam_masks[i] = torch.from_numpy(mask).unsqueeze(0)
+        return sam_masks

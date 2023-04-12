@@ -7,6 +7,7 @@ import torch
 import tqdm
 
 from data.online_creation import fill_mask_with_color
+from models.modules.segment_anything.sam_masking import download_sam_weights
 from util.iter_calculator import IterCalculator
 from util.mask_generation import random_edge_mask
 from util.network_group import NetworkGroup
@@ -132,6 +133,9 @@ class PaletteModel(BaseDiffusionModel):
 
         self.model_names_export = ["G_A"]
 
+        if self.use_sam:
+            self.freezenet_sam = download_sam_weights()
+            self.model_names.append("freeze_sam")
         # Define optimizer
         self.optimizer_G = opt.optim(
             opt,
@@ -201,12 +205,22 @@ class PaletteModel(BaseDiffusionModel):
             self.y_t = data["A"].to(self.device)[:, 1]
             self.gt_image = data["B"].to(self.device)[:, 1]
             self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
-            self.mask = data["B_label_mask"].to(self.device)[:, 1]
+            if self.use_sam:
+                self.mask = self.compute_mask_with_sam(
+                    self.gt_image, data["B_label_mask"].to(self.device)[:, 1]
+                )
+            else:
+                self.mask = data["B_label_mask"].to(self.device)[:, 1]
         else:
             self.y_t = data["A"].to(self.device)
             self.gt_image = data["B"].to(self.device)
+        if self.use_sam:
+            self.mask = self.compute_mask_with_sam(
+                self.gt_image, data["B_label_mask"].to(self.device)
+            )
+        else:
             self.mask = data["B_label_mask"].to(self.device)
-
+        # mask.shape = [batch_size, 1, load_size, load_size]
         if self.opt.alg_palette_cond_image_creation == "y_t":
             self.cond_image = self.y_t
         elif self.opt.alg_palette_cond_image_creation == "previous_frame":

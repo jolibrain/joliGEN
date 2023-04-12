@@ -1,13 +1,17 @@
-from torch import nn
+import functools
+import os
+
+import numpy as np
 import torch
+import wget
+from segment_anything import SamPredictor, sam_model_registry
+from torch import nn
+from torch.nn import init
+from torch.optim import lr_scheduler
 from torchvision import transforms
 from torchvision.models import vgg
-import numpy as np
-from torch.nn import init
-import functools
-from torch.optim import lr_scheduler
-import wget
-import os
+
+from util.util import downloadFileWithProgress
 
 ##########################################################
 # Fonctions used for networks initialisation
@@ -253,3 +257,77 @@ def predict_depth(img, midas, model_type):
     )
     prediction = midas(transform(img))  # .unsqueeze(dim=1)
     return prediction
+
+
+def show_mask(mask, cat):
+    # convert true/false mask to cat/0 array
+    cat_mask = np.zeros_like(mask)
+    cat_mask[mask] = cat
+    return cat_mask.astype(np.uint8)
+
+
+def tensor2cv(img):
+    """
+    Convert tensor image to cv2 image
+    """
+    img = img.cpu().detach().numpy()
+    img = img.transpose(1, 2, 0)
+    img = img * 255
+    img = img.astype(np.uint8)
+    return img
+
+
+def cv2tensor(img):
+    """
+    Convert cv2 image to tensor image
+    """
+    img = img.astype(np.float32)
+    img = img / 255
+    img = img.transpose(2, 0, 1)
+    img = torch.from_numpy(img)
+    return img
+
+
+def download_sam_weights(model_type="vit_b", sam_checkpoint="sam_vit_b_01ec64.pth"):
+    if not os.path.exists(sam_checkpoint):
+        base_url = "https://dl.fbaipublicfiles.com/segment_anything/"
+        url = base_url + sam_checkpoint
+        try:
+            downloadFileWithProgress(url, "./")
+        except:
+            raise NameError(
+                "Failed to download SAM weights, please check the checkpoint provided."
+            )
+    else:
+        print("Using cache found in", sam_checkpoint)
+
+    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+
+    predictor = SamPredictor(sam)
+
+    return predictor
+
+
+def predict_sam_mask(img, bbox, predictor, cat=1):
+    """
+    Generate mask from bounding box
+    :param img: image tensor(Size[3, H, W])
+    :param bbox: bounding box np.array([x1, y1, x2, y2])
+    :return: mask
+    """
+
+    if img.shape[0] <= 4:
+        cv_img = tensor2cv(img)
+    else:
+        cv_img = img
+    predictor.set_image(cv_img)
+
+    masks, scores, logits = predictor.predict(
+        point_coords=None,
+        point_labels=None,
+        box=bbox[None, :],
+        multimask_output=True,
+    )  # outputs a boolean mask (True/False)
+    mask = show_mask(masks[np.argmax(scores)], cat)
+
+    return mask

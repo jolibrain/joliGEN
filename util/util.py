@@ -2,11 +2,14 @@
 from __future__ import print_function
 
 import os
+import shutil
+import sys
 
 import numpy as np
 import requests
 import torch
 from PIL import Image
+from tqdm import tqdm
 
 
 def display_mask(mask):
@@ -87,9 +90,85 @@ def load_file_from_url(url, directory):
     filename = url.split("/")[-1]
 
     # Download the file
-    response = requests.get(url)
+
     with open(os.path.join(directory, filename), "wb") as f:
-        f.write(response.content)
+        response = requests.get(url, stream=True)
+        total = response.headers.get("content-length")
+        if total is None:
+            f.write(response.content)
+        else:
+            """
+            downloaded = 0
+            total = int(total)
+            for data in response.iter_content(
+                chunk_size=max(int(total / 1000), 1024 * 1024)
+            ):
+                downloaded += len(data)
+                f.write(data)
+                done = int(50 * downloaded / total)
+                pbar.update(done)
+            """
+            pbar = tqdm.wrapattr(response.raw, "read", total=total, desc="")
+            shutil.copyfileobj(pbar, f)
+
+
+def downloadFileWithProgress(url, downloadFolder="./", sha1=None, chunk_size=8192):
+    """
+    Function to download a file from the specified URL.
+    Outputs a basic progress bar and download stats to the CLI.
+    Optionally downloads to a specified download folder, and checks the SHA1 checksum of the file.
+    Chunk size can also be specified, to control the download.
+    Uses 'Requests' :: http://www.python-requests.org
+    """
+
+    def size_fmt(numBytes):
+        for symbol in ["B", "KB", "MB", "GB", "TB", "EB", "ZB"]:
+            if numBytes < 1024.0:
+                return "{0:3.1f} {1}".format(numBytes, symbol)
+            else:
+                numBytes /= 1024.0
+        # Return Yottabytes if all else fails.
+        return "{0:3.1f} {1}".format(numBytes, "YB")
+
+    local_file = downloadFolder + "/" + url.split("/")[-1]
+
+    r = requests.get(url, stream=True)
+    r.raise_for_status()
+
+    file_size = int(r.headers["Content-Length"])
+    dl_size = 0
+
+    print(
+        "Downloading: {0}; {1}".format(local_file.split("/")[-1], size_fmt(file_size))
+    )
+    with open(local_file, "wb") as f:
+        for chunk in r.iter_content(chunk_size):
+            if chunk:  # filter out keep-alive new chunks
+                dl_size += len(chunk)
+                f.write(chunk)
+                f.flush()
+                percentage = dl_size * 100.0 / file_size
+                num_equals = int(round(percentage / 4))
+
+                sys.stdout.write(
+                    "[{0:25}] {1:>10} [{2: 3.2f}%]\r".format(
+                        "=" * num_equals, size_fmt(dl_size), percentage
+                    )
+                )
+                sys.stdout.flush()
+    if sha1 is not None:
+        import hashlib
+
+        print("Verifying download...")
+        f = open(local_file, "rb")
+        download_checksum = hashlib.sha1(f.read()).hexdigest()
+        f.close()
+        if download_checksum == sha1:
+            return local_file
+        else:
+            raise Exception("Checksum mismatch")
+    else:
+        return local_file
 
 
 def diagnose_network(net, name="network"):

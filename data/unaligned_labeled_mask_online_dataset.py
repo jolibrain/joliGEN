@@ -1,18 +1,17 @@
 import os.path
-from data.base_dataset import BaseDataset, get_transform, get_transform_seg
-from data.image_folder import make_dataset, make_labeled_path_dataset, make_dataset_path
-from data.online_creation import (
-    crop_image,
-    sanitize_paths,
-    write_paths_file,
-)
-from PIL import Image
 import random
-import numpy as np
-import torchvision.transforms as transforms
-import torch
-import torchvision.transforms.functional as F
 import warnings
+
+import numpy as np
+import torch
+import torchvision.transforms as transforms
+import torchvision.transforms.functional as F
+from PIL import Image
+
+from data.base_dataset import BaseDataset, get_transform, get_transform_seg
+from data.image_folder import make_dataset, make_dataset_path, make_labeled_path_dataset
+from data.online_creation import crop_image, sanitize_paths, write_paths_file
+from models import find_model_using_name
 
 
 class UnalignedLabeledMaskOnlineDataset(BaseDataset):
