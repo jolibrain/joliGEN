@@ -9,9 +9,9 @@ from options.train_options import TrainOptions
 from data import create_dataset
 
 json_like_dict = {
-    "name": "joligan_utest",
+    "name": "joligen_utest",
     "G_netG": "mobile_resnet_attn",
-    "output_display_env": "joligan_utest",
+    "output_display_env": "joligen_utest",
     "output_display_id": 0,
     "gpu_ids": "0",
     "data_dataset_mode": "self_supervised_labeled_mask",

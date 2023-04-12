@@ -1,4 +1,4 @@
-# JoliGAN Documentation
+# JoliGEN Documentation
 
 + [Datasets](#datasets)
 + [Dataloaders](#dataloaders)
@@ -93,6 +93,6 @@ python3 -m scripts.gen_single_image --model-in-file "/path/to/model_checkpoint.p
 python3 -m scripts.export_jit_model --model-in-file "/path/to/model_checkpoint.pth" --model-out-file exported_model.pt --model-type mobile_resnet_9blocks --img-size 360 
 ```
 
-Then `exported_model.pt` can be reloaded without JoliGAN to perform inference with an external software, e.g. [DeepDetect](https://github.com/jolibrain/deepdetect) with torch backend.
+Then `exported_model.pt` can be reloaded without JoliGEN to perform inference with an external software, e.g. [DeepDetect](https://github.com/jolibrain/deepdetect) with torch backend.
 
 <!-- Insert example with dede? -->

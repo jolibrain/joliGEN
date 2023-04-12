@@ -1,5 +1,5 @@
 
-# JoliGAN Options
+# JoliGEN Options
 
 Here are all the available options to call with `train.py`
 

@@ -1028,7 +1028,7 @@ class BaseOptions:
 
     def parse_json(self, json_args, save_config=False, set_device=True):
         """
-        Parse a json-like dict using the joliGAN argument parser.
+        Parse a json-like dict using the joliGEN argument parser.
 
         JSON structure is
 

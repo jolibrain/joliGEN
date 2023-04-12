@@ -1,3 +1,3 @@
 #!/bin/bash
 
-uvicorn server.joligan_api:app --reload $*
+uvicorn server.joligen_api:app --reload $*
