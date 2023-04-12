@@ -1115,9 +1115,42 @@ class BaseModel(ABC):
         )
         return one_hot.scatter_(1, tensor.unsqueeze(1), 1.0)
 
+    def compute_fake_real_masks(self):
+        fake_mask = self.netf_s(self.real_A)
+        fake_mask = F.gumbel_softmax(fake_mask, tau=1.0, hard=True, dim=1)
+        real_mask = self.netf_s(self.real_B)
+        real_mask = F.gumbel_softmax(real_mask, tau=1.0, hard=True, dim=1)
+        setattr(self, "fake_mask_B_inv", fake_mask.argmax(dim=1))
+        setattr(self, "real_mask_B_inv", real_mask.argmax(dim=1))
+        setattr(self, "fake_mask_B", fake_mask)
+        setattr(self, "real_mask_B", real_mask)
+
     def compute_f_s_loss(self):
         """Calculate segmentation loss for f_s"""
         self.loss_f_s = 0
+
+        if "mask" in self.opt.D_netDs:
+            for discriminator in self.discriminators:
+                if "mask" in discriminator.name:
+                    disc = discriminator
+            domain = "B"
+            netD = getattr(self, disc.name)
+            loss = getattr(self, disc.loss_type)
+            fake_name = disc.fake_name + "_" + domain
+            real_name = disc.real_name + "_" + domain
+            self.compute_fake_real_masks()
+            self.loss_D_mask_value = (
+                self.opt.alg_gan_lambda
+                * self.compute_G_loss_GAN_generic(
+                    netD,
+                    domain,
+                    loss,
+                    fake_name=fake_name,
+                    real_name=real_name,
+                )
+            )
+            self.loss_f_s = self.loss_D_mask_value
+
         if not self.opt.train_mask_no_train_f_s_A:
             label_A = self.input_A_label_mask
             # forward only real source image through semantic classifier
@@ -1221,21 +1254,27 @@ class BaseModel(ABC):
 
         if hasattr(self, "criterionMask"):
             label_A = self.input_A_label_mask
-            label_A_in = label_A.unsqueeze(1)
             label_A_inv = (
                 torch.tensor(np.ones(label_A.size())).to(self.device) - label_A > 0.5
             )
             label_A_inv = label_A_inv.unsqueeze(1)
+            if "mask" in self.opt.D_netDs:
+                label_A_pred = self.gt_pred_f_s_real_A_max
+                label_A_inv_pred = (
+                    torch.tensor(np.ones(label_A_pred.size())).to(self.device)
+                    - label_A_pred
+                    > 0.5
+                )
+                self.fake_B_out_mask = self.fake_B * label_A_inv_pred
+            else:
+                self.fake_B_out_mask = self.fake_B * label_A_inv
             self.real_A_out_mask = self.real_A * label_A_inv
-            self.fake_B_out_mask = self.fake_B * label_A_inv
-
             if (
                 hasattr(self, "fake_A")
                 and hasattr(self, "input_B_label_mask")
                 and len(self.input_B_label_mask) > 0
             ):
                 label_B = self.input_B_label_mask
-                label_B_in = label_B.unsqueeze(1)
                 label_B_inv = (
                     torch.tensor(np.ones(label_B.size())).to(self.device) - label_B > 0
                 )

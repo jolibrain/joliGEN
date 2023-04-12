@@ -369,6 +369,7 @@ class BaseOptions:
                 "temporal",
                 "vision_aided",
                 "depth",
+                "mask",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
             help="specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored.",

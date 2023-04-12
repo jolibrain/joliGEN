@@ -353,8 +353,11 @@ class CUTModel(BaseGanModel):
             losses_G += ["G_z"]
 
         for discriminator in self.discriminators:
-            losses_G.append(discriminator.loss_name_G)
             losses_D.append(discriminator.loss_name_D)
+            if "mask" in discriminator.name:
+                continue
+            else:
+                losses_G.append(discriminator.loss_name_G)
 
         self.loss_names_G += losses_G
         self.loss_names_D += losses_D
@@ -444,6 +447,9 @@ class CUTModel(BaseGanModel):
         if self.opt.train_sem_idt:
             visual_names_seg_B += ["pfB_idt_max"]
 
+        if "mask" in self.opt.D_netDs:
+            visual_names_seg_B += ["real_mask_B_inv", "fake_mask_B_inv"]
+
         self.visual_names += [visual_names_seg_A, visual_names_seg_B]
 
         if self.opt.train_mask_out_mask and self.isTrain:
@@ -491,6 +497,9 @@ class CUTModel(BaseGanModel):
 
         if self.use_depth:
             self.compute_fake_real_with_depth(fake_name="fake_B", real_name="real_B")
+
+        if "mask" in self.opt.D_netDs:
+            self.compute_fake_real_masks()
 
         if self.opt.alg_cut_nce_idt:
             self.idt_B = self.fake[self.real_A.size(0) :]
