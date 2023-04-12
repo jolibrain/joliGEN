@@ -123,7 +123,8 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, sketch, edges, previous_frame_ |
+| --alg_palette_computed_sketch_list | array | ['canny', 'hed'] | what to use for random sketch |
+| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, previous_frame, computed_sketch_ |
 | --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
 | --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE, multiscale_ |
