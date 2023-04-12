@@ -739,9 +739,11 @@ class BaseGanModel(BaseModel):
         if self.opt.train_mask_for_removal:
             label_fake = torch.zeros_like(self.input_A_label_mask)
         elif self.opt.train_sem_net_output:
-            label_fake = getattr(self, "gt_pred_f_s_real_%s_max" % domain_real)
+            label_fake = getattr(
+                self, "gt_pred_f_s_real_%s_max" % domain_real
+            )  # argmax
         else:
-            label_fake = getattr(self, "input_%s_label_mask" % domain_real)
+            label_fake = getattr(self, "input_%s_label_mask" % domain_real)  # logits
 
         loss_G_sem_mask = self.opt.train_sem_mask_lambda * self.criterionf_s(
             getattr(self, "pred_f_s_fake_%s" % domain_fake), label_fake
@@ -753,9 +755,11 @@ class BaseGanModel(BaseModel):
             elif self.opt.train_sem_net_output or not hasattr(
                 self, "input_%s_label_mask" % domain_fake
             ):
-                label_idt = getattr(self, "gt_pred_f_s_real_%s_max" % domain_fake)
+                label_idt = getattr(
+                    self, "gt_pred_f_s_real_%s_max" % domain_fake
+                )  # argmax
             else:
-                label_idt = getattr(self, "input_%s_label_mask" % domain_fake)
+                label_idt = getattr(self, "input_%s_label_mask" % domain_fake)  # logits
 
             loss_G_sem_mask_idt = self.opt.train_sem_mask_lambda * self.criterionf_s(
                 getattr(self, "pred_f_s_idt_%s" % domain_fake), label_idt
@@ -765,7 +769,7 @@ class BaseGanModel(BaseModel):
         if (
             not hasattr(self, "loss_f_s")
             or self.loss_f_s > self.opt.f_s_semantic_threshold
-        ):
+        ) and self.opt.f_s_net != "sam":
             loss_G_sem_mask_ = 0 * loss_G_sem_mask
             if self.opt.train_sem_idt:
                 loss_G_sem_mask_idt = 0 * loss_G_sem_mask_idt

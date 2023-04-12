@@ -18,3 +18,5 @@ pydantic
 positional_encodings
 onnx
 aim
+git+https://github.com/facebookresearch/segment-anything.git
+

@@ -435,12 +435,14 @@ class CUTModel(BaseGanModel):
     def data_dependent_initialize_semantic_mask(self, data):
         visual_names_seg_A = ["input_A_label_mask", "gt_pred_f_s_real_A_max", "pfB_max"]
 
-        if hasattr(self, "input_B_label_mask"):
+        if hasattr(self, "input_B_label_mask") or self.opt.f_s_net == "sam":
             visual_names_seg_B = ["input_B_label_mask"]
         else:
             visual_names_seg_B = []
 
         visual_names_seg_B += ["gt_pred_f_s_real_B_max"]
+        if self.opt.train_sem_idt:
+            visual_names_seg_B += ["pfB_idt_max"]
 
         self.visual_names += [visual_names_seg_A, visual_names_seg_B]
 

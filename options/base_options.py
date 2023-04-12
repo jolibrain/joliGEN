@@ -470,8 +470,8 @@ class BaseOptions:
             "--f_s_net",
             type=str,
             default="vgg",
-            choices=["vgg", "unet", "segformer"],
-            help="specify f_s network [vgg|unet|segformer]",
+            choices=["vgg", "unet", "segformer", "sam"],
+            help="specify f_s network [vgg|unet|segformer|sam]",
         )
         parser.add_argument(
             "--f_s_dropout",
@@ -519,6 +519,12 @@ class BaseOptions:
             type=str,
             default="",
             help="path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
+        )
+        parser.add_argument(
+            "--f_s_weight_sam",
+            type=str,
+            default="",
+            help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
         )
 
         # cls semantic network

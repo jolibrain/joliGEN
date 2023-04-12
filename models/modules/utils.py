@@ -9,6 +9,8 @@ from torch.optim import lr_scheduler
 import wget
 import os
 
+from util.util import tensor2im
+
 ##########################################################
 # Fonctions used for networks initialisation
 ##########################################################
