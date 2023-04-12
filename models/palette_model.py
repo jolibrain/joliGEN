@@ -74,6 +74,13 @@ class PaletteModel(BaseDiffusionModel):
         )
 
         parser.add_argument(
+            "--alg_palette_sketch_canny_range",
+            type=int,
+            nargs="+",
+            default=[0, 255 * 3],
+            help="range for Canny thresholds",
+        )
+        parser.add_argument(
             "--alg_palette_prob_use_previous_frame",
             type=float,
             default=0.5,
@@ -225,16 +232,36 @@ class PaletteModel(BaseDiffusionModel):
                     fill_img_with_random_sketch = random_edge_mask(
                         fn_list=self.opt.alg_palette_computed_sketch_list
                     )
-                    batch_cond_image = fill_img_with_random_sketch(
-                        image.unsqueeze(0), mask.unsqueeze(0)
-                    ).squeeze(0)
+                    if "canny" in self.opt.alg_palette_computed_sketch_list:
+                        low = min(self.opt.alg_palette_sketch_canny_range)
+                        high = max(self.opt.alg_palette_sketch_canny_range)
+                        batch_cond_image = fill_img_with_random_sketch(
+                            image.unsqueeze(0),
+                            mask.unsqueeze(0),
+                            low_threshold_random=low,
+                            high_threshold_random=high,
+                        ).squeeze(0)
+                    else:
+                        batch_cond_image = fill_img_with_random_sketch(
+                            image.unsqueeze(0), mask.unsqueeze(0)
+                        ).squeeze(0)
                     cond_images.append(batch_cond_image)
                 self.cond_image = torch.stack(cond_images)
             else:
                 fill_img_with_random_sketch = random_edge_mask(
                     fn_list=self.opt.alg_palette_computed_sketch_list
                 )
-                self.cond_image = fill_img_with_random_sketch(self.gt_image, self.mask)
+                if "canny" in self.opt.alg_palette_computed_sketch_list:
+                    self.cond_image = fill_img_with_random_sketch(
+                        self.gt_image,
+                        self.mask,
+                        low_threshold_random=self.opt.alg_palette_canny_random_low,
+                        high_threshold_random=self.opt.alg_palette_canny_random_high,
+                    )
+                else:
+                    self.cond_image = fill_img_with_random_sketch(
+                        self.gt_image, self.mask
+                    )
 
         self.batch_size = self.cond_image.shape[0]
 

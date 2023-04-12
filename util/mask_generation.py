@@ -17,7 +17,7 @@ from models.modules.utils import download_midas_weight, predict_depth
 sys.path.append("./../")
 
 
-def fill_img_with_sketch(img, mask):
+def fill_img_with_sketch(img, mask, **kwargs):
     """Fill the masked region with sketch edges."""
 
     grayscale = Grayscale(3)
@@ -32,12 +32,20 @@ def fill_img_with_sketch(img, mask):
     return mask * thresh + (1 - mask) * img
 
 
-def fill_img_with_canny(img, mask, low_threshold=None, high_threshold=None):
+def fill_img_with_canny(
+    img,
+    mask,
+    low_threshold=None,
+    high_threshold=None,
+    **kwargs,
+):
     """Fill the masked region with canny edges."""
+    low_threshold_random = kwargs["low_threshold_random"]
+    high_threshold_random = kwargs["high_threshold_random"]
     max_value = 255 * 3
     if high_threshold is None and low_threshold is None:
-        threshold_1 = random.randint(0, max_value)
-        threshold_2 = random.randint(0, max_value)
+        threshold_1 = random.randint(low_threshold_random, high_threshold_random)
+        threshold_2 = random.randint(low_threshold_random, high_threshold_random)
         high_threshold = max(threshold_1, threshold_2)
         low_threshold = min(threshold_1, threshold_2)
     elif high_threshold is None and low_threshold is not None:
@@ -64,7 +72,7 @@ def fill_img_with_canny(img, mask, low_threshold=None, high_threshold=None):
     return mask * edges + (1 - mask) * img
 
 
-def fill_img_with_hed(img, mask):
+def fill_img_with_hed(img, mask, **kwargs):
     """Fill the masked region with HED edges from the ControlNet paper."""
 
     apply_hed = HEDdetector()
@@ -88,12 +96,17 @@ def fill_img_with_hed(img, mask):
 
 
 def fill_img_with_hough(
-    img, mask, value_threshold=1e-05, distance_threshold=10.0, with_canny=False
+    img,
+    mask,
+    value_threshold=1e-05,
+    distance_threshold=10.0,
+    with_canny=False,
+    **kwargs,
 ):
     """Fill the masked region with Hough lines detection from the ControlNet paper."""
 
     if with_canny:
-        img = fill_img_with_canny(img, mask)
+        img = fill_img_with_canny(img, mask, **kwargs)
 
     device = img.device
     apply_mlsd = MLSDdetector()
@@ -117,7 +130,7 @@ def fill_img_with_hough(
     return mask * edges + (1 - mask) * img
 
 
-def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256"):
+def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256", **kwargs):
     """Fill the masked region with depth map."""
 
     device = img.device
