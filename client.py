@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# JoliGAN Python client
+# JoliGEN Python client
 #
 # Licence:
 #
@@ -20,11 +20,11 @@
 
 
 """
-Here are calls examples that you can use to make API calls to a JoliGAN server. Please note that you have to run a server first.
+Here are calls examples that you can use to make API calls to a JoliGEN server. Please note that you have to run a server first.
 
 #Launch a training
-python client.py --host jg_server_host --port jg_server_port [joligan commandline options eg --dataroot /path/to/data --model_type cut]
-NB: the name given in joligan commandline options will also be the name of the training process.
+python client.py --host jg_server_host --port jg_server_port [joligen commandline options eg --dataroot /path/to/data --model_type cut]
+NB: the name given in joligen commandline options will also be the name of the training process.
 
 # List trainings in progress
 python client.py --method training_status --host jg_server_host --port jg_server_port
@@ -94,14 +94,14 @@ def main_client(args: list):
         "--host",
         type=str,
         required=True,
-        help="joligan server host",
+        help="joligen server host",
     )
 
     main_parser.add_argument(
         "--port",
         type=int,
         required=True,
-        help="joligan server post",
+        help="joligen server post",
     )
 
     main_opt, args = main_parser.parse_known_args(args)

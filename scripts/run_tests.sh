@@ -26,7 +26,7 @@ fi
 
 ####### no sem tests
 echo "Running no semantics training tests"
-URL=https://www.deepdetect.com/joligan/datasets/horse2zebra.zip
+URL=https://www.deepdetect.com/joligen/datasets/horse2zebra.zip
 ZIP_FILE=$DIR/horse2zebra.zip
 TARGET_NOSEM_DIR=$DIR/horse2zebra
 wget -N $URL -O $ZIP_FILE
@@ -43,7 +43,7 @@ fi
 
 ####### mask semantics test
 echo "Running mask semantics training tests"
-URL=https://www.deepdetect.com/joligan/datasets/noglasses2glasses_ffhq_mini.zip
+URL=https://www.deepdetect.com/joligen/datasets/noglasses2glasses_ffhq_mini.zip
 ZIP_FILE=$DIR/noglasses2glasses_ffhq_mini.zip
 TARGET_MASK_SEM_DIR=$DIR/noglasses2glasses_ffhq_mini
 wget -N $URL -O $ZIP_FILE
@@ -76,7 +76,7 @@ fi
 
 ####### mask cls semantics test with online dataloading
 echo "Running mask online semantics training tests"
-URL=https://www.deepdetect.com/joligan/datasets/online_mario2sonic_lite.zip 
+URL=https://www.deepdetect.com/joligen/datasets/online_mario2sonic_lite.zip 
 ZIP_FILE=$DIR/online_mario2sonic_lite.zip 
 TARGET_MASK_SEM_ONLINE_DIR=$DIR/online_mario2sonic_lite
 wget -N $URL -O $ZIP_FILE
@@ -102,7 +102,7 @@ fi
 
 ####### mask cls semantics test
 echo "Running mask and class semantics training tests"
-URL=https://www.deepdetect.com/joligan/datasets/daytime2dawn_dusk_lite.zip
+URL=https://www.deepdetect.com/joligen/datasets/daytime2dawn_dusk_lite.zip
 ZIP_FILE=$DIR/daytime2dawn_dusk_lite.zip
 TARGET_MASK_CLS_SEM_DIR=$DIR/daytime2dawn_dusk_lite
 wget -N $URL -O $ZIP_FILE
@@ -120,7 +120,7 @@ fi
 
 ####### cls semantics test
 echo "Running mask and class semantics training tests"
-URL=https://www.deepdetect.com/joligan/datasets/mnist2USPS.zip
+URL=https://www.deepdetect.com/joligen/datasets/mnist2USPS.zip
 ZIP_FILE=$DIR/mnist2USPS.zip
 TARGET_CLS_SEM_DIR=$DIR/mnist2USPS
 wget -N $URL -O $ZIP_FILE

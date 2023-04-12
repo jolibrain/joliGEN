@@ -1,12 +1,20 @@
 <div align="center">
-<img src="imgs/joligan.svg" width="512">
+<img src="imgs/joligen.svg" width="512">
 </div>
 
-<h1 align="center">Image-to-Image Translation with GANs and Diffusion for Real-World Applications</h1>
+<h1 align="center">Generative AI Toolset with GANs and Diffusion for Real-World Applications</h1>
 
-**JoliGAN** provides easy-to-use GAN and Diffusion models for unpaired and paired image to image translation tasks, including domain adaptation. In a nutshell, JoliGAN allows for fast and stable training with astonishing results. A server with REST API is provided that allows for simplified deployment and usage.
+**JoliGEN** provides easy-to-use generative AI for image to image transformations.
 
-JoliGAN has a large scope of options and parameters. To not get overwhelmed, follow the simple steps below. There are then links to more detailed documentation on models, dataset formats, and data augmentation.
+Main Features:
+
+- JoliGEN support both GAN and Diffusion models for unpaired and paired image to image translation tasks, including domain and style adaptation with conservation of semantics such as image and object classes, masks, ...
+
+- JoliGEN generative capabilities are targeted at real world applications such as Augmented Reality, Dataset Smart Augmentation and object insertion, Synthetic to real transforms.
+
+- JoliGEN allows for fast and stable training with astonishing results. A server with REST API is provided that allows for simplified deployment and usage.
+
+- JoliGEN has a large scope of options and parameters. To not get overwhelmed, follow the simple steps below. There are then links to more detailed documentation on models, dataset formats, and data augmentation.
 
 ## Use cases
 
@@ -66,13 +74,13 @@ Clear to rainy (BDD100K)
 - SoTA image to image translation
 - Semantic consistency: conservation of labels of many types: bounding boxes, masks, classes.
 - SoTA discriminator models: [projected](https://arxiv.org/abs/2111.01007), [vision_aided](https://arxiv.org/abs/2112.09130), custom transformers.
-- Advanced generators: [real-time](https://github.com/beniz/joliGAN/blob/chore_new_readme/models/modules/resnet_architecture/resnet_generator.py#L388), [transformers](https://arxiv.org/abs/2203.16015), [hybrid transformers-CNN](https://github.com/beniz/joliGAN/blob/chore_new_readme/models/modules/segformer/segformer_generator.py#L95), [Attention-based](https://arxiv.org/abs/1911.11897), [UNet with attention](https://github.com/beniz/joliGAN/blob/chore_new_readme/models/modules/unet_generator_attn/unet_generator_attn.py#L323), [StyleGAN2](https://github.com/beniz/joliGAN/blob/chore_new_readme/models/modules/stylegan_networks.py)
+- Advanced generators: [real-time](https://github.com/jolibrain/joliGEN/blob/chore_new_readme/models/modules/resnet_architecture/resnet_generator.py#L388), [transformers](https://arxiv.org/abs/2203.16015), [hybrid transformers-CNN](https://github.com/jolibrain/joliGEN/blob/chore_new_readme/models/modules/segformer/segformer_generator.py#L95), [Attention-based](https://arxiv.org/abs/1911.11897), [UNet with attention](https://github.com/jolibrain/joliGEN/blob/chore_new_readme/models/modules/unet_generator_attn/unet_generator_attn.py#L323), [StyleGAN2](https://github.com/jolibrain/joliGEN/blob/chore_new_readme/models/modules/stylegan_networks.py)
 - Multiple models based on adversarial and diffusion generation: [CycleGAN](https://arxiv.org/abs/1703.10593), [CyCADA](https://arxiv.org/abs/1711.03213), [CUT](https://arxiv.org/abs/2007.15651), [Palette](https://arxiv.org/abs/2111.05826)
 - GAN data augmentation mechanisms: [APA](https://arxiv.org/abs/2111.06849), discriminator noise injection, standard image augmentation, online augmentation through sampling around bounding boxes
 - Output quality metrics: [FID](https://github.com/mseitzer/pytorch-fid)
-- Server with [REST API](https://github.com/beniz/joliGAN/blob/master/server/api_specs.md)
+- Server with [REST API](https://github.com/jolibrain/joliGEN/blob/master/server/api_specs.md)
 - Support for both CPU and GPU
-- [Dockerized server](https://github.com/beniz/joliGAN/blob/master/docker/Dockerfile.server)
+- [Dockerized server](https://github.com/jolibrain/joliGEN/blob/master/docker/Dockerfile.server)
 - Production-grade deployment in C++ via [DeepDetect](https://github.com/jolibrain/deepdetect/)
 
 ---
@@ -89,8 +97,8 @@ Clear to rainy (BDD100K)
 
 Clone this repo:
 ```bash
-git clone --recursive https://github.com/jolibrain/joliGAN.git
-cd joliGAN
+git clone --recursive https://github.com/jolibrain/joliGEN.git
+cd joliGEN
 ```
 
 Install [PyTorch](http://pytorch.org) and other dependencies (torchvision, [visdom](https://github.com/facebookresearch/visdom) with:
@@ -103,7 +111,7 @@ pip install -r requirements.txt --upgrade
 #### Image to image without semantics
 
 Example: horse to zebra from two sets of images
-Dataset: https://www.deepdetect.com/joligan/datasets/horse2zebra.zip
+Dataset: https://www.deepdetect.com/joligen/datasets/horse2zebra.zip
 
 ```
 horse2zebra/
@@ -116,7 +124,7 @@ horse2zebra/testB
 #### Image to image with class semantics
 
 Example: font number conversion
-Dataset: https://www.deepdetect.com/joligan/datasets/mnist2USPS.zip
+Dataset: https://www.deepdetect.com/joligen/datasets/mnist2USPS.zip
 
 ```
 mnist2USPS/
@@ -134,8 +142,8 @@ mnist2USPS/trainB/2  # images of target number 2
 #### Image to image with mask semantics
 
 Example: Add glasses to a face without modifying the rest of the face
-Dataset: https://www.deepdetect.com/joligan/datasets/noglasses2glasses_ffhq_mini.zip
-Full dataset: https://www.deepdetect.com/joligan/datasets/noglasses2glasses_ffhq.zip
+Dataset: https://www.deepdetect.com/joligen/datasets/noglasses2glasses_ffhq_mini.zip
+Full dataset: https://www.deepdetect.com/joligen/datasets/noglasses2glasses_ffhq.zip
 
 ```
 noglasses2glasses_ffhq_mini
@@ -160,8 +168,8 @@ noglasses2glasses_ffhq_mini/trainB/paths.txt # list of associated target / mask 
 #### Image to image with bounding box semantics
 
 Example: Super Mario to Sonic while preserving the position and action, e.g. crouch, jump, still, ...
-Dataset: https://www.deepdetect.com/joligan/datasets/online_mario2sonic_lite.zip
-Full dataset: https://www.deepdetect.com/joligan/datasets/online_mario2sonic_full.tar
+Dataset: https://www.deepdetect.com/joligen/datasets/online_mario2sonic_lite.zip
+Full dataset: https://www.deepdetect.com/joligen/datasets/online_mario2sonic_full.tar
 
 ```
 online_mario2sonic_lite
@@ -204,7 +212,7 @@ where `cls` is the class, in this dataset `2` means `running`.
 #### Image to image with multiple semantics: bounding box and class
 
 Example: Image seasonal modification while preserving objects with mask (cars, pedestrians, ...) and overall image weather (snow, rain, clear, ...) with class
-Dataset: https://www.deepdetect.com/joligan/datasets/daytime2dawn_dusk_lite.zip
+Dataset: https://www.deepdetect.com/joligen/datasets/daytime2dawn_dusk_lite.zip
 
 ```
 daytime2dawn_dusk_lite
@@ -231,7 +239,7 @@ in this order: `source image path`, `image class`, `image mask`, where `image cl
 
 Other semantics are possible, i.e. an algorithm that runs on both source and target
 
-## JoliGAN training
+## JoliGEN training
 
 Training requires the following:
 - GPU
@@ -239,7 +247,7 @@ Training requires the following:
 - a [Visdom](https://github.com/fossasia/visdom) server, by default the training script starts a Visdom server on http://0.0.0.0:8097 if none is running
 - Go to http://localhost:8097 to follow training losses and image result samples
 
-JoliGAN has (too) many options, for finer grained control, see the [full option list](docs/options.md).
+JoliGEN has (too) many options, for finer grained control, see the [full option list](docs/options.md).
 
 ### Training image to image without semantics
  
@@ -305,9 +313,9 @@ python3 train.py --dataroot /path/to/noglasses2glasses_ffhq/ --checkpoints_dir /
 --train_optim adamw --G_nblocks 2
 ```
 
-## JoliGAN inference
+## JoliGEN inference
 
-JoliGAN reads the model configuration from a generated `train_config.json` file that is stored in the model directory. When loading a previously trained model, make sure the the `train_config.json` file is in the directory.
+JoliGEN reads the model configuration from a generated `train_config.json` file that is stored in the model directory. When loading a previously trained model, make sure the the `train_config.json` file is in the directory.
 
 Python scripts are provided for inference, that can be used as a baseline for using a model in another codebase.
 
@@ -330,7 +338,7 @@ python3 gen_single_image_diffusion.py --model-in-file /path/to/model/latest_net_
 
 The mask image has 1 where to insert the object and 0 elsewhere.
 
-## JoliGAN server
+## JoliGEN server
 
 Ensure everything is installed
 ```bash
@@ -374,14 +382,14 @@ bash scripts/run_tests.sh /path/to/dir
 |ITTR| ~30M configurable|
 
 ## Docker build
-To build a docker for joliGAN server:
+To build a docker for joliGEN server:
 ```
-docker build -t jolibrain/joligan_build -f docker/Dockerfile.build .
-docker build -t jolibrain/joligan_server -f docker/Dockerfile.server .
+docker build -t jolibrain/joligen_build -f docker/Dockerfile.build .
+docker build -t jolibrain/joligen_server -f docker/Dockerfile.server .
 ```
-To run the joliGAN docker:
+To run the joliGEN docker:
 ```
-nvidia-docker run jolibrain/myjoligan
+nvidia-docker run jolibrain/myjoligen
 ```
 
 ## Code format
@@ -404,6 +412,6 @@ pre-commit install
 
 ## Authors
 
-**JoliGAN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).
+**JoliGEN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).
 
 Code is making use of [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/taesungp/contrastive-unpaired-translation), [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN), [MoNCE](https://github.com/fnzhan/MoNCE) among others.

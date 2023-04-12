@@ -21,18 +21,18 @@ git_hash = (
     .decode("ascii")
     .strip()
 )
-print("Launching JoliGAN Server\ncommit=%s" % git_hash, flush=True)
+print("Launching JoliGEN Server\ncommit=%s" % git_hash, flush=True)
 
-version_str = "*commit:* [%s](https://github.com/jolibrain/joliGAN/commit/%s)\n\n" % (
+version_str = "*commit:* [%s](https://github.com/jolibrain/joliGEN/commit/%s)\n\n" % (
     git_hash[:8],
     git_hash,
 )
 description = (
     version_str
-    + """This is the JoliGAN server API documentation.
+    + """This is the JoliGEN server API documentation.
 """
 )
-app = FastAPI(title="JoliGAN server", description=description)
+app = FastAPI(title="JoliGEN server", description=description)
 
 # Additional schema
 class ServerTrainOptions(BaseModel):

@@ -1,4 +1,4 @@
-# JoliGAN server
+# JoliGEN server
 
 ## Start training
 
