@@ -125,8 +125,8 @@ def crop_image(
                 mask_random_offset_y = mask_random_offset[1]
 
             # from ratio to pixel gap
-            mask_random_offset_x = mask_random_offset_x * (xmax - xmin)
-            mask_random_offset_y = mask_random_offset_y * (ymax - ymin)
+            mask_random_offset_x = round(mask_random_offset_x * (xmax - xmin))
+            mask_random_offset_y = round(mask_random_offset_y * (ymax - ymin))
 
             if mask_random_offset_x > 0 or mask_random_offset_y > 0:
                 ymin -= random.randint(0, mask_random_offset_y)
