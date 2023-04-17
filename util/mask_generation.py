@@ -6,6 +6,7 @@ import urllib.request
 import cv2
 import numpy as np
 import requests
+import scipy
 import torch
 from torch.nn import functional as F
 from torchvision.transforms import Grayscale
@@ -165,6 +166,142 @@ def fill_img_with_depth(img, mask, depth_network="DPT_SwinV2_T_256", **kwargs):
     return mask * edges + (1 - mask) * img
 
 
+def iou(mask1, mask2):
+    intersection = np.logical_and(mask1, mask2)
+    union = np.logical_or(mask1, mask2)
+    iou_score = np.sum(intersection) / np.sum(union)
+    return iou_score
+
+
+def non_max_suppression(masks, scores, threshold):
+    sorted_indices = np.argsort(scores)[::-1]
+    selected_indices = []
+    for i in sorted_indices:
+        mask_i = masks[i]
+        overlap = False
+        for j in selected_indices:
+            mask_j = masks[j]
+            if iou(mask_i, mask_j) > threshold:
+                overlap = True
+                break
+        if not overlap:
+            selected_indices.append(i)
+    selected_masks = [masks[i] for i in selected_indices]
+    return selected_masks
+
+
+def sam_edge_detection(image, predictor, redundancy_threshold):
+    predictor.set_image(image)
+    # create a 16x16 regular grid of foreground points as explained in the paper
+    points = []
+    for i in range(16):
+        for j in range(16):
+            points.append([i * image.shape[0] // 16, j * image.shape[1] // 16])
+    masks = []
+    scores = []
+    logits = None
+    for point in points:
+        x, y = point
+        masks_out, scores_out, logits_out = predictor.predict(
+            point_coords=np.array([point]),
+            point_labels=np.array([1]),
+            multimask_output=True,
+        )
+        for mask in masks_out:
+            masks.append(mask)
+        for score in scores_out:
+            scores.append(score)
+        if logits is None:
+            logits = logits_out
+        else:
+            logits = np.maximum(logits, logits_out)
+
+    masks = np.array(masks)
+    scores = np.array(scores)
+
+    non_redundant_masks = non_max_suppression(masks, scores, redundancy_threshold)
+    non_redundant_masks = np.array(non_redundant_masks)
+
+    masked_imgs = []
+    for mask in non_redundant_masks:
+        assert mask.shape == image.shape[:2], "mask should be the same size of image"
+        prob_map = mask.astype(np.float32)
+        prob_map /= 255.0
+        # Apply Gaussian filter to probability map
+        sigma = 2.0  # adjust sigma to control amount of smoothing
+        prob_map = scipy.ndimage.gaussian_filter(prob_map, sigma=sigma)
+        # Apply Sobel filter to probability map
+        sobel_x = cv2.Sobel(prob_map, cv2.CV_64F, 1, 0, ksize=3)
+        sobel_y = cv2.Sobel(prob_map, cv2.CV_64F, 0, 1, ksize=3)
+
+        # Compute gradient magnitude
+        grad_mag = np.sqrt(sobel_x**2 + sobel_y**2)
+        # Apply non-maximum suppression to gradient magnitude
+        threshold = 0.7 * np.max(
+            grad_mag
+        )  # set threshold at 70% of max gradient magnitude
+        edge_map = (grad_mag > threshold).astype(np.uint8)
+        # Find contours of mask
+        contours, _ = cv2.findContours(
+            mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        if len(contours) > 0:
+            # Find outermost contour using convex hull
+            hull = cv2.convexHull(contours[0])
+
+            # Create binary mask of outer boundary pixels
+            boundary_mask = np.zeros_like(mask, dtype=np.uint8)
+            cv2.drawContours(boundary_mask, [hull], -1, 255, -1)
+
+            # Set values outside boundary to zero
+            edge_map[~np.logical_and(edge_map, boundary_mask)] = 0
+
+            # Threshold edge map to create binary mask
+            threshold = 0.1  # adjust threshold to control amount of edge detection
+            _, binary_map = cv2.threshold(edge_map, threshold, 255, cv2.THRESH_BINARY)
+            binary_map = binary_map.astype(np.uint8)
+
+            # Apply binary mask to original input image
+            masked_img = cv2.bitwise_and(image, image, mask=binary_map)
+            if len(masked_img[masked_img >= 1]) > 0:
+                masked_imgs.append(masked_img)
+
+    masked_imgs = np.array(masked_imgs)
+    # Take pixel-wise max over all masked images
+    final_pred = np.max(masked_imgs, axis=0)
+    # Linearly normalize final prediction to range [0, 1]
+    normalized_pred = (final_pred - np.min(final_pred)) / (
+        np.max(final_pred) - np.min(final_pred)
+    )
+    # Apply edge nms (=Canny) to thicken edges
+    threshold1 = 150
+    threshold2 = 300
+    edges = cv2.Canny(np.uint8(normalized_pred * 255), threshold1, threshold2)
+
+    return edges
+
+
+def fill_img_with_sam(img, mask, **predictor):
+    predictor = predictor["predictor"]
+    edges_list = []
+    for cur_img in img:
+        cur_img = (
+            (torch.einsum("chw->hwc", cur_img).cpu().numpy() + 1) * 255 / 2
+        ).astype(np.uint8)
+
+        edges = sam_edge_detection(cur_img, predictor, redundancy_threshold=0.8)
+        edges = (
+            (((torch.tensor(edges, device=predictor.model.device) / 255) * 2) - 1)
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
+        edges_list.append(edges)
+    edges = torch.cat(edges_list, dim=0)
+    mask = torch.clamp(mask, 0, 1)
+
+    return mask * edges + (1 - mask) * img
+
+
 def random_edge_mask(fn_list):
     edge_fns = []
     for fn in fn_list:
@@ -178,6 +315,8 @@ def random_edge_mask(fn_list):
             edge_fns.append(fill_img_with_depth)
         elif fn == "sketch":
             edge_fns.append(fill_img_with_sketch)
+        elif fn == "sam":
+            edge_fns.append(fill_img_with_sam)
         else:
             raise NotImplementedError(f"Unknown edge function {fn}")
     return random.choice(edge_fns)

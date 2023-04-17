@@ -75,11 +75,15 @@ class BaseDiffusionModel(BaseModel):
             self.use_sam = False
 
         if opt.data_refined_mask:
-            self.use_sam = True
+            self.use_sam_mask = True
             self.freezenet_sam = download_sam_weights()
             self.freezenet_sam.model.to(self.device)
+        elif "sam" in opt.alg_palette_computed_sketch_list:
+            self.freezenet_sam = download_sam_weights()
+            self.freezenet_sam.model.to(self.device)
+            self.use_sam_mask = False
         else:
-            self.use_sam = False
+            self.use_sam_mask = False
 
     def init_semantic_cls(self, opt):
         # specify the training losses you want to print out.

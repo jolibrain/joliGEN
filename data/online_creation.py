@@ -30,8 +30,6 @@ def crop_image(
     bbox_ref_id=-1,
     inverted_mask=False,
     single_bbox=False,
-    output_sam=True,
-    device="cuda",
 ):
     margin = context_pixels * 2
 
@@ -160,12 +158,7 @@ def crop_image(
             xmax = min(xmax, img.shape[1])
             ymax = min(ymax, img.shape[0])
 
-            if output_sam:
-                mask = gen_mask_from_bbox(
-                    img, np.array([xmin, ymin, xmax, ymax]), device=device, cat=cat
-                )
-            else:
-                mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
+            mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
 
             if i == idx_bbox_ref:
                 x_min_ref = xmin

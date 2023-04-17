@@ -7,7 +7,6 @@ import torch
 import tqdm
 
 from data.online_creation import fill_mask_with_color
-from models.modules.segment_anything.sam_masking import download_sam_weights
 from util.iter_calculator import IterCalculator
 from util.mask_generation import random_edge_mask
 from util.network_group import NetworkGroup
@@ -65,13 +64,7 @@ class PaletteModel(BaseDiffusionModel):
             type=str,
             default=["canny", "hed"],
             help="what to use for random sketch",
-            choices=[
-                "sketch",
-                "canny",
-                "depth",
-                "hed",
-                "hough",
-            ],
+            choices=["sketch", "canny", "depth", "hed", "hough", "sam"],
         )
 
         parser.add_argument(
@@ -133,9 +126,6 @@ class PaletteModel(BaseDiffusionModel):
 
         self.model_names_export = ["G_A"]
 
-        if self.use_sam:
-            self.freezenet_sam = download_sam_weights()
-            self.model_names.append("freeze_sam")
         # Define optimizer
         self.optimizer_G = opt.optim(
             opt,
@@ -205,7 +195,7 @@ class PaletteModel(BaseDiffusionModel):
             self.y_t = data["A"].to(self.device)[:, 1]
             self.gt_image = data["B"].to(self.device)[:, 1]
             self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
-            if self.use_sam:
+            if self.use_sam_mask:
                 self.mask = self.compute_mask_with_sam(
                     self.gt_image, data["B_label_mask"].to(self.device)[:, 1]
                 )
@@ -214,7 +204,7 @@ class PaletteModel(BaseDiffusionModel):
         else:
             self.y_t = data["A"].to(self.device)
             self.gt_image = data["B"].to(self.device)
-        if self.use_sam:
+        if self.use_sam_mask:
             self.mask = self.compute_mask_with_sam(
                 self.gt_image, data["B_label_mask"].to(self.device)
             )
@@ -255,6 +245,12 @@ class PaletteModel(BaseDiffusionModel):
                             low_threshold_random=low,
                             high_threshold_random=high,
                         ).squeeze(0)
+                    elif "sam" in self.opt.alg_palette_computed_sketch_list:
+                        batch_cond_image = fill_img_with_random_sketch(
+                            image.unsqueeze(0),
+                            mask.unsqueeze(0),
+                            predictor=self.freezenet_sam,
+                        ).squeeze(0)
                     else:
                         batch_cond_image = fill_img_with_random_sketch(
                             image.unsqueeze(0), mask.unsqueeze(0)
@@ -271,6 +267,12 @@ class PaletteModel(BaseDiffusionModel):
                         self.mask,
                         low_threshold_random=self.opt.alg_palette_canny_random_low,
                         high_threshold_random=self.opt.alg_palette_canny_random_high,
+                    )
+                elif "sam" in self.opt.alg_palette_computed_sketch_list:
+                    self.cond_image = fill_img_with_random_sketch(
+                        self.gt_image,
+                        self.mask,
+                        predictor=self.freezenet_sam,
                     )
                 else:
                     self.cond_image = fill_img_with_random_sketch(
