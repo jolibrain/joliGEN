@@ -322,7 +322,7 @@ def predict_sam_mask(img, bbox, predictor, cat=1):
         cv_img = img
     predictor.set_image(cv_img)
 
-    masks, scores, logits = predictor.predict(
+    masks, scores, _ = predictor.predict(
         point_coords=None,
         point_labels=None,
         box=bbox[None, :],
