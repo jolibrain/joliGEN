@@ -249,7 +249,7 @@ Modify as required and run with the following line command:
 ```
 python3 train.py --dataroot /path/to/horse2zebra --checkpoints_dir /path/to/checkpoints --name horse2zebra \
 --output_display_env horse2zebra --data_load_size 256 --data_crop_size 256 --train_n_epochs 200 \
---dataset_mode unaligned --train_n_epochs_decay 0 --model_type cut --G_netG mobile_resnet_attn
+--data_dataset_mode unaligned --train_n_epochs_decay 0 --model_type cut --G_netG mobile_resnet_attn
 ```
 
 ### Training with class semantics :
