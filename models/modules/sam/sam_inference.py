@@ -435,7 +435,13 @@ class SamPredictorG:
 
 
 ######### JoliGEN level functions
-def load_sam_weight(model_path, model_type):
+def load_sam_weight(model_path):
+    if "vit_h" in model_path:
+        model_type = "vit_h"
+    elif "vit_l" in model_path:
+        model_type = "vit_l"
+    elif "vit_b" in model_path:
+        model_type = "vit_b"
     sam = sam_model_registry[model_type](checkpoint=model_path)
     sam_predictor = SamPredictorG(sam)
     return sam, sam_predictor
