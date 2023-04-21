@@ -95,13 +95,7 @@ def define_f(
                 net.net.load_state_dict(weights, strict=False)
         return net
     elif f_s_net == "sam":
-        if "vit_h" in f_s_weight_sam:
-            model_type = "vit_h"
-        elif "vit_l" in f_s_weight_sam:
-            model_type = "vit_l"
-        elif "vit_b" in f_s_weight_sam:
-            model_type = "vit_b"
-        net, mg = load_sam_weight(f_s_weight_sam, model_type=model_type)
+        net, mg = load_sam_weight(f_s_weight_sam)
         return net, mg
 
     return init_net(net, model_init_type, model_init_gain)

@@ -5,6 +5,7 @@ from collections import OrderedDict
 from abc import abstractmethod
 from . import gan_networks
 from .modules.utils import get_scheduler, predict_depth, download_midas_weight
+from .modules.sam.sam_inference import load_sam_weight, predict_sam
 from torchviz import make_dot
 from .base_model import BaseModel
 
@@ -110,6 +111,14 @@ class BaseGanModel(BaseModel):
             self.netfreeze_depth = download_midas_weight(self.opt.model_depth_network)
         else:
             self.use_depth = False
+
+        if "sam" in opt.D_netDs:
+            self.use_sam = True
+            self.netfreeze_sam, self.predictor_sam = load_sam_weight(
+                self.opt.D_weight_sam
+            )
+        else:
+            self.use_sam = False
 
         # Define loss functions
         losses_G = ["G_tot"]
@@ -529,6 +538,12 @@ class BaseGanModel(BaseModel):
         ) / real_depth_interp.max()
         setattr(self, "real_depth_B", real_depth_interp)
 
+    def compute_fake_real_with_sam(self, fake_name, real_name):
+        fake_sam = predict_sam(getattr(self, fake_name), self.predictor_sam)
+        real_sam = predict_sam(getattr(self, real_name), self.predictor_sam)
+        setattr(self, "fake_sam_B", fake_sam)
+        setattr(self, "real_sam_B", real_sam)
+
     def set_discriminators_info(self):
         self.discriminators = []
 
@@ -616,6 +631,9 @@ class BaseGanModel(BaseModel):
             elif "mask" in discriminator_name:
                 fake_name = "fake_mask"
                 real_name = "real_mask"
+            elif "sam" in discriminator_name:
+                fake_name = "fake_sam"
+                real_name = "real_sam"
 
             setattr(
                 self,
