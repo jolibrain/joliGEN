@@ -389,6 +389,17 @@ def define_D(
             )
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
+        elif netD == "sam":  # default patch-based on sam
+            net = NLayerDiscriminator(
+                1,
+                D_ndf,
+                n_layers=3,
+                norm_layer=norm_layer,
+                use_dropout=D_dropout,
+                use_spectral=D_spectral,
+            )
+            return_nets[netD] = init_net(net, model_init_type, model_init_gain)
+
         elif netD == "temporal":
             # projected D temporal
             weight_path = os.path.join(jg_dir, D_proj_weight_segformer)

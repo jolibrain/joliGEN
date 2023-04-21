@@ -184,6 +184,13 @@ class BaseOptions:
             help="specify depth prediction network architecture",
         )
 
+        parser.add_argument(
+            "--D_weight_sam",
+            type=str,
+            default="",
+            help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+        )
+
         # generator
         parser.add_argument(
             "--G_ngf",
@@ -369,6 +376,7 @@ class BaseOptions:
                 "temporal",
                 "vision_aided",
                 "depth",
+                "sam",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
             help="specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored.",
@@ -944,6 +952,12 @@ class BaseOptions:
                     "ViT-B/16 (vitclip16) projector only works with input size 224, setting D_proj_interp to 224"
                 )
             opt.D_proj_interp = 224
+
+        # Dsam requires D_weight_sam
+        if "sam" in opt.D_netDs and opt.D_weight_sam == "":
+            raise ValueError(
+                "Dsam requires D_weight_sam, please specify a path to a pretrained sam model"
+            )
 
         # diffusion D + vitsmall check
         if opt.dataaug_D_diffusion and "vit" in opt.D_proj_network_type:
