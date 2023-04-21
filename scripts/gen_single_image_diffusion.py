@@ -190,7 +190,7 @@ def generate(
             bbox_ref_id=bbox_idx,
         )
 
-        img, mask = crop_image(
+        img, mask, ref_bbox = crop_image(
             img_path=img_in,
             bbox_path=bbox_in,
             mask_delta=mask_delta,  # opt.data_online_creation_mask_delta_A,

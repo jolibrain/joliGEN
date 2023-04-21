@@ -252,7 +252,7 @@ def crop_image(
             x_min_ref += x_padding
             y_max_ref += y_padding
             y_min_ref += y_padding
-
+            
         # Let's compute crop position
         # The final crop coordinates will be [x_crop:x_crop+crop_size+margin,y_crop:y_crop+crop_size+margin)
 
@@ -323,6 +323,13 @@ def crop_image(
         x_crop : x_crop + crop_size + margin,
     ]
 
+    x_max_ref -= x_crop
+    x_min_ref -= x_crop
+    y_max_ref -= y_crop
+    y_min_ref -= y_crop
+
+    ref_bbox = [x_min_ref, y_min_ref, x_max_ref, y_max_ref]
+    
     # invert mask if required
     if inverted_mask:
         mask[mask > 0] = 2
@@ -332,7 +339,15 @@ def crop_image(
     mask = Image.fromarray(mask)
     mask = F.resize(mask, output_dim + margin, interpolation=InterpolationMode.NEAREST)
 
-    return img, mask
+    # resize ref_bbox to output_dim + margin
+    ref_bbox = [
+        int(ref_bbox[0] * (output_dim + margin) / crop_size),
+        int(ref_bbox[1] * (output_dim + margin) / crop_size),
+        int(ref_bbox[2] * (output_dim + margin) / crop_size),
+        int(ref_bbox[3] * (output_dim + margin) / crop_size),
+    ]
+    
+    return img, mask, ref_bbox
 
 
 def fill_mask_with_random(img, mask, cls):

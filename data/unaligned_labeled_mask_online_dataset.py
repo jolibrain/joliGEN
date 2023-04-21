@@ -258,7 +258,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         # Domain A
 
         try:
-            A_img, A_label_mask = crop_image(
+            A_img, A_label_mask, A_ref_bbox = crop_image(
                 A_img_path,
                 A_label_mask_path,
                 mask_delta=self.opt.data_online_creation_mask_delta_A,
@@ -290,13 +290,13 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         if self.opt.f_s_all_classes_as_one:
             A_label_mask = (A_label_mask >= 1) * 1
 
-        result = {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask}
+        result = {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask, "A_ref_bbox": A_ref_bbox}
 
         # Domain B
         if B_img_path is not None:
             try:
                 if B_label_mask_path is not None:
-                    B_img, B_label_mask = crop_image(
+                    B_img, B_label_mask, B_ref_bbox = crop_image(
                         B_img_path,
                         B_label_mask_path,
                         mask_delta=self.opt.data_online_creation_mask_delta_B,
@@ -343,6 +343,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 result.update(
                     {
                         "B_label_mask": B_label_mask,
+                        "B_ref_bbox": B_ref_bbox,
                     }
                 )
 
