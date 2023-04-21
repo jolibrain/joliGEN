@@ -447,19 +447,26 @@ def load_sam_weight(model_path):
     return sam, sam_predictor
 
 
-def predict_sam(img, sam_predictor):
+def predict_sam(img, sam_predictor, bbox=None):
     # - img in RBG value space
     img = torch.clamp(img, min=-1.0, max=1.0)
     img = (img + 1) / 2.0 * 255.0
     # - set image to model
     sam_predictor.set_image(img)
     # - generate keypoints/bbox
-    basic_bbox = np.array(
-        [0, 0, img.size(dim=2), img.size(dim=3)]
-    )  # bbox over the full image
+    if bbox is None:
+        prompt_bbox = np.array(
+            [0, 0, img.size(dim=2), img.size(dim=3)]
+        )  # bbox over the full image
+    else:
+        # to XYWH format
+        #print('bbox=', bbox)
+        bbox[2] = bbox[2] - bbox[0]
+        bbox[3] = bbox[3] - bbox[1]
+        prompt_bbox = np.array([bbox[0].item(), bbox[1].item(), bbox[2].item(), bbox[3].item()]) # XXX: bbox is list of tensors...
     # - get masks as tensors
     masks = sam_predictor.predict(
-        box=basic_bbox, multimask_output=False, return_logits=True
+        box=prompt_bbox, multimask_output=False, return_logits=False#True
     )  # in BxCxHxW format, where C is the number of masks
     # - aggregate masks
     # XXX: only if multimask_output is True
