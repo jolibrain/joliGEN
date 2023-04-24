@@ -83,6 +83,13 @@ class DiffusionOptions:
             help="choose the sampling method between ddpm and ddim",
         )
 
+        self.parser.add_argument(
+            "--cls",
+            type=int,
+            default=-1,
+            help="override input bbox classe for generation",
+        )
+
     def parse(self):
         args = self.parser.parse_args()
         return args

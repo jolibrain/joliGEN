@@ -35,11 +35,8 @@ class UnalignedLabeledMaskClsOnlineDataset(UnalignedLabeledMaskOnlineDataset):
         if return_dict is None:
             return None
 
-        # To remove
-        A_label_cls = 1
-        B_label_cls = 1
-
-        return_dict["A_label_cls"] = A_label_cls
-        return_dict["B_label_cls"] = B_label_cls
+        return_dict["A_label_cls"] = self.cat_A_ref_bbox
+        if hasattr(self, "B_label_cls"):
+            return_dict["B_label_cls"] = self.cat_B_ref_bbox
 
         return return_dict

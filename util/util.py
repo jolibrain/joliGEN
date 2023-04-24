@@ -136,6 +136,8 @@ def display_mask(mask):
     )
     nb_cls_display = len(dict_col)
 
+    nb_cls_display = len(dict_col)
+
     try:
         len(mask.shape) == 2
     except AssertionError:

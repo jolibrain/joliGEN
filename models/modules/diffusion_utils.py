@@ -4,7 +4,7 @@ import math
 from functools import partial
 
 
-def gamma_embedding(gammas, dim, max_period=10000):
+def gamma_embedding_1D(gammas, dim, max_period):
     """
     Create sinusoidal timestep embeddings.
     :param gammas: a 1-D Tensor of N indices, one per batch element.
@@ -23,6 +23,20 @@ def gamma_embedding(gammas, dim, max_period=10000):
     embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
     if dim % 2:
         embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+
+    return embedding
+
+
+def gamma_embedding(gammas, dim, max_period=10000):
+    return_list = []
+    reduced_dim = dim // gammas.shape[1]
+
+    for i in range(gammas.shape[1]):
+        return_list.append(
+            gamma_embedding_1D(gammas[:, i], reduced_dim, max_period=max_period)
+        )
+    embedding = torch.cat(return_list, dim=1)
+
     return embedding
 
 

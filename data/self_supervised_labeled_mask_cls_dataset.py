@@ -1,5 +1,5 @@
 import os.path
-from data.unaligned_labeled_mask_dataset import UnalignedLabeledMaskDataset
+from data.unaligned_labeled_mask_cls_dataset import UnalignedLabeledMaskClsDataset
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
 from PIL import Image
 import numpy as np
@@ -7,18 +7,18 @@ import torch
 import warnings
 
 
-class SelfSupervisedLabeledMaskDataset(UnalignedLabeledMaskDataset):
+class SelfSupervisedLabeledMaskClsDataset(UnalignedLabeledMaskClsDataset):
     """
     This dataset class can create paired datasets with mask labels from only one domain.
     """
 
-    def __init__(self, opt, phase):
+    def __init__(self, opt):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        super().__init__(opt, phase)
+        super().__init__(opt)
 
     def get_img(
         self,
@@ -38,7 +38,6 @@ class SelfSupervisedLabeledMaskDataset(UnalignedLabeledMaskDataset):
             B_label_mask_path,
             B_label_cls,
             index,
-            clamp_semantics=False,
         )
 
         try:
@@ -58,6 +57,7 @@ class SelfSupervisedLabeledMaskDataset(UnalignedLabeledMaskDataset):
                     "B": result["A"],
                     "B_img_paths": result["A_img_paths"],
                     "B_label_mask": result["A_label_mask"].clone(),
+                    "B_label_cls": result["A_label_cls"].clone(),
                 }
             )
         except Exception as e:

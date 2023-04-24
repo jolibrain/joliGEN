@@ -45,7 +45,6 @@ class BaseDataset(data.Dataset, ABC):
             phase (str)       -- can be train,test or validation.
         """
         self.phase = phase
-        print("self.phase", self.phase)
         self.opt = opt
 
         self.use_domain_B = not "self_supervised" in self.opt.data_dataset_mode

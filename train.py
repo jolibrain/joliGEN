@@ -146,8 +146,6 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
         visualizer.print_networks(nets=model.get_nets(), verbose=opt.output_verbose)
 
-        model.print_flop()
-
         if opt.train_continue:
             opt.train_epoch_count = visualizer.load_data()
 

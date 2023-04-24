@@ -38,6 +38,7 @@ class SelfSupervisedLabeledMaskOnlineDataset(UnalignedLabeledMaskOnlineDataset):
             B_label_mask_path,
             B_label_cls,
             index,
+            clamp_semantics=False,
         )
 
         try:

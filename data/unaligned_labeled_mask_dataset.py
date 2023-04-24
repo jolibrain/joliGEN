@@ -74,6 +74,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         B_label_mask_path=None,
         B_label_cls=None,
         index=None,
+        clamp_semantics=True,
     ):
 
         # Domain A
@@ -94,10 +95,9 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             A_img, A_label_mask
         )  # A_ref_bbox is the bounding box over the entire image, not the mask
 
-        if torch.any(A_label_mask > self.semantic_nclasses - 1):
+        if clamp_semantics and torch.any(A_label_mask > self.semantic_nclasses - 1):
             warnings.warn(
-                "A label is above number of semantic classes for img %s and label %s"
-                % (A_img_path, A_label_mask_path)
+                f"A label is above number of semantic classes for img {A_img_path} and label {A_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
             )
             A_label_mask = torch.clamp(A_label_mask, max=self.semantic_nclasses - 1)
 
@@ -137,13 +137,18 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                     )
 
                 B, B_label_mask, B_ref_bbox = self.transform(B_img, B_label_mask)
-                if torch.any(B_label_mask > self.semantic_nclasses - 1):
+
+                if clamp_semantics and torch.any(
+                    B_label_mask > self.semantic_nclasses - 1
+                ):
+
                     warnings.warn(
                         f"A label is above number of semantic classes for img {B_img_path} and label {B_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
                     )
                     B_label_mask = torch.clamp(
                         B_label_mask, max=self.semantic_nclasses - 1
                     )
+
             else:
                 B = self.transform_noseg(B_img)
                 B_label_mask = []

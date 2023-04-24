@@ -163,6 +163,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         B_label_mask_path=None,
         B_label_cls=None,
         index=None,
+        clamp_semantics=True,
     ):
         # Domain A
 
@@ -183,6 +184,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 inverted_mask=self.opt.data_inverted_mask,
                 single_bbox=self.opt.data_online_single_bbox,
             )
+            self.cat_A_ref_bbox = torch.tensor(A_ref_bbox[0])
+            A_ref_bbox = A_ref_bbox[1:]
 
         except Exception as e:
             print(e, "domain A data loading for ", A_img_path)
@@ -190,7 +193,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
 
         A, A_label_mask, A_ref_bbox = self.transform(A_img, A_label_mask, A_ref_bbox)
 
-        if torch.any(A_label_mask > self.semantic_nclasses - 1):
+        if clamp_semantics and torch.any(A_label_mask > self.semantic_nclasses - 1):
             warnings.warn(
                 f"A label is above number of semantic classes for img {A_img_path} and label {A_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
             )
@@ -225,11 +228,17 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         inverted_mask=self.opt.data_inverted_mask,
                         single_bbox=self.opt.data_online_single_bbox,
                     )
+
+                    self.cat_B_ref_bbox = torch.tensor(B_ref_bbox[0])
+                    B_ref_bbox = B_ref_bbox[1:]
+
                     B, B_label_mask, B_ref_bbox = self.transform(
                         B_img, B_label_mask, B_ref_bbox
                     )
 
-                    if torch.any(B_label_mask > self.semantic_nclasses - 1):
+                    if clamp_semantics and torch.any(
+                        B_label_mask > self.semantic_nclasses - 1
+                    ):
                         warnings.warn(
                             f"A label is above number of semantic classes for img {B_img_path} and label {B_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
                         )
