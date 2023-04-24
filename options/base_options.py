@@ -966,6 +966,16 @@ class BaseOptions:
                 "ViT type projectors are not yet compatible with diffusion augmentation at discriminator level"
             )
 
+        # sam with bbox prompting requires Pytorch 2
+        if torch.__version__[0] != "2":
+            if (
+                opt.f_s_net == "sam"
+                and opt.data_dataset_mode == "unaligned_labeled_mask_online"
+            ):
+                raise ValueError("SAM with masks and bbox prompting requires Pytorch 2")
+        if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
+            raise warning.warn("SAM with direct masks does not use mask/bbox prompting")
+
         self.opt = opt
 
         return self.opt
