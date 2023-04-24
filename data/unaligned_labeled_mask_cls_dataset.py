@@ -19,12 +19,11 @@ class UnalignedLabeledMaskClsDataset(UnalignedLabeledMaskDataset):
             assert len(label_split) == 2
             self.A_label_cls.append(label_split[0])
 
-        for label in self.B_label:
-            label_split = label.split(" ")
-            assert len(label_split) == 2
-            self.B_label_cls.append(label_split[0])
-
-        self.A_label_mask_paths
+        if self.use_domain_B and hasattr(self, "B_label"):
+            for label in self.B_label:
+                label_split = label.split(" ")
+                assert len(label_split) == 2
+                self.B_label_cls.append(label_split[0])
 
     def get_img(
         self,
@@ -52,6 +51,7 @@ class UnalignedLabeledMaskClsDataset(UnalignedLabeledMaskDataset):
 
         # TODO : check how to deal with float for regression
         return_dict["A_label_cls"] = torch.tensor(int(A_label_cls))
-        return_dict["B_label_cls"] = torch.tensor(int(B_label_cls))
+        if B_label_cls is not None:
+            return_dict["B_label_cls"] = torch.tensor(int(B_label_cls))
 
         return return_dict

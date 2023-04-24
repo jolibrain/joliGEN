@@ -387,6 +387,7 @@ class UNet(nn.Module):
         n_timestep_test,
         norm,
         group_norm_size,
+        cond_embed_dim,
         dropout=0,
         channel_mults=(1, 2, 4, 8),
         conv_resample=True,
@@ -423,12 +424,8 @@ class UNet(nn.Module):
         if norm == "groupnorm":
             norm = norm + str(group_norm_size)
 
-        cond_embed_dim = inner_channel * 4
-        self.cond_embed = nn.Sequential(
-            nn.Linear(inner_channel, cond_embed_dim),
-            torch.nn.SiLU(),
-            nn.Linear(cond_embed_dim, cond_embed_dim),
-        )
+        # cond_embed_dim = inner_channel * 4
+        self.cond_embed_dim = cond_embed_dim
 
         ch = input_ch = int(channel_mults[0] * inner_channel)
         self.input_blocks = nn.ModuleList(
@@ -442,7 +439,7 @@ class UNet(nn.Module):
                 layers = [
                     ResBlock(
                         ch,
-                        cond_embed_dim,
+                        self.cond_embed_dim,
                         dropout,
                         out_channel=int(mult * inner_channel),
                         use_checkpoint=use_checkpoint,
@@ -471,7 +468,7 @@ class UNet(nn.Module):
                     EmbedSequential(
                         ResBlock(
                             ch,
-                            cond_embed_dim,
+                            self.cond_embed_dim,
                             dropout,
                             out_channel=out_ch,
                             use_checkpoint=use_checkpoint,
@@ -492,7 +489,7 @@ class UNet(nn.Module):
         self.middle_block = EmbedSequential(
             ResBlock(
                 ch,
-                cond_embed_dim,
+                self.cond_embed_dim,
                 dropout,
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
@@ -508,7 +505,7 @@ class UNet(nn.Module):
             ),
             ResBlock(
                 ch,
-                cond_embed_dim,
+                self.cond_embed_dim,
                 dropout,
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
@@ -525,7 +522,7 @@ class UNet(nn.Module):
                 layers = [
                     ResBlock(
                         ch + ich,
-                        cond_embed_dim,
+                        self.cond_embed_dim,
                         dropout,
                         out_channel=int(inner_channel * mult),
                         use_checkpoint=use_checkpoint,
@@ -550,7 +547,7 @@ class UNet(nn.Module):
                     layers.append(
                         ResBlock(
                             ch,
-                            cond_embed_dim,
+                            self.cond_embed_dim,
                             dropout,
                             out_channel=out_ch,
                             use_checkpoint=use_checkpoint,
@@ -596,17 +593,16 @@ class UNet(nn.Module):
 
     def compute_feats(self, input, gammas):
         if gammas is None:
-            b = input.shape[0]
-            gammas = torch.ones((b,)).to(input.device)
+            b = (input.shape[0], self.cond_embed_dim)
+            gammas = torch.ones(b).to(input.device)
 
-        gammas = gammas.view(-1)
-
-        emb = self.cond_embed(gamma_embedding(gammas, self.inner_channel))
+        emb = gammas
 
         hs = []
 
         h = input.type(torch.float32)
         for module in self.input_blocks:
+
             h = module(h, emb)
             hs.append(h)
         h = self.middle_block(h, emb)
@@ -709,6 +705,7 @@ class UViT(nn.Module):
         n_timestep_test,
         norm,
         group_norm_size,
+        cond_embed_dim,
         dropout=0.2,
         channel_mults=(1, 2, 4, 8),
         conv_resample=True,
@@ -746,12 +743,8 @@ class UViT(nn.Module):
         if norm == "groupnorm":
             norm = norm + str(group_norm_size)
 
-        cond_embed_dim = inner_channel * 4
-        self.cond_embed = nn.Sequential(
-            nn.Linear(inner_channel, cond_embed_dim),
-            torch.nn.SiLU(),
-            nn.Linear(cond_embed_dim, cond_embed_dim),
-        )
+        self.cond_embed_dim = cond_embed_dim
+        self.inner_channel = inner_channel
 
         ch = input_ch = int(channel_mults[0] * inner_channel)
         self.input_blocks = nn.ModuleList(
@@ -862,12 +855,10 @@ class UViT(nn.Module):
 
     def compute_feats(self, input, gammas):
         if gammas is None:
-            b = input.shape[0]
-            gammas = torch.ones((b,)).to(input.device)
+            b = (input.shape[0], self.cond_embed_dim)
+            gammas = torch.ones(b).to(input.device)
 
-        gammas = gammas.view(-1)
-
-        emb = self.cond_embed(gamma_embedding(gammas, self.inner_channel))
+        emb = gammas
 
         hs = []
 

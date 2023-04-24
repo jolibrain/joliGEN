@@ -33,6 +33,8 @@ def define_G(
     G_uvit_num_transformer_blocks,
     G_unet_mha_vit_efficient,
     alg_palette_sampling_method,
+    alg_palette_conditioning,
+    alg_palette_cond_embed_dim,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
     conv_resample=True,
@@ -42,6 +44,7 @@ def define_G(
     use_scale_shift_norm=True,
     resblock_updown=True,
     use_new_attention_order=False,
+    f_s_semantic_nclasses=-1,
     **unused_options
 ):
     """Create a generator
@@ -67,10 +70,15 @@ def define_G(
     net = None
     norm_layer = get_norm_layer(norm_type=G_norm)
 
+    in_channel = model_input_nc * 2
+
+    if "mask" in alg_palette_conditioning:
+        in_channel += alg_palette_cond_embed_dim
+
     if G_netG == "unet_mha":
         denoise_fn = UNet(
             image_size=data_crop_size,
-            in_channel=model_input_nc * 2,
+            in_channel=in_channel,
             inner_channel=G_ngf,
             out_channel=model_output_nc,
             res_blocks=G_unet_mha_res_blocks,
@@ -85,12 +93,13 @@ def define_G(
             norm=G_unet_mha_norm_layer,
             group_norm_size=G_unet_mha_group_norm_size,
             efficient=G_unet_mha_vit_efficient,
+            cond_embed_dim=alg_palette_cond_embed_dim,
         )
 
     elif G_netG == "uvit":
         denoise_fn = UViT(
             image_size=data_crop_size,
-            in_channel=model_input_nc * 2,
+            in_channel=in_channel,
             inner_channel=G_ngf,
             out_channel=model_output_nc,
             res_blocks=G_unet_mha_res_blocks,
@@ -106,12 +115,14 @@ def define_G(
             group_norm_size=G_unet_mha_group_norm_size,
             num_transformer_blocks=G_uvit_num_transformer_blocks,
             efficient=G_unet_mha_vit_efficient,
+            cond_embed_dim=alg_palette_cond_embed_dim,
         )
 
     elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":
         mobile = "mobile" in G_netG
+        G_ngf = alg_palette_cond_embed_dim
         denoise_fn = ResnetGenerator_attn_diff(
-            input_nc=model_input_nc * 2,
+            input_nc=in_channel,
             output_nc=model_output_nc,
             nb_mask_attn=G_attn_nb_mask_attn,
             nb_mask_input=G_attn_nb_mask_input,
@@ -131,7 +142,12 @@ def define_G(
         )
 
     net = DiffusionGenerator(
-        denoise_fn=denoise_fn, sampling_method=alg_palette_sampling_method
+        denoise_fn=denoise_fn,
+        sampling_method=alg_palette_sampling_method,
+        conditioning=alg_palette_conditioning,
+        num_classes=f_s_semantic_nclasses,
+        cond_embed_dim=alg_palette_cond_embed_dim,
+        image_size=data_crop_size,
     )
 
     return net

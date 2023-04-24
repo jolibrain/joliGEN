@@ -220,6 +220,7 @@ def define_G(
             image_size=data_crop_size,
             in_channel=model_input_nc,
             inner_channel=G_ngf,
+            cond_embed_dim=G_ngf * 4,
             out_channel=model_output_nc,
             res_blocks=G_unet_mha_res_blocks,
             attn_res=[16],

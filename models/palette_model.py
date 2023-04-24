@@ -95,6 +95,27 @@ class PaletteModel(BaseDiffusionModel):
             help="choose the sampling method between ddpm and ddim",
         )
 
+        parser.add_argument(
+            "--alg_palette_conditioning",
+            type=str,
+            default="",
+            choices=["", "mask", "class", "mask_and_class"],
+            help="whether to use conditioning or not",
+        )
+
+        parser.add_argument(
+            "--alg_palette_cond_embed_dim",
+            type=int,
+            default=32,
+            help="nb of examples processed for inference",
+        )
+
+        parser.add_argument(
+            "--alg_palette_generate_per_class",
+            action="store_true",
+            help="whether to generate samples of each images",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
@@ -109,7 +130,25 @@ class PaletteModel(BaseDiffusionModel):
 
         # Visuals
         visual_outputs = []
-        self.gen_visual_names = ["gt_image_", "cond_image_", "y_t_", "mask_", "output_"]
+        self.gen_visual_names = [
+            "gt_image_",
+            "cond_image_",
+            "y_t_",
+            "mask_",
+        ]
+
+        if (
+            self.opt.alg_palette_conditioning != ""
+            and self.opt.alg_palette_generate_per_class
+        ):
+            self.nb_classes_inference = (
+                max(self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses) - 1
+            )
+
+            for i in range(self.nb_classes_inference):
+                self.gen_visual_names.append("output_" + str(i + 1) + "_")
+        else:
+            self.gen_visual_names.append("output_")
 
         if self.opt.alg_palette_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
@@ -207,6 +246,11 @@ class PaletteModel(BaseDiffusionModel):
             self.gt_image = data["B"].to(self.device)
             self.mask = data["B_label_mask"].to(self.device)
 
+        if "B_label_cls" in data:
+            self.cls = data["B_label_cls"].to(self.device)
+        else:
+            self.cls = None
+
         if self.opt.alg_palette_cond_image_creation == "y_t":
             self.cond_image = self.y_t
         elif self.opt.alg_palette_cond_image_creation == "previous_frame":
@@ -274,11 +318,11 @@ class PaletteModel(BaseDiffusionModel):
         mask = self.mask
         noise = None
 
-        noise, noise_hat = self.netG_A(y_0, y_cond, mask, noise)
+        noise, noise_hat = self.netG_A(y_0, y_cond, mask, noise, cls=self.cls)
 
         if mask is not None:
-            temp_mask = torch.clamp(mask, min=0.0, max=1.0)
-            loss = self.loss_fn(temp_mask * noise, temp_mask * noise_hat)
+            mask_binary = torch.clamp(mask, min=0, max=1)
+            loss = self.loss_fn(mask_binary * noise, mask_binary * noise_hat)
         else:
             loss = self.loss_fn(noise, noise_hat)
 
@@ -303,13 +347,47 @@ class PaletteModel(BaseDiffusionModel):
             netG = revert_sync_batchnorm(netG)
 
         if True or self.task in ["inpainting", "uncropping"]:
-            self.output, self.visuals = netG.restoration(
-                y_cond=self.cond_image[: self.inference_num],
-                y_t=self.y_t[: self.inference_num],
-                y_0=self.gt_image[: self.inference_num],
-                mask=self.mask[: self.inference_num],
-                sample_num=self.sample_num,
-            )
+
+            if (
+                self.opt.alg_palette_conditioning != ""
+                and self.opt.alg_palette_generate_per_class
+            ):
+                for i in range(self.nb_classes_inference):
+                    cur_class = torch.ones_like(self.cls) * (i + 1)
+                    cur_class_mask = self.mask.clone().clamp(min=0, max=1) * (i + 1)
+
+                    output, visuals = netG.restoration(
+                        y_cond=self.cond_image[: self.inference_num],
+                        y_t=self.y_t[: self.inference_num],
+                        y_0=self.gt_image[: self.inference_num],
+                        mask=cur_class_mask[: self.inference_num],
+                        sample_num=self.sample_num,
+                        cls=cur_class,
+                    )
+
+                    name = "output_" + str(i + 1)
+                    setattr(self, name, output)
+
+                    name = "visuals_" + str(i + 1)
+                    setattr(self, name, visuals)
+
+                self.fake_B = self.output_1
+                self.visuals = self.visuals_1
+
+            else:
+
+                self.output, self.visuals = netG.restoration(
+                    y_cond=self.cond_image[: self.inference_num],
+                    y_t=self.y_t[: self.inference_num],
+                    y_0=self.gt_image[: self.inference_num],
+                    mask=self.mask[: self.inference_num],
+                    sample_num=self.sample_num,
+                    cls=self.cls,
+                )
+
+                self.fake_B = self.output
+                self.visuals = self.visuals
+
         else:
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[: self.inference_num], sample_num=self.sample_num
@@ -326,8 +404,6 @@ class PaletteModel(BaseDiffusionModel):
                     cur_tensor = cur_tensor.squeeze(0)
 
                 setattr(self, cur_name, cur_tensor)
-
-        self.fake_B = self.output
 
         for k in range(min(self.inference_num, self.get_current_batch_size())):
             self.fake_B_pool.query(self.visuals[k : k + 1])
@@ -356,12 +432,19 @@ class PaletteModel(BaseDiffusionModel):
             1, input_nc, self.opt.data_crop_size, self.opt.data_crop_size, device=device
         )
 
-        dummy_mask = torch.randn(
+        dummy_mask = torch.ones(
             1, 1, self.opt.data_crop_size, self.opt.data_crop_size, device=device
         )
 
         dummy_noise = None
 
-        dummy_input = (dummy_y_0, dummy_y_cond, dummy_mask, dummy_noise)
+        dummy_label = torch.amax(dummy_mask, dim=(2, 3))
+
+        if "class" in self.opt.alg_palette_conditioning:
+            dummy_cls = torch.ones(1, device=device, dtype=torch.int64)
+        else:
+            dummy_cls = None
+
+        dummy_input = (dummy_y_0, dummy_y_cond, dummy_mask, dummy_noise, dummy_cls)
 
         return dummy_input

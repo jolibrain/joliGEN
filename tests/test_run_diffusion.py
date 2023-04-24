@@ -7,6 +7,7 @@ sys.path.append(sys.path[0] + "/..")
 import train
 from options.train_options import TrainOptions
 from data import create_dataset
+from itertools import product
 
 json_like_dict = {
     "name": "joligen_utest",
@@ -22,18 +23,19 @@ json_like_dict = {
     "data_relative_paths": True,
     "train_G_ema": True,
     "dataaug_no_rotate": True,
-    "G_unet_mha_inner_channel": 32,
     "G_unet_mha_num_head_channels": 16,
     "G_unet_mha_channel_mults": [1, 2],
     "G_nblocks": 1,
     "G_padding_type": "reflect",
     "data_online_creation_rand_mask_A": True,
+    "f_s_semantic_nclasses": 100,
 }
 
 
 models_diffusion = ["palette"]
 G_netG = ["unet_mha", "uvit"]
 G_efficient = [True, False]
+
 G_unet_mha_norm_layer = [
     "groupnorm",
     "batchnorm",
@@ -41,19 +43,36 @@ G_unet_mha_norm_layer = [
     "instancenorm",
     "switchablenorm",
 ]
-product_list = product(models_diffusion, G_netG, G_efficient, G_unet_mha_norm_layer)
+
+alg_palette_conditioning = [
+    "mask"
+]  # , "class"] class conditioning can't be tested for now because there is no class in the dataset
 
 
-def test_diffusion(dataroot):
+product_list = product(
+    models_diffusion,
+    G_netG,
+    G_unet_mha_norm_layer,
+    alg_palette_conditioning,
+    G_efficient,
+)
+
+
+def test_semantic_mask(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
-    for model, Gtype, G_efficient, G_norm in product_list:
+
+    for model, Gtype, G_norm, alg_palette_conditioning, G_efficient in product_list:
+
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
+
         json_like_dict_c["G_unet_mha_norm_layer"] = G_norm
         json_like_dict_c["G_unet_mha_vit_efficient"] = G_efficient
+
+        json_like_dict_c["alg_palette_conditioning"] = alg_palette_conditioning
 
         opt = TrainOptions().parse_json(json_like_dict_c)
         train.launch_training(opt)

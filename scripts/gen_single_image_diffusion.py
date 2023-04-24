@@ -100,6 +100,7 @@ def generate(
     sampling_method,
     alg_palette_cond_image_creation,
     alg_palette_sketch_canny_thresholds,
+    cls,
     **unused_options,
 ):
     # seed
@@ -123,6 +124,9 @@ def generate(
 
     if alg_palette_cond_image_creation is not None:
         opt.alg_palette_cond_image_creation = alg_palette_cond_image_creation
+
+    conditioning = opt.alg_palette_conditioning
+    print("conditioning=", conditioning)
 
     if len(opt.data_online_creation_mask_delta_A) == 1:
         opt.data_online_creation_mask_delta_A.append(
@@ -156,6 +160,14 @@ def generate(
             for line in bboxf:
                 elts = line.rstrip().split()
                 bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
+                if conditioning:
+                    if args.cls:
+                        cls = args.cls
+                    else:
+                        cls = elts[0]
+                        print("generating with class=", cls)
+                else:
+                    cls = 1
 
         if bbox_ref_id == -1:
             # sample a bbox here since we are calling crop_image multiple times
@@ -229,6 +241,7 @@ def generate(
             crop_coordinates=crop_coordinates,
             crop_center=True,
             bbox_ref_id=bbox_idx,
+            override_class=cls,
         )
 
         x_crop, y_crop, crop_size = crop_coordinates

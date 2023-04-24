@@ -29,6 +29,7 @@ def crop_image(
     bbox_ref_id=-1,
     inverted_mask=False,
     single_bbox=False,
+    override_class=-1,
 ):
 
     margin = context_pixels * 2
@@ -61,7 +62,12 @@ def crop_image(
 
         for line in f:
             if len(line) > 2:  # to make sure the current line is a real bbox
-                if select_cat != -1:
+                if override_class != -1:
+                    bbox = line.split()
+                    bbox[0] = override_class
+                    line = " ".join(bbox)
+
+                elif select_cat != -1:
                     bbox = line.split()
                     cat = int(bbox[0])
                     if cat != select_cat:
@@ -161,6 +167,7 @@ def crop_image(
             mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
 
             if i == idx_bbox_ref:
+                cat_ref = cat
                 x_min_ref = xmin
                 x_max_ref = xmax
                 y_min_ref = ymin
@@ -341,6 +348,7 @@ def crop_image(
 
     # resize ref_bbox to output_dim + margin
     ref_bbox = [
+        cat_ref,
         int(ref_bbox[0] * (output_dim + margin) / crop_size),
         int(ref_bbox[1] * (output_dim + margin) / crop_size),
         int(ref_bbox[2] * (output_dim + margin) / crop_size),
