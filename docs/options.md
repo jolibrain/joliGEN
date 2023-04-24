@@ -179,10 +179,11 @@ Here are all the available options to call with `train.py`
 | --f_s_class_weights | array | [] | class weights for imbalanced semantic classes |
 | --f_s_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file for f_s |
 | --f_s_dropout | flag |  | dropout for the semantic network |
-| --f_s_net | string | vgg | specify f_s network [vgg|unet|segformer]<br/><br/>_**Values:** vgg, unet, segformer_ |
+| --f_s_net | string | vgg | specify f_s network [vgg|unet|segformer|sam]<br/><br/>_**Values:** vgg, unet, segformer, sam_ |
 | --f_s_nf | int | 64 | \# of filters in the first conv layer of classifier |
 | --f_s_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
 | --f_s_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
+| --f_s_weight_sam | string |  | path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth |
 | --f_s_weight_segformer | string |  | path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth |
 
 ## Semantic classification network
