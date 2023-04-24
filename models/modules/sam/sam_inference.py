@@ -201,10 +201,11 @@ class SamPredictorG:
         masks to be predicted with the 'predict' method.
 
         Arguments:
-          image (torch.Tensor): The image already transformed, in [-1,1]
+          image (torch.Tensor): The image already in RGB format
         """
 
         # Transform the image to the form expected by the model
+        # print('image size=', image.size())
         input_image_torch = self.transform.apply_image_torch(image).to(self.device)
 
         self.set_torch_image(input_image_torch, (image.size(dim=2), image.size(dim=3)))
@@ -323,7 +324,7 @@ class SamPredictorG:
         # return masks, iou_predictions, low_res_masks
         if not return_logits:
             masks[0] = masks[0].float()
-        return masks[0]
+        return masks[0], iou_predictions[0], low_res_masks[0]
 
     def predict_torch(
         self,
@@ -451,25 +452,44 @@ def predict_sam(img, sam_predictor, bbox=None):
     # - img in RBG value space
     img = torch.clamp(img, min=-1.0, max=1.0)
     img = (img + 1) / 2.0 * 255.0
+
     # - set image to model
     sam_predictor.set_image(img)
+
     # - generate keypoints/bbox
+    point_coord = []
     if bbox is None:
         prompt_bbox = np.array(
             [0, 0, img.size(dim=2), img.size(dim=3)]
         )  # bbox over the full image
     else:
-        # to XYWH format
-        #print('bbox=', bbox)
-        bbox[2] = bbox[2] - bbox[0]
-        bbox[3] = bbox[3] - bbox[1]
-        prompt_bbox = np.array([bbox[0].item(), bbox[1].item(), bbox[2].item(), bbox[3].item()]) # XXX: bbox is list of tensors...
+        prompt_bbox = np.array(bbox)
+
+        # XXX: using center point doesn't yield better results
+        #      based on current tests, especially on
+        #      non-convex shapes
+        #      Deactivated at code level for now
+        # point_coord = np.array([[int(prompt_bbox[0][0]+(prompt_bbox[0][2]-prompt_bbox[0][0])/2),
+        #                         int(prompt_bbox[0][1]+(prompt_bbox[0][3]-prompt_bbox[0][1])/2)]])
+
+        point_label = np.array([1])
+        point_coord = None
+
     # - get masks as tensors
-    masks = sam_predictor.predict(
-        box=prompt_bbox, multimask_output=False, return_logits=False#True
+    masks, scores, _ = sam_predictor.predict(
+        point_coords=point_coord,
+        point_labels=point_label,
+        box=prompt_bbox,
+        multimask_output=True,
+        return_logits=True,
     )  # in BxCxHxW format, where C is the number of masks
-    # - aggregate masks
-    # XXX: only if multimask_output is True
-    # tmasks = torch.max(masks,dim=1,keepdim=True)
-    # return tmasks[0]
-    return masks
+
+    # - get best mask
+    best_mask = None
+    best_score = 0.0
+    for i, (mask, score) in enumerate(zip(masks, scores)):
+        if best_mask == None or best_score < score:
+            best_mask = mask
+            best_score = score
+
+    return best_mask.unsqueeze(0)

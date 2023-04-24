@@ -90,7 +90,9 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             print(e)
             return None
 
-        A, A_label_mask = self.transform(A_img, A_label_mask)
+        A, A_label_mask, A_ref_bbox = self.transform(
+            A_img, A_label_mask
+        )  # A_ref_bbox is the bounding box over the entire image, not the mask
 
         if torch.any(A_label_mask > self.semantic_nclasses - 1):
             warnings.warn(
@@ -107,7 +109,12 @@ class UnalignedLabeledMaskDataset(BaseDataset):
             A_label_mask[A_label_mask == 0] = 1
             A_label_mask[A_label_mask == 2] = 0
 
-        result = {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask}
+        result = {
+            "A": A,
+            "A_img_paths": A_img_path,
+            "A_label_mask": A_label_mask,
+            "A_ref_bbox": A_ref_bbox,
+        }
 
         # Domain B
         if B_img_path is not None:
@@ -129,7 +136,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                         % (B_label_mask_path, N_img_path)
                     )
 
-                B, B_label_mask = self.transform(B_img, B_label_mask)
+                B, B_label_mask, B_ref_bbox = self.transform(B_img, B_label_mask)
                 if torch.any(B_label_mask > self.semantic_nclasses - 1):
                     warnings.warn(
                         f"A label is above number of semantic classes for img {B_img_path} and label {B_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
@@ -150,6 +157,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 {
                     "B": B,
                     "B_img_paths": B_img_path,
+                    "B_ref_bbox": B_ref_bbox,
                 }
             )
             if B_label_mask_path is not None:

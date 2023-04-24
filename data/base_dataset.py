@@ -7,11 +7,20 @@ import os.path
 import numpy as np
 import torch.utils.data as data
 from PIL import Image
-import torchvision.transforms as transforms
-from abc import ABC, abstractmethod
-import torchvision.transforms.functional as F
+
 import torch
+import torchvision
 from torchvision.transforms import InterpolationMode
+import torchvision.transforms as transforms
+
+if torch.__version__[0] == "2":
+    torchvision.disable_beta_transforms_warning()
+    from torchvision import datapoints
+    from torchvision.transforms.v2 import functional as F2
+
+import torchvision.transforms.functional as F
+
+from abc import ABC, abstractmethod
 import imgaug as ia
 import imgaug.augmenters as iaa
 import os
@@ -407,7 +416,9 @@ def get_transform_seg(
         transform_list.append(RandomHorizontalFlipMask())
 
     if not opt.dataaug_no_rotate:
-        transform_list.append(RandomRotationMask(degrees=0))
+        transform_list.append(
+            RandomRotationMask(degrees=0)
+        )  # XXX: degrees is a required placeholder, unused
 
     if opt.dataaug_affine:
         raff = RandomAffineMask(degrees=0)
@@ -443,10 +454,19 @@ class ComposeMask(transforms.Compose):
         >>> ])
     """
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox=None):
+        if bbox is None:
+            w, h = img.size
+            bbox = np.array([0, 0, w, h])  # sets bbox to full image size
+        if torch.__version__[0] == "2":
+            tbbox = datapoints.BoundingBox(
+                bbox, format=datapoints.BoundingBoxFormat.XYXY, spatial_size=img.size
+            )
+        else:
+            tbbox = bbox  # placeholder
         for t in self.transforms:
-            img, mask = t(img, mask)
-        return img, mask
+            img, mask, tbbox = t(img, mask, tbbox)
+        return img, mask, tbbox
 
 
 class GrayscaleMask(transforms.Grayscale):
@@ -465,7 +485,7 @@ class GrayscaleMask(transforms.Grayscale):
     def __init__(self, num_output_channels=1):
         self.num_output_channels = num_output_channels
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox):
         """
         Args:
             img (PIL Image): Image to be converted to grayscale.
@@ -473,7 +493,11 @@ class GrayscaleMask(transforms.Grayscale):
         Returns:
             PIL Image: Randomly grayscaled image.
         """
-        return F.to_grayscale(img, num_output_channels=self.num_output_channels), mask
+        return (
+            F.to_grayscale(img, num_output_channels=self.num_output_channels),
+            mask,
+            bbox,
+        )
 
     def __repr__(self):
         return self.__class__.__name__ + "(num_output_channels={0})".format(
@@ -494,7 +518,7 @@ class ResizeMask(transforms.Resize):
             ``PIL.Image.BILINEAR``
     """
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox):
         """
         Args:
             img (PIL Image): Image to be scaled.
@@ -502,9 +526,19 @@ class ResizeMask(transforms.Resize):
         Returns:
             PIL Image: Rescaled image.
         """
-        return F.resize(img, self.size, interpolation=self.interpolation), F.resize(
-            mask, self.size, interpolation=InterpolationMode.NEAREST
-        )
+
+        if torch.__version__[0] == "2":
+            return (
+                F.resize(img, self.size, interpolation=self.interpolation),
+                F.resize(mask, self.size, interpolation=InterpolationMode.NEAREST),
+                F2.resize(bbox, self.size),
+            )
+        else:
+            return (
+                F.resize(img, self.size, interpolation=self.interpolation),
+                F.resize(mask, self.size, interpolation=InterpolationMode.NEAREST),
+                [],
+            )
 
 
 class RandomCropMask(transforms.RandomCrop):
@@ -543,7 +577,7 @@ class RandomCropMask(transforms.RandomCrop):
 
     """
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox):
         """
         Args:
             img (PIL Image): Image to be cropped.
@@ -567,7 +601,18 @@ class RandomCropMask(transforms.RandomCrop):
 
         i, j, h, w = self.get_params(img, self.size)
 
-        return F.crop(img, i, j, h, w), F.crop(mask, i, j, h, w)
+        if torch.__version__[0] == "2":
+            return (
+                F.crop(img, i, j, h, w),
+                F.crop(mask, i, j, h, w),
+                F2.crop(bbox, i, j, h, w),
+            )
+        else:
+            return (
+                F.crop(img, i, j, h, w),
+                F.crop(mask, i, j, h, w),
+                [],
+            )
 
 
 class RandomHorizontalFlipMask(transforms.RandomHorizontalFlip):
@@ -577,7 +622,7 @@ class RandomHorizontalFlipMask(transforms.RandomHorizontalFlip):
         p (float): probability of the image being flipped. Default value is 0.5
     """
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox):
         """
         Args:
             img (PIL Image): Image to be flipped.
@@ -586,8 +631,11 @@ class RandomHorizontalFlipMask(transforms.RandomHorizontalFlip):
             PIL Image: Randomly flipped image.
         """
         if random.random() < self.p:
-            return F.hflip(img), F.hflip(mask)
-        return img, mask
+            if torch.__version__[0] == "2":
+                return F.hflip(img), F.hflip(mask), F2.hflip(bbox)
+            else:
+                return F.hflip(img), F.hflip(mask), []
+        return img, mask, bbox
 
 
 class ToTensorMask(transforms.ToTensor):
@@ -601,7 +649,7 @@ class ToTensorMask(transforms.ToTensor):
     In the other cases, tensors are returned without scaling.
     """
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox):
         """
         Args:
             pic (PIL Image or numpy.ndarray): Image to be converted to tensor.
@@ -609,9 +657,14 @@ class ToTensorMask(transforms.ToTensor):
         Returns:
             Tensor: Converted image.
         """
+        if torch.__version__[0] == "2":
+            bbdata = bbox.data
+        else:
+            bbdata = bbox
         return (
             F.to_tensor(img),
             torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0),
+            bbdata,
         )
 
 
@@ -650,7 +703,7 @@ class RandomRotationMask(transforms.RandomRotation):
 
         return angle
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox):
         """
         Args:
             img (PIL Image): Image to be rotated.
@@ -660,7 +713,18 @@ class RandomRotationMask(transforms.RandomRotation):
         """
         angle = random.choice([0, 90, 180, 270])
 
-        return F.rotate(img, angle), F.rotate(mask, angle, fill=(0,))
+        if torch.__version__[0] == "2":
+            return (
+                F.rotate(img, angle),
+                F.rotate(mask, angle, fill=(0,)),
+                F2.rotate(bbox, angle),
+            )
+        else:
+            return (
+                F.rotate(img, angle),
+                F.rotate(mask, angle, fill=(0,)),
+                [],
+            )
 
 
 class NormalizeMask(transforms.Normalize):
@@ -679,7 +743,7 @@ class NormalizeMask(transforms.Normalize):
 
     """
 
-    def __call__(self, tensor_img, tensor_mask):
+    def __call__(self, tensor_img, tensor_mask, tensor_bbox):
         """
         Args:
             tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
@@ -687,7 +751,11 @@ class NormalizeMask(transforms.Normalize):
         Returns:
             Tensor: Normalized Tensor image.
         """
-        return F.normalize(tensor_img, self.mean, self.std, self.inplace), tensor_mask
+        return (
+            F.normalize(tensor_img, self.mean, self.std, self.inplace),
+            tensor_mask,
+            tensor_bbox,
+        )
 
     def __repr__(self):
         return self.__class__.__name__ + "(mean={0}, std={1})".format(
@@ -705,7 +773,7 @@ class RandomAffineMask(transforms.RandomAffine):
         self.scale_max = scale_max
         self.shear = shear
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox):
 
         if random.random() > 1.0 - self.p:
             affine_params = self.get_params(
@@ -715,9 +783,20 @@ class RandomAffineMask(transforms.RandomAffine):
                 (-self.shear, self.shear),
                 img.size,
             )
-            return F.affine(img, *affine_params), F.affine(mask, *affine_params)
+            if torch.__version__[0] == "2":
+                return (
+                    F.affine(img, *affine_params),
+                    F.affine(mask, *affine_params),
+                    F2.affine(bbox, *affine_params),
+                )
+            else:
+                return (
+                    F.affine(img, *affine_params),
+                    F.affine(mask, *affine_params),
+                    [],
+                )
         else:
-            return img, mask
+            return img, mask, bbox
 
 
 def sometimes(aug):
@@ -801,11 +880,11 @@ class RandomImgAug:
             random_order=True,
         )
 
-    def __call__(self, img, mask):
+    def __call__(self, img, mask, bbox):
         tarr = self.seq(image=np.array(img))
         nimg = Image.fromarray(tarr)
         if self.with_mask:
-            return nimg, mask
+            return nimg, mask, bbox
         else:
             return nimg
 

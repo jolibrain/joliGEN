@@ -456,6 +456,9 @@ class BaseModel(ABC):
 
         self.image_paths = data["A_img_paths"]
 
+        self.input_A_ref_bbox = None
+        self.input_B_ref_bbox = None
+
         if self.opt.train_semantic_mask:
             self.set_input_semantic_mask(data)
         if self.opt.train_semantic_cls:
@@ -464,6 +467,7 @@ class BaseModel(ABC):
     def set_input_semantic_mask(self, data):
         if "A_label_mask" in data:
             self.input_A_label_mask = data["A_label_mask"].to(self.device).squeeze(1)
+            self.input_A_ref_bbox = data["A_ref_bbox"]
 
             if self.opt.data_online_context_pixels > 0:
                 self.input_A_label_mask = self.input_A_label_mask[
@@ -474,6 +478,7 @@ class BaseModel(ABC):
 
         if "B_label_mask" in data:
             self.input_B_label_mask = data["B_label_mask"].to(self.device).squeeze(1)
+            self.input_B_ref_bbox = data.get("B_ref_bbox", None)
 
             if self.opt.data_online_context_pixels > 0:
                 self.input_B_label_mask = self.input_B_label_mask[
@@ -1200,8 +1205,11 @@ class BaseModel(ABC):
         d = 1
 
         if self.opt.f_s_net == "sam":
-            self.pred_f_s_real_A = predict_sam(self.real_A, self.f_s_mg)
+            self.pred_f_s_real_A = predict_sam(
+                self.real_A, self.f_s_mg, self.input_A_ref_bbox
+            )
             self.input_A_label_mask = self.pred_f_s_real_A
+            # self.input_A_label_mask = self.input_A_label_mask.float()
             self.gt_pred_f_s_real_A_max = (
                 self.input_A_label_mask > 0.0
             ).float()  # Note: this is different than clamping
@@ -1221,7 +1229,9 @@ class BaseModel(ABC):
             f_s = self.netf_s
 
         if self.opt.f_s_net == "sam":
-            self.pred_f_s_real_B = predict_sam(self.real_B, self.f_s_mg)
+            self.pred_f_s_real_B = predict_sam(
+                self.real_B, self.f_s_mg, self.input_B_ref_bbox
+            )
             self.input_B_label_mask = self.pred_f_s_real_B
             self.gt_pred_f_s_real_B_max = (self.input_B_label_mask > 0.0).float()
         else:
@@ -1230,7 +1240,9 @@ class BaseModel(ABC):
             self.gt_pred_f_s_real_B_max = self.gt_pred_f_s_real_B.argmax(dim=d)
 
         if self.opt.f_s_net == "sam":
-            self.pred_f_s_fake_B = predict_sam(self.fake_B, self.f_s_mg).to(self.device)
+            self.pred_f_s_fake_B = predict_sam(
+                self.fake_B, self.f_s_mg, self.input_A_ref_bbox
+            )
             self.pfB_max = (self.pred_f_s_fake_B > 0.0).float()
         else:
             self.pred_f_s_fake_B = f_s(self.fake_B)
@@ -1245,7 +1257,9 @@ class BaseModel(ABC):
 
         if self.opt.train_sem_idt:
             if self.opt.f_s_net == "sam":
-                self.pred_f_s_idt_B = predict_sam(self.idt_B, self.f_s_mg)
+                self.pred_f_s_idt_B = predict_sam(
+                    self.idt_B, self.f_s_mg, self.input_B_ref_bbox
+                )
                 self.pfB_idt_max = (self.pred_f_s_idt_B > 0.0).float()
             else:
                 self.pred_f_s_idt_B = f_s(self.idt_B)

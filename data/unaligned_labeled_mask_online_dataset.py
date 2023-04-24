@@ -279,7 +279,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             print(e, "domain A data loading for ", A_img_path)
             return None
 
-        A, A_label_mask = self.transform(A_img, A_label_mask)
+        A, A_label_mask, A_ref_bbox = self.transform(A_img, A_label_mask, A_ref_bbox)
 
         if torch.any(A_label_mask > self.semantic_nclasses - 1):
             warnings.warn(
@@ -290,7 +290,12 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         if self.opt.f_s_all_classes_as_one:
             A_label_mask = (A_label_mask >= 1) * 1
 
-        result = {"A": A, "A_img_paths": A_img_path, "A_label_mask": A_label_mask, "A_ref_bbox": A_ref_bbox}
+        result = {
+            "A": A,
+            "A_img_paths": A_img_path,
+            "A_label_mask": A_label_mask,
+            "A_ref_bbox": A_ref_bbox,
+        }
 
         # Domain B
         if B_img_path is not None:
@@ -311,7 +316,9 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         inverted_mask=self.opt.data_inverted_mask,
                         single_bbox=self.opt.data_online_single_bbox,
                     )
-                    B, B_label_mask = self.transform(B_img, B_label_mask)
+                    B, B_label_mask, B_ref_bbox = self.transform(
+                        B_img, B_label_mask, B_ref_bbox
+                    )
 
                     if torch.any(B_label_mask > self.semantic_nclasses - 1):
                         warnings.warn(
