@@ -2,10 +2,12 @@
 from __future__ import print_function
 
 import os
+import sys
 
 import numpy as np
 import requests
 import torch
+import torchvision.transforms as transforms
 from PIL import Image
 
 
@@ -179,6 +181,20 @@ def tensor2im(input_image, imtype=np.uint8):
     else:  # if it is a numpy array, do nothing
         image_numpy = input_image
     return image_numpy.astype(imtype)
+
+
+def im2tensor(input_image, imtype=torch.float32):
+    """
+    Convert np.ndarray to tensor
+    """
+    to_tensor = transforms.ToTensor()
+    normalizer = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    if not isinstance(input_image, torch.Tensor):
+        image_tensor = to_tensor(input_image)
+        image_tensor = normalizer(image_tensor)
+    else:
+        image_tensor = input_image
+    return image_tensor.to(imtype)
 
 
 def load_file_from_url(url, directory):
