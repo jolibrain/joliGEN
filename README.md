@@ -409,3 +409,5 @@ pre-commit install
 **JoliGEN** is created and maintained by [Jolibrain](https://www.jolibrain.com/).
 
 Code is making use of [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix), [CUT](https://github.com/taesungp/contrastive-unpaired-translation), [AttentionGAN](https://github.com/Ha0Tang/AttentionGAN), [MoNCE](https://github.com/fnzhan/MoNCE) among others.
+
+Some elements from JoliGEN are supported by the French National AI program ["Confiance.AI"](https://www.confiance.ai/en/)
