@@ -13,6 +13,7 @@ import torch
 from torchvision import transforms
 from torchvision.utils import save_image
 from tqdm import tqdm
+import tempfile
 
 sys.path.append("../")
 from diffusion_options import DiffusionOptions
@@ -43,6 +44,12 @@ def load_model(modelpath, model_in_file, device, sampling_steps, sampling_method
             f"G_nblocks default value {opt.G_nblocks} is too high for palette model, 2 will be used instead."
         )
         opt.G_nblocks = 2
+
+    if opt.data_online_creation_mask_random_offset_A != [0.0]:
+        warnings.warn(
+            f"disabling data_online_creation_mask_random_offset_A in inference mode"
+        )
+        opt.data_online_creation_mask_random_offset_A = [0.0]
 
     model = diffusion_networks.define_G(**vars(opt))
     model.eval()
@@ -76,6 +83,7 @@ def generate(
     img_in,
     mask_in,
     bbox_in,
+    cond_in,
     bbox_width_factor,
     bbox_height_factor,
     bbox_ref_id,
@@ -90,6 +98,8 @@ def generate(
     mask_delta,
     mask_square,
     sampling_method,
+    alg_palette_cond_image_creation,
+    alg_palette_sketch_canny_thresholds,
     **unused_options,
 ):
     # seed
@@ -110,6 +120,9 @@ def generate(
         sampling_steps,
         sampling_method,
     )
+
+    if alg_palette_cond_image_creation is not None:
+        opt.alg_palette_cond_image_creation = alg_palette_cond_image_creation
 
     if len(opt.data_online_creation_mask_delta_A) == 1:
         opt.data_online_creation_mask_delta_A.append(
@@ -173,6 +186,18 @@ def generate(
             bbox_select[3] = min(img.shape[0], bbox_select[3])
         else:
             bbox = bboxes[bbox_idx]
+
+        # insert cond image into original image
+        if cond_in:
+            x0, y0, x1, y1 = bbox
+            w = x1 - x0
+            h = y1 - y0
+            cond = cv2.imread(cond_in)
+            cond = cv2.resize(cond, (w, h), interpolation=cv2.INTER_CUBIC)
+            orig = img_orig.copy()
+            orig[y0:y1, x0:x1] = cond
+            img_in = tempfile.NamedTemporaryFile(suffix=".png").name
+            cv2.imwrite(img_in, orig)
 
         crop_coordinates = crop_image(
             img_path=img_in,
@@ -299,7 +324,14 @@ def generate(
     elif opt.alg_palette_cond_image_creation == "sketch":
         cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "canny":
-        cond_image = fill_img_with_canny(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+        cond_image = fill_img_with_canny(
+            img_tensor.unsqueeze(0),
+            mask.unsqueeze(0),
+            low_threshold=alg_palette_sketch_canny_thresholds[0],
+            high_threshold=alg_palette_sketch_canny_thresholds[1],
+            low_threshold_random=-1,
+            high_threshold_random=-1,
+        )
     elif opt.alg_palette_cond_image_creation == "hed":
         cond_image = fill_img_with_hed(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "hough":
@@ -379,6 +411,28 @@ if __name__ == "__main__":
     )
     options.parser.add_argument(
         "--bbox_ref_id", help="bbox id to use", type=int, default=-1
+    )
+    options.parser.add_argument("--cond-in", help="conditionning image to use")
+    options.parser.add_argument(
+        "--alg_palette_cond_image_creation",
+        type=str,
+        choices=[
+            "y_t",
+            "previous_frame",
+            "sketch",
+            "canny",
+            "depth",
+            "hed",
+            "hough",
+        ],
+        help="how cond_image is created",
+    )
+    options.parser.add_argument(
+        "--alg_palette_sketch_canny_thresholds",
+        type=int,
+        nargs="+",
+        default=[0, 255 * 3],
+        help="Canny thresholds",
     )
 
     args = options.parse()
