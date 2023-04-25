@@ -1,14 +1,22 @@
+import os
+import random
 import sys
-import torch
-from torch import nn
-from torch.nn import functional as F
+from typing import Any, Dict, List, Optional, Tuple
+
+import cv2
 import numpy as np
-from segment_anything.utils.transforms import ResizeLongestSide
+import scipy
+import torch
+from numpy.random import PCG64, Generator
+from segment_anything import SamAutomaticMaskGenerator, SamPredictor, sam_model_registry
 from segment_anything.modeling.image_encoder import ImageEncoderViT
 from segment_anything.modeling.mask_decoder import MaskDecoder
 from segment_anything.modeling.prompt_encoder import PromptEncoder
-from segment_anything import sam_model_registry
-from typing import Optional, Tuple, Any, Dict, List
+from segment_anything.utils.transforms import ResizeLongestSide
+from torch import nn
+from torch.nn import functional as F
+
+from util.util import tensor2im
 
 
 class Sam(nn.Module):
@@ -493,3 +501,385 @@ def predict_sam(img, sam_predictor, bbox=None):
             best_score = score
 
     return best_mask.unsqueeze(0)
+
+
+def show_mask(mask, cat):
+    # convert true/false mask to cat/0 array
+    cat_mask = np.zeros_like(mask)
+    cat_mask[mask] = cat
+    return cat_mask.astype(np.uint8)
+
+
+def predict_sam_mask(img, bbox, predictor, cat=1):
+    """
+    Generate mask from bounding box
+    :param img: image tensor(Size[3, H, W])
+    :param bbox: bounding box np.array([x1, y1, x2, y2])
+    :return: mask
+    """
+
+    if img.shape[0] <= 4:
+        cv_img = tensor2im(img.unsqueeze(0))
+    else:
+        cv_img = img
+    predictor.set_image(cv_img)
+
+    masks, scores, _ = predictor.predict(
+        point_coords=None,
+        point_labels=None,
+        box=bbox[None, :],
+        multimask_output=True,
+    )  # outputs a boolean mask (True/False)
+    mask = show_mask(masks[np.argmax(scores)], cat)
+
+    return mask
+
+
+def iou(mask1, mask2):
+    intersection = np.logical_and(mask1, mask2)
+    union = np.logical_or(mask1, mask2)
+    iou_score = np.sum(intersection) / np.sum(union)
+    return iou_score
+
+
+def non_max_suppression(masks, threshold):
+    selected_indices = []
+    for i in range(len(masks)):
+        mask_i = masks[i]
+        overlap = False
+        for j in selected_indices:
+            mask_j = masks[j]
+            if iou(mask_i, mask_j) > threshold:
+                overlap = True
+                break
+        if not overlap:
+            selected_indices.append(i)
+    selected_masks = [masks[i] for i in selected_indices]
+    return selected_masks
+
+
+def random_sample_in_circle(n, img_size=128):
+    random_generator = Generator(PCG64())
+    uniform = random_generator.uniform
+    A = []
+    x0 = img_size / 2
+    y0 = img_size / 2
+    radius = img_size / 2
+    for _ in range(n):
+        x = int(uniform(0, img_size + 1))
+        y = int(uniform(0, img_size + 1))
+        while (x - x0) ** 2 + (y - y0) ** 2 > radius**2:
+            x = int(uniform(0, img_size + 1))
+            y = int(uniform(0, img_size + 1))
+        A.append((x, y))
+    return A
+
+
+def random_sample_in_ellipse(n, width, height):
+    random_generator = Generator(PCG64())
+    uniform = random_generator.uniform
+    A = []
+    x0 = width // 2
+    y0 = height // 2
+    if x0 == 0:
+        x0 = 10e-4
+    if y0 == 0:
+        y0 = 10e-4
+    theta = np.pi / 4
+    for _ in range(n):
+        x = int(uniform(0, width))
+        y = int(uniform(0, height))
+        while ((x - x0) ** 2) / (x0**2) * np.sin(2 * theta) ** 2 + ((y - y0) ** 2) / (
+            y0**2
+        ) * np.sin(2 * theta) ** 2 + (2 * np.cos(2 * theta) * (x - x0) * (y - y0)) / (
+            x0 * y0 * np.sin(2 * theta) ** 2
+        ) > 1:
+            x = int(uniform(0, width))
+            y = int(uniform(0, height))
+        A.append([x, y])
+    return A
+
+
+def prepare_image(image, transform, device):
+    image = transform.apply_image(image)
+    image = torch.as_tensor(image, device=device.device)
+    return image.permute(2, 0, 1).contiguous()
+
+
+def predict_sam_edges(
+    image,
+    sam,
+    use_gaussian_filter=False,
+    use_sobel_filter=False,
+    output_binary_sam=False,
+    redundancy_threshold=0.88,
+    sobel_threshold=0.0,
+    gaussian_sigma=3.0,
+    final_canny=True,
+    canny_threshold1=50,
+    canny_threshold2=300,
+    min_mask_area=0.001,
+    max_mask_area=0.99,
+    points_per_side=16,
+    sample_points_in_ellipse=True,
+):
+    """
+    Performs edge detection based on SAM predicted masks.
+
+    Arguments:
+        image ([np.ndarray]): Batch of image to calculate masks from. Expects
+            images in HWC uint8 format, with pixel values in [0, 255].
+        sam (Sam): The model to use for mask prediction.
+        use_gaussian_filter (bool): Whether to smooth each mask with gaussian blur
+            before computing its edges.
+        use_sobel_filter (bool): Whether to use a sobel filter on each mask.
+        output_binary_sam (bool): Whether to output the sketchified version of the
+            image as a binary image or with the original image colors (before Canny).
+        redundancy_threshold (float): Threshold for Non-Maximum Suppression.
+            A mask sharing redundancy_threshold * 100 % or more of its area with
+            another one is not kept.
+        sobel_threshold (float): Threshold for the % of gradient magintude to kept
+            after Sobel filter.
+        gaussian_sigma (float): Standard deviation used to perform Gaussian blur.
+        final_canny (bool): Whether to perform a Canny edge detection on
+            sam output to soften the edges.
+        canny_threshold1 (int): Canny minimum threshold.
+        canny_threshold2 (int): Canny maximum threshold.
+        min_mask_area (float): Minimum area for a mask to be used, in proportion of the
+            image.
+        max_mask_area (float): Maximum area for a mask to be used, in proportion of the
+            image.
+        points_per_side (int): Number of points to use for creating the grid of points
+            we prompt Sam (points_per_side * points_per_side points will be prompted).
+        sample_points_in_ellipse (bool): Whether to sample the prompted points in an
+            ellipse to avoid points in the image corner.
+
+    Returns:
+        (np.ndarray): The sketchified (binary) version of the input image in HxW format,
+            where (H, W) is the original image size.
+    """
+
+    resize_transform = ResizeLongestSide(sam.image_encoder.img_size)
+    batched_input = []
+    for k in range(len(image)):
+        if sample_points_in_ellipse:
+            points = random_sample_in_ellipse(
+                points_per_side * points_per_side,
+                image[k].shape[1],
+                image[k].shape[0],
+            )
+        else:
+            points = [
+                [
+                    i * image[k].shape[0] // points_per_side,
+                    j * image[k].shape[1] // points_per_side,
+                ]
+                for i in range(points_per_side)
+                for j in range(points_per_side)
+            ]
+        image_points = torch.tensor([[point] for point in points], device=sam.device)
+
+        batched_input.append(
+            {
+                "image": prepare_image(image[k], resize_transform, sam),
+                "point_coords": resize_transform.apply_coords_torch(
+                    image_points, image[k].shape[:2]
+                ),
+                "original_size": image[k].shape[:2],
+                "point_labels": torch.ones((points_per_side * points_per_side, 1)),
+            }
+        )
+
+    batched_output = []
+    with torch.no_grad():
+        for batch in batched_input:
+            batched_output.append(sam([batch], multimask_output=True)[0])
+
+    for k in range(len(image)):
+        flat_masks = []
+        flat_scores = []
+        for mask_out in batched_output[k]["masks"]:
+            for mask in mask_out:
+                flat_masks.append(mask.cpu().numpy())
+        for score_out in batched_output[k]["iou_predictions"]:
+            for score in score_out:
+                flat_scores.append(score.cpu().numpy())
+
+        flat_masks = np.array(flat_masks)
+        flat_scores = np.array(flat_scores)
+        sorted_indices = np.argsort(flat_scores)[::-1]
+        sorted_masks = flat_masks[sorted_indices]
+        sorted_scores = flat_scores[sorted_indices]
+        batched_output[k]["sorted_masks"] = sorted_masks
+        batched_output[k]["sorted_scores"] = sorted_scores
+
+    for k in range(len(image)):
+        non_redundant_masks = non_max_suppression(
+            batched_output[k]["sorted_masks"], redundancy_threshold
+        )
+        non_redundant_masks = np.array(non_redundant_masks)
+        batched_output[k]["non_redundant_masks"] = non_redundant_masks
+
+    batched_edges = []
+    for k in range(len(image)):
+        pass
+        masked_imgs = []
+        for mask in batched_output[k]["non_redundant_masks"]:
+            assert (
+                mask.shape == image[k].shape[:2]
+            ), "mask should be the same size of image"
+            prob_map = mask.astype(np.float32)
+
+            if use_gaussian_filter:
+                # Apply Gaussian filter to probability map
+                sigma = gaussian_sigma  # adjust sigma to control amount of smoothing
+                prob_map = scipy.ndimage.gaussian_filter(prob_map, sigma=sigma)
+            if use_sobel_filter:
+                # Apply Sobel filter to probability map
+                sobel_x = cv2.Sobel(prob_map, cv2.CV_32F, 1, 0, ksize=3)
+                sobel_y = cv2.Sobel(prob_map, cv2.CV_32F, 0, 1, ksize=3)
+
+                # Compute gradient magnitude
+                grad_mag = np.sqrt(sobel_x**2 + sobel_y**2)
+
+                # set threshold at x% of max gradient magnitude
+                threshold = sobel_threshold * np.max(grad_mag)
+
+                edge_map = (grad_mag > threshold).astype(np.uint8)
+            else:
+                edge_map = (prob_map * 255).astype(np.uint8)
+            # Find contours of mask
+            contours, _ = cv2.findContours(
+                mask.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if len(contours) > 0:
+                # Find outermost contour using convex hull
+                hull = cv2.convexHull(contours[0])
+
+                # Create binary mask of outer boundary pixels
+                boundary_mask = np.zeros_like(mask, dtype=np.uint8)
+                cv2.drawContours(boundary_mask, [hull], -1, 255, -1)
+
+                # Set values outside boundary to zero
+                edge_map[~np.logical_and(edge_map, boundary_mask)] = 0
+
+                # Threshold edge map to create binary mask
+                threshold = 0.01
+                _, binary_map = cv2.threshold(
+                    edge_map, threshold, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+                )
+                binary_map = binary_map.astype(np.uint8)
+
+                if output_binary_sam:
+                    masked_img = cv2.cvtColor(binary_map, cv2.COLOR_GRAY2RGB)
+                else:
+                    # Apply binary mask to original input image
+                    masked_img = cv2.bitwise_and(image[k], image[k], mask=binary_map)
+                if len(masked_img[masked_img > 0]) > 0:
+                    # take masks for which area is greater than min_mask_area % of the image and less than max_mask_area % of the image
+                    if (
+                        len(masked_img[masked_img > 0])
+                        >= min_mask_area * masked_img.shape[0] * masked_img.shape[1]
+                        and len(masked_img[masked_img > 0])
+                        <= max_mask_area * masked_img.shape[0] * masked_img.shape[1]
+                    ):
+                        masked_imgs.append(masked_img)
+
+        if len(masked_imgs) > 0:
+            masked_imgs = np.array(masked_imgs)
+            # Take pixel-wise max over all masked images
+            final_pred = np.max(masked_imgs, axis=0)
+            # Linearly normalize final prediction to range [0, 1]
+            normalized_pred = (final_pred - np.min(final_pred)) / (
+                np.max(final_pred) - np.min(final_pred)
+            )
+            normalized_pred = (normalized_pred * 255).astype(np.uint8)
+
+            # Apply edge nms (=Canny) to thicken edges
+            threshold1 = min(canny_threshold1, canny_threshold2)
+            threshold2 = max(canny_threshold1, canny_threshold2)
+            if final_canny:
+                edges = cv2.Canny(normalized_pred, threshold1, threshold2)
+
+                batched_edges.append(edges)
+            else:
+                batched_edges.append(cv2.cvtColor(normalized_pred, cv2.COLOR_BGR2GRAY))
+        else:
+            batched_edges.append(np.zeros_like(image[k][:, :, 0]))
+    return batched_edges
+
+
+def compute_mask_with_sam(img, rect_mask, sam_model, device, batched=True):
+    # get bbox and cat from rect_mask
+
+    if not batched:
+        indices = torch.nonzero(rect_mask.squeeze(0))
+        if indices.numel() != 0:
+            masks_exist = True
+            x_min = indices[:, 1].min()
+            y_min = indices[:, 0].min()
+            x_max = indices[:, 1].max()
+            y_max = indices[:, 0].max()
+            box = torch.tensor([x_min, y_min, x_max, y_max])
+            category = int(torch.unique(rect_mask).max())
+        else:
+            masks_exist = False
+            box = torch.tensor([0, 0, 0, 0])
+            category = 0
+
+        box = box.to(device)
+
+        if masks_exist:
+            mask = predict_sam_mask(
+                img=img,
+                bbox=np.array(box.cpu()),
+                predictor=SamPredictor(sam_model),
+                cat=category,
+            )
+            sam_masks = torch.from_numpy(mask).to(device)
+        else:
+            sam_masks = rect_mask
+        return sam_masks
+    else:
+        boxes = torch.zeros((rect_mask.shape[0], 4))
+        categories = []
+        masks_exist = []
+
+        for i in range(rect_mask.shape[0]):
+            mask = rect_mask[i].squeeze()
+            indices = torch.nonzero(mask)
+            if indices.numel() != 0:
+                masks_exist.append(True)
+                x_min = int(indices[:, 1].min())
+                y_min = int(indices[:, 0].min())
+                x_max = int(indices[:, 1].max())
+                y_max = int(indices[:, 0].max())
+                boxes[i] = torch.tensor([x_min, y_min, x_max, y_max])
+                categories.append(int(torch.unique(mask).max()))
+            else:
+                masks_exist.append(False)
+                boxes[i] = torch.tensor([0, 0, 0, 0])
+                categories.append(0)
+
+        boxes = boxes.to(device)
+        sam_masks = torch.zeros_like(rect_mask)
+        predictor = SamPredictor(sam_model)
+        for i in range(rect_mask.shape[0]):
+            if masks_exist[i]:
+                mask = predict_sam_mask(
+                    img=img[i],
+                    bbox=np.array([int(coord) for coord in boxes[i].cpu()]),
+                    predictor=predictor,
+                    cat=categories[i],
+                )
+                """
+                xmin, ymin, xmax, ymax = boxes[i].cpu()
+                mask[: int(ymin), :] = 0
+                mask[int(ymax) :, :] = 0
+                mask[:, : int(xmin)] = 0
+                mask[:, int(xmax) :] = 0
+                """
+                sam_masks[i] = torch.from_numpy(mask).unsqueeze(0)
+            else:
+                sam_masks[i] = rect_mask[i]
+        return sam_masks

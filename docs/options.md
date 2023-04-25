@@ -73,7 +73,6 @@ Here are all the available options to call with `train.py`
 
 ## Algorithm-specific
 
-
 ### GAN model
 
 | Parameter | Type | Default | Description |
@@ -170,7 +169,7 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_load_size_A | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_mask_delta_A | array | [0] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square |
-| --data_online_creation_mask_delta_B | array | [0] | mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square |
+| --data_online_creation_mask_delta_B | array | [0] | mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_random_offset_A | array | [0.0] | ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square |
 | --data_online_creation_mask_random_offset_B | array | [0.0] | mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
@@ -221,7 +220,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --output_display_G_attention_masks | flag |  |  |
 | --output_display_aim_port | int | 53800 | aim port of the web display |
-| --output_display_aim_server | string | http://localhost | aim server of the web display |
+| --output_display_aim_server | string | <http://localhost> | aim server of the web display |
 | --output_display_diff_fake_real | flag |  | if True x - G(x) is displayed |
 | --output_display_env | string |  | visdom display environment name (default is "main") |
 | --output_display_freq | int | 400 | frequency of showing training results on screen |
@@ -230,7 +229,7 @@ Here are all the available options to call with `train.py`
 | --output_display_networks | flag |  | Set True if you want to display networks on port 8000 |
 | --output_display_type | array | ['visdom'] | output display, either visdom or aim<br/><br/>_**Values:** visdom, aim_ |
 | --output_display_visdom_port | int | 8097 | visdom port of the web display |
-| --output_display_visdom_server | string | http://localhost | visdom server of the web display |
+| --output_display_visdom_server | string | <http://localhost> | visdom server of the web display |
 | --output_display_winsize | int | 256 | display window size for both visdom and HTML |
 
 ## Model
@@ -340,4 +339,3 @@ Here are all the available options to call with `train.py`
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
 | --dataaug_no_flip | flag |  | if specified, do not flip the images for data augmentation |
 | --dataaug_no_rotate | flag |  | if specified, do not rotate the images for data augmentation |
-

@@ -1,27 +1,24 @@
-import os
 import copy
-import torch
-from collections import OrderedDict
+import os
 from abc import abstractmethod
-from .modules.utils import get_scheduler
-from torchviz import make_dot
-from .base_model import BaseModel
-
-from util.network_group import NetworkGroup
+from collections import OrderedDict
 
 # for FID
-from util.util import save_image, tensor2im
-import numpy as np
-from util.diff_aug import DiffAugment
-
-
 from inspect import isfunction
 
-
+import numpy as np
+import torch
 import torch.nn.functional as F
-
-
+from segment_anything import SamPredictor
+from torchviz import make_dot
 from tqdm import tqdm
+
+from util.diff_aug import DiffAugment
+from util.util import save_image, tensor2im
+
+from .base_model import BaseModel
+from .modules.sam.sam_inference import load_sam_weight, predict_sam_mask
+from .modules.utils import download_sam_weight
 
 
 class BaseDiffusionModel(BaseModel):
@@ -69,15 +66,27 @@ class BaseDiffusionModel(BaseModel):
         self.loss_functions_G = ["compute_G_loss_diffusion"]
         self.forward_functions = ["forward_diffusion"]
 
-    def init_semantic_cls(self, opt):
+        if opt.data_refined_mask:
+            self.use_sam_mask = True
+        else:
+            self.use_sam_mask = False
+        if "sam" in opt.alg_palette_computed_sketch_list:
+            self.use_sam_edge = True
+        else:
+            self.use_sam_edge = False
+        if opt.data_refined_mask or "sam" in opt.alg_palette_computed_sketch_list:
+            if not os.path.exists(opt.f_s_weight_sam):
+                download_sam_weight(path=opt.f_s_weight_sam)
+            self.freezenet_sam, _ = load_sam_weight(model_path=opt.f_s_weight_sam)
+            self.freezenet_sam = self.freezenet_sam.to(self.device)
 
+    def init_semantic_cls(self, opt):
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
         super().init_semantic_cls(opt)
 
     def init_semantic_mask(self, opt):
-
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
@@ -100,7 +109,6 @@ class BaseDiffusionModel(BaseModel):
                 setattr(self, "image_" + str(i), cur_image)
 
         if self.opt.data_online_context_pixels > 0:
-
             bs = self.get_current_batch_size()
             self.mask_context = torch.ones(
                 [
