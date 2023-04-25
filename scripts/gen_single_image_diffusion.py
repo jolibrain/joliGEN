@@ -5,30 +5,37 @@ import os
 import random
 import re
 import sys
+import tempfile
 import warnings
 
 import cv2
 import numpy as np
 import torch
+import torchvision.transforms as T
 from torchvision import transforms
 from torchvision.utils import save_image
-import torchvision.transforms as T
-
 from tqdm import tqdm
-import tempfile
 
 sys.path.append("../")
 from diffusion_options import DiffusionOptions
+from segment_anything import SamPredictor
 
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
 from models import diffusion_networks
 from models.modules.diffusion_utils import set_new_noise_schedule
+from models.modules.sam.sam_inference import (
+    compute_mask_with_sam,
+    load_sam_weight,
+    predict_sam_mask,
+)
+from models.modules.utils import download_sam_weight
 from options.train_options import TrainOptions
 from util.mask_generation import (
     fill_img_with_canny,
     fill_img_with_depth,
     fill_img_with_hed,
     fill_img_with_hough,
+    fill_img_with_sam,
     fill_img_with_sketch,
 )
 
@@ -104,6 +111,7 @@ def generate(
     alg_palette_sketch_canny_thresholds,
     cls,
     alg_palette_super_resolution_downsample,
+    data_refined_mask,
     **unused_options,
 ):
     # seed
@@ -312,6 +320,16 @@ def generate(
             mask = mask.to(device).clone().detach()
 
     if mask is not None:
+        if data_refined_mask:
+            opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
+            if not os.path.exists(opt.f_s_weight_sam):
+                download_sam_weight(path=opt.f_s_weight_sam)
+            sam_model, _ = load_sam_weight(model_path=opt.f_s_weight_sam)
+            sam_model = sam_model.to(device)
+            mask = compute_mask_with_sam(
+                img_tensor, mask, sam_model, device, batched=False
+            ).unsqueeze(0)
+
         if opt.data_online_creation_rand_mask_A:
             y_t = fill_mask_with_random(
                 img_tensor.clone().detach(), mask.clone().detach(), -1
@@ -354,6 +372,15 @@ def generate(
             high_threshold=alg_palette_sketch_canny_thresholds[1],
             low_threshold_random=-1,
             high_threshold_random=-1,
+        )
+    elif opt.alg_palette_cond_image_creation == "sam":
+        opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
+        if not os.path.exists(opt.f_s_weight_sam):
+            download_sam_weight(opt.f_s_weight_sam)
+        sam, _ = load_sam_weight(opt.f_s_weight_sam)
+        sam = sam.to(device)
+        cond_image = fill_img_with_sam(
+            img_tensor.unsqueeze(0), mask.unsqueeze(0), sam, opt
         )
     elif opt.alg_palette_cond_image_creation == "hed":
         cond_image = fill_img_with_hed(img_tensor.unsqueeze(0), mask.unsqueeze(0))
@@ -471,6 +498,7 @@ if __name__ == "__main__":
             "hed",
             "hough",
             "low_res",
+            "sam",
         ],
         help="how cond_image is created",
     )
@@ -485,6 +513,96 @@ if __name__ == "__main__":
         "--alg_palette_super_resolution_downsample",
         action="store_true",
         help="whether to downsample the image for super resolution",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_use_gaussian_filter",
+        action="store_true",
+        default=False,
+        help="whether to apply a gaussian blur to each SAM masks",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_no_sobel_filter",
+        action="store_false",
+        default=True,
+        help="whether to not use a Sobel filter on each SAM masks",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_no_output_binary_sam",
+        action="store_false",
+        default=True,
+        help="whether to not output binary sketch before Canny",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_redundancy_threshold",
+        type=float,
+        default=0.62,
+        help="redundancy threshold above which redundant masks are not kept",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_sobel_threshold",
+        type=float,
+        default=0.7,
+        help="sobel threshold in % of gradient magintude",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_final_canny",
+        action="store_true",
+        default=False,
+        help="whether to perform a Canny edge detection on sam sketch to soften the edges",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_min_mask_area",
+        type=float,
+        default=0.001,
+        help="minimum area in proportion of image size for a mask to be kept",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_max_mask_area",
+        type=float,
+        default=0.99,
+        help="maximum area in proportion of image size for a mask to be kept",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_points_per_side",
+        type=int,
+        default=16,
+        help="number of points per side of image to prompt SAM with (# of prompted points will be points_per_side**2)",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_no_sample_points_in_ellipse",
+        action="store_false",
+        default=True,
+        help="whether to not sample the points inside an ellipse to avoid the corners of the image",
+    )
+
+    options.parser.add_argument(
+        "--alg_palette_sam_crop_delta",
+        type=int,
+        default=True,
+        help="extend crop's width and height by 2*crop_delta before computing masks",
+    )
+
+    options.parser.add_argument(
+        "--f_s_weight_sam",
+        type=str,
+        default="models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+        help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+    )
+
+    options.parser.add_argument(
+        "--data_refined_mask",
+        action="store_true",
+        help="whether to use refined mask with sam",
     )
 
     args = options.parse()
