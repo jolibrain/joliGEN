@@ -92,6 +92,11 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         data = next(iter(dataloader))
         model.data_dependent_initialize(data)
 
+    rank_0 = rank == 0
+
+    if rank_0:
+        model.init_metrics(dataloader)
+
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
     model.use_temporal = use_temporal
@@ -101,8 +106,6 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             model.parallelize(rank)
         else:
             model.single_gpu()
-
-    rank_0 = rank == 0
 
     if rank_0:
         visualizer = Visualizer(
@@ -120,7 +123,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
 
     total_iters = 0  # the total number of training iterations
 
-    if rank_0 and opt.train_compute_fid_val:
+    if rank_0 and opt.train_compute_metrics_val:
         model.real_A_val, model.real_B_val = dataset.get_validation_set(
             opt.train_pool_size
         )
@@ -228,14 +231,14 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                         model.export_networks(save_suffix)
 
                 if (
-                    total_iters % opt.train_fid_every < batch_size
-                    and opt.train_compute_fid
+                    total_iters % opt.train_metrics_every < batch_size
+                    and opt.train_compute_metrics
                 ):
-                    model.compute_fid(epoch, total_iters)
+                    model.compute_metrics(epoch, total_iters)
                     if opt.output_display_id > 0:
-                        fids = model.get_current_fids()
-                        visualizer.plot_current_fid(
-                            epoch, float(epoch_iter) / dataset_size, fids
+                        metrics = model.get_current_metrics()
+                        visualizer.plot_current_metrics(
+                            epoch, float(epoch_iter) / dataset_size, metrics
                         )
 
                 if (
@@ -298,8 +301,8 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         model.update_learning_rate()  # update learning rates at the end of every epoch.
 
     ###Let's compute final FID
-    if rank_0 and opt.train_compute_fid_val:
-        cur_fid = model.compute_fid_val()
+    if rank_0 and opt.train_compute_metrics_val:
+        cur_fid = model.compute_metrics_val()
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")
 
         if os.path.exists(path_json):

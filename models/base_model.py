@@ -15,8 +15,16 @@ import torch.nn.functional as F
 from thop import profile
 from torchviz import make_dot
 
-# for FID
+# for metrics
 from data.base_dataset import get_transform
+from util.metrics import _compute_statistics_of_dataloader, calculate_frechet_distance
+
+
+from piq import MSID, KID, FID
+
+from util.util import save_image, tensor2im, delete_flop_param
+import numpy as np
+
 from util.diff_aug import DiffAugment
 from util.discriminator import DiscriminatorInfo
 
@@ -35,10 +43,6 @@ from . import base_networks, semantic_networks
 
 # For D loss computing
 from .modules import loss
-from .modules.fid.pytorch_fid.fid_score import (
-    _compute_statistics_of_path,
-    calculate_frechet_distance,
-)
 from .modules.utils import get_scheduler
 from .modules.sam.sam_inference import predict_sam
 
@@ -106,121 +110,6 @@ class BaseModel(ABC):
         self.fake_A_pool = ImagePool(opt.train_pool_size)
         self.real_B_pool = ImagePool(opt.train_pool_size)
 
-        if rank == 0 and (opt.train_compute_fid or opt.train_compute_fid_val):
-            self.transform = get_transform(opt, grayscale=(opt.model_input_nc == 1))
-            dims = 2048
-            batch = 1
-            self.netFid = base_networks.define_inception(self.gpu_ids[0], dims)
-
-            pathA = opt.dataroot + "/trainA"
-            path_sv_A = os.path.join(
-                opt.checkpoints_dir, opt.name, "fid_mu_sigma_A.npz"
-            )
-            if self.opt.data_relative_paths:
-                self.root = opt.dataroot
-            else:
-                self.root = None
-
-            if not os.path.isfile(path_sv_A):
-                self.realmA, self.realsA = _compute_statistics_of_path(
-                    pathA,
-                    self.netFid,
-                    batch,
-                    dims,
-                    self.gpu_ids[0],
-                    self.transform,
-                    nb_max_img=opt.train_nb_img_max_fid,
-                    root=self.root,
-                )
-                np.savez(path_sv_A, mu=self.realmA, sigma=self.realsA)
-            else:
-                print("Mu and sigma loaded for domain A")
-                self.realmA, self.realsA = _compute_statistics_of_path(
-                    path_sv_A,
-                    self.netFid,
-                    batch,
-                    dims,
-                    self.gpu_ids[0],
-                    self.transform,
-                    nb_max_img=opt.train_nb_img_max_fid,
-                    root=self.root,
-                )
-
-            pathB = opt.dataroot + "/trainB"
-            path_sv_B = os.path.join(
-                opt.checkpoints_dir, opt.name, "fid_mu_sigma_B.npz"
-            )
-            if not os.path.isfile(path_sv_B):
-                self.realmB, self.realsB = _compute_statistics_of_path(
-                    pathB,
-                    self.netFid,
-                    batch,
-                    dims,
-                    self.gpu_ids[0],
-                    self.transform,
-                    nb_max_img=opt.train_nb_img_max_fid,
-                    root=self.root,
-                )
-                np.savez(path_sv_B, mu=self.realmB, sigma=self.realsB)
-            else:
-                print("Mu and sigma loaded for domain B")
-                self.realmB, self.realsB = _compute_statistics_of_path(
-                    path_sv_B,
-                    self.netFid,
-                    batch,
-                    dims,
-                    self.gpu_ids[0],
-                    self.transform,
-                    nb_max_img=opt.train_nb_img_max_fid,
-                    root=self.root,
-                )
-            pathA = self.save_dir + "/fakeA/"
-            if not os.path.exists(pathA):
-                os.mkdir(pathA)
-
-            pathB = self.save_dir + "/fakeB/"
-            if not os.path.exists(pathB):
-                os.mkdir(pathB)
-
-            if hasattr(self, "netG_B"):
-                self.fidA = 0
-            self.fidB = 0
-
-        if rank == 0 and opt.train_compute_fid_val:
-            ### For validation
-            pathB = self.save_dir + "/fakeB/"
-            if not os.path.exists(pathB):
-                os.mkdir(pathB)
-
-            pathB = opt.dataroot + "/validationB"
-            path_sv = os.path.join(
-                opt.checkpoints_dir, opt.name, "fid_mu_sigma_B_val.npz"
-            )
-            if not os.path.isfile(path_sv):
-                self.realmB_val, self.realsB_val = _compute_statistics_of_path(
-                    pathB,
-                    self.netFid,
-                    batch,
-                    dims,
-                    self.gpu_ids[0],
-                    self.transform,
-                    nb_max_img=opt.train_nb_img_max_fid,
-                    root=self.root,
-                )
-                np.savez(path_sv, mu=self.realmB_val, sigma=self.realsB_val)
-            else:
-                print("Mu and sigma loaded for domain B (validation)")
-                self.realmB_val, self.realsB_val = _compute_statistics_of_path(
-                    path_sv,
-                    self.netFid,
-                    batch,
-                    dims,
-                    self.gpu_ids[0],
-                    self.transform,
-                    nb_max_img=opt.train_nb_img_max_fid,
-                    root=self.root,
-                )
-
         self.niter = 0
 
         self.objects_to_update = []
@@ -246,6 +135,112 @@ class BaseModel(ABC):
 
         if self.opt.output_display_env == "":
             self.opt.output_display_env = self.opt.name
+
+        self.fid_metric = FID()
+        self.msid_metric = MSID()
+        self.kid_metric = KID()
+
+    def init_metrics(self, dataloader):
+        if self.opt.train_compute_metrics:
+            self.transform = get_transform(
+                self.opt, grayscale=(self.opt.model_input_nc == 1)
+            )
+            dims = 2048
+            batch = 1
+            self.netFid = base_networks.define_inception(self.gpu_ids[0], dims)
+
+            # pathA = opt.dataroot + "/trainA"
+            path_sv_A = os.path.join(
+                self.opt.checkpoints_dir, self.opt.name, "fid_mu_sigma_A.npz"
+            )
+            if self.opt.data_relative_paths:
+                self.root = self.opt.dataroot
+            else:
+                self.root = None
+
+            self.realmA, self.realsA, self.realactA = _compute_statistics_of_dataloader(
+                path_sv=path_sv_A,
+                model=self.netFid,
+                domain="A",
+                batch_size=batch,
+                dims=dims,
+                device=self.gpu_ids[0],
+                dataloader=dataloader,
+                nb_max_img=self.opt.train_nb_img_max_fid,
+                root=self.root,
+            )
+
+            # pathB = opt.dataroot + "/trainB"
+            path_sv_B = os.path.join(
+                self.opt.checkpoints_dir, self.opt.name, "fid_mu_sigma_B.npz"
+            )
+
+            self.realmB, self.realsB, self.realactB = _compute_statistics_of_dataloader(
+                path_sv=path_sv_B,
+                model=self.netFid,
+                domain="B",
+                batch_size=batch,
+                dims=dims,
+                device=self.gpu_ids[0],
+                dataloader=dataloader,
+                nb_max_img=self.opt.train_nb_img_max_fid,
+                root=self.root,
+            )
+
+            if hasattr(self, "netG_B"):
+                self.fidA = 0
+            self.fidB = 0
+
+        ##TODO: fix
+        """
+        if self.opt.train_compute_metrics_val:
+
+            ### For validation
+            pathB = self.save_dir + "/fakeB/"
+            if not os.path.exists(pathB):
+                os.mkdir(pathB)
+
+            pathB = self.opt.dataroot + "/validationB"
+            path_sv = os.path.join(
+                self.opt.checkpoints_dir, self.opt.name, "fid_mu_sigma_B_val.npz"
+            )
+            if not os.path.isfile(path_sv):
+                (
+                    self.realmB_val,
+                    self.realsB_val,
+                    self.realactB_val,
+                ) = _compute_statistics_of_dataloader(
+                    pathB,
+                    self.netFid,
+                    batch,
+                    dims,
+                    self.gpu_ids[0],
+                    self.transform,
+                    nb_max_img=self.opt.train_nb_img_max_fid,
+                    root=self.root,
+                )
+                np.savez(
+                    path_sv,
+                    mu=self.realmB_val,
+                    sigma=self.realsB_val,
+                    activation=self.realactB_val,
+                )
+            else:
+                print("Mu and sigma loaded for domain B (validation)")
+                (
+                    self.realmB_val,
+                    self.realsB_val,
+                    self.realactB_val,
+                ) = _compute_statistics_of_dataloader(
+                    path_sv,
+                    self.netFid,
+                    batch,
+                    dims,
+                    self.gpu_ids[0],
+                    self.transform,
+                    nb_max_img=self.opt.train_nb_img_max_fid,
+                    root=self.root,
+                )"""
 
     def init_semantic_cls(self, opt):
         # specify the semantic training networks and losses.
@@ -1316,76 +1311,94 @@ class BaseModel(ABC):
             if not self.opt.train_cls_regression:
                 _, self.pfB = self.pred_cls_fake_A.max(1)
 
-    def compute_fid(self, n_epoch, n_iter):
+    def compute_metrics(self, n_epoch, n_iter):
+
         dims = 2048
         batch = 1
 
-        # A->B
+        # B->A
         if hasattr(self, "netG_B"):
-            pathA = self.save_dir + "/fakeA/" + str(n_iter) + "_" + str(n_epoch)
-            if not os.path.exists(pathA):
-                os.mkdir(pathA)
+
             if len(self.fake_A_pool.get_all()) > 0:
-                for i, temp_fake_A in enumerate(self.fake_A_pool.get_all()):
-                    save_image(
-                        tensor2im(temp_fake_A),
-                        pathA + "/" + str(i) + ".png",
-                        aspect_ratio=1.0,
-                    )
-                self.fakemA, self.fakesA = _compute_statistics_of_path(
-                    pathA,
-                    self.netFid,
-                    batch,
-                    dims,
-                    self.gpu_ids[0],
+                (
+                    self.fakemA,
+                    self.fakesA,
+                    self.fakeactA,
+                ) = _compute_statistics_of_dataloader(
+                    path_sv=None,
+                    model=self.netFid,
+                    domain=None,
+                    batch_size=batch,
+                    dims=dims,
+                    dataloader=self.fake_A_pool.get_all(),
+                    device=self.gpu_ids[0],
                     nb_max_img=self.opt.train_nb_img_max_fid,
                     root=self.root,
                 )
 
-        # B->A
-        pathB = self.save_dir + "/fakeB/" + str(n_iter) + "_" + str(n_epoch)
-        if not os.path.exists(pathB):
-            os.mkdir(pathB)
+                self.fidA = calculate_frechet_distance(
+                    self.realmA, self.realsA, self.fakemA, self.fakesA
+                )
 
-        for j, temp_fake_B in enumerate(self.fake_B_pool.get_all()):
-            save_image(
-                tensor2im(temp_fake_B), pathB + "/" + str(j) + ".png", aspect_ratio=1.0
-            )
-        self.fakemB, self.fakesB = _compute_statistics_of_path(
-            pathB,
-            self.netFid,
-            batch,
-            dims,
-            self.gpu_ids[0],
+        # A->B
+
+        self.fakemB, self.fakesB, self.fakeactB = _compute_statistics_of_dataloader(
+            path_sv=None,
+            model=self.netFid,
+            domain=None,
+            batch_size=batch,
+            dims=dims,
+            dataloader=self.fake_B_pool.get_all(),
+            device=self.gpu_ids[0],
             nb_max_img=self.opt.train_nb_img_max_fid,
             root=self.root,
         )
 
-        if len(self.fake_A_pool.get_all()) > 0:
-            self.fidA = calculate_frechet_distance(
-                self.realmA, self.realsA, self.fakemA, self.fakesA
-            )
-        self.fidB = calculate_frechet_distance(
-            self.realmB, self.realsB, self.fakemB, self.fakesB
-        )
+        if not torch.is_tensor(self.realactB):
+            self.realactB = torch.from_numpy(self.realactB)
 
-    def get_current_fids(self):
-        fids = OrderedDict()
+        self.fakeactB = torch.from_numpy(self.fakeactB)
+
+        self.fidB = self.fid_metric(self.realactB, self.fakeactB)
+
+        self.msidB = self.msid_metric(self.realactB, self.fakeactB)
+
+        # KID needs to have the same number of examples
+
+        if self.fakeactB.shape == self.realactB.shape:
+            self.kidB = self.kid_metric(self.realactB, self.fakeactB)
+        else:
+            print(
+                "KID needs to have the same number of examples in both domains. Here, there %d examples in real domain and %d in fake domain,we will use a subsample from each"
+                % (self.realactB.shape[0], self.fakeactB.shape[0])
+            )
+            nb_sub_sample = min(self.realactB.shape[0], self.fakeactB.shape[0])
+            self.kidB = self.kid_metric(
+                self.realactB[:nb_sub_sample], self.fakeactB[:nb_sub_sample]
+            )
+
+    def get_current_metrics(self):
+        metrics = OrderedDict()
 
         if hasattr(self, "netG_B"):
-            fid_names = ["fidA", "fidB"]
+            metrics_names = ["fidA", "fidB"]
         else:
-            fid_names = ["fidB"]
+            metrics_names = [
+                "fidB",
+                "msidB",
+                "kidB",
+            ]
 
-        for name in fid_names:
+        for name in metrics_names:
             if isinstance(name, str):
-                fids[name] = float(
+                metrics[name] = float(
                     getattr(self, name)
                 )  # float(...) works for both scalar tensor and float number
 
-        return fids
+        return metrics
 
-    def compute_fid_val(self):
+    def compute_metrics_val(self):
+        #### TODO : update with piq metrics
         dims = 2048
         batch = 1
 
@@ -1407,7 +1420,11 @@ class BaseModel(ABC):
                 aspect_ratio=1.0,
             )
 
-        self.fakemB_val, self.fakesB_val = _compute_statistics_of_path(
+        (
+            self.fakemB_val,
+            self.fakesB_val,
+            self.fakeactB_val,
+        ) = _compute_statistics_of_dataloader(
             pathB,
             self.netFid,
             batch,
