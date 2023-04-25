@@ -10,11 +10,6 @@ from .base_model import BaseModel
 from util.network_group import NetworkGroup
 
 # for FID
-from data.base_dataset import get_transform
-from .modules.fid.pytorch_fid.fid_score import (
-    _compute_statistics_of_path,
-    calculate_frechet_distance,
-)
 from util.util import save_image, tensor2im
 import numpy as np
 from util.diff_aug import DiffAugment

@@ -1,7 +1,14 @@
-from .modules.fid.pytorch_fid.inception import InceptionV3
+import torch
+from torch import nn
 
 
 def define_inception(device, dims):
-    block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
-    model = InceptionV3([block_idx]).to(device)
+    model = torch.hub.load("pytorch/vision:v0.10.0", "inception_v3", pretrained=True)
+
+    model.fc = nn.Identity()
+
+    model = model.to(device)
+
+    model.eval()
+
     return model

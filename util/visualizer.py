@@ -416,7 +416,7 @@ class Visualizer:
         except VisdomExceptionBase:
             self.create_visdom_connections()
 
-    def plot_current_fid(self, epoch, counter_ratio, fids):
+    def plot_current_metrics(self, epoch, counter_ratio, metrics):
         """display the current fid values on visdom display: dictionary of fid labels and values
 
         Parameters:
@@ -425,10 +425,10 @@ class Visualizer:
             fids (OrderedDict)  -- training fid values stored in the format of (name, float) pairs
         """
         self.plot_metrics_dict(
-            "fid",
+            "metric",
             epoch,
             counter_ratio,
-            fids,
+            metrics,
             title="fid over time",
             ylabel="fid",
             win_id=4,

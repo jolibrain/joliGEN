@@ -315,17 +315,22 @@ class PaletteModel(BaseDiffusionModel):
                 y_cond=self.cond_image[: self.inference_num], sample_num=self.sample_num
             )
 
-        for k in range(self.inference_num):
-            for name in self.gen_visual_names:
+        for name in self.gen_visual_names:
+            whole_tensor = getattr(self, name[:-1])
+            for k in range(min(self.inference_num, self.get_current_batch_size())):
+
                 cur_name = name + str(k)
-                cur_tensor = getattr(self, name[:-1])[k : k + 1]
+                cur_tensor = whole_tensor[k : k + 1]
 
                 if "mask" in name:
                     cur_tensor = cur_tensor.squeeze(0)
 
                 setattr(self, cur_name, cur_tensor)
 
-        self.fake_B = self.visuals[-1:]
+        self.fake_B = self.output
+
+        for k in range(min(self.inference_num, self.get_current_batch_size())):
+            self.fake_B_pool.query(self.visuals[k : k + 1])
 
         if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = torch.nn.SyncBatchNorm.convert_sync_batchnorm(netG)
