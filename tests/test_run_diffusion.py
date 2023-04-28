@@ -33,6 +33,7 @@ json_like_dict = {
 
 models_diffusion = ["palette"]
 G_netG = ["unet_mha", "uvit"]
+G_efficient = [True, False]
 G_unet_mha_norm_layer = [
     "groupnorm",
     "batchnorm",
@@ -40,18 +41,19 @@ G_unet_mha_norm_layer = [
     "instancenorm",
     "switchablenorm",
 ]
-product_list = product(models_diffusion, G_netG, G_unet_mha_norm_layer)
+product_list = product(models_diffusion, G_netG, G_efficient, G_unet_mha_norm_layer)
 
 
 def test_diffusion(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
-    for model, Gtype, G_norm in product_list:
+    for model, Gtype, G_efficient, G_norm in product_list:
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
         json_like_dict_c["G_unet_mha_norm_layer"] = G_norm
+        json_like_dict_c["G_unet_mha_vit_efficient"] = G_efficient
 
         opt = TrainOptions().parse_json(json_like_dict_c)
         train.launch_training(opt)
