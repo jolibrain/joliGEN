@@ -31,6 +31,7 @@ def define_G(
     G_unet_mha_norm_layer,
     G_unet_mha_group_norm_size,
     G_uvit_num_transformer_blocks,
+    G_unet_mha_vit_efficient,
     alg_palette_sampling_method,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
@@ -83,6 +84,7 @@ def define_G(
             channel_mults=G_unet_mha_channel_mults,
             norm=G_unet_mha_norm_layer,
             group_norm_size=G_unet_mha_group_norm_size,
+            efficient=G_unet_mha_vit_efficient,
         )
 
     elif G_netG == "uvit":
@@ -103,6 +105,7 @@ def define_G(
             norm=G_unet_mha_norm_layer,
             group_norm_size=G_unet_mha_group_norm_size,
             num_transformer_blocks=G_uvit_num_transformer_blocks,
+            efficient=G_unet_mha_vit_efficient,
         )
 
     elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":

@@ -58,19 +58,23 @@ class Upsample(nn.Module):
 
     """
 
-    def __init__(self, channels, use_conv, out_channel=None):
+    def __init__(self, channels, use_conv, out_channel=None, efficient=False):
         super().__init__()
         self.channels = channels
         self.out_channel = out_channel or channels
         self.use_conv = use_conv
         if use_conv:
             self.conv = nn.Conv2d(self.channels, self.out_channel, 3, padding=1)
+        self.efficient = efficient
 
     def forward(self, x):
         assert x.shape[1] == self.channels
-        x = F.interpolate(x, scale_factor=2, mode="nearest")
+        if not self.efficient:
+            x = F.interpolate(x, scale_factor=2, mode="nearest")
         if self.use_conv:
             x = self.conv(x)
+        if self.efficient:  # if efficient, we do the interpolation after the conv
+            x = F.interpolate(x, scale_factor=2, mode="nearest")
         return x
 
 
@@ -127,6 +131,7 @@ class ResBlock(EmbedBlock):
         use_checkpoint=False,
         up=False,
         down=False,
+        efficient=False,
     ):
         super().__init__()
         self.channels = channels
@@ -136,6 +141,8 @@ class ResBlock(EmbedBlock):
         self.use_conv = use_conv
         self.use_checkpoint = use_checkpoint
         self.use_scale_shift_norm = use_scale_shift_norm
+        self.up = up
+        self.efficient = efficient
 
         self.in_layers = nn.Sequential(
             normalization(channels, norm),
@@ -190,9 +197,14 @@ class ResBlock(EmbedBlock):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             h = in_rest(x)
-            h = self.h_upd(h)
-            x = self.x_upd(x)
-            h = in_conv(h)
+            if self.efficient and self.up:
+                h = in_conv(h)
+                h = self.h_upd(h)
+                x = self.x_upd(x)
+            else:
+                h = self.h_upd(h)
+                x = self.x_upd(x)
+                h = in_conv(h)
         else:
             h = self.in_layers(x)
         emb_out = self.emb_layers(emb).type(h.dtype)
@@ -208,6 +220,9 @@ class ResBlock(EmbedBlock):
             h = h + emb_out
             h = self.out_layers(h)
 
+        skipw = 1.0
+        if self.efficient:
+            skipw = 1.0 / math.sqrt(2)
         return self.skip_connection(x) + h
 
 
@@ -383,6 +398,7 @@ class UNet(nn.Module):
         use_scale_shift_norm=True,
         resblock_updown=True,
         use_new_attention_order=False,
+        efficient=False,
     ):
         super().__init__()
 
@@ -432,6 +448,7 @@ class UNet(nn.Module):
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
                         norm=norm,
+                        efficient=efficient,
                     )
                 ]
                 ch = int(mult * inner_channel)
@@ -461,6 +478,7 @@ class UNet(nn.Module):
                             use_scale_shift_norm=use_scale_shift_norm,
                             down=True,
                             norm=norm,
+                            efficient=efficient,
                         )
                         if resblock_updown
                         else Downsample(ch, conv_resample, out_channel=out_ch)
@@ -479,6 +497,7 @@ class UNet(nn.Module):
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
                 norm=norm,
+                efficient=efficient,
             ),
             AttentionBlock(
                 ch,
@@ -494,6 +513,7 @@ class UNet(nn.Module):
                 use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
                 norm=norm,
+                efficient=efficient,
             ),
         )
         self._feature_size += ch
@@ -511,6 +531,7 @@ class UNet(nn.Module):
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
                         norm=norm,
+                        efficient=efficient,
                     )
                 ]
                 ch = int(inner_channel * mult)
@@ -536,6 +557,7 @@ class UNet(nn.Module):
                             use_scale_shift_norm=use_scale_shift_norm,
                             up=True,
                             norm=norm,
+                            efficient=efficient,
                         )
                         if resblock_updown
                         else Upsample(ch, conv_resample, out_channel=out_ch)
@@ -699,6 +721,7 @@ class UViT(nn.Module):
         resblock_updown=True,
         use_new_attention_order=False,
         num_transformer_blocks=6,
+        efficient=False,
     ):
         super().__init__()
 
@@ -800,7 +823,11 @@ class UViT(nn.Module):
                 ch = int(inner_channel * mult)
                 if level and i == res_blocks[level]:
                     out_ch = ch
-                    layers.append(Upsample(ch, conv_resample, out_channel=out_ch))
+                    layers.append(
+                        Upsample(
+                            ch, conv_resample, out_channel=out_ch, efficient=efficient
+                        )
+                    )
                     ds //= 2
                 self.output_blocks.append(EmbedSequential(*layers))
                 self._feature_size += ch

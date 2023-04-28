@@ -354,6 +354,12 @@ class BaseOptions:
             default=32,
         )
 
+        parser.add_argument(
+            "--G_unet_mha_vit_efficient",
+            action="store_true",
+            help="if true, use efficient attention in UNet and UViT",
+        )
+
         # discriminator
         parser.add_argument(
             "--D_ndf",
