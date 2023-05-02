@@ -254,18 +254,18 @@ Here are all the available options to call with `train.py`
 | --train_cls_l1_regression | flag |  | if true l1 loss will be used to compute regressor loss |
 | --train_cls_regression | flag |  | if true cls will be a regressor and not a classifier |
 | --train_compute_D_accuracy | flag |  |  |
-| --train_compute_fid | flag |  |  |
-| --train_compute_fid_val | flag |  |  |
+| --train_compute_metrics | flag |  |  |
+| --train_compute_metrics_val | flag |  |  |
 | --train_continue | flag |  | continue training: load the latest model |
 | --train_epoch | string | latest | which epoch to load? set to latest to use latest cached model |
 | --train_epoch_count | int | 1 | the starting epoch count, we save the model by \<epoch_count\>, \<epoch_count\>+\<save_latest_freq\>, ... |
 | --train_export_jit | flag |  | whether to export model in jit format |
-| --train_fid_every | int | 1000 |  |
 | --train_gan_mode | string | lsgan | the type of GAN objective. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.<br/><br/>_**Values:** vanilla, lsgan, wgangp, projected_ |
 | --train_iter_size | int | 1 | backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size\*iter_size |
 | --train_load_iter | int | 0 | which iteration to load? if load_iter \> 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch] |
 | --train_lr_decay_iters | int | 50 | multiply by a gamma every lr_decay_iters iterations |
 | --train_lr_policy | string | linear | learning rate policy.<br/><br/>_**Values:** linear, step, plateau, cosine_ |
+| --train_metrics_every | int | 1000 |  |
 | --train_mm_lambda_z | float | 0.5 | weight for random z loss |
 | --train_mm_nz | int | 8 | number of latent vectors |
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |
