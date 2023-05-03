@@ -15,6 +15,8 @@ import torchvision.transforms as T
 from torchvision import transforms
 from torchvision.utils import save_image
 from tqdm import tqdm
+from PIL import Image
+import copy
 
 sys.path.append("../")
 from diffusion_options import DiffusionOptions
@@ -83,6 +85,37 @@ def to_np(img):
     return img
 
 
+def cond_augment(cond, rotation, persp_horizontal, persp_vertical):
+    cond = Image.fromarray(cond)
+    cond = transforms.RandomRotation(rotation, expand=True)(cond)
+    w, h = cond.size
+    startpoints = [[0, 0], [w, 0], [w, h], [0, h]]
+    endpoints = copy.deepcopy(startpoints)
+    # horizontal perspective
+    d = h * persp_horizontal * random.random()
+    if random.choice([True, False]):
+        # seen from left
+        endpoints[1][1] += d
+        endpoints[2][1] -= d
+    else:
+        # seen from right
+        endpoints[0][1] += d
+        endpoints[3][1] -= d
+    # vertical perspective
+    d = h * persp_vertical * random.random()
+    if random.choice([True, False]):
+        # seen from above
+        endpoints[3][0] += d
+        endpoints[2][0] -= d
+    else:
+        # seen from below
+        endpoints[0][0] += d
+        endpoints[1][0] -= d
+    cond = cond.crop(cond.getbbox())
+    cond = transforms.functional.perspective(cond, startpoints, endpoints)
+    return np.array(cond)
+
+
 def generate(
     seed,
     model_in_file,
@@ -93,6 +126,7 @@ def generate(
     mask_in,
     bbox_in,
     cond_in,
+    cond_keep_ratio,
     bbox_width_factor,
     bbox_height_factor,
     bbox_ref_id,
@@ -210,18 +244,6 @@ def generate(
         else:
             bbox = bboxes[bbox_idx]
 
-        # insert cond image into original image
-        if cond_in:
-            x0, y0, x1, y1 = bbox
-            w = x1 - x0
-            h = y1 - y0
-            cond = cv2.imread(cond_in)
-            cond = cv2.resize(cond, (w, h), interpolation=cv2.INTER_CUBIC)
-            orig = img_orig.copy()
-            orig[y0:y1, x0:x1] = cond
-            img_in = tempfile.NamedTemporaryFile(suffix=".png").name
-            cv2.imwrite(img_in, orig)
-
         crop_coordinates = crop_image(
             img_path=img_in,
             bbox_path=bbox_in,
@@ -298,6 +320,65 @@ def generate(
         if mask is not None:
             mask = cv2.resize(mask, (img_width, img_height))
 
+    # insert cond image into original image
+    generated_bbox = bbox
+    if cond_in:
+        # fill the mask with cond image
+        mask_bbox = Image.fromarray(mask).getbbox()
+        x0, y0, x1, y1 = mask_bbox
+        bbox_w = x1 - x0
+        bbox_h = y1 - y0
+        cond = cv2.imread(cond_in)
+        cond = cv2.cvtColor(cond, cv2.COLOR_RGB2BGR)
+        cond = cond_augment(
+            cond,
+            args.cond_rotation,
+            args.cond_persp_horizontal,
+            args.cond_persp_vertical,
+        )
+        if cond_keep_ratio:
+            # pad cond image to match bbox aspect ratio
+            bbox_ratio = bbox_w / bbox_h
+            new_w = cond_w = cond.shape[1]
+            new_h = cond_h = cond.shape[0]
+            cond_ratio = cond_w / cond_h
+            if cond_ratio < bbox_ratio:
+                new_w = round(cond_w * bbox_ratio / cond_ratio)
+            elif cond_ratio > bbox_ratio:
+                new_h = round(cond_h * cond_ratio / bbox_ratio)
+            cond_pad = np.zeros((new_h, new_w, 3), dtype=np.uint8)
+            x = (new_w - cond_w) // 2
+            y = (new_h - cond_h) // 2
+            cond_pad[y : y + cond_h, x : x + cond_w] = cond
+            cond = cond_pad
+            # bbox inside mask
+            generated_bbox = [
+                (x, y),
+                (x + cond_w, y + cond_h),
+            ]
+            # bbox inside crop
+            generated_bbox = [
+                (x0 + x * bbox_w / cond.shape[1], y0 + y * bbox_h / cond.shape[0])
+                for x, y in generated_bbox
+            ]
+            # bbox inside original image
+            real_width = min(img_orig.shape[1], bbox_select[2] - bbox_select[0])
+            real_height = min(img_orig.shape[0], bbox_select[3] - bbox_select[1])
+            generated_bbox = [
+                (
+                    bbox_select[0] + x * real_width / img.shape[1],
+                    bbox_select[1] + y * real_height / img.shape[0],
+                )
+                for x, y in generated_bbox
+            ]
+            # round & flatten
+            generated_bbox = list(map(round, generated_bbox[0] + generated_bbox[1]))
+
+        # add 1 pixel margin for sketches
+        cond = cv2.resize(cond, (bbox_w - 2, bbox_h - 2), interpolation=cv2.INTER_CUBIC)
+        cond = np.pad(cond, [(1, 1), (1, 1), (0, 0)])
+        img[y0:y1, x0:x1] = cond
+
     # preprocessing to torch
     totensor = transforms.ToTensor()
     tranlist = [
@@ -365,14 +446,23 @@ def generate(
     elif opt.alg_palette_cond_image_creation == "sketch":
         cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "canny":
+        clamp = torch.clamp(mask, 0, 1)
+        if cond_in:
+            # mask the background to avoid canny edges around cond image
+            img_tensor_canny = clamp * img_tensor + clamp - 1
+        else:
+            img_tensor_canny = img_tensor
         cond_image = fill_img_with_canny(
-            img_tensor.unsqueeze(0),
+            img_tensor_canny.unsqueeze(0),
             mask.unsqueeze(0),
             low_threshold=alg_palette_sketch_canny_thresholds[0],
             high_threshold=alg_palette_sketch_canny_thresholds[1],
             low_threshold_random=-1,
             high_threshold_random=-1,
         )
+        if cond_in:
+            # restore background
+            cond_image = cond_image * clamp + img_tensor * (1 - clamp)
     elif opt.alg_palette_cond_image_creation == "sam":
         opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
         if not os.path.exists(opt.f_s_weight_sam):
@@ -471,6 +561,17 @@ def generate(
             cv2.imwrite(os.path.join(dir_out, name + "_y_0.png"), to_np(img_tensor))
             cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.png"), out_img)
             cv2.imwrite(os.path.join(dir_out, name + "_mask.png"), to_np(mask))
+        if cond_in:
+            # crop before cond image
+            orig_crop = img_orig[
+                bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
+            ]
+            cv2.imwrite(os.path.join(dir_out, name + "_orig_crop.png"), orig_crop)
+        if bbox_in:
+            with open(os.path.join(dir_out, name + "_orig_bbox.json"), "w") as out:
+                out.write(json.dumps(bbox))
+            with open(os.path.join(dir_out, name + "_generated_bbox.json"), "w") as out:
+                out.write(json.dumps(generated_bbox))
 
         print("Successfully generated image ", name)
 
@@ -496,6 +597,10 @@ if __name__ == "__main__":
         "--bbox_ref_id", help="bbox id to use", type=int, default=-1
     )
     options.parser.add_argument("--cond-in", help="conditionning image to use")
+    options.parser.add_argument("--cond_keep_ratio", action="store_true")
+    options.parser.add_argument("--cond_rotation", type=float, default=0)
+    options.parser.add_argument("--cond_persp_horizontal", type=float, default=0)
+    options.parser.add_argument("--cond_persp_vertical", type=float, default=0)
     options.parser.add_argument(
         "--alg_palette_cond_image_creation",
         type=str,
