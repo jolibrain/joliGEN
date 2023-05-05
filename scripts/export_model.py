@@ -3,7 +3,6 @@ import numpy as np
 import argparse
 import os
 import json
-from mmcv.onnx import register_extra_symbolics
 
 
 sys.path.append("../")
