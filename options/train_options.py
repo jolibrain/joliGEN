@@ -151,6 +151,11 @@ class TrainOptions(BaseOptions):
         parser.add_argument(
             "--train_batch_size", type=int, default=1, help="input batch size"
         )
+
+        parser.add_argument(
+            "--test_batch_size", type=int, default=1, help="input batch size"
+        )
+
         parser.add_argument(
             "--train_epoch",
             type=str,
@@ -170,7 +175,7 @@ class TrainOptions(BaseOptions):
             help="which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]",
         )
         parser.add_argument("--train_compute_metrics", action="store_true")
-        parser.add_argument("--train_compute_metrics_val", action="store_true")
+        parser.add_argument("--train_compute_metrics_test", action="store_true")
         parser.add_argument("--train_metrics_every", type=int, default=1000)
         parser.add_argument(
             "--train_G_ema",

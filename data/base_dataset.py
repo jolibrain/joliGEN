@@ -37,12 +37,15 @@ class BaseDataset(data.Dataset, ABC):
     -- <modify_commandline_options>:    (optionally) add dataset-specific options and set default options.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt, phase):
         """Initialize the class; save the options in the class
 
         Parameters:
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
+            phase (str)       -- can be train,test or validation.
         """
+        self.phase = phase
+        print("self.phase", self.phase)
         self.opt = opt
 
         self.use_domain_B = not "self_supervised" in self.opt.data_dataset_mode
@@ -156,22 +159,22 @@ class BaseDataset(data.Dataset, ABC):
 
         if not btoA:
             self.dir_A = os.path.join(
-                self.opt.dataroot, self.opt.phase + "A"
+                self.opt.dataroot, self.phase + "A"
             )  # create a path '/path/to/data/trainA'
 
             if self.use_domain_B:
 
                 self.dir_B = os.path.join(
-                    self.opt.dataroot, self.opt.phase + "B"
+                    self.opt.dataroot, self.phase + "B"
                 )  # create a path '/path/to/data/trainB'
         else:
             self.dir_A = os.path.join(
-                self.opt.dataroot, self.opt.phase + "B"
+                self.opt.dataroot, self.phase + "B"
             )  # create a path '/path/to/data/trainB'
 
             if self.use_domain_B:
                 self.dir_B = os.path.join(
-                    self.opt.dataroot, self.opt.phase + "A"
+                    self.opt.dataroot, self.phase + "A"
                 )  # create a path '/path/to/data/trainA'
 
     def get_validation_set(self, size):

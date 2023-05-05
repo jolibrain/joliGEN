@@ -12,13 +12,13 @@ class SelfSupervisedLabeledMaskOnlineDataset(UnalignedLabeledMaskOnlineDataset):
     This dataset class can create datasets with mask labels from one domain.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt, phase):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        super().__init__(opt)
+        super().__init__(opt, phase)
 
     def get_img(
         self,

@@ -27,8 +27,8 @@ class TemporalDataset(BaseDataset):
         else:
             return self.A_size
 
-    def __init__(self, opt):
-        BaseDataset.__init__(self, opt)
+    def __init__(self, opt, phase):
+        BaseDataset.__init__(self, opt, phase)
         super(TemporalDataset).__init__()
 
         self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(

@@ -63,7 +63,7 @@ def signal_handler(sig, frame):
     dist.destroy_process_group()
 
 
-def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
+def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     if not opt.warning_mode:
         warnings.simplefilter("ignore")
 
@@ -76,15 +76,39 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         setup(rank, world_size, opt.ddp_port)
 
     dataloader = create_dataloader(
-        opt, rank, dataset
+        opt, rank, trainset, batch_size=opt.train_batch_size
     )  # create a dataset given opt.dataset_mode and other options
 
     use_temporal = ("temporal" in opt.D_netDs) or opt.train_temporal_criterion
 
     if use_temporal:
-        dataloader_temporal = create_iterable_dataloader(opt, rank, dataset_temporal)
+        dataloader_temporal = create_iterable_dataloader(
+            opt, rank, trainset_temporal, batch_size=opt.train_batch_size
+        )
 
-    dataset_size = len(dataset)  # get the number of images in the dataset.
+    trainset_size = len(trainset)  # get the number of images in the trainset.
+
+    if rank == 0:
+        if opt.train_compute_metrics_test:
+            testset = create_dataset(opt, phase="test")
+            print("The number of testing images = %d" % len(testset))
+
+            dataloader_test = create_dataloader(
+                opt, rank, testset, batch_size=opt.test_batch_size
+            )  # create a dataset given opt.dataset_mode and other options
+
+            if use_temporal:
+                testset_temporal = create_dataset_temporal(opt, phase="test")
+
+                dataloader_test_temporal = create_iterable_dataloader(
+                    opt, rank, testset_temporal, batch_size=opt.test_batch_size
+                )
+            else:
+                dataloader_test_temporal = None
+        else:
+            dataloader_test = None
+            dataloader_test_temporal = None
+
     opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
 
@@ -95,7 +119,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
     rank_0 = rank == 0
 
     if rank_0:
-        model.init_metrics(dataloader)
+        model.init_metrics(dataloader, dataloader_test)
 
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
@@ -123,15 +147,6 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
 
     total_iters = 0  # the total number of training iterations
 
-    if rank_0 and opt.train_compute_metrics_val:
-        model.real_A_val, model.real_B_val = dataset.get_validation_set(
-            opt.train_pool_size
-        )
-        model.real_A_val, model.real_B_val = (
-            model.real_A_val.to(model.device),
-            model.real_B_val.to(model.device),
-        )
-
     if rank_0 and opt.output_display_networks:
         data = next(iter(dataloader))
         for path in model.save_networks_img(data):
@@ -147,9 +162,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
             visualizer.reset()  # reset the visualizer: make sure it saves the results to HTML at least once every epoch
 
         if use_temporal:
-            dataloaders = zip(
-                dataloader, dataloader_temporal
-            )  # dataloader, dataloader_temporal
+            dataloaders = zip(dataloader, dataloader_temporal)
         else:
             dataloaders = zip(dataloader)
 
@@ -197,7 +210,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                     )
                     if opt.output_display_id > 0:
                         visualizer.plot_current_losses(
-                            epoch, float(epoch_iter) / dataset_size, losses
+                            epoch, float(epoch_iter) / trainset_size, losses
                         )
 
             if rank_0:
@@ -230,15 +243,29 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                         model.save_networks(save_suffix)
                         model.export_networks(save_suffix)
 
-                if (
-                    total_iters % opt.train_metrics_every < batch_size
-                    and opt.train_compute_metrics
+                if total_iters % opt.train_metrics_every < batch_size and (
+                    opt.train_compute_metrics or opt.train_compute_metrics_test
                 ):
-                    model.compute_metrics(epoch, total_iters)
+                    with torch.no_grad():
+                        if opt.train_compute_metrics:
+                            model.compute_metrics()
+
+                        if opt.train_compute_metrics_test:
+                            if use_temporal:
+                                dataloaders_test = zip(
+                                    dataloader_test, dataloader_test_temporal
+                                )
+                            else:
+                                dataloaders_test = zip(dataloader_test)
+
+                            model.compute_metrics_test(
+                                dataloaders_test, epoch, total_iters
+                            )
+
                     if opt.output_display_id > 0:
                         metrics = model.get_current_metrics()
                         visualizer.plot_current_metrics(
-                            epoch, float(epoch_iter) / dataset_size, metrics
+                            epoch, float(epoch_iter) / trainset_size, metrics
                         )
 
                 if (
@@ -249,7 +276,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                     if opt.output_display_id > 0:
                         accuracies = model.get_current_D_accuracies()
                         visualizer.plot_current_D_accuracies(
-                            epoch, float(epoch_iter) / dataset_size, accuracies
+                            epoch, float(epoch_iter) / trainset_size, accuracies
                         )
 
                 if (
@@ -259,7 +286,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                     if opt.output_display_id > 0:
                         p = model.get_current_APA_prob()
                         visualizer.plot_current_APA_prob(
-                            epoch, float(epoch_iter) / dataset_size, p
+                            epoch, float(epoch_iter) / trainset_size, p
                         )
 
                 if (
@@ -270,7 +297,7 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
                     if opt.output_display_id > 0:
                         miou = model.get_current_miou()
                         visualizer.plot_current_miou(
-                            epoch, float(epoch_iter) / dataset_size, miou
+                            epoch, float(epoch_iter) / trainset_size, miou
                         )
 
                 iter_data_time = time.time()
@@ -301,8 +328,8 @@ def train_gpu(rank, world_size, opt, dataset, dataset_temporal):
         model.update_learning_rate()  # update learning rates at the end of every epoch.
 
     ###Let's compute final FID
-    if rank_0 and opt.train_compute_metrics_val:
-        cur_fid = model.compute_metrics_val()
+    if rank_0 and opt.train_compute_metrics_test:
+        cur_fid = model.compute_metrics_test()
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")
 
         if os.path.exists(path_json):
@@ -330,15 +357,15 @@ def launch_training(opt=None):
     if not opt.warning_mode:
         warnings.simplefilter("ignore")
 
-    dataset = create_dataset(opt)
-    print("The number of training images = %d" % len(dataset))
+    trainset = create_dataset(opt, phase="train")
+    print("The number of training images = %d" % len(trainset))
 
     use_temporal = ("temporal" in opt.D_netDs) or opt.train_temporal_criterion
 
     if use_temporal:
-        dataset_temporal = create_dataset_temporal(opt)
+        trainset_temporal = create_dataset_temporal(opt, phase="train")
     else:
-        dataset_temporal = None
+        trainset_temporal = None
 
     if opt.with_tf32:
         torch.backends.cuda.matmul.allow_tf32 = True
@@ -347,12 +374,17 @@ def launch_training(opt=None):
     if opt.use_cuda:
         mp.spawn(
             train_gpu,
-            args=(world_size, opt, dataset, dataset_temporal),
+            args=(world_size, opt, trainset, trainset_temporal),
             nprocs=world_size,
             join=True,
         )
     else:
-        train_gpu(0, world_size, opt, dataset, dataset_temporal)
+        train_gpu(0, world_size, opt, trainset, trainset_temporal)
+
+
+def compute_test_metrics(model, dataloader):
+
+    return metrics
 
 
 def get_override_options_names(remaining_args):

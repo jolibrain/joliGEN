@@ -16,20 +16,13 @@ class UnalignedDataset(BaseDataset):
     '/path/to/data/testA' and '/path/to/data/testB' during test time.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt, phase):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset.__init__(self, opt)
-
-        self.dir_A_val = os.path.join(
-            opt.dataroot, "validationA"
-        )  # create a path '/path/to/data/validationA'
-        self.dir_B_val = os.path.join(
-            opt.dataroot, "validationB"
-        )  # create a path '/path/to/data/validationB'
+        BaseDataset.__init__(self, opt, phase)
 
         self.A_img_paths = sorted(
             make_dataset(self.dir_A, opt.data_max_dataset_size)
@@ -37,16 +30,6 @@ class UnalignedDataset(BaseDataset):
         self.B_img_paths = sorted(
             make_dataset(self.dir_B, opt.data_max_dataset_size)
         )  # load images from '/path/to/data/trainB'
-
-        if os.path.exists(self.dir_A_val):
-            self.A_img_paths_val = sorted(
-                make_dataset(self.dir_A_val, opt.data_max_dataset_size)
-            )
-
-        if os.path.exists(self.dir_B_val):
-            self.B_img_paths_val = sorted(
-                make_dataset(self.dir_B_val, opt.data_max_dataset_size)
-            )
 
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
         self.B_size = len(self.B_img_paths)  # get the size of dataset B
