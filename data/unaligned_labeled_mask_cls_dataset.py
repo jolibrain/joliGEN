@@ -3,13 +3,13 @@ import torch
 
 
 class UnalignedLabeledMaskClsDataset(UnalignedLabeledMaskDataset):
-    def __init__(self, opt):
+    def __init__(self, opt, phase):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        UnalignedLabeledMaskDataset.__init__(self, opt)
+        UnalignedLabeledMaskDataset.__init__(self, opt, phase)
 
         self.A_label_cls = []
         self.B_label_cls = []

@@ -267,6 +267,9 @@ class CycleGanModel(BaseGanModel):
             visual_names_out_mask_B = ["real_B_out_mask", "fake_A_out_mask"]
             self.visual_names += [visual_names_out_mask_A, visual_names_out_mask_B]
 
+    def inference(self):
+        self.fake_B = self.netG_A(self.real_A)  # G_A(A)
+
     def forward_cycle_gan(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
 

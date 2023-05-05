@@ -29,29 +29,18 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
     '/path/to/data/testA' and '/path/to/data/testB' during test time.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt, phase):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset.__init__(self, opt)
+        BaseDataset.__init__(self, opt, phase)
 
         if os.path.exists(self.dir_A):
             self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
                 self.dir_A, "/paths.txt"
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
-            if opt.phase == "train" and opt.train_compute_D_accuracy:
-                self.dir_val_A = os.path.join(
-                    opt.dataroot, "validationA"
-                )  # create a path '/path/to/data/trainA'
-                (
-                    self.A_img_paths_val,
-                    self.A_label_mask_paths_val,
-                ) = make_labeled_path_dataset(
-                    self.dir_val_A, "/paths.txt"
-                )  # load images from '/path/to/data/validationA/paths.txt' as well as labels
-
         else:
             self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
                 opt.dataroot, "/paths.txt"
@@ -63,16 +52,6 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             )  # load images from '/path/to/data/trainB'
             if self.B_label_mask_paths == []:
                 delattr(self, "B_label_mask_paths")
-            if opt.phase == "train" and opt.train_compute_D_accuracy:
-                self.dir_val_B = os.path.join(
-                    opt.dataroot, "validationA"
-                )  # create a path '/path/to/data/validationA'
-                (
-                    self.B_img_paths_val,
-                    self.B_label_mask_paths_val,
-                ) = make_labeled_path_dataset(
-                    self.dir_val_B, "/paths.txt"
-                )  # load images from '/path/to/data/validationB/paths.txt' as well as labels
 
         if self.opt.data_sanitize_paths:
             self.sanitize()
@@ -114,24 +93,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             ) and os.path.exists(paths_sanitized_train_B)
         else:
             train_sanitized_exist = os.path.exists(paths_sanitized_train_A)
-        validation_is_needed = (
-            self.opt.phase == "train" and self.opt.train_compute_D_accuracy
-        )
 
-        paths_sanitized_validation_A = os.path.join(
-            self.sv_dir, "paths_sanitized_validation_A.txt"
-        )
-        paths_sanitized_validation_B = os.path.join(
-            self.sv_dir, "paths_sanitized_validation_B.txt"
-        )
-
-        validation_sanitized_exist = os.path.exists(
-            paths_sanitized_validation_A
-        ) and os.path.exists(paths_sanitized_validation_B)
-
-        if train_sanitized_exist and (
-            not validation_is_needed or validation_sanitized_exist
-        ):
+        if train_sanitized_exist:
             self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
                 self.sv_dir, "/paths_sanitized_train_A.txt"
             )
@@ -139,20 +102,6 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
                     self.sv_dir, "/paths_sanitized_train_B.txt"
                 )
-            if validation_is_needed:
-                (
-                    self.A_img_paths_val,
-                    self.A_label_mask_paths_val,
-                ) = make_labeled_path_dataset(
-                    self.sv_dir, "/paths_sanitized_validation_A.txt"
-                )
-                (
-                    self.B_img_paths_val,
-                    self.B_label_mask_paths_val,
-                ) = make_labeled_path_dataset(
-                    self.sv_dir, "/paths_sanitized_validation_B.txt"
-                )
-            print("Sanitized images and labels paths loaded.")
         else:
             print("--------------")
             print("Sanitizing images and labels paths")
@@ -179,27 +128,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 self.A_label_mask_paths,
                 paths_sanitized_train_A,
             )
-            if self.opt.phase == "train" and self.opt.train_compute_D_accuracy:
-                self.A_img_paths_val, self.A_label_mask_paths_val = sanitize_paths(
-                    self.A_img_paths_val,
-                    self.A_label_mask_paths_val,
-                    mask_delta=self.opt.data_online_creation_mask_delta_A,
-                    mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
-                    crop_delta=self.opt.data_online_creation_crop_delta_A,
-                    mask_square=self.opt.data_online_creation_mask_square_A,
-                    crop_dim=self.opt.data_online_creation_crop_size_A,
-                    output_dim=self.opt.data_load_size,
-                    max_dataset_size=self.opt.train_pool_size,
-                    context_pixels=self.opt.data_online_context_pixels,
-                    load_size=self.opt.data_online_creation_load_size_A,
-                    data_relative_paths=self.opt.data_relative_paths,
-                    data_root_path=self.opt.root,
-                )
-                write_paths_file(
-                    self.A_img_paths_val,
-                    self.A_label_mask_paths_val,
-                    paths_sanitized_validation_A,
-                )
+
             print("--- DOMAIN B ---")
             if hasattr(self, "B_img_paths"):
                 self.B_img_paths, self.B_label_mask_paths = sanitize_paths(
@@ -222,27 +151,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     self.B_label_mask_paths,
                     paths_sanitized_train_B,
                 )
-                if self.opt.phase == "train" and self.opt.train_compute_D_accuracy:
-                    self.B_img_paths_val, self.B_label_mask_paths_val = sanitize_paths(
-                        self.B_img_paths_val,
-                        self.B_label_mask_paths_val,
-                        mask_delta=self.opt.data_online_creation_mask_delta_B,
-                        mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
-                        crop_delta=self.opt.data_online_creation_crop_delta_B,
-                        mask_square=self.opt.data_online_creation_mask_square_B,
-                        crop_dim=self.opt.data_online_creation_crop_size_B,
-                        output_dim=self.opt.data_load_size,
-                        max_dataset_size=self.opt.train_pool_size,
-                        context_pixels=self.opt.data_online_context_pixels,
-                        load_size=self.opt.data_online_creation_load_size_B,
-                        data_relative_paths=self.opt.data_relative_paths,
-                        data_root_path=self.opt.root,
-                    )
-                    write_paths_file(
-                        self.B_img_paths_val,
-                        self.B_label_mask_paths_val,
-                        paths_sanitized_validation_B,
-                    )
+
             print("--------------")
 
     def get_img(

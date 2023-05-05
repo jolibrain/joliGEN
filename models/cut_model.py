@@ -460,6 +460,34 @@ class CUTModel(BaseGanModel):
             visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
             self.visual_names += [visual_names_out_mask_A]
 
+    def inference(self):
+        self.real = (
+            torch.cat((self.real_A, self.real_B), dim=0)
+            if self.opt.alg_cut_nce_idt and self.opt.isTrain
+            else self.real_A
+        )
+
+        if self.opt.model_multimodal:
+            self.z_random = self.get_z_random(self.real_A.size(0), self.opt.train_mm_nz)
+            z_real = self.z_random.view(
+                self.z_random.size(0), self.z_random.size(1), 1, 1
+            ).expand(
+                self.z_random.size(0),
+                self.z_random.size(1),
+                self.real.size(2),
+                self.real.size(3),
+            )
+            z_real = torch.cat(
+                [z_real, z_real], 0
+            )  # accomodates concatenated real_A and real_B
+            self.real_with_z = torch.cat([self.real, z_real], 1)
+        else:
+            self.real_with_z = self.real
+
+        self.fake = self.netG_A(self.real_with_z)
+
+        self.fake_B = self.fake[: self.real_A.size(0)]
+
     def forward_cut(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
 

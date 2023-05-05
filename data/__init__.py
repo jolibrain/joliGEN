@@ -47,26 +47,26 @@ def get_option_setter(dataset_name):
     return dataset_class.modify_commandline_options
 
 
-def create_dataset(opt):
+def create_dataset(opt, phase):
     dataset_class = find_dataset_using_name(opt.data_dataset_mode)
-    dataset = dataset_class(opt)
+    dataset = dataset_class(opt, phase)
     return dataset
 
 
-def create_dataloader(opt, rank, dataset):
-    data_loader = CustomDatasetDataLoader(opt, rank, dataset)
+def create_dataloader(opt, rank, dataset, batch_size):
+    data_loader = CustomDatasetDataLoader(opt, rank, dataset, batch_size)
     dataset = data_loader.load_data()
     return dataset
 
 
-def create_dataset_temporal(opt):
+def create_dataset_temporal(opt, phase):
     dataset_class = find_dataset_using_name("temporal")
-    dataset = dataset_class(opt)
+    dataset = dataset_class(opt, phase)
     return dataset
 
 
-def create_iterable_dataloader(opt, rank, dataset):
-    data_loader = IterableCustomDatasetDataLoader(opt, rank, dataset)
+def create_iterable_dataloader(opt, rank, dataset, batch_size):
+    data_loader = IterableCustomDatasetDataLoader(opt, rank, dataset, batch_size)
     dataset = data_loader.load_data()
     return dataset
 
@@ -82,7 +82,7 @@ def collate_fn(batch):
 class CustomDatasetDataLoader:
     """Wrapper class of Dataset class that performs multi-threaded data loading"""
 
-    def __init__(self, opt, rank, dataset):
+    def __init__(self, opt, rank, dataset, batch_size):
         """Initialize this class
 
         Step 1: create a dataset instance given the name [dataset_mode]
@@ -106,7 +106,7 @@ class CustomDatasetDataLoader:
             shuffle = not opt.data_serial_batches
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
-            batch_size=opt.train_batch_size,
+            batch_size=batch_size,
             sampler=sampler,
             shuffle=shuffle,
             num_workers=int(opt.data_num_threads),
@@ -133,7 +133,7 @@ class CustomDatasetDataLoader:
 class IterableCustomDatasetDataLoader:
     """Wrapper class of Dataset class that performs multi-threaded data loading"""
 
-    def __init__(self, opt, rank, dataset):
+    def __init__(self, opt, rank, dataset, batch_size):
         """Initialize this class
 
         Step 1: create a dataset instance given the name [dataset_mode]
@@ -147,7 +147,7 @@ class IterableCustomDatasetDataLoader:
         shuffle = not opt.data_serial_batches
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
-            batch_size=opt.train_batch_size,
+            batch_size=batch_size,
             sampler=sampler,
             num_workers=int(opt.data_num_threads),
             collate_fn=collate_fn,
