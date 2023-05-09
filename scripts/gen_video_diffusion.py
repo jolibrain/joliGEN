@@ -21,6 +21,8 @@ if __name__ == "__main__":
 
     options.parser.add_argument("--dataroot", help="images to transform", required=True)
 
+    options.parser.add_argument("--data-prefix", help="images path dir prefix")
+
     options.parser.add_argument(
         "--video-width", default=-1, type=int, help="video width"
     )
@@ -103,12 +105,12 @@ if __name__ == "__main__":
 
     for i, (image, label) in tqdm(enumerate(zip(images, labels)), total=len(images)):
 
-        args.img_in = image
+        args.img_in = args.data_prefix + image
 
         if label.endswith(".txt"):
-            args.bbox_in = label
+            args.bbox_in = args.data_prefix + label
         else:
-            args.mask_in = label
+            args.mask_in = args.data_prefix + label
 
         if args.write:
             args.name = (
@@ -122,13 +124,15 @@ if __name__ == "__main__":
         """if not args.use_real_previous and i == 0:
             args.write = False"""
 
+        args.bbox_ref_id = -1
+
         frame = generate(**vars(args))
 
         if args.cond == "previous":  # use_real_previous:
-            args.previous_frame = image
+            args.previous_frame = args.data_prefix + image
         elif args.cond == "generated":
             if i == 0:
-                args.previous_frame = image
+                args.previous_frame = args.data_prefix + image
                 # args.write = True
                 continue
             args.previous_frame = frame
