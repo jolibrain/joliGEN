@@ -12,6 +12,8 @@ import numpy as np
 import torch
 from torchvision import transforms
 from torchvision.utils import save_image
+import torchvision.transforms as T
+
 from tqdm import tqdm
 import tempfile
 
@@ -39,11 +41,11 @@ def load_model(modelpath, model_in_file, device, sampling_steps, sampling_method
     opt = TrainOptions().parse_json(train_json)
     opt.jg_dir = "../"
 
-    if opt.G_nblocks == 9:
-        warnings.warn(
-            f"G_nblocks default value {opt.G_nblocks} is too high for palette model, 2 will be used instead."
-        )
-        opt.G_nblocks = 2
+    # if opt.G_nblocks == 9:
+    #    warnings.warn(
+    #        f"G_nblocks default value {opt.G_nblocks} is too high for palette model, 2 will be used instead."
+    #    )
+    #    opt.G_nblocks = 2
 
     if opt.data_online_creation_mask_random_offset_A != [0.0]:
         warnings.warn(
@@ -101,6 +103,7 @@ def generate(
     alg_palette_cond_image_creation,
     alg_palette_sketch_canny_thresholds,
     cls,
+    alg_palette_super_resolution_downsample,
     **unused_options,
 ):
     # seed
@@ -279,11 +282,13 @@ def generate(
         bbox_select[2] += opt.data_online_context_pixels
 
         img, mask = np.array(img), np.array(mask)
+    else:
+        mask = None
 
     if img_width > 0 and img_height > 0:
         img = cv2.resize(img, (img_width, img_height))
-
-        mask = cv2.resize(mask, (img_width, img_height))
+        if mask is not None:
+            mask = cv2.resize(mask, (img_width, img_height))
 
     # preprocessing to torch
     totensor = transforms.ToTensor()
@@ -296,22 +301,27 @@ def generate(
     tran = transforms.Compose(tranlist)
     img_tensor = tran(img).clone().detach()
 
-    mask = torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
-    """if crop_width > 0 and crop_height > 0:
+    if mask is not None:
+        mask = torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
+        """if crop_width > 0 and crop_height > 0:
         mask = resize(mask).clone().detach()"""
 
     if not cpu:
         img_tensor = img_tensor.to(device).clone().detach()
-        mask = mask.to(device).clone().detach()
+        if mask is not None:
+            mask = mask.to(device).clone().detach()
 
-    if opt.data_online_creation_rand_mask_A:
-        y_t = fill_mask_with_random(
-            img_tensor.clone().detach(), mask.clone().detach(), -1
-        )
-    elif opt.data_online_creation_color_mask_A:
-        y_t = fill_mask_with_color(
-            img_tensor.clone().detach(), mask.clone().detach(), {}
-        )
+    if mask is not None:
+        if opt.data_online_creation_rand_mask_A:
+            y_t = fill_mask_with_random(
+                img_tensor.clone().detach(), mask.clone().detach(), -1
+            )
+        elif opt.data_online_creation_color_mask_A:
+            y_t = fill_mask_with_color(
+                img_tensor.clone().detach(), mask.clone().detach(), {}
+            )
+    else:
+        y_t = img_tensor.clone().detach()
 
     if opt.alg_palette_cond_image_creation == "previous_frame":
         if previous_frame is not None:
@@ -351,14 +361,32 @@ def generate(
         cond_image = fill_img_with_hough(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "depth":
         cond_image = fill_img_with_depth(img_tensor.unsqueeze(0), mask.unsqueeze(0))
+    elif opt.alg_palette_cond_image_creation == "low_res":
+        if alg_palette_super_resolution_downsample:
+            data_crop_size_low_res = int(
+                opt.data_crop_size / opt.alg_palette_super_resolution_scale
+            )
+            transform_lr = T.Resize((data_crop_size_low_res, data_crop_size_low_res))
+            cond_image = transform_lr(img_tensor.unsqueeze(0)).detach()
+        else:
+            cond_image = img_tensor.unsqueeze(0).clone().detach()
+        transform_hr = T.Resize((opt.data_crop_size, opt.data_crop_size))
+        cond_image = transform_hr(cond_image).detach()
 
     # run through model
+    if mask is None:
+        cl_mask = None
+
+    else:
+        cl_mask = (torch.clamp(mask, min=0, max=1).unsqueeze(0).clone().detach(),)
     y_t, cond_image, img_tensor, mask = (
         y_t.unsqueeze(0).clone().detach(),
         cond_image.clone().detach(),
         img_tensor.unsqueeze(0).clone().detach(),
-        torch.clamp(mask, min=0, max=1).unsqueeze(0).clone().detach(),
+        cl_mask,
     )
+    if mask == None:
+        img_tensor = None
 
     with torch.no_grad():
         out_tensor, visu = model.restoration(
@@ -376,31 +404,36 @@ def generate(
     if img_width > 0 or img_height > 0 or crop_width > 0 or crop_height > 0:
         # img_orig = cv2.cvtColor(img_orig, cv2.COLOR_RGB2BGR)
 
-        out_img_resized = cv2.resize(
-            out_img,
-            (
-                min(img_orig.shape[1], bbox_select[2] - bbox_select[0]),
-                min(img_orig.shape[0], bbox_select[3] - bbox_select[1]),
-            ),
-        )
+        if bbox_in:
+            out_img_resized = cv2.resize(
+                out_img,
+                (
+                    min(img_orig.shape[1], bbox_select[2] - bbox_select[0]),
+                    min(img_orig.shape[0], bbox_select[3] - bbox_select[1]),
+                ),
+            )
 
-    out_img_real_size = img_orig.copy()
+            out_img_real_size = img_orig.copy()
+        else:
+            out_img_real_size = out_img
 
     # fill out crop into original image
-    out_img_real_size[
-        bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
-    ] = out_img_resized
+    if bbox_in:
+        out_img_real_size[
+            bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
+        ] = out_img_resized
 
     cond_img = to_np(cond_image)
 
     if write:
         cv2.imwrite(os.path.join(dir_out, name + "_orig.png"), img_orig)
-        cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.png"), out_img)
         cv2.imwrite(os.path.join(dir_out, name + "_cond.png"), cond_img)
         cv2.imwrite(os.path.join(dir_out, name + "_generated.png"), out_img_real_size)
-        cv2.imwrite(os.path.join(dir_out, name + "_y_0.png"), to_np(img_tensor))
         cv2.imwrite(os.path.join(dir_out, name + "_y_t.png"), to_np(y_t))
-        cv2.imwrite(os.path.join(dir_out, name + "_mask.png"), to_np(mask))
+        if mask is not None:
+            cv2.imwrite(os.path.join(dir_out, name + "_y_0.png"), to_np(img_tensor))
+            cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.png"), out_img)
+            cv2.imwrite(os.path.join(dir_out, name + "_mask.png"), to_np(mask))
 
         print("Successfully generated image ", name)
 
@@ -437,6 +470,7 @@ if __name__ == "__main__":
             "depth",
             "hed",
             "hough",
+            "low_res",
         ],
         help="how cond_image is created",
     )
@@ -446,6 +480,11 @@ if __name__ == "__main__":
         nargs="+",
         default=[0, 255 * 3],
         help="Canny thresholds",
+    )
+    options.parser.add_argument(
+        "--alg_palette_super_resolution_downsample",
+        action="store_true",
+        help="whether to downsample the image for super resolution",
     )
 
     args = options.parse()

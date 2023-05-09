@@ -618,6 +618,7 @@ class BaseOptions:
                 "nuplet_unaligned_labeled_mask",
                 "temporal",
                 "self_supervised_temporal",
+                "single",
             ],
             help="chooses how datasets are loaded.",
         )

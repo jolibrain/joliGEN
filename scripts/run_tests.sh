@@ -74,6 +74,14 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+###### diffusion super-resolution process test
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_sr_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 ####### mask cls semantics test with online dataloading
 echo "Running mask online semantics training tests"
 URL=https://www.deepdetect.com/joligen/datasets/online_mario2sonic_lite.zip 
