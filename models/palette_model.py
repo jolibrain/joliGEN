@@ -4,6 +4,8 @@ import random
 import warnings
 
 import torch
+import torchvision.transforms as T
+
 import tqdm
 
 from data.online_creation import fill_mask_with_color
@@ -24,6 +26,12 @@ class PaletteModel(BaseDiffusionModel):
         parser = BaseDiffusionModel.modify_commandline_options(
             parser, is_train=is_train
         )
+        parser.add_argument(
+            "--alg_palette_task",
+            default="inpainting",
+            choices=["inpainting", "super_resolution"],
+        )
+
         parser.add_argument(
             "--alg_palette_lambda_G",
             type=float,
@@ -54,6 +62,7 @@ class PaletteModel(BaseDiffusionModel):
                 "y_t",
                 "previous_frame",
                 "computed_sketch",
+                "low_res",
             ],
             help="how cond_image is created",
         )
@@ -80,6 +89,14 @@ class PaletteModel(BaseDiffusionModel):
             default=[0, 255 * 3],
             help="range for Canny thresholds",
         )
+
+        parser.add_argument(
+            "--alg_palette_super_resolution_scale",
+            type=float,
+            default=2.0,
+            help="scale for super resolution",
+        )
+
         parser.add_argument(
             "--alg_palette_prob_use_previous_frame",
             type=float,
@@ -121,6 +138,19 @@ class PaletteModel(BaseDiffusionModel):
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
+        self.task = self.opt.alg_palette_task
+        if self.task == "super_resolution":
+            self.opt.alg_palette_cond_image_creation = "low_res"
+            self.data_crop_size_low_res = int(
+                self.opt.data_crop_size / self.opt.alg_palette_super_resolution_scale
+            )
+            self.transform_lr = T.Resize(
+                (self.data_crop_size_low_res, self.data_crop_size_low_res)
+            )
+            self.transform_hr = T.Resize(
+                (self.opt.data_crop_size, self.opt.data_crop_size)
+            )
+
         if self.opt.alg_palette_inference_num == -1:
             self.inference_num = self.opt.train_batch_size
         else:
@@ -133,8 +163,6 @@ class PaletteModel(BaseDiffusionModel):
         self.gen_visual_names = [
             "gt_image_",
             "cond_image_",
-            "y_t_",
-            "mask_",
         ]
 
         if (
@@ -149,6 +177,9 @@ class PaletteModel(BaseDiffusionModel):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
         else:
             self.gen_visual_names.append("output_")
+
+        if self.task != "super_resolution":
+            self.gen_visual_names.extend(["y_t_", "mask_"])
 
         if self.opt.alg_palette_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
@@ -239,12 +270,20 @@ class PaletteModel(BaseDiffusionModel):
             self.previous_frame = data["A"].to(self.device)[:, 0]
             self.y_t = data["A"].to(self.device)[:, 1]
             self.gt_image = data["B"].to(self.device)[:, 1]
-            self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
-            self.mask = data["B_label_mask"].to(self.device)[:, 1]
+            if self.task == "inpainting":
+                self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
+                self.mask = data["B_label_mask"].to(self.device)[:, 1]
+            else:
+                self.mask = None
         else:
-            self.y_t = data["A"].to(self.device)
-            self.gt_image = data["B"].to(self.device)
-            self.mask = data["B_label_mask"].to(self.device)
+            if self.task == "inpainting":
+                self.y_t = data["A"].to(self.device)
+                self.gt_image = data["B"].to(self.device)
+                self.mask = data["B_label_mask"].to(self.device)
+            else:  # e.g. super-resolution
+                self.y_t = data["A"].to(self.device)
+                self.gt_image = data["A"].to(self.device)
+                self.mask = None
 
         if "B_label_cls" in data:
             self.cls = data["B_label_cls"].to(self.device)
@@ -306,6 +345,9 @@ class PaletteModel(BaseDiffusionModel):
                     self.cond_image = fill_img_with_random_sketch(
                         self.gt_image, self.mask
                     )
+        elif self.opt.alg_palette_cond_image_creation == "low_res":
+            self.cond_image = self.transform_lr(self.gt_image)  # bilinear interpolation
+            self.cond_image = self.transform_hr(self.cond_image)  # let's get it back
 
         self.batch_size = self.cond_image.shape[0]
 
@@ -346,8 +388,8 @@ class PaletteModel(BaseDiffusionModel):
         if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = revert_sync_batchnorm(netG)
 
-        if True or self.task in ["inpainting", "uncropping"]:
-
+        # task: inpainting
+        if self.task in ["inpainting"]:
             if (
                 self.opt.alg_palette_conditioning != ""
                 and self.opt.alg_palette_generate_per_class
@@ -374,8 +416,8 @@ class PaletteModel(BaseDiffusionModel):
                 self.fake_B = self.output_1
                 self.visuals = self.visuals_1
 
+            # no class conditioning
             else:
-
                 self.output, self.visuals = netG.restoration(
                     y_cond=self.cond_image[: self.inference_num],
                     y_t=self.y_t[: self.inference_num],
@@ -384,10 +426,19 @@ class PaletteModel(BaseDiffusionModel):
                     sample_num=self.sample_num,
                     cls=self.cls,
                 )
-
                 self.fake_B = self.output
-                self.visuals = self.visuals
 
+        # task: super resolution
+        elif self.task == "super_resolution":
+            self.output, self.visuals = netG.restoration(
+                y_cond=self.cond_image[: self.inference_num],
+                y_t=self.cond_image[: self.inference_num],
+                sample_num=self.sample_num,
+                cls=None,
+            )
+            self.fake_B = self.output
+
+        # other tasks
         else:
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[: self.inference_num], sample_num=self.sample_num

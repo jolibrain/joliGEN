@@ -9,14 +9,14 @@ class SingleDataset(BaseDataset):
     It can be used for generating CycleGAN results only for one side with the model option '-model test'.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt, phase="train"):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset.__init__(self, opt)
-        self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
+        BaseDataset.__init__(self, opt, phase)
+        self.A_paths = sorted(make_dataset(opt.dataroot, opt.data_max_dataset_size))
         self.transform = get_transform(opt, grayscale=(self.input_nc == 1))
 
     def __getitem__(self, index):
