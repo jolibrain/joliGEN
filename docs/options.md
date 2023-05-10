@@ -67,6 +67,7 @@ Here are all the available options to call with `train.py`
 | --G_unet_mha_num_head_channels | int | 32 |  |
 | --G_unet_mha_num_heads | int | 1 |  |
 | --G_unet_mha_res_blocks | array | [2, 2, 2, 2] | distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults |
+| --G_unet_mha_vit_efficient | flag |  | if true, use efficient attention in UNet and UViT |
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
 
 ## Algorithm-specific
