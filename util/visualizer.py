@@ -70,6 +70,7 @@ class Visualizer:
         self.win_size = opt.output_display_winsize
         self.name = opt.name
         self.saved = False
+        self.port = opt.output_display_visdom_port
         self.metrics_dict = {}
         if (
             "visdom" in self.display_type and self.display_id > 0
