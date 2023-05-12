@@ -24,6 +24,7 @@ import os
 import signal
 import time
 import warnings
+import copy
 
 import torch
 import torch.distributed as dist
@@ -90,18 +91,22 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     if rank == 0:
         if opt.train_compute_metrics_test:
-            testset = create_dataset(opt, phase="test")
+
+            temp_opt = copy.deepcopy(opt)
+            temp_opt.gpu_ids = temp_opt.gpu_ids[:1]
+
+            testset = create_dataset(temp_opt, phase="test")
             print("The number of testing images = %d" % len(testset))
 
             dataloader_test = create_dataloader(
-                opt, rank, testset, batch_size=opt.test_batch_size
+                temp_opt, rank, testset, batch_size=opt.test_batch_size
             )  # create a dataset given opt.dataset_mode and other options
 
             if use_temporal:
-                testset_temporal = create_dataset_temporal(opt, phase="test")
+                testset_temporal = create_dataset_temporal(temp_opt, phase="test")
 
                 dataloader_test_temporal = create_iterable_dataloader(
-                    opt, rank, testset_temporal, batch_size=opt.test_batch_size
+                    temp_opt, rank, testset_temporal, batch_size=opt.test_batch_size
                 )
             else:
                 dataloader_test_temporal = None
