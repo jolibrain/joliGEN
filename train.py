@@ -40,6 +40,7 @@ from models import create_model
 from options.train_options import TrainOptions
 from util.util import flatten_json
 from util.visualizer import Visualizer
+from util.lion_pytorch import Lion
 
 
 def setup(rank, world_size, port):
@@ -58,6 +59,8 @@ def optim(opt, params, lr, betas):
         return torch.optim.RAdam(params, lr, betas)
     elif opt.train_optim == "adamw":
         return torch.optim.AdamW(params, lr, betas)
+    elif opt.train_optim == "lion":
+        return Lion(params, lr, betas)
 
 
 def signal_handler(sig, frame):
