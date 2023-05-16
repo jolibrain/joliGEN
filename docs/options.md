@@ -13,6 +13,7 @@ Here are all the available options to call with `train.py`
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
+| --test_batch_size | int | 1 | input batch size |
 | --warning_mode | flag |  | whether to display warning |
 | --with_amp | flag |  | whether to activate torch amp on forward passes |
 | --with_tf32 | flag |  | whether to activate tf32 for faster computations (Ampere GPU and beyond only) |
@@ -256,7 +257,7 @@ Here are all the available options to call with `train.py`
 | --train_cls_regression | flag |  | if true cls will be a regressor and not a classifier |
 | --train_compute_D_accuracy | flag |  |  |
 | --train_compute_metrics | flag |  |  |
-| --train_compute_metrics_val | flag |  |  |
+| --train_compute_metrics_test | flag |  |  |
 | --train_continue | flag |  | continue training: load the latest model |
 | --train_epoch | string | latest | which epoch to load? set to latest to use latest cached model |
 | --train_epoch_count | int | 1 | the starting epoch count, we save the model by \<epoch_count\>, \<epoch_count\>+\<save_latest_freq\>, ... |
