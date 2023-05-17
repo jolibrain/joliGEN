@@ -655,14 +655,17 @@ class BaseModel(ABC):
         # lr_D = self.optimizers[1].param_groups[0]['lr']
         # print('learning rate G = %.7f' % lr_G, ' / learning rate D = %.7f' % lr_D)
 
-    def get_current_visuals(self):
+    def get_current_visuals(self, phase="train"):
         """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""
         visual_ret = []
         for i, group in enumerate(self.visual_names):
             cur_visual = OrderedDict()
             for name in group:
+                if phase == "test":
+                    name = name + "_test"
                 if isinstance(name, str):
                     cur_visual[name] = getattr(self, name)
+
             visual_ret.append(cur_visual)
         return visual_ret
 
@@ -1361,6 +1364,10 @@ class BaseModel(ABC):
 
             for i, cur_real in enumerate(batch_real_img):
                 real_list.append(cur_real.unsqueeze(0).clone())
+
+            for sub_list in self.visual_names:
+                for name in sub_list:
+                    setattr(self, name + "_test", getattr(self, name))
 
         self.fakeactB_test = _compute_statistics_of_dataloader(
             path_sv=None,
