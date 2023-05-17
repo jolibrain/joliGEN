@@ -268,6 +268,15 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                                 dataloaders_test, epoch, total_iters
                             )
 
+                            visualizer.display_current_results(
+                                model.get_current_visuals(phase="test"),
+                                epoch,
+                                False,
+                                params=model.get_display_param(),
+                                first=(total_iters == batch_size),
+                                phase="test",
+                            )
+
                     if opt.output_display_id > 0:
                         metrics = model.get_current_metrics()
                         visualizer.plot_current_metrics(
