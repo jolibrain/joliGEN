@@ -396,7 +396,6 @@ class PaletteModel(BaseDiffusionModel):
                 fill_img_with_random_sketch = random_edge_mask(
                     fn_list=self.opt.alg_palette_computed_sketch_list
                 )
-                print()
                 if "canny" in fill_img_with_random_sketch.__name__:
                     low = min(self.opt.alg_palette_sketch_canny_range)
                     high = max(self.opt.alg_palette_sketch_canny_range)
