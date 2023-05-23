@@ -77,6 +77,13 @@ class PaletteModel(BaseDiffusionModel):
         )
 
         parser.add_argument(
+            "--alg_palette_sketch_canny_colored",
+            action="store_true",
+            default=False,
+            help="Wether to use a colored sketch",
+        )
+
+        parser.add_argument(
             "--alg_palette_sam_use_gaussian_filter",
             action="store_true",
             default=False,
@@ -377,6 +384,7 @@ class PaletteModel(BaseDiffusionModel):
                             mask.unsqueeze(0),
                             low_threshold_random=low,
                             high_threshold_random=high,
+                            colored_edges=self.opt.alg_palette_sketch_canny_colored,
                         ).squeeze(0)
                     elif "sam" in fill_img_with_random_sketch.__name__:
                         batch_cond_image = fill_img_with_random_sketch(
@@ -404,6 +412,7 @@ class PaletteModel(BaseDiffusionModel):
                         self.mask,
                         low_threshold_random=low,
                         high_threshold_random=high,
+                        colored_edges=self.opt.alg_palette_sketch_canny_colored,
                     )
                 elif "sam" in fill_img_with_random_sketch.__name__:
                     self.cond_image = fill_img_with_random_sketch(
