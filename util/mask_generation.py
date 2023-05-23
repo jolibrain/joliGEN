@@ -39,6 +39,7 @@ def fill_img_with_canny(
     mask,
     low_threshold=None,
     high_threshold=None,
+    colored_edges=False,
     **kwargs,
 ):
     """Fill the masked region with canny edges."""
@@ -62,11 +63,19 @@ def fill_img_with_canny(
             (torch.einsum("chw->hwc", cur_img).cpu().numpy() + 1) * 255 / 2
         ).astype(np.uint8)
         edges = cv2.Canny(cur_img, low_threshold, high_threshold)
-        edges = (
-            (((torch.tensor(edges, device=device) / 255) * 2) - 1)
-            .unsqueeze(0)
-            .unsqueeze(0)
-        )
+        if colored_edges:
+            edges[edges > 0] = 1
+            cv_edges = cur_img * edges[:, :, np.newaxis]
+            edges_c = np.transpose(cv_edges, (2, 0, 1))
+            edges = (((torch.tensor(edges_c, device=device) / 255) * 2) - 1).unsqueeze(
+                0
+            )
+        else:
+            edges = (
+                (((torch.tensor(edges, device=device) / 255) * 2) - 1)
+                .unsqueeze(0)
+                .unsqueeze(0)
+            )
         edges_list.append(edges)
     edges = torch.cat(edges_list, dim=0)
     mask = torch.clamp(mask, 0, 1)
