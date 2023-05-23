@@ -65,7 +65,7 @@ class resnet_block_attn(EmbedBlock):
             padding=self.padding,
             padding_mode=self.padding_type,
         )
-        self.conv1_norm = normalization(channel, "groupnorm32")
+        self.conv1_norm = normalization(channel)
         self.conv2 = conv(
             channel,
             channel,
@@ -74,7 +74,7 @@ class resnet_block_attn(EmbedBlock):
             padding=self.padding,
             padding_mode=self.padding_type,
         )
-        self.conv2_norm = normalization(channel, "groupnorm32")
+        self.conv2_norm = normalization(channel)
 
         self.emb_layers = nn.Sequential(
             torch.nn.SiLU(),
@@ -85,7 +85,7 @@ class resnet_block_attn(EmbedBlock):
         )
 
         self.out_layers = nn.Sequential(
-            normalization(channel, "groupnorm32"),
+            normalization(channel),
             torch.nn.SiLU(),
             nn.Conv2d(channel, channel, 3, padding=1),
         )
@@ -189,16 +189,14 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
         self.encoder = [
             # Layer 1
             embed_block(
-                nn.Sequential(
-                    nn.Conv2d(input_nc, ngf, 7, 1, 0), normalization(ngf, "groupnorm32")
-                ),
+                nn.Sequential(nn.Conv2d(input_nc, ngf, 7, 1, 0), normalization(ngf)),
                 nn.Sequential(
                     nn.Linear(self.cond_embed_dim, self.cond_embed_dim),
                     torch.nn.SiLU(),
                     nn.Linear(self.cond_embed_dim, ngf * self.embed_channel_ratio),
                 ),
                 nn.Sequential(
-                    normalization(ngf, "groupnorm32"),
+                    normalization(ngf),
                     torch.nn.SiLU(),
                     nn.Conv2d(ngf, ngf, 3, padding=1),
                 ),
@@ -208,7 +206,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
             embed_block(
                 nn.Sequential(
                     nn.Conv2d(ngf, ngf * 2, 3, 2, 1),
-                    normalization(ngf * 2, "groupnorm32"),
+                    normalization(ngf * 2),
                 ),
                 nn.Sequential(
                     nn.Linear(self.cond_embed_dim, self.cond_embed_dim),
@@ -216,7 +214,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
                     nn.Linear(self.cond_embed_dim, ngf * 2 * self.embed_channel_ratio),
                 ),
                 nn.Sequential(
-                    normalization(ngf * 2, "groupnorm32"),
+                    normalization(ngf * 2),
                     torch.nn.SiLU(),
                     nn.Conv2d(ngf * 2, ngf * 2, 3, padding=1),
                 ),
@@ -226,7 +224,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
             embed_block(
                 nn.Sequential(
                     nn.Conv2d(ngf * 2, ngf * 4, 3, 2, 1),
-                    normalization(ngf * 4, "groupnorm32"),
+                    normalization(ngf * 4),
                 ),
                 nn.Sequential(
                     nn.Linear(self.cond_embed_dim, self.cond_embed_dim),
@@ -234,7 +232,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
                     nn.Linear(self.cond_embed_dim, ngf * 4 * self.embed_channel_ratio),
                 ),
                 nn.Sequential(
-                    normalization(ngf * 4, "groupnorm32"),
+                    normalization(ngf * 4),
                     torch.nn.SiLU(),
                     nn.Conv2d(ngf * 4, ngf * 4, 3, padding=1),
                 ),
@@ -267,7 +265,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
             embed_block(
                 nn.Sequential(
                     nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, 2, 1, 1),
-                    normalization(ngf * 2, "groupnorm32"),
+                    normalization(ngf * 2),
                 ),
                 nn.Sequential(
                     nn.Linear(self.cond_embed_dim, self.cond_embed_dim),
@@ -275,7 +273,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
                     nn.Linear(self.cond_embed_dim, ngf * 2 * self.embed_channel_ratio),
                 ),
                 nn.Sequential(
-                    normalization(ngf * 2, "groupnorm32"),
+                    normalization(ngf * 2),
                     torch.nn.SiLU(),
                     nn.Conv2d(ngf * 2, ngf * 2, 3, padding=1),
                 ),
@@ -285,7 +283,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
             embed_block(
                 nn.Sequential(
                     nn.ConvTranspose2d(ngf * 2, ngf, 3, 2, 1, 1),
-                    normalization(ngf, "groupnorm32"),
+                    normalization(ngf),
                 ),
                 nn.Sequential(
                     nn.Linear(self.cond_embed_dim, self.cond_embed_dim),
@@ -293,7 +291,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
                     nn.Linear(self.cond_embed_dim, ngf * self.embed_channel_ratio),
                 ),
                 nn.Sequential(
-                    normalization(ngf, "groupnorm32"),
+                    normalization(ngf),
                     torch.nn.SiLU(),
                     nn.Conv2d(ngf, ngf, 3, padding=1),
                 ),
@@ -398,7 +396,7 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
         self.decoder_attention = EmbedSequential(*self.decoder_attention)
 
         self.output_layer = nn.Sequential(
-            normalization(ngf, "groupnorm32"),
+            normalization(ngf),
             torch.nn.SiLU(),
             nn.Conv2d(
                 ngf,
@@ -428,13 +426,14 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
         for m in self._modules:
             normal_init(self._modules[m], mean, std)
 
-    def compute_feats(self, input, gammas, extract_layer_ids=[]):
+    def compute_feats(self, input, embed_gammas, extract_layer_ids=[]):
 
-        if gammas is None:
+        if embed_gammas is None:
+            # Only for GAN
             b = (input.shape[0], self.cond_embed_dim)
-            gammas = torch.ones(b).to(input.device)
+            embed_gammas = torch.ones(b).to(input.device)
 
-        emb = gammas
+        emb = embed_gammas
 
         if self.padding_type == "reflect":
             x = F.pad(input, (3, 3, 3, 3), "reflect")
@@ -501,8 +500,8 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
 
         return attentions, images
 
-    def forward(self, input, gammas):
-        feat, _, emb = self.compute_feats(input, gammas=gammas)
+    def forward(self, input, embed_gammas):
+        feat, _, emb = self.compute_feats(input, embed_gammas=embed_gammas)
         attentions, images = self.compute_attention_content(feat, emb)
 
         _, _, outputs = self.compute_outputs(input, attentions, images)
@@ -517,11 +516,11 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
         out = a.gather(-1, t)
         return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
-    def get_attention_masks(self, input, gammas):
-        feat, _, emb = self.compute_feats(input, gammas)
+    def get_attention_masks(self, input, embed_gammas):
+        feat, _, emb = self.compute_feats(input, embed_gammas)
         attentions, images = self.compute_attention_content(feat, emb)
         return self.compute_outputs(input, attentions, images)
 
-    def get_feats(self, input, gammas, extract_layer_ids):
-        _, feats = self.compute_feats(input, gammas, extract_layer_ids)
+    def get_feats(self, input, embed_gammas, extract_layer_ids):
+        _, feats = self.compute_feats(input, embed_gammas, extract_layer_ids)
         return feats

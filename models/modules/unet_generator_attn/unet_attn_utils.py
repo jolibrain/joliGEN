@@ -62,7 +62,7 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def normalization(channels, norm):
+def normalization(channels, norm="groupnorm32"):
     """
     Make a standard normalization layer.
 

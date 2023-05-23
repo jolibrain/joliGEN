@@ -591,12 +591,13 @@ class UNet(nn.Module):
             },
         }
 
-    def compute_feats(self, input, gammas):
-        if gammas is None:
+    def compute_feats(self, input, embed_gammas):
+        if embed_gammas is None:
+            # Only for GAN
             b = (input.shape[0], self.cond_embed_dim)
-            gammas = torch.ones(b).to(input.device)
+            embed_gammas = torch.ones(b).to(input.device)
 
-        emb = gammas
+        emb = embed_gammas
 
         hs = []
 
@@ -610,8 +611,8 @@ class UNet(nn.Module):
         outs, feats = h, hs
         return outs, feats, emb
 
-    def forward(self, input, gammas=None):
-        h, hs, emb = self.compute_feats(input, gammas=gammas)
+    def forward(self, input, embed_gammas=None):
+        h, hs, emb = self.compute_feats(input, embed_gammas=embed_gammas)
 
         for i, module in enumerate(self.output_blocks):
             h = torch.cat([h, hs.pop()], dim=1)
@@ -620,7 +621,7 @@ class UNet(nn.Module):
         return self.out(h)
 
     def get_feats(self, input, extract_layer_ids):
-        _, hs, _ = self.compute_feats(input, gammas=None)
+        _, hs, _ = self.compute_feats(input, embed_gammas=None)
         feats = []
 
         for i, feat in enumerate(hs):
@@ -853,12 +854,13 @@ class UViT(nn.Module):
             },
         }
 
-    def compute_feats(self, input, gammas):
-        if gammas is None:
+    def compute_feats(self, input, embed_gammas):
+        if embed_gammas is None:
+            # Only for GAN
             b = (input.shape[0], self.cond_embed_dim)
-            gammas = torch.ones(b).to(input.device)
+            embed_gammas = torch.ones(b).to(input.device)
 
-        emb = gammas
+        emb = embed_gammas
 
         hs = []
 
@@ -878,8 +880,8 @@ class UViT(nn.Module):
         outs, feats = h, hs
         return outs, feats, emb
 
-    def forward(self, input, gammas=None):
-        h, hs, emb = self.compute_feats(input, gammas=gammas)
+    def forward(self, input, embed_gammas=None):
+        h, hs, emb = self.compute_feats(input, embed_gammas=embed_gammas)
 
         for i, module in enumerate(self.output_blocks):
             h = torch.cat([h, hs.pop()], dim=1)
@@ -888,7 +890,7 @@ class UViT(nn.Module):
         return self.out(h)
 
     def get_feats(self, input, extract_layer_ids):
-        _, hs, _ = self.compute_feats(input, gammas=None)
+        _, hs, _ = self.compute_feats(input, embed_gammas=None)
         feats = []
 
         for i, feat in enumerate(hs):
