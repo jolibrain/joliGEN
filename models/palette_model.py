@@ -438,8 +438,6 @@ class PaletteModel(BaseDiffusionModel):
 
         dummy_noise = None
 
-        dummy_label = torch.amax(dummy_mask, dim=(2, 3))
-
         if "class" in self.opt.alg_palette_conditioning:
             dummy_cls = torch.ones(1, device=device, dtype=torch.int64)
         else:

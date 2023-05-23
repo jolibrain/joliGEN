@@ -169,10 +169,10 @@ class DiffusionGenerator(nn.Module):
             getattr(self.denoise_fn, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
 
-        noise_level = self.compute_gammas(noise_level)
+        embed_noise_level = self.compute_gammas(noise_level)
 
         if "class" in self.conditioning:
-            noise_level = torch.cat((noise_level, cls_embed), dim=1)
+            embed_noise_level = torch.cat((embed_noise_level, cls_embed), dim=1)
 
         input = torch.cat([y_cond, y_t], dim=1)
 
@@ -183,7 +183,7 @@ class DiffusionGenerator(nn.Module):
             self.denoise_fn,
             y_t,
             t=t,
-            noise=self.denoise_fn(input, noise_level),
+            noise=self.denoise_fn(input, embed_noise_level),
             phase=phase,
         )
 
@@ -243,7 +243,7 @@ class DiffusionGenerator(nn.Module):
             y_0=y_0, sample_gammas=sample_gammas.view(-1, 1, 1, 1), noise=noise
         )
 
-        sample_gammas = self.compute_gammas(sample_gammas)
+        embed_sample_gammas = self.compute_gammas(sample_gammas)
 
         if mask is not None:
             temp_mask = torch.clamp(mask, min=0.0, max=1.0)
@@ -253,7 +253,7 @@ class DiffusionGenerator(nn.Module):
 
         if "class" in self.conditioning:
             cls_embed = self.l_embedder_class(cls)
-            sample_gammas = torch.cat((sample_gammas, cls_embed), dim=1)
+            embed_sample_gammas = torch.cat((embed_sample_gammas, cls_embed), dim=1)
 
         if "mask" in self.conditioning:
             mask_embed = mask.to(torch.int32).squeeze(1)
@@ -265,7 +265,7 @@ class DiffusionGenerator(nn.Module):
 
             input = torch.cat([input, mask_embed], dim=1)
 
-        noise_hat = self.denoise_fn(input, sample_gammas)
+        noise_hat = self.denoise_fn(input, embed_sample_gammas)
 
         return noise, noise_hat
 
