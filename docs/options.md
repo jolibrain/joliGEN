@@ -128,7 +128,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --alg_palette_computed_sketch_list | array | ['canny', 'hed'] | what to use for random sketch |
 | --alg_palette_cond_embed_dim | int | 32 | nb of examples processed for inference |
-| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, previous_frame, computed_sketch_ |
+| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, previous_frame, computed_sketch, low_res_ |
 | --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/>_**Values:** , mask, class, mask_and_class_ |
 | --alg_palette_generate_per_class | flag |  | whether to generate samples of each images |
 | --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
@@ -137,13 +137,15 @@ Here are all the available options to call with `train.py`
 | --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/>_**Values:** ddpm, ddim_ |
 | --alg_palette_sketch_canny_range | array | [0, 765] | range for Canny thresholds |
+| --alg_palette_super_resolution_scale | float | 2.0 | scale for super resolution |
+| --alg_palette_task | string | inpainting | <br/><br/>_**Values:** inpainting, super_resolution_ |
 
 ## Datasets
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal, self_supervised_temporal_ |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal, self_supervised_temporal, single_ |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/>_**Values:** AtoB, BtoA_ |
 | --data_inverted_mask | flag |  | whether to invert the mask, i.e. around the bbox |
 | --data_load_size | int | 286 | scale images to this size |
