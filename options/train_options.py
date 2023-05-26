@@ -567,5 +567,11 @@ class TrainOptions(BaseOptions):
             help="How often to perform diffusion augmentation adjustment",
         )
 
+        parser.add_argument(
+            "--model_prior_321_backwardcompatibility",
+            action="store_true",
+            help="whether to load models from previous version of JG.",
+        )
+
         self.isTrain = True
         return parser

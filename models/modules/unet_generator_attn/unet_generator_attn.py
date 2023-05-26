@@ -424,7 +424,6 @@ class UNet(nn.Module):
         if norm == "groupnorm":
             norm = norm + str(group_norm_size)
 
-        # cond_embed_dim = inner_channel * 4
         self.cond_embed_dim = cond_embed_dim
 
         ch = input_ch = int(channel_mults[0] * inner_channel)

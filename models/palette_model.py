@@ -5,6 +5,10 @@ import warnings
 
 import torch
 import torchvision.transforms as T
+from torch import nn
+
+
+import itertools
 import tqdm
 
 from data.online_creation import fill_mask_with_color
@@ -241,6 +245,10 @@ class PaletteModel(BaseDiffusionModel):
             self.opt.f_s_semantic_nclasses += 1
             self.opt.cls_semantic_nclasses += 1
 
+        self.num_classes = max(
+            self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
+        )
+
         # Visuals
         visual_outputs = []
         self.gen_visual_names = [
@@ -285,10 +293,14 @@ class PaletteModel(BaseDiffusionModel):
 
         self.model_names_export = ["G_A"]
 
+        G_models = ["G_A"]
+        G_parameters = [self.netG_A.parameters()]
+        G_parameters = itertools.chain(*G_parameters)
+
         # Define optimizer
         self.optimizer_G = opt.optim(
             opt,
-            self.netG_A.parameters(),
+            G_parameters,
             lr=opt.train_G_lr,
             betas=(opt.train_beta1, opt.train_beta2),
         )
@@ -323,13 +335,13 @@ class PaletteModel(BaseDiffusionModel):
         losses_backward = ["loss_G_tot"]
 
         self.group_G = NetworkGroup(
-            networks_to_optimize=["G_A"],
+            networks_to_optimize=G_models,
             forward_functions=[],
             backward_functions=["compute_palette_loss"],
             loss_names_list=["loss_names_G"],
             optimizer=["optimizer_G"],
             loss_backward=losses_backward,
-            networks_to_ema=["G_A"],
+            networks_to_ema=G_models,
         )
         self.networks_groups.append(self.group_G)
 
@@ -481,14 +493,31 @@ class PaletteModel(BaseDiffusionModel):
         y_cond = self.cond_image
         mask = self.mask
         noise = None
+        cls = self.cls
+
+        if self.opt.alg_palette_dropout_prob > 0.0:
+            drop_ids = (
+                torch.rand(mask.shape[0], device=mask.device)
+                < self.opt.alg_palette_dropout_prob
+            )
+        else:
+            drop_ids = None
+
+        if drop_ids is not None:
+            if mask is not None:
+                # the highest class is the unconditionned one.
+                mask = torch.where(
+                    drop_ids.reshape(-1, 1, 1, 1).expand(mask.shape),
+                    self.num_classes - 1,
+                    mask,
+                )
+
+            if cls is not None:
+                # the highest class is the unconditionned one.
+                cls = torch.where(drop_ids, self.num_classes - 1, cls)
 
         noise, noise_hat = self.netG_A(
-            y_0,
-            y_cond,
-            mask,
-            noise,
-            cls=self.cls,
-            dropout_prob=self.opt.alg_palette_dropout_prob,
+            y_0=y_0, y_cond=y_cond, noise=noise, mask=mask, cls=cls
         )
 
         if mask is not None:
@@ -524,8 +553,19 @@ class PaletteModel(BaseDiffusionModel):
                 and self.opt.alg_palette_generate_per_class
             ):
                 for i in range(self.nb_classes_inference):
-                    cur_class = torch.ones_like(self.cls) * (i + 1)
-                    cur_class_mask = self.mask.clone().clamp(min=0, max=1) * (i + 1)
+                    if "class" in self.opt.alg_palette_conditioning:
+                        cur_class = torch.ones_like(self.cls)[: self.inference_num] * (
+                            i + 1
+                        )
+                    else:
+                        cur_class = None
+
+                    if "mask" in self.opt.alg_palette_conditioning:
+                        cur_class_mask = self.mask[: self.inference_num].clone().clamp(
+                            min=0, max=1
+                        ) * (i + 1)
+                    else:
+                        cur_class_mask = None
 
                     output, visuals = netG.restoration(
                         y_cond=self.cond_image[: self.inference_num],
@@ -547,13 +587,14 @@ class PaletteModel(BaseDiffusionModel):
 
             # no class conditioning
             else:
+
                 self.output, self.visuals = netG.restoration(
                     y_cond=self.cond_image[: self.inference_num],
                     y_t=self.y_t[: self.inference_num],
                     y_0=self.gt_image[: self.inference_num],
                     mask=self.mask[: self.inference_num],
                     sample_num=self.sample_num,
-                    cls=self.cls,
+                    cls=self.cls[: self.inference_num],
                 )
                 self.fake_B = self.output
 
@@ -622,6 +663,12 @@ class PaletteModel(BaseDiffusionModel):
         else:
             dummy_cls = None
 
-        dummy_input = (dummy_y_0, dummy_y_cond, dummy_mask, dummy_noise, dummy_cls)
+        dummy_input = (
+            dummy_y_0,
+            dummy_y_cond,
+            dummy_mask,
+            dummy_noise,
+            dummy_cls,
+        )
 
         return dummy_input

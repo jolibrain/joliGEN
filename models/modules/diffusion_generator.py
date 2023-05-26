@@ -6,41 +6,14 @@ from functools import partial
 import numpy as np
 from tqdm import tqdm
 from torch import nn
-from einops import rearrange
 
-from models.modules.unet_generator_attn.unet_generator_attn import UNet
+
 from models.modules.diffusion_utils import (
     set_new_noise_schedule,
     predict_start_from_noise,
     q_posterior,
+    gamma_embedding,
 )
-
-from models.modules.resnet_architecture.resnet_generator_diff import (
-    ResnetGenerator_attn_diff,
-)
-
-from models.modules.diffusion_utils import gamma_embedding
-
-
-class LabelEmbedder(nn.Module):
-    """
-    Embeds class labels into vector representations.
-    """
-
-    def __init__(self, num_classes, hidden_size):
-        super().__init__()
-
-        self.embedding_table = nn.Embedding(
-            num_classes,
-            hidden_size,
-            max_norm=1.0,
-            scale_grad_by_freq=True,
-        )
-        self.num_classes = num_classes
-
-    def forward(self, labels):
-        embeddings = self.embedding_table(labels)
-        return embeddings
 
 
 class DiffusionGenerator(nn.Module):
@@ -48,51 +21,61 @@ class DiffusionGenerator(nn.Module):
         self,
         denoise_fn,
         sampling_method,
-        conditioning,
-        num_classes,
-        cond_embed_dim,
         image_size,
+        G_ngf,
+        loading_backward_compatibility,
     ):
         super().__init__()
 
         self.denoise_fn = denoise_fn
-        self.conditioning = conditioning
         self.sampling_method = sampling_method
         self.image_size = image_size
-        self.num_classes = num_classes
+
+        cond_embed_dim = self.denoise_fn.cond_embed_dim
 
         # Init noise schedule
-        set_new_noise_schedule(model=self.denoise_fn, phase="train")
-        set_new_noise_schedule(model=self.denoise_fn, phase="test")
+        set_new_noise_schedule(model=self.denoise_fn.model, phase="train")
+        set_new_noise_schedule(model=self.denoise_fn.model, phase="test")
 
-        # Label embedding
+        # Backward compatibility
 
-        if "class" in self.conditioning:
-            self.cond_embed_dim = cond_embed_dim // 2
+        if loading_backward_compatibility:
+            if type(self.denoise_fn.model).__name__ == "ResnetGenerator_attn_diff":
 
-            cond_embed_class = self.cond_embed_dim
+                inner_channel = G_ngf
+                self.cond_embed = nn.Sequential(
+                    nn.Linear(inner_channel, cond_embed_dim),
+                    torch.nn.SiLU(),
+                    nn.Linear(cond_embed_dim, cond_embed_dim),
+                )
 
-            self.l_embedder_class = LabelEmbedder(
-                num_classes, self.cond_embed_dim  # * image_size * image_size
-            )
-            nn.init.normal_(self.l_embedder_class.embedding_table.weight, std=0.02)
+            elif type(self.denoise_fn.model).__name__ == "UNet":
 
+                inner_channel = G_ngf
+                cond_embed_dim = inner_channel * 4
+
+                self.cond_embed = nn.Sequential(
+                    nn.Linear(inner_channel, cond_embed_dim),
+                    torch.nn.SiLU(),
+                    nn.Linear(cond_embed_dim, cond_embed_dim),
+                )
+
+            self.cond_embed_gammas_in = inner_channel
         else:
             self.cond_embed_dim = cond_embed_dim
 
-        if "mask" in self.conditioning:
-            cond_embed_mask = cond_embed_dim
+            if "class" in self.denoise_fn.conditioning:
+                self.cond_embed_gammas = self.cond_embed_dim // 2
+            else:
+                self.cond_embed_gammas = self.cond_embed_dim
 
-            self.l_embedder_mask = LabelEmbedder(
-                num_classes, cond_embed_mask  # * image_size * image_size
+            self.cond_embed = nn.Sequential(
+                nn.Linear(self.cond_embed_gammas, self.cond_embed_gammas),
+                torch.nn.SiLU(),
+                nn.Linear(self.cond_embed_gammas, self.cond_embed_gammas),
             )
-            nn.init.normal_(self.l_embedder_mask.embedding_table.weight, std=0.02)
 
-        self.cond_embed = nn.Sequential(
-            nn.Linear(self.cond_embed_dim, self.cond_embed_dim),
-            torch.nn.SiLU(),
-            nn.Linear(self.cond_embed_dim, self.cond_embed_dim),
-        )
+            self.cond_embed_gammas_in = self.cond_embed_gammas
 
     def restoration(
         self,
@@ -109,41 +92,26 @@ class DiffusionGenerator(nn.Module):
         b, *_ = y_cond.shape
 
         assert (
-            self.denoise_fn.num_timesteps_test > sample_num
+            self.denoise_fn.model.num_timesteps_test > sample_num
         ), "num_timesteps must greater than sample_num"
-        sample_inter = self.denoise_fn.num_timesteps_test // sample_num
+        sample_inter = self.denoise_fn.model.num_timesteps_test // sample_num
 
         y_t = self.default(y_t, lambda: torch.randn_like(y_cond))
         ret_arr = y_t
         for i in tqdm(
-            reversed(range(0, self.denoise_fn.num_timesteps_test)),
+            reversed(range(0, self.denoise_fn.model.num_timesteps_test)),
             desc="sampling loop time step",
-            total=self.denoise_fn.num_timesteps_test,
+            total=self.denoise_fn.model.num_timesteps_test,
         ):
             t = torch.full((b,), i, device=y_cond.device, dtype=torch.long)
-
-            if "mask" in self.conditioning:
-                mask_embed = mask.to(torch.int32).squeeze(1)
-                mask_embed = rearrange(mask_embed, "b h w -> b (h w)")
-                mask_embed = self.l_embedder_mask(mask_embed)
-                mask_embed = rearrange(
-                    mask_embed, "b (h w) c -> b c h w", h=self.image_size
-                )
-            else:
-                mask_embed = None
-
-            if "class" in self.conditioning:
-                cls_embed = self.l_embedder_class(cls)
-            else:
-                cls_embed = None
 
             y_t = self.p_sample(
                 y_t,
                 t,
                 y_cond=y_cond,
                 phase=phase,
-                mask_embed=mask_embed,
-                cls_embed=cls_embed,
+                cls=cls,
+                mask=mask,
                 guidance_scale=guidance_scale,
             )
 
@@ -173,39 +141,35 @@ class DiffusionGenerator(nn.Module):
         t,
         phase,
         clip_denoised: bool,
-        mask_embed,
-        cls_embed,
+        cls,
+        mask,
         y_cond=None,
         guidance_scale=0.0,
     ):
         noise_level = self.extract(
-            getattr(self.denoise_fn, "gammas_" + phase), t, x_shape=(1, 1)
+            getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
 
         embed_noise_level = self.compute_gammas(noise_level)
 
+        input = torch.cat([y_cond, y_t], dim=1)
+
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = predict_start_from_noise(
-                self.denoise_fn,
+                self.denoise_fn.model,
                 y_t,
                 t=t,
-                noise=self.denoise_fn(input, torch.zeros_like(embed_noise_level)),
+                noise=self.denoise_fn(
+                    input, torch.zeros_like(embed_noise_level), cls=None, mask=None
+                ),
                 phase=phase,
             )
 
-        if "class" in self.conditioning:
-            embed_noise_level = torch.cat((embed_noise_level, cls_embed), dim=1)
-
-        input = torch.cat([y_cond, y_t], dim=1)
-
-        if "mask" in self.conditioning:
-            input = torch.cat([input, mask_embed], dim=1)
-
         y_0_hat = predict_start_from_noise(
-            self.denoise_fn,
+            self.denoise_fn.model,
             y_t,
             t=t,
-            noise=self.denoise_fn(input, embed_noise_level),
+            noise=self.denoise_fn(input, embed_noise_level, cls=cls, mask=mask),
             phase=phase,
         )
 
@@ -216,7 +180,7 @@ class DiffusionGenerator(nn.Module):
             y_0_hat.clamp_(-1.0, 1.0)
 
         model_mean, posterior_log_variance = q_posterior(
-            self.denoise_fn, y_0_hat=y_0_hat, y_t=y_t, t=t, phase=phase
+            self.denoise_fn.model, y_0_hat=y_0_hat, y_t=y_t, t=t, phase=phase
         )
         return model_mean, posterior_log_variance
 
@@ -229,20 +193,21 @@ class DiffusionGenerator(nn.Module):
         y_t,
         t,
         phase,
-        cls_embed,
-        mask_embed,
+        cls,
+        mask,
         clip_denoised=True,
         y_cond=None,
         guidance_scale=0.0,
     ):
+
         model_mean, model_log_variance = self.p_mean_variance(
             y_t=y_t,
             t=t,
             clip_denoised=clip_denoised,
             y_cond=y_cond,
             phase=phase,
-            cls_embed=cls_embed,
-            mask_embed=mask_embed,
+            cls=cls,
+            mask=mask,
             guidance_scale=guidance_scale,
         )
 
@@ -257,12 +222,13 @@ class DiffusionGenerator(nn.Module):
         return model_mean + noise * (0.5 * model_log_variance).exp()
 
     def forward(self, y_0, y_cond, mask, noise, cls, dropout_prob=0.0):
+
         b, *_ = y_0.shape
         t = torch.randint(
-            1, self.denoise_fn.num_timesteps_train, (b,), device=y_0.device
+            1, self.denoise_fn.model.num_timesteps_train, (b,), device=y_0.device
         ).long()
 
-        gammas = self.denoise_fn.gammas_train
+        gammas = self.denoise_fn.model.gammas_train
 
         gamma_t1 = self.extract(gammas, t - 1, x_shape=(1, 1))
         sqrt_gamma_t2 = self.extract(gammas, t, x_shape=(1, 1))
@@ -278,48 +244,13 @@ class DiffusionGenerator(nn.Module):
 
         embed_sample_gammas = self.compute_gammas(sample_gammas)
 
-        # conditioning
-        if dropout_prob > 0.0:
-            drop_ids = torch.rand(mask.shape[0], device=mask.device) < dropout_prob
-        else:
-            drop_ids = None
-
         if mask is not None:
             temp_mask = torch.clamp(mask, min=0.0, max=1.0)
-            if drop_ids is not None:
-                temp_mask = torch.where(
-                    drop_ids.reshape(-1, 1, 1, 1).expand(temp_mask.shape),
-                    torch.ones_like(temp_mask),
-                    temp_mask,
-                )
             y_noisy = y_noisy * temp_mask + (1.0 - temp_mask) * y_0
 
         input = torch.cat([y_cond, y_noisy], dim=1)
 
-        if "class" in self.conditioning:
-            if drop_ids is not None:
-                # the highest class is the unconditionned one.
-                cls = torch.where(drop_ids, self.num_classes - 1, cls)
-
-            cls_embed = self.l_embedder_class(cls)
-            embed_sample_gammas = torch.cat((embed_sample_gammas, cls_embed), dim=1)
-
-        if "mask" in self.conditioning:
-            if drop_ids is not None:
-                mask_drop_ids = drop_ids.reshape(-1, 1, 1, 1).expand(mask.shape)
-                # the highest class is the unconditionned one.
-                mask = torch.where(mask_drop_ids, self.num_classes - 1, mask)
-
-            mask_embed = mask.to(torch.int32).squeeze(1)
-            mask_embed = rearrange(mask_embed, "b h w -> b (h w)")
-            mask_embed = self.l_embedder_mask(mask_embed)
-            mask_embed = rearrange(
-                mask_embed, "b (h w) c -> b c h w", h=self.image_size
-            )
-
-            input = torch.cat([input, mask_embed], dim=1)
-
-        noise_hat = self.denoise_fn(input, embed_sample_gammas)
+        noise_hat = self.denoise_fn(input, embed_sample_gammas, cls=cls, mask=mask)
 
         return noise, noise_hat
 
@@ -327,6 +258,5 @@ class DiffusionGenerator(nn.Module):
         self.sampling_method = sampling_method
 
     def compute_gammas(self, gammas):
-        emb = self.cond_embed(gamma_embedding(gammas, self.cond_embed_dim))
-
+        emb = self.cond_embed(gamma_embedding(gammas, self.cond_embed_gammas_in))
         return emb

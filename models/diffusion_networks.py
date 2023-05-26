@@ -4,6 +4,7 @@ from .modules.utils import get_norm_layer
 from .modules.diffusion_generator import DiffusionGenerator
 from .modules.resnet_architecture.resnet_generator_diff import ResnetGenerator_attn_diff
 from .modules.unet_generator_attn.unet_generator_attn import UNet, UViT
+from .modules.palette_denoise_fn import PaletteDenoiseFn
 
 
 def define_G(
@@ -35,6 +36,7 @@ def define_G(
     alg_palette_sampling_method,
     alg_palette_conditioning,
     alg_palette_cond_embed_dim,
+    model_prior_321_backwardcompatibility,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
     conv_resample=True,
@@ -76,7 +78,13 @@ def define_G(
         in_channel += alg_palette_cond_embed_dim
 
     if G_netG == "unet_mha":
-        denoise_fn = UNet(
+
+        if model_prior_321_backwardcompatibility:
+            cond_embed_dim = G_ngf * 4
+        else:
+            cond_embed_dim = alg_palette_cond_embed_dim
+
+        model = UNet(
             image_size=data_crop_size,
             in_channel=in_channel,
             inner_channel=G_ngf,
@@ -93,11 +101,11 @@ def define_G(
             norm=G_unet_mha_norm_layer,
             group_norm_size=G_unet_mha_group_norm_size,
             efficient=G_unet_mha_vit_efficient,
-            cond_embed_dim=alg_palette_cond_embed_dim,
+            cond_embed_dim=cond_embed_dim,
         )
 
     elif G_netG == "uvit":
-        denoise_fn = UViT(
+        model = UViT(
             image_size=data_crop_size,
             in_channel=in_channel,
             inner_channel=G_ngf,
@@ -117,11 +125,12 @@ def define_G(
             efficient=G_unet_mha_vit_efficient,
             cond_embed_dim=alg_palette_cond_embed_dim,
         )
+        cond_embed_dim = alg_palette_cond_embed_dim
 
     elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":
         mobile = "mobile" in G_netG
         G_ngf = alg_palette_cond_embed_dim
-        denoise_fn = ResnetGenerator_attn_diff(
+        model = ResnetGenerator_attn_diff(
             input_nc=in_channel,
             output_nc=model_output_nc,
             nb_mask_attn=G_attn_nb_mask_attn,
@@ -135,19 +144,26 @@ def define_G(
             mobile=mobile,
             use_scale_shift_norm=True,
         )
+        cond_embed_dim = alg_palette_cond_embed_dim
 
     else:
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG
         )
 
+    denoise_fn = PaletteDenoiseFn(
+        model=model,
+        cond_embed_dim=cond_embed_dim,
+        conditioning=alg_palette_conditioning,
+        nclasses=f_s_semantic_nclasses,
+    )
+
     net = DiffusionGenerator(
         denoise_fn=denoise_fn,
         sampling_method=alg_palette_sampling_method,
-        conditioning=alg_palette_conditioning,
-        num_classes=f_s_semantic_nclasses,
-        cond_embed_dim=alg_palette_cond_embed_dim,
         image_size=data_crop_size,
+        G_ngf=G_ngf,
+        loading_backward_compatibility=model_prior_321_backwardcompatibility,
     )
 
     return net
