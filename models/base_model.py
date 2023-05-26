@@ -20,7 +20,7 @@ from data.base_dataset import get_transform
 from util.metrics import _compute_statistics_of_dataloader
 
 
-from piq import MSID, KID, FID
+from piq import MSID, KID, FID, psnr
 
 from util.util import save_image, tensor2im, delete_flop_param
 
@@ -1297,6 +1297,7 @@ class BaseModel(ABC):
                 "fidB_test",
                 "msidB_test",
                 "kidB_test",
+                "psnr_test",
             ]
 
         for name in metrics_names:
@@ -1318,6 +1319,7 @@ class BaseModel(ABC):
             netG = self.netG
 
         fake_list = []
+        real_list = []
 
         for i, data_test_list in enumerate(
             dataloaders_test
@@ -1352,6 +1354,14 @@ class BaseModel(ABC):
 
                 fake_list.append(cur_fake_B.unsqueeze(0).clone())
 
+            if hasattr(self, "gt_image"):
+                batch_real_img = self.gt_image
+            else:
+                batch_real_img = self.real_A
+
+            for i, cur_real in enumerate(batch_real_img):
+                real_list.append(cur_real.unsqueeze(0).clone())
+
         self.fakeactB_test = _compute_statistics_of_dataloader(
             path_sv=None,
             model=self.netFid,
@@ -1367,6 +1377,11 @@ class BaseModel(ABC):
         self.fidB_test, self.msidB_test, self.kidB_test = self.compute_metrics_generic(
             self.realactB_test, self.fakeactB_test
         )
+
+        real_tensor = (torch.cat(real_list) + 1) / 2
+        fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1, max=1) + 1) / 2
+
+        self.psnr_test = psnr(real_tensor, fake_tensor)
 
     def compute_metrics_generic(self, real_act, fake_act):
         # FID
