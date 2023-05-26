@@ -405,7 +405,7 @@ def generate(
         cl_mask = None
 
     else:
-        cl_mask = (torch.clamp(mask, min=0, max=1).unsqueeze(0).clone().detach(),)
+        cl_mask = torch.clamp(mask, min=0, max=1).unsqueeze(0).clone().detach()
     y_t, cond_image, img_tensor, mask = (
         y_t.unsqueeze(0).clone().detach(),
         cond_image.clone().detach(),

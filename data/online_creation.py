@@ -64,9 +64,9 @@ def crop_image(
             if len(line) > 2:  # to make sure the current line is a real bbox
                 if override_class != -1:
                     bbox = line.split()
-                    bbox[0] = override_class
+                    bbox[0] = str(override_class)
                     line = " ".join(bbox)
-
+                    bboxes.append(line)
                 elif select_cat != -1:
                     bbox = line.split()
                     cat = int(bbox[0])
