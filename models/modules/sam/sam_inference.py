@@ -462,6 +462,8 @@ def predict_sam(img, sam_predictor, bbox=None):
         prompt_bbox = np.array(
             [0, 0, img.size(dim=2), img.size(dim=3)]
         )  # bbox over the full image
+        point_coord = None
+        point_label = None
     else:
         prompt_bbox = np.array(bbox)
 
