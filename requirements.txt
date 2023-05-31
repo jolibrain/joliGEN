@@ -20,4 +20,6 @@ onnx
 aim
 git+https://github.com/facebookresearch/segment-anything.git
 piq
-
+jinja2<3.1.0
+markdown-include
+mkdocstrings
