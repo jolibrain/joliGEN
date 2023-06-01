@@ -30,13 +30,13 @@ class ColorizationDataset(BaseDataset):
         parser.set_defaults(self.input_nc=1, self.output_nc=2, direction="AtoB")
         return parser
 
-    def __init__(self, opt):
+    def __init__(self, opt, phase):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset.__init__(self, opt)
+        BaseDataset.__init__(self, opt, phase)
         self.dir = os.path.join(opt.dataroot, opt.phase)
         self.AB_paths = sorted(make_dataset(self.dir, opt.max_dataset_size))
         self.transform = get_transform(self.opt, convert=False)

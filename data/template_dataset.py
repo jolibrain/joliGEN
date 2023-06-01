@@ -39,7 +39,7 @@ class TemplateDataset(BaseDataset):
         )  # specify dataset-specific default values
         return parser
 
-    def __init__(self, opt):
+    def __init__(self, opt, phase):
         """Initialize this dataset class.
 
         Parameters:
@@ -51,7 +51,7 @@ class TemplateDataset(BaseDataset):
         - define the image transformation.
         """
         # save the option and dataset root
-        BaseDataset.__init__(self, opt)
+        BaseDataset.__init__(self, opt, phase)
         # get the image paths of your dataset;
         self.image_paths = (
             []
