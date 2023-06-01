@@ -2,6 +2,9 @@
  JoliGEN: Generative AI Toolset with GANs and Diffusion for Real-World Applications
 ####################################################################################
 
+.. image:: https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-black-formatting.yml/badge.svg
+   :target: https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-black-formatting.yml
+
 `JoliGEN <https://github.com/jolibrain/joliGEN/>`_ provides easy-to-use
 generative AI for image to image transformations.
 
@@ -23,9 +26,9 @@ generative AI for image to image transformations.
    deployment and usage.
 
 -  JoliGEN has a large scope of options and parameters. To not get
-   overwhelmed, start with :doc:`Get Started <install>`. There are then
-   links to more detailed documentation on models, dataset formats, and
-   data augmentation.
+   overwhelmed, start with :ref:`Quick Start <quickstart>`. There are
+   then links to more detailed documentation on models, dataset formats,
+   and data augmentation.
 
 ***********
  Use cases
@@ -121,6 +124,7 @@ Clear to rainy (BDD100K)
    :glob:
 
    options
+
 .. toctree::
    :maxdepth: 2
    :caption: Training
@@ -142,8 +146,6 @@ Clear to rainy (BDD100K)
 
    client
 
-
-
 .. toctree::
    :maxdepth: 2
    :caption: Project Source Overview
@@ -157,6 +159,7 @@ Clear to rainy (BDD100K)
    :glob:
 
    tips
+   qa
 
 Authors
 -------
