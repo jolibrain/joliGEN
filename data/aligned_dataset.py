@@ -11,13 +11,13 @@ class AlignedDataset(BaseDataset):
     During test time, you need to prepare a directory '/path/to/data/test'.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt, phase):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset.__init__(self, opt)
+        BaseDataset.__init__(self, opt, phase)
         self.dir_AB = os.path.join(opt.dataroot, opt.phase)  # get the image directory
         self.AB_paths = sorted(
             make_dataset(self.dir_AB, opt.data_max_dataset_size)
