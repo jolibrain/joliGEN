@@ -1,9 +1,13 @@
+.. _datasets:
+
 #################
  Dataset formats
 #################
 
+.. _datasets-unlabeled:
+
 *******************
- CycleGAN Datasets
+ Unlabeled Datasets
 *******************
 
 To train a model on your own datasets, you need to create a data folder
@@ -12,6 +16,8 @@ from domain A and B. You can test your model on your training set by
 setting ``--phase train`` in ``test.py``. You can also create
 subdirectories ``testA``` and ``testB`` if you have test data.
 
+.. _datasets-labels:
+
 **********************
  Datasets with labels
 **********************
@@ -19,6 +25,8 @@ subdirectories ``testA``` and ``testB`` if you have test data.
 Create ``trainA`` and ``trainB`` directories as described for CycleGAN
 datasets. In ``trainA``, you have to separate your data into
 directories, each directory belongs to a class.
+
+.. _datasets-masks:
 
 *********************
  Datasets with masks
@@ -30,16 +38,20 @@ which are pixel labels for the images. If you have n different classes,
 pixel values in the mask have to be between 0 and n-1. You can specify
 the number of classes with the flag ``--semantic_nclasses n``.
 
+.. _datasets-example:
+
 ******************
  Example Datasets
 ******************
+
+.. _datasets-example-im2im-without-semantics:
 
 Image to image without semantics
 ================================
 
 Example: horse to zebra from two sets of images
 
-Dataset: https://www.deepdetect.com/joligen/datasets/horse2zebra.zip
+Dataset: https://joligen.com/datasets/horse2zebra.zip
 
 .. code::
 
@@ -49,12 +61,14 @@ Dataset: https://www.deepdetect.com/joligen/datasets/horse2zebra.zip
    horse2zebra/testA
    horse2zebra/testB
 
+.. _datasets-example-im2im-with-class-semantics:
+
 Image to image with class semantics
 ===================================
 
 Example: font number conversion
 
-Dataset: https://www.deepdetect.com/joligen/datasets/mnist2USPS.zip
+Dataset: https://joligen.com/datasets/mnist2USPS.zip
 
 .. code::
 
@@ -69,16 +83,18 @@ Dataset: https://www.deepdetect.com/joligen/datasets/mnist2USPS.zip
    mnist2USPS/trainB/1  # images of target number 1
    mnist2USPS/trainB/2  # images of target number 2
 
+.. _datasets-example-im2im-with-mask-semantics:
+
 Image to image with mask semantics
 ==================================
 
 Example: Add glasses to a face without modifying the rest of the face
 
 Dataset:
-https://www.deepdetect.com/joligen/datasets/noglasses2glasses_ffhq_mini.zip
+https://joligen.com/datasets/noglasses2glasses_ffhq_mini.zip
 
 Full dataset:
-https://www.deepdetect.com/joligen/datasets/noglasses2glasses_ffhq.zip
+https://joligen.com/datasets/noglasses2glasses_ffhq.zip
 
 .. code::
 
@@ -100,6 +116,8 @@ https://www.deepdetect.com/joligen/datasets/noglasses2glasses_ffhq.zip
    ...
    noglasses2glasses_ffhq_mini/trainB/paths.txt # list of associated target / mask images
 
+.. _datasets-example-im2im-with-bbox-semantics:
+
 Image to image with bounding box semantics
 ==========================================
 
@@ -107,10 +125,10 @@ Example: Super Mario to Sonic while preserving the position and action,
 e.g. crouch, jump, still, ...
 
 Dataset:
-https://www.deepdetect.com/joligen/datasets/online_mario2sonic_lite.zip
+https://joligen.com/datasets/online_mario2sonic_lite.zip
 
 Full dataset:
-https://www.deepdetect.com/joligen/datasets/online_mario2sonic_full.tar
+https://joligen.com/datasets/online_mario2sonic_full.tar
 
 .. code::
 
@@ -155,6 +173,8 @@ in this order:
 
 where ``cls`` is the class, in this dataset ``2`` means ``running``.
 
+.. _datasets-example-im2im-with-bbox-class-semantics:
+
 Image to image with multiple semantics: bounding box and class
 ==============================================================
 
@@ -163,7 +183,7 @@ Example: Image seasonal modification while preserving objects with mask
 ...) with class
 
 Dataset:
-https://www.deepdetect.com/joligen/datasets/daytime2dawn_dusk_lite.zip
+https://joligen.com/datasets/daytime2dawn_dusk_lite.zip
 
 .. code::
 
@@ -188,6 +208,8 @@ https://www.deepdetect.com/joligen/datasets/daytime2dawn_dusk_lite.zip
 
 in this order: ``source image path``, ``image class``, ``image mask``,
 where ``image class`` in this dataset represents the weather class.
+
+.. _datasets-example-im2im-with-other-semantics:
 
 Other semantics
 ===============
