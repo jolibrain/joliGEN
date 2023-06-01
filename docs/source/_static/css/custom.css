@@ -1,0 +1,31 @@
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+  white-space: normal;
+}
+
+.wy-table-bordered-all,
+.rst-content table.docutils {
+  border: none;
+}
+
+.wy-table-bordered-all td,
+.rst-content table.docutils td {
+  border: none;
+}
+
+.wy-table td,
+.rst-content table.docutils td,
+.rst-content table.field-list td,
+.wy-table th,
+.rst-content table.docutils th,
+.rst-content table.field-list th {
+  padding: 14px;
+}
+
+/* 
+`width:auto` was rendering 0px wide for .svg files
+https://stackoverflow.com/questions/59215996/how-to-add-a-logo-to-my-readthedocs-logo-rendering-at-0px-wide
+*/
+.wy-side-nav-search .wy-dropdown > a img.logo, .wy-side-nav-search > a img.logo {
+    width: 275px;
+}
