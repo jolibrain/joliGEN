@@ -1,0 +1,17 @@
+{% extends "!layout.html" %}
+{% block extrahead %}
+    <link href="{{ pathto("_static/style.css", True) }}" rel="stylesheet" type="text/css">
+{% endblock %}
+  {% block footer %} {{ super() }}
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #535966;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #24343c;
+    }
+  </style>
+{% endblock %}
