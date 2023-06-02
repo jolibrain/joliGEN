@@ -73,6 +73,7 @@ Here are all the available options to call with `train.py`
 
 ## Algorithm-specific
 
+
 ### GAN model
 
 | Parameter | Type | Default | Description |
@@ -134,6 +135,17 @@ Here are all the available options to call with `train.py`
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
 | --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE, multiscale_ |
 | --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
+| --alg_palette_sam_crop_delta | flag |  | extend crop's width and height by 2\*crop_delta before computing masks |
+| --alg_palette_sam_final_canny | flag |  | whether to perform a Canny edge detection on sam sketch to soften the edges |
+| --alg_palette_sam_max_mask_area | float | 0.99 | maximum area in proportion of image size for a mask to be kept |
+| --alg_palette_sam_min_mask_area | float | 0.001 | minimum area in proportion of image size for a mask to be kept |
+| --alg_palette_sam_no_output_binary_sam | flag |  | whether to not output binary sketch before Canny |
+| --alg_palette_sam_no_sample_points_in_ellipse | flag |  | whether to not sample the points inside an ellipse to avoid the corners of the image |
+| --alg_palette_sam_no_sobel_filter | flag |  | whether to not use a Sobel filter on each SAM masks |
+| --alg_palette_sam_points_per_side | int | 16 | number of points per side of image to prompt SAM with (\# of prompted points will be points_per_side\*\*2) |
+| --alg_palette_sam_redundancy_threshold | float | 0.62 | redundancy threshold above which redundant masks are not kept |
+| --alg_palette_sam_sobel_threshold | float | 0.7 | sobel threshold in % of gradient magintude |
+| --alg_palette_sam_use_gaussian_filter | flag |  | whether to apply a gaussian blur to each SAM masks |
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/>_**Values:** ddpm, ddim_ |
 | --alg_palette_sketch_canny_range | array | [0, 765] | range for Canny thresholds |
 | --alg_palette_super_resolution_scale | float | 2.0 | scale for super resolution |
@@ -155,6 +167,7 @@ Here are all the available options to call with `train.py`
 | --data_online_select_category | int | -1 | category to select for bounding boxes, -1 means all boxes selected |
 | --data_online_single_bbox | flag |  | whether to only allow a single bbox per online crop |
 | --data_preprocess | string | resize_and_crop | scaling and cropping of images at load time<br/><br/>_**Values:** resize_and_crop, crop, scale_width, scale_width_and_crop, none_ |
+| --data_refined_mask | flag |  | whether to use refined mask with sam |
 | --data_relative_paths | flag |  | whether paths to images are relative to dataroot |
 | --data_sanitize_paths | flag |  | if true, wrong images or labels paths will be removed before training |
 | --data_serial_batches | flag |  | if true, takes images in order to make batches, otherwise takes them randomly |
@@ -171,7 +184,7 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_load_size_A | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_mask_delta_A | array | [0] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square |
-| --data_online_creation_mask_delta_B | array | [0] | mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square |
+| --data_online_creation_mask_delta_B | array | [0] | mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_random_offset_A | array | [0.0] | ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square |
 | --data_online_creation_mask_random_offset_B | array | [0.0] | mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
@@ -222,7 +235,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --output_display_G_attention_masks | flag |  |  |
 | --output_display_aim_port | int | 53800 | aim port of the web display |
-| --output_display_aim_server | string | <http://localhost> | aim server of the web display |
+| --output_display_aim_server | string | http://localhost | aim server of the web display |
 | --output_display_diff_fake_real | flag |  | if True x - G(x) is displayed |
 | --output_display_env | string |  | visdom display environment name (default is "main") |
 | --output_display_freq | int | 400 | frequency of showing training results on screen |
@@ -231,7 +244,7 @@ Here are all the available options to call with `train.py`
 | --output_display_networks | flag |  | Set True if you want to display networks on port 8000 |
 | --output_display_type | array | ['visdom'] | output display, either visdom or aim<br/><br/>_**Values:** visdom, aim_ |
 | --output_display_visdom_port | int | 8097 | visdom port of the web display |
-| --output_display_visdom_server | string | <http://localhost> | visdom server of the web display |
+| --output_display_visdom_server | string | http://localhost | visdom server of the web display |
 | --output_display_winsize | int | 256 | display window size for both visdom and HTML |
 
 ## Model
@@ -341,3 +354,4 @@ Here are all the available options to call with `train.py`
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
 | --dataaug_no_flip | flag |  | if specified, do not flip the images for data augmentation |
 | --dataaug_no_rotate | flag |  | if specified, do not rotate the images for data augmentation |
+
