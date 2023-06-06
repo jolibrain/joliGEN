@@ -405,7 +405,7 @@ def generate(
         cl_mask = None
 
     else:
-        cl_mask = torch.clamp(mask, min=0, max=1).unsqueeze(0).clone().detach()
+        cl_mask = mask.unsqueeze(0).clone().detach()
     y_t, cond_image, img_tensor, mask = (
         y_t.unsqueeze(0).clone().detach(),
         cond_image.clone().detach(),
@@ -415,9 +415,19 @@ def generate(
     if mask == None:
         img_tensor = None
 
+    if "class" in model.conditioning:
+        cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls
+    else:
+        cls_tensor = None
+
     with torch.no_grad():
         out_tensor, visu = model.restoration(
-            y_cond=cond_image, y_t=y_t, y_0=img_tensor, mask=mask, sample_num=2
+            y_cond=cond_image,
+            y_t=y_t,
+            y_0=img_tensor,
+            mask=mask,
+            cls=cls_tensor,
+            sample_num=2,
         )
         out_img = to_np(
             out_tensor
