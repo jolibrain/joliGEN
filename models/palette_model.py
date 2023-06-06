@@ -236,6 +236,9 @@ class PaletteModel(BaseDiffusionModel):
             "cond_image_",
         ]
 
+        if self.task != "super_resolution":
+            self.gen_visual_names.extend(["y_t_", "mask_"])
+
         if (
             self.opt.alg_palette_conditioning != ""
             and self.opt.alg_palette_generate_per_class
@@ -248,9 +251,6 @@ class PaletteModel(BaseDiffusionModel):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
         else:
             self.gen_visual_names.append("output_")
-
-        if self.task != "super_resolution":
-            self.gen_visual_names.extend(["y_t_", "mask_"])
 
         if self.opt.alg_palette_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
