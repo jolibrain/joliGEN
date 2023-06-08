@@ -45,17 +45,8 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_rtd_dark_mode",
     "sphinx.ext.autosectionlabel",
-    "hoverxref.extension",
 ]
-hoverxref_auto_ref = True
 autosectionlabel_prefix_document = True
-
-hoverxref_role_types = {
-    "hoverxref": "tooltip",
-    "ref": "tooltip",  # for hoverxref_auto_ref config
-    "mod": "tooltip",  # for Python Sphinx Domain
-    "class": "tooltip",  # for Python Sphinx Domain
-}
 
 default_dark_mode = False
 # The suffix(es) of source filenames.
