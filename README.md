@@ -105,7 +105,7 @@ pip install -r requirements.txt --upgrade
 #### Image to image without semantics
 
 Example: horse to zebra from two sets of images
-Dataset: https://www.deepdetect.com/joligen/datasets/horse2zebra.zip
+Dataset: https://joligen.com/datasets/horse2zebra.zip
 
 ```
 horse2zebra/
@@ -118,7 +118,7 @@ horse2zebra/testB
 #### Image to image with class semantics
 
 Example: font number conversion
-Dataset: https://www.deepdetect.com/joligen/datasets/mnist2USPS.zip
+Dataset: https://joligen.com/datasets/mnist2USPS.zip
 
 ```
 mnist2USPS/
@@ -136,8 +136,8 @@ mnist2USPS/trainB/2  # images of target number 2
 #### Image to image with mask semantics
 
 Example: Add glasses to a face without modifying the rest of the face
-Dataset: https://www.deepdetect.com/joligen/datasets/noglasses2glasses_ffhq_mini.zip
-Full dataset: https://www.deepdetect.com/joligen/datasets/noglasses2glasses_ffhq.zip
+Dataset: https://joligen.com/datasets/noglasses2glasses_ffhq_mini.zip
+Full dataset: https://joligen.com/datasets/noglasses2glasses_ffhq.zip
 
 ```
 noglasses2glasses_ffhq_mini
@@ -162,8 +162,8 @@ noglasses2glasses_ffhq_mini/trainB/paths.txt # list of associated target / mask 
 #### Image to image with bounding box semantics
 
 Example: Super Mario to Sonic while preserving the position and action, e.g. crouch, jump, still, ...
-Dataset: https://www.deepdetect.com/joligen/datasets/online_mario2sonic_lite.zip
-Full dataset: https://www.deepdetect.com/joligen/datasets/online_mario2sonic_full.tar
+Dataset: https://joligen.com/datasets/online_mario2sonic_lite.zip
+Full dataset: https://joligen.com/datasets/online_mario2sonic_full.tar
 
 ```
 online_mario2sonic_lite
@@ -206,7 +206,7 @@ where `cls` is the class, in this dataset `2` means `running`.
 #### Image to image with multiple semantics: bounding box and class
 
 Example: Image seasonal modification while preserving objects with mask (cars, pedestrians, ...) and overall image weather (snow, rain, clear, ...) with class
-Dataset: https://www.deepdetect.com/joligen/datasets/daytime2dawn_dusk_lite.zip
+Dataset: https://joligen.com/datasets/daytime2dawn_dusk_lite.zip
 
 ```
 daytime2dawn_dusk_lite
