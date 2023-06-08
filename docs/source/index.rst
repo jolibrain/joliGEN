@@ -26,7 +26,7 @@ generative AI for image to image transformations.
    deployment and usage.
 
 -  JoliGEN has a large scope of options and parameters. To not get
-   overwhelmed, start with :ref:`Quick Start <quickstart>`. There are
+   overwhelmed, start with :ref:`Quick Start <quickstart-gan-dataset>`. There are
    then links to more detailed documentation on models, dataset formats,
    and data augmentation.
 
@@ -36,6 +36,7 @@ generative AI for image to image transformations.
 
 -  AR and metaverse: replace any image element with super-realistic
    objects
+-  Smart data augmentation: test / train sets augmentation
 -  Image manipulation: seamlessly insert or remove objects/elements in
    images
 -  Image to image translation while preserving semantic, e.g. existing
@@ -44,10 +45,10 @@ generative AI for image to image transformations.
    ...
 -  Image to image translation to cope with scarce data
 
-This is achieved by combining powerful and customized generator
-architectures, bags of discriminators, and configurable neural networks
-and losses that ensure conservation of fundamental elements between
-source and target images.
+This is achieved by combining conditioned generator architectures for
+fine-grained control, bags of discriminators, configurable neural
+networks and losses that ensure conservation of fundamental elements
+between source and target images.
 
 *****************
  Example results
@@ -71,6 +72,11 @@ Car insertion (BDD100K) with Diffusion
 
 .. image:: https://user-images.githubusercontent.com/3530657/196428593-6ad8e229-368a-4714-a1cc-8aa8210beaad.png
 
+Glasses insertion (FFHQ) with Diffusion
+
+.. image:: https://github.com/jolibrain/joliGEN/assets/3530657/eba7920d-4430-4f46-b65c-6cf2267457b0
+.. image:: https://github.com/jolibrain/joliGEN/assets/3530657/ef908a7f-375f-4d0a-afec-72d1ee7eaafe
+	   
 Object removal
 ==============
 
@@ -79,7 +85,7 @@ Glasses removal with GANs
 .. image:: https://user-images.githubusercontent.com/3530657/200873590-6d1abe9a-7d86-458a-a9a5-97a1bcf4b816.png
 
 .. image:: https://user-images.githubusercontent.com/3530657/200873601-e8c2d165-af58-4b39-a0bf-ecab510981c5.png
-
+	   
 Style transfer while preserving label boxes (e.g. cars, pedestrians, street signs, ...)
 =======================================================================================
 
@@ -102,13 +108,33 @@ Clear to rainy (BDD100K)
 
 .. image:: https://user-images.githubusercontent.com/3530657/196426623-deb7c00d-77e7-448e-827f-2423fd76b0ef.png
 
+Authors
+-------
+
+**JoliGEN** is created and maintained by `Jolibrain
+<https://www.jolibrain.com/>`_.
+
+Code is making use of `pytorch-CycleGAN-and-pix2pix
+<https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix>`_, `CUT
+<https://github.com/taesungp/contrastive-unpaired-translation>`_,
+`AttentionGAN <https://github.com/Ha0Tang/AttentionGAN>`_, `MoNCE
+<https://github.com/fnzhan/MoNCE>`_ among others.
+
+Some elements from JoliGEN are supported by the French National AI
+program `"Confiance.AI" <https://www.confiance.ai/en/>`_
+
+Table of content
+----------------
+
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :caption: Get Started
    :glob:
 
    install
-   quickstart
+   choose
+   quickstart_gan
+   quickstart_ddpm
 
 .. toctree::
    :maxdepth: 2
@@ -161,17 +187,3 @@ Clear to rainy (BDD100K)
    tips
    qa
 
-Authors
--------
-
-**JoliGEN** is created and maintained by `Jolibrain
-<https://www.jolibrain.com/>`_.
-
-Code is making use of `pytorch-CycleGAN-and-pix2pix
-<https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix>`_, `CUT
-<https://github.com/taesungp/contrastive-unpaired-translation>`_,
-`AttentionGAN <https://github.com/Ha0Tang/AttentionGAN>`_, `MoNCE
-<https://github.com/fnzhan/MoNCE>`_ among others.
-
-Some elements from JoliGEN are supported by the French National AI
-program `"Confiance.AI" <https://www.confiance.ai/en/>`_
