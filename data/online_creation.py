@@ -30,6 +30,7 @@ def crop_image(
     inverted_mask=False,
     single_bbox=False,
     override_class=-1,
+    min_crop_bbox_ratio=None,
 ):
 
     margin = context_pixels * 2
@@ -222,6 +223,13 @@ def crop_image(
 
         if crop_size_max < crop_size_min:
             raise ValueError(f"Crop size cannot be computed for {img_path}")
+
+        if min_crop_bbox_ratio:
+            expected_crop_size = round(max(height, width) * min_crop_bbox_ratio)
+            if crop_size_max < expected_crop_size:
+                warnings.warn(f"Enlarging crop to match min_crop_bbox_ratio")
+                crop_size_min = expected_crop_size
+                crop_size_max = expected_crop_size
 
         crop_size = random.randint(crop_size_min, crop_size_max)
 
