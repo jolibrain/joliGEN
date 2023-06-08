@@ -1,11 +1,12 @@
-***********************************************
+############################################################
  Quickstart DDPM: Train a model that adds glasses to a face
-***********************************************
+############################################################
 
 .. _quickstart-ddpm-dataset:
 
-Download the Dataset
-====================
+**********************
+ Download the Dataset
+**********************
 
 Download the dataset (3.3 Gb) and unzip it:
 
@@ -15,14 +16,15 @@ Download the dataset (3.3 Gb) and unzip it:
    unzip noglasses2glasses_ffhq.zip
 
 This dataset contains two subdirectories with portraits: one with
-glasses, one without glasses. Only the dataset of faces wearing
-glasses (`trainB`) is used here. For every face with glasses, there's
-a corresponding mask location of the glasses. Thus this is a *paired*
-dataset: face with hidden glasses on one side, same face with glasses
-on the other side.
-   
-Train your Diffusion Model
-==========================
+glasses, one without glasses. Only the dataset of faces wearing glasses
+(`trainB`) is used here. For every face with glasses, there's a
+corresponding mask location of the glasses. Thus this is a *paired*
+dataset: face with hidden glasses on one side, same face with glasses on
+the other side.
+
+****************************
+ Train your Diffusion Model
+****************************
 
 We train a DDPM with joliGEN `palette` model
 (https://arxiv.org/abs/2111.05826) with `mask` conditioning to add
@@ -56,8 +58,9 @@ size 16, equivalent to a full batch size of 128.
 
 .. _quickstart-visdom-ddpm:
 
-DDPM Training Visualization
-=====================
+*****************************
+ DDPM Training Visualization
+*****************************
 
 Open http://localhost:8097/env/noglasses2glasses (or alternatively
 ``http://<your-server-address>:8097`` to have a look at your training
