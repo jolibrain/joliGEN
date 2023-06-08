@@ -1,17 +1,19 @@
-**************************************************************
+###############################################################
  Quickstart GAN: Train a model that removes glasses from faces
-**************************************************************
+###############################################################
 
 .. _quickstart-gan-dataset:
 
-This section builds a model that removes glasses from faces. Once trained,
-the model is given a portrait image of someone wearing glasses, and
-produces a portrait without glasses.
+This section builds a model that removes glasses from faces. Once
+trained, the model is given a portrait image of someone wearing glasses,
+and produces a portrait without glasses.
 
-Download the Dataset
-====================
+**********************
+ Download the Dataset
+**********************
 
-Download the dataset (3.3 Gb), unzip it, place it in the ``datasets`` directory, and create your ``checkpoints`` directory:
+Download the dataset (3.3 Gb), unzip it, place it in the ``datasets``
+directory, and create your ``checkpoints`` directory:
 
 .. code:: bash
 
@@ -29,15 +31,16 @@ contains different glasses. This is an *unpaired* dataset.
 For every face in the dataset, there's a corresponding mask location
 (bounding boxes) that contains either the eyes or the glasses location.
 
-Train your GAN
-==============
+****************
+ Train your GAN
+****************
 
 We train a GAN with JoliGEN `cut` model (
 https://github.com/https://arxiv.org/abs/2007.15651), with
-`semantic_mask` constraints. This means that the training algorithm
-uses the available masks (around eyes and glasses) to help the GAN
-modify only the relevant elements from the input portrait. Note that
-this mask is not required at inference, when using the trained model!
+`semantic_mask` constraints. This means that the training algorithm uses
+the available masks (around eyes and glasses) to help the GAN modify
+only the relevant elements from the input portrait. Note that this mask
+is not required at inference, when using the trained model!
 
 Use ``train.py`` along with the `example JoliGEN config file
 <https://github.com/jolibrain/joliGEN/examples/example_gan_glasses2noglasses.json>`_
@@ -47,11 +50,11 @@ to launch the training:
 
    python3 train.py --dataroot noglasses2glasses_ffhq --checkpoints_dir ./checkpoints --name glasses2noglasses --output_display_env glasses2noglasses --config_json examples/example_glasses2noglasses.json
 
-The training run can be monitored from the terminal. Lines
-like the ones below are printed every x iterations (according to the
+The training run can be monitored from the terminal. Lines like the ones
+below are printed every x iterations (according to the
 ``--output_print_freq`` option, which is set to 200 iterations in this
-example, we recommend setting its value to at least
-``train_batch_size * train_iter_size`` to produce smooth curves):
+example, we recommend setting its value to at least ``train_batch_size *
+train_iter_size`` to produce smooth curves):
 
 .. code::
 
@@ -68,13 +71,14 @@ Alternatively, you can :ref:`monitor your training
 are sent.
 
 The GAN converges in around 20 hours on a single RTX A5000 after
-training for ~24 epochs, batch size of 16, iter size 16, equivalent to
-a full batch size of 256.
+training for ~24 epochs, batch size of 16, iter size 16, equivalent to a
+full batch size of 256.
 
 .. _quickstart-visdom-gan:
 
-GAN Training Visualization
-====================
+****************************
+ GAN Training Visualization
+****************************
 
 Open http://localhost:8097/env/glasses2noglasses (or alternatively
 ``http://<your-server-address>:8097`` to have a look at your training
@@ -82,4 +86,3 @@ logs: loss curves, model output and inputs, and the options used to
 train.
 
 .. image:: _static/quickstart_visdom_gan.png
-	   
