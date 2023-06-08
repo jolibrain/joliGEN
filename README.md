@@ -41,6 +41,11 @@ Car insertion (BDD100K) with Diffusion
 ![image](https://user-images.githubusercontent.com/3530657/196428508-3eae3415-8e15-4505-9e97-41c0ba99350e.png)
 ![image](https://user-images.githubusercontent.com/3530657/196428593-6ad8e229-368a-4714-a1cc-8aa8210beaad.png)
 
+Glasses insertion (FFHQ) with Diffusion
+
+<img src="https://github.com/jolibrain/joliGEN/assets/3530657/eba7920d-4430-4f46-b65c-6cf2267457b0" alt="drawing" width="512"/>
+<img src="https://github.com/jolibrain/joliGEN/assets/3530657/ef908a7f-375f-4d0a-afec-72d1ee7eaafe" alt="drawing" width="512"/>
+
 ### Object removal
 
 Glasses removal with GANs
