@@ -112,6 +112,7 @@ def generate(
     cls,
     alg_palette_super_resolution_downsample,
     data_refined_mask,
+    min_crop_bbox_ratio,
     **unused_options,
 ):
     # seed
@@ -236,6 +237,7 @@ def generate(
             get_crop_coordinates=True,
             crop_center=True,
             bbox_ref_id=bbox_idx,
+            min_crop_bbox_ratio=min_crop_bbox_ratio,
         )
 
         img, mask, ref_bbox = crop_image(
@@ -603,6 +605,12 @@ if __name__ == "__main__":
         "--data_refined_mask",
         action="store_true",
         help="whether to use refined mask with sam",
+    )
+
+    options.parser.add_argument(
+        "--min_crop_bbox_ratio",
+        type=float,
+        help="minimum crop/bbox ratio, allows to add context when bbox is larger than crop",
     )
 
     args = options.parse()
