@@ -123,13 +123,11 @@ Code is making use of `pytorch-CycleGAN-and-pix2pix
 Some elements from JoliGEN are supported by the French National AI
 program `"Confiance.AI" <https://www.confiance.ai/en/>`_
 
-Table of content
-----------------
-
 .. toctree::
    :maxdepth: 4
    :caption: Get Started
    :glob:
+   :hidden:
 
    install
    choose
@@ -140,6 +138,7 @@ Table of content
    :maxdepth: 2
    :caption: Data
    :glob:
+   :hidden:
 
    datasets
    dataloaders
@@ -148,6 +147,7 @@ Table of content
    :maxdepth: 2
    :caption: Models and Options
    :glob:
+   :hidden:
 
    options
 
@@ -155,6 +155,7 @@ Table of content
    :maxdepth: 2
    :caption: Training
    :glob:
+   :hidden:
 
    training
 
@@ -162,6 +163,7 @@ Table of content
    :maxdepth: 2
    :caption: Inference
    :glob:
+   :hidden:
 
    inference
 
@@ -169,6 +171,7 @@ Table of content
    :maxdepth: 2
    :caption: API
    :glob:
+   :hidden:
 
    client
 
@@ -176,6 +179,7 @@ Table of content
    :maxdepth: 2
    :caption: Project Source Overview
    :glob:
+   :hidden:
 
    overview
 
@@ -183,6 +187,7 @@ Table of content
    :maxdepth: 2
    :caption: Tips
    :glob:
+   :hidden:
 
    tips
    qa
