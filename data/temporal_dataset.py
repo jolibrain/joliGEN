@@ -1,10 +1,11 @@
-from data.base_dataset import BaseDataset
-import random
-import torch
-import re
 import os
+import random
+import re
+
+import torch
+
+from data.base_dataset import BaseDataset, get_transform_list
 from data.image_folder import make_labeled_path_dataset
-from data.base_dataset import get_transform_list
 from data.online_creation import crop_image
 
 
@@ -88,7 +89,6 @@ class TemporalDataset(BaseDataset):
         B_label_cls=None,
         index=None,
     ):  # all params are unused
-
         index_A = random.randint(0, self.range_A - 1)
 
         images_A = []
@@ -97,7 +97,6 @@ class TemporalDataset(BaseDataset):
         ref_name_A = self.A_img_paths[index_A].split("/")[-1][: self.num_common_char]
 
         for i in range(self.num_frames):
-
             cur_index_A = index_A + i * self.frame_step
 
             if (
@@ -162,7 +161,6 @@ class TemporalDataset(BaseDataset):
         labels_A = torch.stack(labels_A)
 
         if self.use_domain_B:
-
             index_B = random.randint(0, self.range_B - 1)
 
             images_B = []
@@ -200,6 +198,7 @@ class TemporalDataset(BaseDataset):
                             cur_B_img_path,
                             cur_B_label_path,
                             mask_delta=self.opt.data_online_creation_mask_delta_B,
+                            mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
                             crop_delta=self.opt.data_online_creation_crop_delta_B,
                             mask_square=self.opt.data_online_creation_mask_square_B,
                             crop_dim=self.opt.data_online_creation_crop_size_B,
