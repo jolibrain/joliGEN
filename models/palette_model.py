@@ -55,6 +55,13 @@ class PaletteModel(BaseDiffusionModel):
         )
 
         parser.add_argument(
+            "--alg_palette_dropout_prob",
+            type=float,
+            default=0.0,
+            help="dropout probability for classifier-free guidance",
+        )
+
+        parser.add_argument(
             "--alg_palette_cond_image_creation",
             type=str,
             default="y_t",
@@ -228,6 +235,11 @@ class PaletteModel(BaseDiffusionModel):
             self.inference_num = min(
                 self.opt.alg_palette_inference_num, self.opt.train_batch_size
             )
+
+        if self.opt.alg_palette_dropout_prob > 0:
+            # we add a class to be the unconditionned one.
+            self.opt.f_s_semantic_nclasses += 1
+            self.opt.cls_semantic_nclasses += 1
 
         # Visuals
         visual_outputs = []
@@ -470,7 +482,14 @@ class PaletteModel(BaseDiffusionModel):
         mask = self.mask
         noise = None
 
-        noise, noise_hat = self.netG_A(y_0, y_cond, mask, noise, cls=self.cls)
+        noise, noise_hat = self.netG_A(
+            y_0,
+            y_cond,
+            mask,
+            noise,
+            cls=self.cls,
+            dropout_prob=self.opt.alg_palette_dropout_prob,
+        )
 
         if mask is not None:
             mask_binary = torch.clamp(mask, min=0, max=1)
