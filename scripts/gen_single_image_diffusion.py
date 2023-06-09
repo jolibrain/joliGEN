@@ -111,6 +111,7 @@ def generate(
     alg_palette_sketch_canny_thresholds,
     cls,
     alg_palette_super_resolution_downsample,
+    alg_palette_guidance_scale,
     data_refined_mask,
     min_crop_bbox_ratio,
     **unused_options,
@@ -430,6 +431,7 @@ def generate(
             mask=mask,
             cls=cls_tensor,
             sample_num=2,
+            guidance_scale=alg_palette_guidance_scale,
         )
         out_img = to_np(
             out_tensor
@@ -602,6 +604,13 @@ if __name__ == "__main__":
         type=int,
         default=True,
         help="extend crop's width and height by 2*crop_delta before computing masks",
+    )
+
+    parser.add_argument(
+        "--alg_palette_guidance_scale",
+        type=float,
+        default=0.0,  # literature value: 0.2
+        help="scale for classifier-free guidance, default is conditional DDPM only",
     )
 
     options.parser.add_argument(
