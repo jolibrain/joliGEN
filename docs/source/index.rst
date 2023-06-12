@@ -151,6 +151,7 @@ Contact: contact@jolibrain.com
    :hidden:
 
    options
+   models
 
 .. toctree::
    :maxdepth: 2

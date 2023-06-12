@@ -1,5 +1,5 @@
 name: Doc auto generation
-on: 
+on:
   push:
     branches: [master]
 jobs:
@@ -10,20 +10,22 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.8 #install the python needed
-      - name : checkout
+      - name: checkout
         uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
       - name : install req
         run: |
             pip install -r ./requirements.txt
-            pip install fastapi uvicorn
+            pip install m2r fastapi uvicorn
       - name : update
         uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
       - name : run script
-        run: python ./scripts/generate_doc.py
+        run: |
+          python ./scripts/generate_doc.py
+          m2r docs/options.md; mv docs/options.rst docs/source/options.rst
       - name : generate api doc
         run: bash ./scripts/generate_api_doc.sh
       - name : push
@@ -32,4 +34,3 @@ jobs:
           git config user.email contact@jolibrain.com
           git add .
           git diff-index --quiet HEAD || (git commit -m "doc: options auto update" && git push)
-
