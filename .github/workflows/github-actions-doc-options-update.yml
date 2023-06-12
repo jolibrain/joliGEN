@@ -1,5 +1,5 @@
 name: Doc auto generation
-on: 
+on:
   push:
     branches: [master]
 jobs:
@@ -10,22 +10,23 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.8 #install the python needed
-      - name : checkout
+      - name: checkout
         uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
-      - name : install req
-        run: pip install -r ./requirements.txt
-      - name : update
+      - name: install req
+        run: pip install -r ./requirements.txt; pip install m2r
+      - name: update
         uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
-      - name : run script
-        run: python ./scripts/generate_doc.py
-      - name : push
-        run : |
+      - name: run script
+        run: |
+          python ./scripts/generate_doc.py
+          m2r docs/options.md; mv docs/options.rst docs/source/options.rst
+      - name: push
+        run: |
           git config user.name github-actions-jg
           git config user.email contact@jolibrain.com
           git add .
           git diff-index --quiet HEAD || (git commit -m "doc: options auto update" && git push)
-

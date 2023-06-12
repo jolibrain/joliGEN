@@ -8,12 +8,16 @@
  Download the Dataset
 **********************
 
-Download the dataset (3.3 Gb) and unzip it:
+Download the dataset (3.3 Gb), unzip it, place it in the ``datasets`` directory, and create your ``checkpoints`` directory:
 
 .. code:: bash
 
    wget https://www.joligen.com/datasets/noglasses2glasses_ffhq.zip
    unzip noglasses2glasses_ffhq.zip
+   mkdir datasets
+   mv noglasses2glasses_ffhq datasets/noglasses2glasses_ffhq
+   rm noglasses2glasses_ffhq.zip
+   mkdir checkpoints
 
 This dataset contains two subdirectories with portraits: one with
 glasses, one without glasses. Only the dataset of faces wearing glasses

@@ -150,6 +150,7 @@ program `"Confiance.AI" <https://www.confiance.ai/en/>`_
    :hidden:
 
    options
+   models
 
 .. toctree::
    :maxdepth: 2
