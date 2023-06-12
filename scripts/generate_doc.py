@@ -1,10 +1,10 @@
 #!/usr/bin/python3
 
-import sys
-import os
 import argparse
-from argparse import _HelpAction, _SubParsersAction, _StoreConstAction
 import logging
+import os
+import sys
+from argparse import _HelpAction, _StoreConstAction, _SubParsersAction
 
 jg_dir = os.path.join("/".join(os.path.abspath(__file__).split("/")[:-2]))
 sys.path.append(jg_dir)
@@ -76,9 +76,10 @@ def document_section(json_schema, level, opt_prefix):
 
             description = field["description"]
             if "enum" in field:
-                description += "<br/><br/>_**Values:** "
+                description += "<br/><br/> **Values:** "
                 description += ", ".join([str(c) for c in field["enum"]])
-                description += "_"
+                # description += "*"
+                description = description.replace("|", "\\|")
 
             help_str += "| %s | %s | %s | %s |\n" % (
                 opt_prefix + field_name,
