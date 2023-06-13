@@ -1,0 +1,15 @@
+{
+    "name": "joliGEN",
+    "description": "Generative AI Toolset with GANs and Diffusion for Real-World Applications",
+    "version": "1.0.0",
+    "private": true,
+    "devDependencies": {
+        "standard-version": "^9.0.0"
+    },
+    "standard-version": {
+        "header": "# joliGEN: Generative AI Toolset (Changelog)\n",
+        "script": {
+            "postchangelog": "sed -i -e '/\\*\\*ci:\\*\\*/d' CHANGELOG.md"
+        }
+    }
+}
