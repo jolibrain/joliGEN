@@ -130,6 +130,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_cond_embed_dim | int | 32 | nb of examples processed for inference |
 | --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, previous_frame, computed_sketch, low_res_ |
 | --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/>_**Values:** , mask, class, mask_and_class_ |
+| --alg_palette_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
 | --alg_palette_generate_per_class | flag |  | whether to generate samples of each images |
 | --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
