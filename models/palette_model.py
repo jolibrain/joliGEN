@@ -260,7 +260,7 @@ class PaletteModel(BaseDiffusionModel):
 
         self.visual_names.append(visual_outputs)
 
-        if opt.G_nblocks == 9:
+        if opt.G_nblocks == 9 and "resnet" not in opt.G_netG:
             warnings.warn(
                 f"G_nblocks default value {opt.G_nblocks} is too high for palette model, 2 will be used instead."
             )
