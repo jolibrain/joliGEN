@@ -163,6 +163,7 @@ def generate(
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # reading the mask
+    mask = None
     if mask_in:
         mask = cv2.imread(mask_in, 0)
 
@@ -293,8 +294,6 @@ def generate(
         bbox_select[2] += opt.data_online_context_pixels
 
         img, mask = np.array(img), np.array(mask)
-    else:
-        mask = None
 
     if img_width > 0 and img_height > 0:
         img = cv2.resize(img, (img_width, img_height))
