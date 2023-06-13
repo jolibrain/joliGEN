@@ -4,122 +4,94 @@
  Dataset formats
 #################
 
+JoliGEN supports datasets with and without labels. Labeled datasets
+are useful because they allow for more fine-grained control of
+generated images.
+
+Broadly speaking, labels do help constrain the search space of all
+possible combinations of generated pixels. For this reason labels are
+sometimes refered to as semantic constraints.
+
+For instance:
+
+- **class labels** allow to ensure matching between input and output
+  image, e.g. turn Mario into Sonic while keeping the action (jump,
+  kneel, run, ..)
+  
+- **mask labels** allow conserve or modify only appropriate areas,
+  e.g. generate a car and conserve everything around it
+  
+  JoliGEN allows to derive rectangular masks from **bounding boxes**,
+  and more precise masks automatically with SAM.
+  
 .. _datasets-unlabeled:
 
 *******************
  Unlabeled Datasets
 *******************
 
-To train a model on your own datasets, you need to create a data folder
-with two subdirectories ``trainA`` and ``trainB`` that contain images
-from domain A and B. You can test your model on your training set by
-setting ``--phase train`` in ``test.py``. You can also create
-subdirectories ``testA``` and ``testB`` if you have test data.
+Unlabeled dataset comes as a data folder with two subdirectories
+``trainA`` and ``trainB`` that contain images from domain A and B
+respectively.
+Subdirectories ``testA`` and ``testB`` can be added for test data.
+
+Example: horse to zebra from two sets of images
+Dataset: https://joligen.com/datasets/horse2zebra.zip
+
+.. code-block:: bash
+
+		horse2zebra/
+		horse2zebra/trainA  # horse images
+		horse2zebra/trainB  # zebra images
+		horse2zebra/testA
+		horse2zebra/testB
 
 .. _datasets-labels:
 
-**********************
- Datasets with labels
-**********************
+***************************
+ Datasets with class labels
+***************************
 
-Create ``trainA`` and ``trainB`` directories as described for CycleGAN
-datasets. In ``trainA``, you have to separate your data into
-directories, each directory belongs to a class.
+A class label is a label that hold for the full image.
 
-.. _datasets-masks:
-
-*********************
- Datasets with masks
-*********************
-
-You can use a dataset made of images and their mask labels (it can be
-segmentation or attention masks). To do so, you have to generate masks
-which are pixel labels for the images. If you have n different classes,
-pixel values in the mask have to be between 0 and n-1. You can specify
-the number of classes with the flag ``--semantic_nclasses n``.
-
-.. _datasets-example:
-
-******************
- Example Datasets
-******************
-
-.. _datasets-example-im2im-without-semantics:
-
-Image to image without semantics
-================================
-
-Example: horse to zebra from two sets of images
-
-Dataset: https://joligen.com/datasets/horse2zebra.zip
-
-.. code::
-
-   horse2zebra/
-   horse2zebra/trainA  # horse images
-   horse2zebra/trainB  # zebra images
-   horse2zebra/testA
-   horse2zebra/testB
-
-.. _datasets-example-im2im-with-class-semantics:
-
-Image to image with class semantics
-===================================
+Dataset with class label has ``trainA`` and ``trainB`` directories. In
+``trainA``, every class comes as a separate directory that holds
+images for this class.
 
 Example: font number conversion
-
 Dataset: https://joligen.com/datasets/mnist2USPS.zip
 
-.. code::
+.. code-block:: bash
+		
+		mnist2USPS/
+		mnist2USPS/trainA
+		mnist2USPS/trainA/0  # images of number 0
+		mnist2USPS/trainA/1  # images of number 1
+		mnist2USPS/trainA/2  # images of number 2
+		...
+		mnist2USPS/trainB
+		mnist2USPS/trainB/0  # images of target number 0
+		mnist2USPS/trainB/1  # images of target number 1
+		mnist2USPS/trainB/2  # images of target number 2
 
-   mnist2USPS/
-   mnist2USPS/trainA
-   mnist2USPS/trainA/0  # images of number 0
-   mnist2USPS/trainA/1  # images of number 1
-   mnist2USPS/trainA/2  # images of number 2
-   ...
-   mnist2USPS/trainB
-   mnist2USPS/trainB/0  # images of target number 0
-   mnist2USPS/trainB/1  # images of target number 1
-   mnist2USPS/trainB/2  # images of target number 2
+.. _datasets-bbox:
 
-.. _datasets-example-im2im-with-mask-semantics:
+*****************************
+ Datasets with bounding boxes
+*****************************
 
-Image to image with mask semantics
-==================================
-
-Example: Add glasses to a face without modifying the rest of the face
-
-Dataset:
-https://joligen.com/datasets/noglasses2glasses_ffhq_mini.zip
-
-Full dataset:
-https://joligen.com/datasets/noglasses2glasses_ffhq.zip
+Bounding boxes are elements location in format
 
 .. code::
 
-   noglasses2glasses_ffhq_mini
-   noglasses2glasses_ffhq_mini/trainA
-   noglasses2glasses_ffhq_mini/trainA/img
-   noglasses2glasses_ffhq_mini/trainA/img/0000.png # source image, e.g. face without glasses
-   ...
-   noglasses2glasses_ffhq_mini/trainA/bbox
-   noglasses2glasses_ffhq_mini/trainA/bbox/0000.png # source mask, e.g. mask around eyes
-   ...
-   noglasses2glasses_ffhq_mini/trainA/paths.txt # list of associated source / mask images
-   noglasses2glasses_ffhq_mini/trainB
-   noglasses2glasses_ffhq_mini/trainB/img
-   noglasses2glasses_ffhq_mini/trainB/img/0000.png # target image, e.g. face with glasses
-   ...
-   noglasses2glasses_ffhq_mini/trainB/bbox
-   noglasses2glasses_ffhq_mini/trainB/bbox/0000.png # target mask, e.g. mask around glasses
-   ...
-   noglasses2glasses_ffhq_mini/trainB/paths.txt # list of associated target / mask images
+   cls xmin ymin xmax ymax
 
-.. _datasets-example-im2im-with-bbox-semantics:
+where ``cls`` is an integer for the class, starting from 1.
 
-Image to image with bounding box semantics
-==========================================
+Dataset with bounding boxes comes as a data folder with two subdirectories
+``trainA`` and ``trainB`` that contain two subdirectories ``imgs`` and
+``bbox``. In ``imgs`` the image files are stored, and ``bbox``
+contains a .txt file per image, that lists the boxes for that image.
 
 Example: Super Mario to Sonic while preserving the position and action,
 e.g. crouch, jump, still, ...
@@ -173,10 +145,53 @@ in this order:
 
 where ``cls`` is the class, in this dataset ``2`` means ``running``.
 
-.. _datasets-example-im2im-with-bbox-class-semantics:
 
-Image to image with multiple semantics: bounding box and class
-==============================================================
+.. _datasets-masks:
+
+*********************
+ Datasets with masks
+*********************
+
+Dataset with mask labels contain the subdirectories ``trainA`` and
+``trainB``, each with two subdirectories ``imgs`` and ``bbox``. In
+``imgs`` are the image files. In ``masks`` are the mask files. 
+A mask file is a single channel (B&W) image with labels as pixel
+values. For n different classes, pixel values in the mask have to be
+between 0 and n-1. The number of classes needs to be specified at
+training time with ``--f_s_semantic_nclasses n``.
+
+Example: Add glasses to a face without modifying the rest of the face
+
+Dataset:
+https://joligen.com/datasets/noglasses2glasses_ffhq_mini.zip
+
+Full dataset:
+https://joligen.com/datasets/noglasses2glasses_ffhq.zip
+
+.. code::
+
+   noglasses2glasses_ffhq_mini
+   noglasses2glasses_ffhq_mini/trainA
+   noglasses2glasses_ffhq_mini/trainA/img
+   noglasses2glasses_ffhq_mini/trainA/img/0000.png # source image, e.g. face without glasses
+   ...
+   noglasses2glasses_ffhq_mini/trainA/bbox
+   noglasses2glasses_ffhq_mini/trainA/bbox/0000.png # source mask, e.g. mask around eyes
+   ...
+   noglasses2glasses_ffhq_mini/trainA/paths.txt # list of associated source / mask images
+   noglasses2glasses_ffhq_mini/trainB
+   noglasses2glasses_ffhq_mini/trainB/img
+   noglasses2glasses_ffhq_mini/trainB/img/0000.png # target image, e.g. face with glasses
+   ...
+   noglasses2glasses_ffhq_mini/trainB/bbox
+   noglasses2glasses_ffhq_mini/trainB/bbox/0000.png # target mask, e.g. mask around glasses
+   ...
+   noglasses2glasses_ffhq_mini/trainB/paths.txt # list of associated target / mask images
+
+
+*************************************************
+ Datasets with bounding box and image-level class
+*************************************************
 
 Example: Image seasonal modification while preserving objects with mask
 (cars, pedestrians, ...) and overall image weather (snow, rain, clear,
@@ -208,11 +223,3 @@ https://joligen.com/datasets/daytime2dawn_dusk_lite.zip
 
 in this order: ``source image path``, ``image class``, ``image mask``,
 where ``image class`` in this dataset represents the weather class.
-
-.. _datasets-example-im2im-with-other-semantics:
-
-Other semantics
-===============
-
-Other semantics are possible, i.e. an algorithm that runs on both source
-and target.
