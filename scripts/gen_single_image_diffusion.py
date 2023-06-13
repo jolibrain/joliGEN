@@ -606,7 +606,7 @@ if __name__ == "__main__":
         help="extend crop's width and height by 2*crop_delta before computing masks",
     )
 
-    parser.add_argument(
+    options.parser.add_argument(
         "--alg_palette_guidance_scale",
         type=float,
         default=0.0,  # literature value: 0.2
