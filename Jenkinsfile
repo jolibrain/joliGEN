@@ -9,6 +9,9 @@ pipeline {
   }
   stages {
     stage('Tests') {
+      when {
+       expression {!env.CHANGE_ID || pullRequest.labels.findAll { it == "ci:skip-tests" }.size() == 0 }
+      }
       steps {
         sh 'printenv | sort'
         sh 'mkdir /home/jenkins/app/checkpoints'
