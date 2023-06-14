@@ -248,18 +248,21 @@ JoliGEN has (too) many options, for finer grained control, see the [full option 
 Modify as required and run with the following line command:
 ```
 python3 train.py --dataroot /path/to/horse2zebra --checkpoints_dir /path/to/checkpoints --name horse2zebra \
---output_display_env horse2zebra --data_load_size 256 --data_crop_size 256 --train_n_epochs 200 \
---data_dataset_mode unaligned --train_n_epochs_decay 0 --model_type cut --G_netG mobile_resnet_attn
+--data_load_size 256 --data_crop_size 256 --train_n_epochs 200 \
+--train_G_lr 0.0002 --train_D_lr 0.0001 \
+--data_dataset_mode unaligned --train_n_epochs_decay 100 --model_type cut --G_netG mobile_resnet_attn \
+--dataaug_no_rotate --train_batch_size 4 --train_iter_size 8
 ```
 
 ### Training with class semantics :
  
 ```
 python3 train.py --dataroot /path/to/mnist2USPS --checkpoints_dir /path/to/checkpoints --name mnist2USPS \
---output_display_env mnist2USPS --data_load_size 180 --data_crop_size 180 --train_n_epochs 200 \
---data_dataset_mode unaligned_labeled_cls --train_n_epochs_decay 0 --model_type cut --cls_semantic_nclasses 10 \
---train_sem_use_label_B --train_semantic_cls --dataaug_no_rotate --dataaug_D_noise 0.001 \
---G_netG mobile_resnet_attn
+--data_load_size 128 --data_crop_size 128 --train_n_epochs 10 \
+--data_dataset_mode unaligned_labeled_cls --train_n_epochs_decay 1 --model_type cut --cls_semantic_nclasses 10 \
+--train_G_lr 0.00002 --train_D_lr 0.00001 \
+--train_sem_use_label_B --train_semantic_cls --dataaug_no_rotate --dataaug_no_flip --dataaug_D_noise 0.001 \
+--G_netG mobile_resnet --G_nblocks 6 --D_nets basic --train_batch_size 4 --train_iter_size 2
 ```
 
 ### Training with mask semantics :
