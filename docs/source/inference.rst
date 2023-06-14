@@ -29,7 +29,7 @@ Using a pretrained glasses insertion model (see above):
 
 .. code:: bash
 
-   python3 gen_single_image_diffusion.py --model-in-file /path/to/model/latest_net_G_A.pth --img-in /path/to/source.jpg --mask-in /path/to/mask.jpg --img-out target.jpg  --img-size 256
+   python3 gen_single_image_diffusion.py --model-in-file /path/to/model/latest_net_G_A.pth --img-in /path/to/source.jpg --mask-in /path/to/mask.jpg --dir-out /path/to/target_dir/ --img-width 256 --img-height 256
 
 The mask image has 1 where to insert the object and 0 elsewhere.
 
