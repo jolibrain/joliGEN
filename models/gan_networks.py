@@ -257,8 +257,8 @@ def define_D(
     D_proj_config_segformer,
     D_proj_weight_segformer,
     jg_dir,
-    D_temporal_number_frames,
-    D_temporal_frame_step,
+    data_temporal_number_frames,
+    data_temporal_frame_step,
     data_online_context_pixels,
     D_vision_aided_backbones,
     dataaug_D_diffusion,
@@ -415,8 +415,8 @@ def define_D(
                 interp=224 if data_crop_size < 224 else D_proj_interp,
                 config_path=os.path.join(jg_dir, D_proj_config_segformer),
                 weight_path=weight_path,
-                D_temporal_number_frames=D_temporal_number_frames,
-                D_temporal_frame_step=D_temporal_frame_step,
+                data_temporal_number_frames=data_temporal_number_frames,
+                data_temporal_frame_step=data_temporal_frame_step,
                 img_size=data_crop_size + margin,
             )
 

@@ -338,14 +338,14 @@ class TemporalProjectedDiscriminator(torch.nn.Module):
         interp,
         config_path,
         weight_path,
-        D_temporal_number_frames,
-        D_temporal_frame_step,
+        data_temporal_number_frames,
+        data_temporal_frame_step,
         backbone_kwargs={"cout": 64, "expand": True},
         img_size=256,
         **kwargs,
     ):
         super().__init__()
-        self.D_temporal_number_frames = D_temporal_number_frames
+        self.data_temporal_number_frames = data_temporal_number_frames
         self.interp = interp
 
         self.freeze_feature_network = Proj(
@@ -359,7 +359,7 @@ class TemporalProjectedDiscriminator(torch.nn.Module):
         self.freeze_feature_network.requires_grad_(False)
 
         channels = [
-            channel * D_temporal_number_frames
+            channel * data_temporal_number_frames
             for channel in self.freeze_feature_network.CHANNELS
         ]
 
@@ -399,7 +399,7 @@ class TemporalProjectedDiscriminator(torch.nn.Module):
         features = {str(k): [] for k in range(self.num_feats)}
         logits_frames = []
 
-        for i in range(self.D_temporal_number_frames):
+        for i in range(self.data_temporal_number_frames):
             x = images[:, i]
             if self.interp > 0:
                 x = F.interpolate(x, self.interp, mode="bilinear", align_corners=False)

@@ -473,7 +473,7 @@ class BaseModel(ABC):
             self.temporal_real_A = self.temporal_real_A_with_context
             self.temporal_real_B = self.temporal_real_B_with_context
 
-        for i in range(self.opt.D_temporal_number_frames):
+        for i in range(self.opt.data_temporal_number_frames):
             setattr(
                 self,
                 "temporal_real_A_" + str(i) + "_with_context",
@@ -559,14 +559,14 @@ class BaseModel(ABC):
         netG = getattr(self, "netG_" + origin_domain)
         temporal_fake = []
 
-        for i in range(self.opt.D_temporal_number_frames):
+        for i in range(self.opt.data_temporal_number_frames):
             temporal_fake.append(
                 netG(getattr(self, "temporal_real_" + origin_domain)[:, i])
             )
 
         temporal_fake = torch.stack(temporal_fake, dim=1)
 
-        for i in range(self.opt.D_temporal_number_frames):
+        for i in range(self.opt.data_temporal_number_frames):
             setattr(
                 self,
                 "temporal_fake_" + objective_domain + "_" + str(i),

@@ -457,25 +457,10 @@ class BaseOptions:
         )
 
         parser.add_argument(
-            "--D_temporal_number_frames",
+            "--D_temporal_every",
             type=int,
-            default=5,
-            help="how many successive frames use for temporal loss",
-        )
-
-        parser.add_argument(
-            "--D_temporal_frame_step",
-            type=int,
-            default=30,
-            help="how many frames between successive frames selected",
-        )
-
-        parser.add_argument("--D_temporal_every", type=int, default=4)
-        parser.add_argument(
-            "--D_temporal_num_common_char",
-            type=int,
-            default=-1,
-            help="how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used ",
+            default=4,
+            help="apply temporal discriminator every x steps",
         )
 
         # mask semantic network : f_s
@@ -786,6 +771,29 @@ class BaseOptions:
             help="if >0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing) ",
         )
 
+        # data temporal options
+        parser.add_argument(
+            "--data_temporal_number_frames",
+            type=int,
+            default=5,
+            help="how many successive frames use for temporal loader",
+        )
+
+        parser.add_argument(
+            "--data_temporal_frame_step",
+            type=int,
+            default=30,
+            help="how many frames between successive frames selected",
+        )
+
+        parser.add_argument(
+            "--data_temporal_num_common_char",
+            type=int,
+            default=-1,
+            help="how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used ",
+        )
+
+        # other data options
         parser.add_argument(
             "--data_inverted_mask",
             action="store_true",
@@ -797,6 +805,7 @@ class BaseOptions:
             action="store_true",
             help="if true, wrong images or labels paths will be removed before training",
         )
+
         parser.add_argument(
             "--data_relative_paths",
             action="store_true",

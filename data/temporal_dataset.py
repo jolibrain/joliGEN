@@ -62,8 +62,8 @@ class TemporalDataset(BaseDataset):
 
         self.transform = get_transform_list(self.opt, grayscale=(self.input_nc == 1))
 
-        self.num_frames = opt.D_temporal_number_frames
-        self.frame_step = opt.D_temporal_frame_step
+        self.num_frames = opt.data_temporal_number_frames
+        self.frame_step = opt.data_temporal_frame_step
 
         self.num_A = len(self.A_img_paths)
         self.range_A = self.num_A - self.num_frames * self.frame_step
@@ -71,7 +71,7 @@ class TemporalDataset(BaseDataset):
         if self.use_domain_B:
             self.num_B = len(self.B_img_paths)
             self.range_B = self.num_B - self.num_frames * self.frame_step
-        self.num_common_char = self.opt.D_temporal_num_common_char
+        self.num_common_char = self.opt.data_temporal_num_common_char
 
         self.opt = opt
 

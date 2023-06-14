@@ -88,10 +88,10 @@ class BaseGanModel(BaseModel):
             visual_names_temporal_real_B = []
             visual_names_temporal_fake_B = []
             visual_names_temporal_fake_A = []
-            for i in range(self.opt.D_temporal_number_frames):
+            for i in range(self.opt.data_temporal_number_frames):
                 visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
                 visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
-            for i in range(self.opt.D_temporal_number_frames):
+            for i in range(self.opt.data_temporal_number_frames):
                 visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
                 if "cycle_gan" in self.opt.model_type:
                     visual_names_temporal_fake_A.append("temporal_fake_A_" + str(i))
@@ -663,7 +663,7 @@ class BaseGanModel(BaseModel):
         loss_value = torch.zeros([], device=self.device)
         previous_fake = getattr(self, "temporal_fake_" + domain)[:, 0].clone().detach()
 
-        for i in range(1, self.opt.D_temporal_number_frames):
+        for i in range(1, self.opt.data_temporal_number_frames):
             next_fake = getattr(self, "temporal_fake_" + domain)[:, i]
             loss_value += self.criterionTemporal(previous_fake, next_fake)
             previous_fake = next_fake.clone().detach()

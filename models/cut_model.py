@@ -183,10 +183,10 @@ class CUTModel(BaseGanModel):
             visual_names_temporal_real_A = []
             visual_names_temporal_real_B = []
             visual_names_temporal_fake_B = []
-            for i in range(self.opt.D_temporal_number_frames):
+            for i in range(self.opt.data_temporal_number_frames):
                 visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
                 visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
-            for i in range(self.opt.D_temporal_number_frames):
+            for i in range(self.opt.data_temporal_number_frames):
                 visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
 
             self.visual_names.append(visual_names_temporal_real_A)
