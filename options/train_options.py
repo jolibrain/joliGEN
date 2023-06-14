@@ -29,14 +29,19 @@ class TrainOptions(BaseOptions):
             type=str,
             default=["visdom"],
             nargs="*",
-            choices=["visdom", "aim"],
-            help="output display, either visdom or aim",
+            choices=["visdom", "aim", "none"],
+            help="output display, either visdom, aim or no output",
         )
         parser.add_argument(
             "--output_display_id",
             type=int,
             default=1,
             help="window id of the web display",
+        )
+        parser.add_argument(
+            "--output_display_visdom_autostart",
+            action="store_true",
+            help="whether to start a visdom server automatically",
         )
         parser.add_argument(
             "--output_display_visdom_server",

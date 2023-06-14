@@ -225,13 +225,14 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                 ):  # display images on visdom and save images to a HTML file
                     save_result = total_iters % opt.output_update_html_freq == 0
                     model.compute_visuals()
-                    visualizer.display_current_results(
-                        model.get_current_visuals(),
-                        epoch,
-                        save_result,
-                        params=model.get_display_param(),
-                        first=(total_iters == batch_size),
-                    )
+                    if not "none" in opt.output_display_type:
+                        visualizer.display_current_results(
+                            model.get_current_visuals(),
+                            epoch,
+                            save_result,
+                            params=model.get_display_param(),
+                            first=(total_iters == batch_size),
+                        )
 
                 if (
                     total_iters % opt.train_save_latest_freq < batch_size

@@ -83,7 +83,7 @@ class Visualizer:
                 port=self.opt.output_display_visdom_port,
                 env=opt.output_display_env,
             )
-            if not self.vis.check_connection():
+            if not self.vis.check_connection() and opt.output_display_visdom_autostart:
                 self.create_visdom_connections()
 
         if "aim" in self.display_type:
