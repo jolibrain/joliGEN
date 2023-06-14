@@ -55,7 +55,7 @@ Here are all the available options to call with `train.py`
 | --G_dropout | flag |  | dropout for the generator |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/>_**Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512_ |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_3blocks, resnet_12blocks, mobile_resnet_9blocks, mobile_resnet_3blocks, resnet_attn, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit_ |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit_ |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
 | --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
@@ -264,7 +264,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --train_D_accuracy_every | int | 1000 |  |
-| --train_D_lr | float | 0.0002 | discriminator separate learning rate |
+| --train_D_lr | float | 0.0001 | discriminator separate learning rate |
 | --train_G_ema | flag |  | whether to build G via exponential moving average |
 | --train_G_ema_beta | float | 0.999 | exponential decay for ema |
 | --train_G_lr | float | 0.0002 | initial learning rate for generator |
