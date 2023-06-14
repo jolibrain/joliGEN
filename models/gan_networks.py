@@ -99,7 +99,7 @@ def define_G(
     net = None
     norm_layer = get_norm_layer(norm_type=G_norm)
 
-    if G_netG == "resnet_9blocks":
+    if G_netG == "resnet":
         net = ResnetGenerator(
             model_input_nc,
             model_output_nc,

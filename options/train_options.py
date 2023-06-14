@@ -217,7 +217,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument(
             "--train_D_lr",
             type=float,
-            default=0.0002,
+            default=0.0001,
             help="discriminator separate learning rate",
         )
         parser.add_argument(
