@@ -145,11 +145,19 @@ program `"Confiance.AI" <https://www.confiance.ai/en/>`_
 
 .. toctree::
    :maxdepth: 2
-   :caption: Models and Options
+   :caption: Options
    :glob:
    :hidden:
 
    options
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Models
+   :glob:
+   :hidden:
+
+   models
 
 .. toctree::
    :maxdepth: 2
