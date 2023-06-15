@@ -17,7 +17,7 @@ def natural_keys(text):
     return [atoi(c) for c in re.split("(\d+)", text)]
 
 
-class TemporalDataset(BaseDataset):
+class TemporalLabeledMaskOnlineDataset(BaseDataset):
     def __len__(self):
         """Return the total number of images in the dataset.
         As we have two datasets with potentially different number of images,
@@ -30,7 +30,6 @@ class TemporalDataset(BaseDataset):
 
     def __init__(self, opt, phase):
         BaseDataset.__init__(self, opt, phase)
-        super(TemporalDataset).__init__()
 
         self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
             self.dir_A, "/paths.txt"
@@ -94,7 +93,9 @@ class TemporalDataset(BaseDataset):
         images_A = []
         labels_A = []
 
-        ref_name_A = self.A_img_paths[index_A].split("/")[-1][: self.num_common_char]
+        ref_A_img_path = self.A_img_paths[index_A]
+
+        ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
 
         for i in range(self.num_frames):
             cur_index_A = index_A + i * self.frame_step
@@ -166,9 +167,9 @@ class TemporalDataset(BaseDataset):
             images_B = []
             labels_B = []
 
-            ref_name_B = self.B_img_paths[index_B].split("/")[-1][
-                : self.num_common_char
-            ]
+            ref_B_img_path = self.B_img_paths[index_B]
+
+            ref_name_B = ref_B_img_path.split("/")[-1][: self.num_common_char]
 
             for i in range(self.num_frames):
                 cur_index_B = index_B + i * self.frame_step
@@ -239,8 +240,14 @@ class TemporalDataset(BaseDataset):
         else:
             images_B = None
             labels_B = None
+            ref_B_img_path = None
 
-        result = {"A": images_A, "B": images_B}
+        result = {
+            "A": images_A,
+            "A_img_paths": ref_A_img_path,
+            "B": images_B,
+            "B_img_paths": ref_B_img_path,
+        }
 
         result.update(
             {
