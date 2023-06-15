@@ -262,7 +262,7 @@ python3 train.py --dataroot /path/to/mnist2USPS --checkpoints_dir /path/to/check
 --data_dataset_mode unaligned_labeled_cls --train_n_epochs_decay 1 --model_type cut --cls_semantic_nclasses 10 \
 --train_G_lr 0.00002 --train_D_lr 0.00001 \
 --train_sem_use_label_B --train_semantic_cls --dataaug_no_rotate --dataaug_no_flip --dataaug_D_noise 0.001 \
---G_netG mobile_resnet --G_nblocks 6 --D_nets basic --train_batch_size 4 --train_iter_size 2
+--G_netG mobile_resnet --G_nblocks 6 --D_netDs basic --train_batch_size 4 --train_iter_size 2
 ```
 
 ### Training with mask semantics :
