@@ -4,6 +4,7 @@ import json
 
 def load_config_file(path):
     with open(path, "r") as f:
+        print("path: ", path)
         temp = json.loads(f.read())
         if "base" in temp.keys():
             dir_path = os.path.dirname(path)
