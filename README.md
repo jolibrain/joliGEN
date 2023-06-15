@@ -291,7 +291,7 @@ python3 train.py --dataroot /path/to/online_mario2sonic/ --checkpoints_dir /path
 --data_online_creation_mask_delta_A 50 --data_online_creation_crop_size_B 128 \
 --data_online_creation_crop_delta_B 15 --data_online_creation_mask_delta_B 15 \
 --f_s_semantic_nclasses 2 --G_netG segformer_attn_conv \
---G_config_segformer models/configs/segformer/segformer_config_b0.py --alg_cut_nce_idt --train_sem_use_label_B \
+--G_config_segformer models/configs/segformer/segformer_config_b0.json --alg_cut_nce_idt --train_sem_use_label_B \
 --D_netDs projected_d basic vision_aided --D_proj_interp 256 --D_proj_network_type vitsmall \
 --train_G_ema --G_padding_type reflect --dataaug_no_rotate --data_relative_paths
 ```
