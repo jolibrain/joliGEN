@@ -142,7 +142,7 @@ class BaseModel(ABC):
 
     def init_metrics(self, dataloader, dataloader_test):
 
-        if self.opt.train_compute_metrics or self.opt.train_compute_metrics_test:
+        if self.opt.train_compute_metrics_test:
             dims = 2048
             self.netFid = base_networks.define_inception(self.gpu_ids[0], dims)
 
@@ -150,23 +150,6 @@ class BaseModel(ABC):
             self.root = self.opt.dataroot
         else:
             self.root = None
-
-        if self.opt.train_compute_metrics:
-            path_sv_B = os.path.join(
-                self.opt.checkpoints_dir, self.opt.name, "fid_mu_sigma_B.npz"
-            )
-
-            self.realactB = _compute_statistics_of_dataloader(
-                path_sv=path_sv_B,
-                model=self.netFid,
-                domain="B",
-                batch_size=self.opt.train_batch_size,
-                dims=dims,
-                device=self.gpu_ids[0],
-                dataloader=dataloader,
-                nb_max_img=self.opt.train_nb_img_max_fid,
-                root=self.root,
-            )
 
         if self.opt.train_compute_metrics_test:
             pathB = self.save_dir + "/fakeB"
@@ -1261,39 +1244,10 @@ class BaseModel(ABC):
             if not self.opt.train_cls_regression:
                 _, self.pfB = self.pred_cls_fake_A.max(1)
 
-    def compute_metrics(self):
-        dims = 2048
-        batch = 1
-
-        # A->B
-
-        self.fakeactB = _compute_statistics_of_dataloader(
-            path_sv=None,
-            model=self.netFid,
-            domain=None,
-            batch_size=1,
-            dims=dims,
-            dataloader=self.fake_B_pool.get_all(),
-            device=self.gpu_ids[0],
-            nb_max_img=self.opt.train_nb_img_max_fid,
-            root=self.root,
-        )
-
-        self.fidB, self.msidB, self.kidB = self.compute_metrics_generic(
-            self.realactB, self.fakeactB
-        )
-
     def get_current_metrics(self):
         metrics = OrderedDict()
 
         metrics_names = []
-
-        if self.opt.train_compute_metrics:
-            metrics_names = [
-                "fidB",
-                "msidB",
-                "kidB",
-            ]
 
         if self.opt.train_compute_metrics_test:
             metrics_names += [
