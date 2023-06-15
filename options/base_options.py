@@ -599,7 +599,7 @@ class BaseOptions:
                 "self_supervised_labeled_mask_cls_online",
                 "aligned",
                 "nuplet_unaligned_labeled_mask",
-                "temporal",
+                "temporal_labeled_mask_online",
                 "self_supervised_temporal",
                 "single",
             ],
