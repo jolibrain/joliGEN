@@ -45,7 +45,9 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_rtd_dark_mode",
     "sphinx.ext.autosectionlabel",
+    "sphinx_rtd_size",
 ]
+sphinx_rtd_size_width = "75%"
 autosectionlabel_prefix_document = True
 
 default_dark_mode = False
