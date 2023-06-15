@@ -188,8 +188,17 @@ class TrainOptions(BaseOptions):
             default=0.999,
             help="exponential decay for ema",
         )
-        parser.add_argument("--train_compute_D_accuracy", action="store_true")
-        parser.add_argument("--train_D_accuracy_every", type=int, default=1000)
+        parser.add_argument(
+            "--train_compute_D_accuracy",
+            action="store_true",
+            help="whether to compute D accuracy explicitely",
+        )
+        parser.add_argument(
+            "--train_D_accuracy_every",
+            type=int,
+            default=1000,
+            help="compute D accuracy every N iterations",
+        )
         parser.add_argument(
             "--train_n_epochs",
             type=int,
