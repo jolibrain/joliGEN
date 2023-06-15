@@ -36,7 +36,7 @@ to launch the training:
 
 .. code:: bash
 
-   python3 train.py --dataroot noglasses2glasses_ffhq --checkpoints_dir ./checkpoints/ --name noglasses2glasses --output_display_env noglasses2glasses --config_json examples/example_noglasses2glasses.json
+   python3 train.py --dataroot noglasses2glasses_ffhq --checkpoints_dir ./checkpoints/ --name noglasses2glasses --output_display_env noglasses2glasses --config_json examples/example_ddpm_noglasses2glasses.json
 
 You can follow your training evolution right from your terminal. Lines
 like this one will be printed (according to the ``--output_print_freq``

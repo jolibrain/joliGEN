@@ -166,7 +166,8 @@ program `"Confiance.AI" <https://www.confiance.ai/en/>`_
    :hidden:
 
    training
-
+   losses
+   
 .. toctree::
    :maxdepth: 2
    :caption: Inference
