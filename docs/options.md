@@ -35,10 +35,7 @@ Here are all the available options to call with `train.py`
 | --D_proj_network_type | string | efficientnet | projected discriminator architecture<br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16_ |
 | --D_proj_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight |
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
-| --D_temporal_every | int | 4 |  |
-| --D_temporal_frame_step | int | 30 | how many frames between successive frames selected |
-| --D_temporal_num_common_char | int | -1 | how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used  |
-| --D_temporal_number_frames | int | 5 | how many successive frames use for temporal loss |
+| --D_temporal_every | int | 4 | apply temporal discriminator every x steps |
 | --D_vision_aided_backbones | string | clip+dino+swin | specify vision aided discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with + |
 | --D_weight_sam | string |  | path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth |
 
@@ -172,6 +169,9 @@ Here are all the available options to call with `train.py`
 | --data_relative_paths | flag |  | whether paths to images are relative to dataroot |
 | --data_sanitize_paths | flag |  | if true, wrong images or labels paths will be removed before training |
 | --data_serial_batches | flag |  | if true, takes images in order to make batches, otherwise takes them randomly |
+| --data_temporal_frame_step | int | 30 | how many frames between successive frames selected |
+| --data_temporal_num_common_char | int | -1 | how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used  |
+| --data_temporal_number_frames | int | 5 | how many successive frames use for temporal loader |
 
 ### Online created datasets
 
@@ -243,7 +243,8 @@ Here are all the available options to call with `train.py`
 | --output_display_id | int | 1 | window id of the web display |
 | --output_display_ncols | int | 0 | if positive, display all images in a single visdom web panel with certain number of images per row.(if == 0 ncols will be computed automatically) |
 | --output_display_networks | flag |  | Set True if you want to display networks on port 8000 |
-| --output_display_type | array | ['visdom'] | output display, either visdom or aim<br/><br/>_**Values:** visdom, aim_ |
+| --output_display_type | array | ['visdom'] | output display, either visdom, aim or no output<br/><br/>_**Values:** visdom, aim, none_ |
+| --output_display_visdom_autostart | flag |  | whether to start a visdom server automatically |
 | --output_display_visdom_port | int | 8097 | visdom port of the web display |
 | --output_display_visdom_server | string | http://localhost | visdom server of the web display |
 | --output_display_winsize | int | 256 | display window size for both visdom and HTML |
