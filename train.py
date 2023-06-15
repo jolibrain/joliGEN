@@ -251,11 +251,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                         model.export_networks(save_suffix)
 
                 if total_iters % opt.train_metrics_every < batch_size and (
-                    opt.train_compute_metrics or opt.train_compute_metrics_test
+                    opt.train_compute_metrics_test
                 ):
                     with torch.no_grad():
-                        if opt.train_compute_metrics:
-                            model.compute_metrics()
 
                         if opt.train_compute_metrics_test:
                             if use_temporal:
