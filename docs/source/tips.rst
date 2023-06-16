@@ -1,49 +1,62 @@
 .. _tips:
 
 ####################
- Training/test Tips
+ JoliGEN tips
 ####################
 
 .. _tips-options:
 
-***********************
- Training/test options
-***********************
+*********
+ Training
+*********
 
-Please see ``options/train_options.py`` and ``options/base_options.py``
-for the training flags; see ``options/test_options.py`` and
-``options/base_options.py`` for the test flags. There are some
-model-specific flags as well, which are added in the model files. The
-default values of these options are also adjusted in the model files.
+- JoliGEN has many options, start from examples in :ref:`training`, and modify them by adding/removing options.
 
-.. _tips-cpu-gpu:
+- Before initiating a long training run:
 
+  - set a small batch size, and increase it until GPU memory is filled.
+  - set `--output_display_freq` to a small value and verify visually on Visdom that inputs are correct.
+
+- Killing a training run:
+
+  - From the server: use the client to properly stop the job, :ref:`client_stop`.
+  - From the control line: hit Ctrl-C to kill the current processes. Beware: some processes can remain alive, this is a by-product of Python's multi-processing. In this case use:
+
+    .. code:: bash
+
+       ps aux | grep train.py
+
+    to list all running jobs, and kill them one by one.
+    
+- Learning rate: it is useful to start with the default learning rates. Though the following recipe appears to produce the best results:
+
+  - start from default learning rate
+  - once the model appears to have stabilized, i.e. quality does not improve (can take up to several weeks on some models!): stop the training run, lower the learning rate ten-fold and resume.
+
+    
 *********
  CPU/GPU
 *********
 
-(default ``--gpu_ids 0``) Please set ``--gpu_ids -1`` to use CPU mode;
-set ``--gpu_ids 0,1,2`` for multi-GPU mode. You need a large batch size
-(e.g., ``--train_batch_size 32``) to benefit from multiple GPUs.
+.. _tips-cpu-gpu:
 
+- GANs and DDPMs are too intensive to train on CPU
+
+- Default GPU is 0, i.e. `--gpu_ids 0`
+
+- Set ``--gpu_ids -1`` to use CPU mode
+
+- Set ``--gpu_ids 0,1,2`` for multi-GPU mode. You need a large batch size (e.g., ``--train_batch_size 32``) to benefit from multiple GPUs.
+
+- Multiple GPUs: batch size is per GPU, i.e. batch size 64 on two GPUs yields an effective batch size of 128
+  
 .. _tips-visualization:
 
 ***************
  Visualization
 ***************
 
-During training, the current results can be viewed using two methods.
-First, if you set ``--output_display_id`` > 0, the results and loss plot
-will appear on a local graphics web server launched by `visdom
-<https://github.com/facebookresearch/visdom>`_. To do this, you should
-have ``visdom`` installed and a server running by the command ``python
--m visdom.server``. The default server URL is ``http://localhost:8097``.
-``display_id`` corresponds to the window ID that is displayed on the
-``visdom`` server. The ``visdom`` display functionality is turned on by
-default. To avoid the extra overhead of communicating with ``visdom``
-set ``--output_display_id -1``. Second, the intermediate results are
-saved to ``[opt.checkpoints_dir]/[opt.name]/web/`` as an HTML file. To
-avoid this, set ``--output_no_html``.
+- Use Visdom or AIM for visualization. Image generation is visual, and difficult to assess otherwise.
 
 .. _tips-preprocessing:
 
@@ -51,23 +64,6 @@ avoid this, set ``--output_no_html``.
  Preprocessing
 ***************
 
-Images can be resized and cropped in different ways using
-``--data_preprocess`` option. The default option ``'resize_and_crop'``
-resizes the image to be of size ``(opt.load_size, opt.load_size)`` and
-does a random crop of size ``(opt.crop_size, opt.crop_size)``.
-``'crop'`` skips the resizing step and only performs random cropping.
-``'scale_width'`` resizes the image to have width ``opt.crop_size``
-while keeping the aspect ratio. ``'scale_width_and_crop'`` first resizes
-the image to have width ``opt.load_size`` and then does random cropping
-of size ``(opt.crop_size, opt.crop_size)``. ``'none'`` tries to skip all
-these preprocessing steps. However, if the image size is not a multiple
-of some number depending on the number of downsamplings of the
-generator, you will get an error because the size of the output image
-may be different from the size of the input image. Therefore, ``'none'``
-option still tries to adjust the image size to be a multiple of 4. You
-might need a bigger adjustment if you change the generator architecture.
-Please see ``data/base_datset.py`` do see how all these were
-implemented.
 
 .. _tips-finetune-resume-training:
 
@@ -75,11 +71,7 @@ implemented.
  Fine-tuning/resume training
 *****************************
 
-To fine-tune a pre-trained model, or resume the previous training, use
-the ``--train_continue`` flag. The program will then load the model
-based on ``epoch``. By default, the program will initialize the epoch
-count as 1. Set ``--train_epoch_count <int>`` to specify a different
-starting epoch count.
+- To fine-tune a pre-trained model, or resume the previous training, use the ``--train_continue`` flag. The program will then load the last checkpoint from the model and resume from the last epoch.
 
 .. _tips-train-test-high-res-images:
 
@@ -87,17 +79,24 @@ starting epoch count.
  Training/Testing with high res images
 ***************************************
 
-JoliGEN is quite memory-intensive as at least four networks (two
-generators and two discriminators) need to be loaded on one GPU, so a
-large image cannot be entirely loaded. In this case, we recommend
-training with cropped images. For example, to generate 1024px results,
-you can train with ``--data_preprocess scale_width_and_crop
---data_load_size 1024 --data_crop_size 360``, and test with
-``--data_preprocess scale_width --data_load_size 1024``. This way makes
-sure the training and test will be at the same scale. At test time, you
-can afford higher resolution because you don’t need to load all
-networks.
+JoliGEN is quite memory-intensive, most especially with GANs as it
+trains multiple networks in parallel.
 
+This can be an issue when training from large images.
+
+- Applying a model to large images: all models are fully convolutional, i.e. once trained in resolution XxY, they can apply seemlessly to higher resolutions. Notes, depending on applications:
+
+   - Results may be of lower quality
+   - It is a good practice to keep relevant elements in large images at the same resolutions as at training time, e.g. cars can be processed in larger images correctly as long as they are made of the same approximate number of pixels as in training images.
+  
+- Online cropping with the `--data_online` options and `online` dataloaders automatically focuses the bulk of the work on relevant locations (based on labels). This prevents costly pre-processing steps, especially useful on large datasets, while allowing to easily experiment with various input parameters.
+  
+- Progressive finetuning of increasing resolutions works very well: start training in 256x256, then resume training at 360x360 and 512x512 once stabilized. This lowers the computing training costs by speeding up training.
+
+  - GANs: when using a `projected_d` discriminator, anticipate the final full resolution by setting up `--D_proj_interp` to its size, e.g. 512 while initially training at 256x256.
+  
+- Preprocessing large images does speed up dataloaders: when processing at 512x512 from 4k images, lowering the dataset resolution once before training saves lots of compute, preventing the dataloaders to resize every image in an online manner, many times.
+  
 .. _tips-loss-curve:
 
 ******************
@@ -109,18 +108,23 @@ training GANs, and joliGEN is no exception. To check whether the
 training has converged or not, we recommend periodically generating a
 few samples and looking at them.
 
+For DDPMs, the loss is descending and easy to assess. In practice, the
+loss noisily reaches the 1e-4 zone while the image output keeps
+improving.
+
 .. _tips-batch-size:
 
 ******************
  About batch size
 ******************
 
-For all experiments in the paper, we set the batch size to be 1. If
-there is room for memory, you can use higher batch size with batch norm
-or instance norm. (Note that the default batchnorm does not work well
-with multi-GPU training. You may consider using `synchronized batchnorm
-<https://github.com/vacancy/Synchronized-BatchNorm-PyTorch>`_ instead).
-But please be aware that it can impact the training. In particular, even
-with Instance Normalization, different batch sizes can lead to different
-results. Moreover, increasing ``--crop_size`` may be a good alternative
-to increasing the batch size.
+JoliGEN is designed to accomodate consumer-grade GPUs with as low as a
+few GB of VRAM.
+
+- When the batch size does not fit the GPU memory, lower it and use
+  `--iter_size` to accumulate the gradients over multiple
+  passes. This is equivalent to larger batch size.
+
+- Large batch sizes do stabilize the losses, however do not appear to
+  improve results significantly. Running with batch sizes as low as 2
+  or 4, and `iter_size` around 4 to 8 appears to be enough in practice.
