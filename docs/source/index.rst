@@ -178,12 +178,21 @@ program `"Confiance.AI" <https://www.confiance.ai/en/>`_
 
 .. toctree::
    :maxdepth: 2
-   :caption: API
+   :caption: Server & API
    :glob:
    :hidden:
 
-   client
+   server
+   API
+   
+.. toctree::
+   :maxdepth: 2
+   :caption: Docker
+   :glob:
+   :hidden:
 
+   docker
+   
 .. toctree::
    :maxdepth: 2
    :caption: Project Source Overview
