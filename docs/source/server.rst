@@ -1,14 +1,14 @@
 .. _server:
 
-############################
+#########################
  JoliGEN Server & Client
-############################
+#########################
 
 JoliGEN has a built-in server with REST API
 
-**********************
-Running JoliGEN server
-**********************
+************************
+ Running JoliGEN server
+************************
 
 Ensure everything is installed
 
@@ -22,20 +22,20 @@ Then run server:
 
    server/run.sh --host localhost --port 8000
 
-******************************
+*******************************
  Client: server-based training
-******************************
+*******************************
 
 .. code:: bash
 
    python client.py --host jg_server_host --port jg_server_port  [joligen commandline options eg --dataroot /path/to/data --model_type cut --name mymodel]
 
-NB: the `--name name` passed to joligen server commandline options becomes the name
-of the training job.
+NB: the `--name name` passed to joligen server commandline options
+becomes the name of the training job.
 
-*****************************************
-Client: listing training jobs in progress
-*****************************************
+*******************************************
+ Client: listing training jobs in progress
+*******************************************
 
 .. code:: bash
 
@@ -43,9 +43,9 @@ Client: listing training jobs in progress
 
 .. _client_stop:
 
-*******************************
-Client: stopping a training job
-*******************************
+*********************************
+ Client: stopping a training job
+*********************************
 
 .. code:: bash
 

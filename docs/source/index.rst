@@ -5,29 +5,31 @@
 .. image:: https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-black-formatting.yml/badge.svg
    :target: https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-black-formatting.yml
 
-`JoliGEN <https://github.com/jolibrain/joliGEN/>`_ is an integrated framework for training custom generative AI image-to-image models
+`JoliGEN <https://github.com/jolibrain/joliGEN/>`_ is an integrated
+framework for training custom generative AI image-to-image models
 
 ***************
  Main Features
 ***************
 
--  JoliGEN support both **GAN and Diffusion models** for unpaired and paired
-   image to image translation tasks, including domain and style
+-  JoliGEN support both **GAN and Diffusion models** for unpaired and
+   paired image to image translation tasks, including domain and style
    adaptation with conservation of semantics such as image and object
    classes, masks, ...
 
 -  JoliGEN generative capabilities are targeted at real world
-   applications such as **Controled Image Generation**, **Augmented Reality**, **Dataset Smart Augmentation**
-   and object insertion, **Synthetic to Real** transforms.
+   applications such as **Controled Image Generation**, **Augmented
+   Reality**, **Dataset Smart Augmentation** and object insertion,
+   **Synthetic to Real** transforms.
 
 -  JoliGEN allows for fast and stable training with astonishing results.
    A **server with REST API** is provided that allows for simplified
    deployment and usage.
 
 -  JoliGEN has a large scope of options and parameters. To not get
-   overwhelmed, start with :ref:`Quick Start <quickstart-gan-dataset>`. There are
-   then links to more detailed documentation on models, dataset formats,
-   and data augmentation.
+   overwhelmed, start with :ref:`Quick Start <quickstart-gan-dataset>`.
+   There are then links to more detailed documentation on models,
+   dataset formats, and data augmentation.
 
 ***********
  Use cases
@@ -36,13 +38,14 @@
 -  **AR and metaverse**: replace any image element with super-realistic
    objects
 -  **Smart data augmentation**: test / train sets augmentation
--  **Image manipulation**: seamlessly insert or remove objects/elements in
-   images
--  **Image to image translation** while preserving semantic, e.g. existing
-   source dataset annotations
+-  **Image manipulation**: seamlessly insert or remove objects/elements
+   in images
+-  **Image to image translation** while preserving semantic, e.g.
+   existing source dataset annotations
 -  Simulation to reality translation while preserving elements, metrics,
    ...
--  **Image generation to enrich datasets**, e.g. counter dataset imbalance, increase test sets, ...
+-  **Image generation to enrich datasets**, e.g. counter dataset
+   imbalance, increase test sets, ...
 
 This is achieved by combining conditioned generator architectures for
 fine-grained control, bags of discriminators, configurable neural
@@ -74,8 +77,9 @@ Car insertion (BDD100K) with Diffusion
 Glasses insertion (FFHQ) with Diffusion
 
 .. image:: https://github.com/jolibrain/joliGEN/assets/3530657/eba7920d-4430-4f46-b65c-6cf2267457b0
+
 .. image:: https://github.com/jolibrain/joliGEN/assets/3530657/ef908a7f-375f-4d0a-afec-72d1ee7eaafe
-	   
+
 Object removal
 ==============
 
@@ -84,7 +88,7 @@ Glasses removal with GANs
 .. image:: https://user-images.githubusercontent.com/3530657/200873590-6d1abe9a-7d86-458a-a9a5-97a1bcf4b816.png
 
 .. image:: https://user-images.githubusercontent.com/3530657/200873601-e8c2d165-af58-4b39-a0bf-ecab510981c5.png
-	   
+
 Style transfer while preserving label boxes (e.g. cars, pedestrians, street signs, ...)
 =======================================================================================
 
@@ -119,8 +123,8 @@ Code is making use of `pytorch-CycleGAN-and-pix2pix
 `AttentionGAN <https://github.com/Ha0Tang/AttentionGAN>`_, `MoNCE
 <https://github.com/fnzhan/MoNCE>`_ among others.
 
-Elements from JoliGEN are supported by the French National AI
-program `"Confiance.AI" <https://www.confiance.ai/en/>`_
+Elements from JoliGEN are supported by the French National AI program
+`"Confiance.AI" <https://www.confiance.ai/en/>`__
 
 Contact: contact@jolibrain.com
 
@@ -168,7 +172,7 @@ Contact: contact@jolibrain.com
 
    training
    losses
-   
+
 .. toctree::
    :maxdepth: 2
    :caption: Inference
@@ -177,7 +181,7 @@ Contact: contact@jolibrain.com
 
    export
    inference
-   
+
 .. toctree::
    :maxdepth: 2
    :caption: Server & API
@@ -186,7 +190,7 @@ Contact: contact@jolibrain.com
 
    server
    API
-   
+
 .. toctree::
    :maxdepth: 2
    :caption: Docker
@@ -194,7 +198,7 @@ Contact: contact@jolibrain.com
    :hidden:
 
    docker
-   
+
 .. toctree::
    :maxdepth: 2
    :caption: Project Source Overview
@@ -211,4 +215,3 @@ Contact: contact@jolibrain.com
 
    tips
    FAQ
-

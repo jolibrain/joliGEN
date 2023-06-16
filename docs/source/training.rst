@@ -25,12 +25,12 @@ Training involves:
 
 Training requires the following:
 - one or more GPUs
-- a labeled/unlabled, paired/unpaired dataset of images
+- a labeled/unlabeled, paired/unpaired dataset of images
 - a `checkpoints` directory to be specified in which model weights are stored
 - Optional: a `Visdom <https://github.com/fossasia/visdom>`_ server. Go to http://localhost:8097 to follow training losses and image result samples
 
 JoliGEN has (too) many options, for finer grained control, see the
-:doc:`full option list <options>`.
+:ref:`full option list <options>`.
 
 .. _training-im2im-without-semantics:
 
@@ -56,8 +56,7 @@ Dataset: https://joligen.com/datasets/mnist2USPS.zip
 
 .. code:: bash
 	  
-  python3 train.py --dataroot /path/to/mnist2USPS --checkpoints_dir
-  /path/to/checkpoints --name mnist2USPS --config_json examples/example_gan_mnist2usps.json
+  python3 train.py --dataroot /path/to/mnist2USPS --checkpoints_dir /path/to/checkpoints --name mnist2USPS --config_json examples/example_gan_mnist2usps.json
 
 .. _training-im2im-with-mask-semantics:
 
@@ -69,9 +68,7 @@ Dataset: https://joligen.com/datasets/noglasses2glasses_ffhq.zip
 
 .. code:: bash
 
-   python3 train.py --dataroot /path/to/noglasses2glasses_ffhq/
-   --checkpoints_dir /path/to/checkpoints/ --name noglasses2glasses
-   --config_json examples/example_gan_noglasses2glasses.json
+   python3 train.py --dataroot /path/to/noglasses2glasses_ffhq/ --checkpoints_dir /path/to/checkpoints/ --name noglasses2glasses --config_json examples/example_gan_noglasses2glasses.json
 
 .. _training-im2im-with-bbox-semantics-and-online-sampling-boxes-dataaug:
 

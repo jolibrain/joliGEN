@@ -4,7 +4,7 @@
 
 <h1 align="center">Generative AI Image Toolset with GANs and Diffusion for Real-World Applications</h1>
 
-**JoliGEN** provides is an integrated framework for training custom generative AI image-to-image models
+**JoliGEN** is an integrated framework for training custom generative AI image-to-image models
 
 Main Features:
 
@@ -93,18 +93,22 @@ Clear to rainy (BDD100K)
 ---
 
 ## Code format and Contribution
+
 If you want to contribute please use [black](https://github.com/psf/black) code format.
 Install:
+
 ```
 pip install black 
 ```
 
 Usage :
+
 ```
 black .
 ```
 
 If you want to format the code automatically before every commit :
+
 ```
 pip install pre-commit
 pre-commit install
@@ -118,4 +122,4 @@ Code structure is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/
 
 Elements from JoliGEN are supported by the French National AI program ["Confiance.AI"](https://www.confiance.ai/en/)
 
-Contact: contact@jolibrain.com
+Contact: <contact@jolibrain.com>

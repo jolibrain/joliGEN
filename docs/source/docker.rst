@@ -1,17 +1,18 @@
 .. _docker:
 
-############################
+#############################
  Running JoliGEN with Docker
-############################
-
+#############################
 
 ***************
-Docker images
+ Docker images
 ***************
 
-Jolibrain maintains JoliGEN server docker images, available from https://docker.jolibrain.com/#!/taglist/joligen_server
+Jolibrain maintains JoliGEN server docker images, available from
+https://docker.jolibrain.com/#!/taglist/joligen_server
 
-JoliGEN server images support both CPU and GPU training (inference is external):
+JoliGEN server images support both CPU and GPU training (inference is
+external):
 
 .. code:: bash
 
@@ -22,10 +23,10 @@ To run joliGEN server with docker:
 .. code:: bash
 
    nvidia-docker run jolibrain/myjoligen
-			      
-**************
-Docker builds
-**************
+
+***************
+ Docker builds
+***************
 
 To build a docker for joliGEN server:
 
