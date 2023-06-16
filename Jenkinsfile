@@ -13,10 +13,14 @@ pipeline {
        expression {!env.CHANGE_ID || pullRequest.labels.findAll { it == "ci:skip-tests" }.size() == 0 }
       }
       steps {
-        sh 'printenv | sort'
-        sh 'mkdir /home/jenkins/app/checkpoints'
-        sh '''
-TORCH_HOME=/home/jenkins/app/.cache/ bash ./scripts/run_tests.sh /home/jenkins/app/checkpoints/'''
+        lock(resource: null, label: "${NODE_NAME}-gpu", variable: 'LOCKED_GPU', quantity: 1) {
+          sh 'printenv | sort'
+          sh 'mkdir /home/jenkins/app/checkpoints'
+          sh '''
+          export CUDA_VISIBLE_DEVICES=$(echo ${LOCKED_GPU} | sed -n -e "s/[^,]* GPU \\([^[0-9,]]\\)*/\\1/gp")
+          echo "Running on GPU ${CUDA_VISIBLE_DEVICES}"
+          TORCH_HOME=/home/jenkins/app/.cache/ bash ./scripts/run_tests.sh /home/jenkins/app/checkpoints/'''
+        }
       }
     }
   }
