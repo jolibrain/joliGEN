@@ -41,10 +41,12 @@ Client: listing training jobs in progress
 
    python client.py --method training_status --host jg_server_host --port jg_server_port
 
+.. _client_stop:
+
 *******************************
 Client: stopping a training job
 *******************************
 
-.. code::
+.. code:: bash
 
    python client.py --method training_status --host jg_server_host --port jg_server_port --name training_name
