@@ -1,33 +1,8 @@
-.. _api:
 
 ########################
  JoliGEN server REST API
 ########################
 
-*********
-Training
-*********
+ .. raw:: html
 
-Creates a training process with name `name`
-
-- *Method* `POST`
-- *URL* `/train/:name`
-- *URL Params*
-    - `name:string`: name of training process 
-- *Response*
-    - *Success:*:
-        - Code: 201
-        - Content: `{ "message": "ok", "name": "train_1" }`
-
-- Get all training processes
-
-`GET /train`
-
-- Get training status
-
-`GET /train/name`
-
-- Stop training process
-
-`DELETE /train/name`
-
+     <iframe src="_static/api.html" height="1000px" width="100%" frameBorder="0"></iframe>
