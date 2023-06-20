@@ -174,8 +174,9 @@ program `"Confiance.AI" <https://www.confiance.ai/en/>`_
    :glob:
    :hidden:
 
+   export
    inference
-
+   
 .. toctree::
    :maxdepth: 2
    :caption: Server & API
