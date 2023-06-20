@@ -5,24 +5,23 @@
 .. image:: https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-black-formatting.yml/badge.svg
    :target: https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-black-formatting.yml
 
-`JoliGEN <https://github.com/jolibrain/joliGEN/>`_ provides easy-to-use
-generative AI for image to image transformations.
+`JoliGEN <https://github.com/jolibrain/joliGEN/>`_ is an integrated framework for training custom generative AI image-to-image models
 
 ***************
  Main Features
 ***************
 
--  JoliGEN support both GAN and Diffusion models for unpaired and paired
+-  JoliGEN support both **GAN and Diffusion models** for unpaired and paired
    image to image translation tasks, including domain and style
    adaptation with conservation of semantics such as image and object
    classes, masks, ...
 
 -  JoliGEN generative capabilities are targeted at real world
-   applications such as Augmented Reality, Dataset Smart Augmentation
-   and object insertion, Synthetic to real transforms.
+   applications such as **Controled Image Generation**, **Augmented Reality**, **Dataset Smart Augmentation**
+   and object insertion, **Synthetic to Real** transforms.
 
 -  JoliGEN allows for fast and stable training with astonishing results.
-   A server with REST API is provided that allows for simplified
+   A **server with REST API** is provided that allows for simplified
    deployment and usage.
 
 -  JoliGEN has a large scope of options and parameters. To not get
@@ -34,16 +33,16 @@ generative AI for image to image transformations.
  Use cases
 ***********
 
--  AR and metaverse: replace any image element with super-realistic
+-  **AR and metaverse**: replace any image element with super-realistic
    objects
--  Smart data augmentation: test / train sets augmentation
--  Image manipulation: seamlessly insert or remove objects/elements in
+-  **Smart data augmentation**: test / train sets augmentation
+-  **Image manipulation**: seamlessly insert or remove objects/elements in
    images
--  Image to image translation while preserving semantic, e.g. existing
+-  **Image to image translation** while preserving semantic, e.g. existing
    source dataset annotations
 -  Simulation to reality translation while preserving elements, metrics,
    ...
--  Image to image translation to cope with scarce data
+-  **Image generation to enrich datasets**, e.g. counter dataset imbalance, increase test sets, ...
 
 This is achieved by combining conditioned generator architectures for
 fine-grained control, bags of discriminators, configurable neural
@@ -120,8 +119,10 @@ Code is making use of `pytorch-CycleGAN-and-pix2pix
 `AttentionGAN <https://github.com/Ha0Tang/AttentionGAN>`_, `MoNCE
 <https://github.com/fnzhan/MoNCE>`_ among others.
 
-Some elements from JoliGEN are supported by the French National AI
+Elements from JoliGEN are supported by the French National AI
 program `"Confiance.AI" <https://www.confiance.ai/en/>`_
+
+Contact: contact@jolibrain.com
 
 .. toctree::
    :maxdepth: 4
