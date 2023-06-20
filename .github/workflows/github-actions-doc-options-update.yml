@@ -15,13 +15,17 @@ jobs:
         with:
           ref: ${{ github.ref }}
       - name : install req
-        run: pip install -r ./requirements.txt
+        run: |
+            pip install -r ./requirements.txt
+            pip install fastapi uvicorn
       - name : update
         uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
       - name : run script
         run: python ./scripts/generate_doc.py
+      - name : generate api doc
+        run: bash ./scripts/generate_api_doc.sh
       - name : push
         run : |
           git config user.name github-actions-jg
