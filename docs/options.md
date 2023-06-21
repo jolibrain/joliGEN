@@ -9,7 +9,7 @@ Here are all the available options to call with `train.py`
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
-| --model_type | string | cut | chooses which model to use.<br/><br/>_**Values:** cut, cycle_gan, palette_ |
+| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette |
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
@@ -29,10 +29,10 @@ Here are all the available options to call with `train.py`
 | --D_netDs | array | ['projected_d', 'basic'] | specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored. |
 | --D_no_antialias | flag |  | if specified, use stride=2 convs instead of antialiased-downsampling (sad) |
 | --D_no_antialias_up | flag |  | if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv] |
-| --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/>_**Values:** instance, batch, none_ |
+| --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/> **Values:** instance, batch, none |
 | --D_proj_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file |
 | --D_proj_interp | int | -1 | whether to force projected discriminator interpolation to a value \> 224, -1 means no interpolation |
-| --D_proj_network_type | string | efficientnet | projected discriminator architecture<br/><br/>_**Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16_ |
+| --D_proj_network_type | string | efficientnet | projected discriminator architecture<br/><br/> **Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16 |
 | --D_proj_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight |
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
 | --D_temporal_every | int | 4 | apply temporal discriminator every x steps |
@@ -51,17 +51,17 @@ Here are all the available options to call with `train.py`
 | --G_diff_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_dropout | flag |  | dropout for the generator |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
-| --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/>_**Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512_ |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/>_**Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit_ |
+| --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/> **Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512 |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, stylegan2, smallstylegan2, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
-| --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/>_**Values:** instance, batch, none_ |
-| --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/>_**Values:** reflect, replicate, zeros_ |
+| --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/> **Values:** instance, batch, none |
+| --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/> **Values:** reflect, replicate, zeros |
 | --G_spectral | flag |  | whether to use spectral norm in the generator |
 | --G_stylegan2_num_downsampling | int | 1 | Number of downsampling layers used by StyleGAN2Generator |
 | --G_unet_mha_attn_res | array | [16] | downrate samples at which attention takes place |
 | --G_unet_mha_channel_mults | array | [1, 2, 4, 8] | channel multiplier for each level of the UNET mha |
 | --G_unet_mha_group_norm_size | int | 32 |  |
-| --G_unet_mha_norm_layer | string | groupnorm | <br/><br/>_**Values:** groupnorm, batchnorm, layernorm, instancenorm, switchablenorm_ |
+| --G_unet_mha_norm_layer | string | groupnorm | <br/><br/> **Values:** groupnorm, batchnorm, layernorm, instancenorm, switchablenorm |
 | --G_unet_mha_num_head_channels | int | 32 |  |
 | --G_unet_mha_num_heads | int | 1 |  |
 | --G_unet_mha_res_blocks | array | [2, 2, 2, 2] | distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults |
@@ -92,11 +92,11 @@ Here are all the available options to call with `train.py`
 | --alg_cut_nce_idt | flag |  | use NCE loss for identity mapping: NCE(G(Y), Y)) |
 | --alg_cut_nce_includes_all_negatives_from_minibatch | flag |  | (used for single image translation) If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. Please see models/patchnce.py for more details. |
 | --alg_cut_nce_layers | string | 0,4,8,12,16 | compute NCE loss on which layers |
-| --alg_cut_nce_loss | string | monce | CUT contrastice loss<br/><br/>_**Values:** patchnce, monce, SRC_hDCE_ |
-| --alg_cut_netF | string | mlp_sample | how to downsample the feature map<br/><br/>_**Values:** sample, mlp_sample, sample_qsattn, mlp_sample_qsattn_ |
+| --alg_cut_nce_loss | string | monce | CUT contrastice loss<br/><br/> **Values:** patchnce, monce, SRC_hDCE |
+| --alg_cut_netF | string | mlp_sample | how to downsample the feature map<br/><br/> **Values:** sample, mlp_sample, sample_qsattn, mlp_sample_qsattn |
 | --alg_cut_netF_dropout | flag |  | whether to use dropout with F |
 | --alg_cut_netF_nc | int | 256 |  |
-| --alg_cut_netF_norm | string | instance | instance normalization or batch normalization for F<br/><br/>_**Values:** instance, batch, none_ |
+| --alg_cut_netF_norm | string | instance | instance normalization or batch normalization for F<br/><br/> **Values:** instance, batch, none |
 | --alg_cut_num_patches | int | 256 | number of patches per layer |
 
 ### CycleGAN model
@@ -114,7 +114,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --alg_re_P_lr | float | 0.0002 | initial learning rate for P networks |
 | --alg_re_adversarial_loss_p | flag |  | if True, also train the prediction model with an adversarial loss |
-| --alg_re_netP | string | unet_128 | specify P architecture<br/><br/>_**Values:** resnet_9blocks, resnet_6blocks, resnet_attn, unet_256, unet_128_ |
+| --alg_re_netP | string | unet_128 | specify P architecture<br/><br/> **Values:** resnet_9blocks, resnet_6blocks, resnet_attn, unet_256, unet_128 |
 | --alg_re_no_train_P_fake_images | flag |  | if True, P wont be trained over fake images projections |
 | --alg_re_nuplet_size | int | 3 | Number of frames loaded |
 | --alg_re_projection_threshold | float | 1.0 | threshold of the real images projection loss below with fake projection and fake reconstruction losses are applied |
@@ -125,13 +125,13 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --alg_palette_computed_sketch_list | array | ['canny', 'hed'] | what to use for random sketch |
 | --alg_palette_cond_embed_dim | int | 32 | nb of examples processed for inference |
-| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/>_**Values:** y_t, previous_frame, computed_sketch, low_res_ |
-| --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/>_**Values:** , mask, class, mask_and_class_ |
+| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/> **Values:** y_t, previous_frame, computed_sketch, low_res |
+| --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/> **Values:** , mask, class, mask_and_class |
 | --alg_palette_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
 | --alg_palette_generate_per_class | flag |  | whether to generate samples of each images |
 | --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
-| --alg_palette_loss | string | MSE | loss for denoising model<br/><br/>_**Values:** L1, MSE, multiscale_ |
+| --alg_palette_loss | string | MSE | loss for denoising model<br/><br/> **Values:** L1, MSE, multiscale |
 | --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
 | --alg_palette_sam_crop_delta | flag |  | extend crop's width and height by 2\*crop_delta before computing masks |
 | --alg_palette_sam_final_canny | flag |  | whether to perform a Canny edge detection on sam sketch to soften the edges |
@@ -144,18 +144,18 @@ Here are all the available options to call with `train.py`
 | --alg_palette_sam_redundancy_threshold | float | 0.62 | redundancy threshold above which redundant masks are not kept |
 | --alg_palette_sam_sobel_threshold | float | 0.7 | sobel threshold in % of gradient magintude |
 | --alg_palette_sam_use_gaussian_filter | flag |  | whether to apply a gaussian blur to each SAM masks |
-| --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/>_**Values:** ddpm, ddim_ |
+| --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/> **Values:** ddpm, ddim |
 | --alg_palette_sketch_canny_range | array | [0, 765] | range for Canny thresholds |
 | --alg_palette_super_resolution_scale | float | 2.0 | scale for super resolution |
-| --alg_palette_task | string | inpainting | <br/><br/>_**Values:** inpainting, super_resolution_ |
+| --alg_palette_task | string | inpainting | <br/><br/> **Values:** inpainting, super_resolution |
 
 ## Datasets
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/>_**Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_temporal, single_ |
-| --data_direction | string | AtoB | AtoB or BtoA<br/><br/>_**Values:** AtoB, BtoA_ |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_temporal, single |
+| --data_direction | string | AtoB | AtoB or BtoA<br/><br/> **Values:** AtoB, BtoA |
 | --data_inverted_mask | flag |  | whether to invert the mask, i.e. around the bbox |
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
@@ -164,7 +164,7 @@ Here are all the available options to call with `train.py`
 | --data_online_fixed_mask_size | int | -1 | if \>0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing)  |
 | --data_online_select_category | int | -1 | category to select for bounding boxes, -1 means all boxes selected |
 | --data_online_single_bbox | flag |  | whether to only allow a single bbox per online crop |
-| --data_preprocess | string | resize_and_crop | scaling and cropping of images at load time<br/><br/>_**Values:** resize_and_crop, crop, scale_width, scale_width_and_crop, none_ |
+| --data_preprocess | string | resize_and_crop | scaling and cropping of images at load time<br/><br/> **Values:** resize_and_crop, crop, scale_width, scale_width_and_crop, none |
 | --data_refined_mask | flag |  | whether to use refined mask with sam |
 | --data_relative_paths | flag |  | whether paths to images are relative to dataroot |
 | --data_sanitize_paths | flag |  | if true, wrong images or labels paths will be removed before training |
@@ -200,7 +200,7 @@ Here are all the available options to call with `train.py`
 | --f_s_class_weights | array | [] | class weights for imbalanced semantic classes |
 | --f_s_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file for f_s |
 | --f_s_dropout | flag |  | dropout for the semantic network |
-| --f_s_net | string | vgg | specify f_s network [vgg|unet|segformer|sam]<br/><br/>_**Values:** vgg, unet, segformer, sam_ |
+| --f_s_net | string | vgg | specify f_s network [vgg\|unet\|segformer\|sam]<br/><br/> **Values:** vgg, unet, segformer, sam |
 | --f_s_nf | int | 64 | \# of filters in the first conv layer of classifier |
 | --f_s_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
 | --f_s_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
@@ -215,7 +215,7 @@ Here are all the available options to call with `train.py`
 | --cls_class_weights | array | [] | class weights for imbalanced semantic classes |
 | --cls_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file for cls |
 | --cls_dropout | flag |  | dropout for the semantic network |
-| --cls_net | string | vgg | specify cls network [vgg|unet|segformer]<br/><br/>_**Values:** vgg, unet, segformer_ |
+| --cls_net | string | vgg | specify cls network [vgg\|unet\|segformer]<br/><br/> **Values:** vgg, unet, segformer |
 | --cls_nf | int | 64 | \# of filters in the first conv layer of classifier |
 | --cls_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
 | --cls_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
@@ -243,7 +243,7 @@ Here are all the available options to call with `train.py`
 | --output_display_id | int | 1 | window id of the web display |
 | --output_display_ncols | int | 0 | if positive, display all images in a single visdom web panel with certain number of images per row.(if == 0 ncols will be computed automatically) |
 | --output_display_networks | flag |  | Set True if you want to display networks on port 8000 |
-| --output_display_type | array | ['visdom'] | output display, either visdom, aim or no output<br/><br/>_**Values:** visdom, aim, none_ |
+| --output_display_type | array | ['visdom'] | output display, either visdom, aim or no output<br/><br/> **Values:** visdom, aim, none |
 | --output_display_visdom_autostart | flag |  | whether to start a visdom server automatically |
 | --output_display_visdom_port | int | 8097 | visdom port of the web display |
 | --output_display_visdom_server | string | http://localhost | visdom server of the web display |
@@ -253,18 +253,18 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| --model_depth_network | string | DPT_Large | specify depth prediction network architecture<br/><br/>_**Values:** DPT_Large, DPT_Hybrid, MiDaS_small, DPT_BEiT_L_512, DPT_BEiT_L_384, DPT_BEiT_B_384, DPT_SwinV2_L_384, DPT_SwinV2_B_384, DPT_SwinV2_T_256, DPT_Swin_L_384, DPT_Next_ViT_L_384, DPT_LeViT_224_ |
+| --model_depth_network | string | DPT_Large | specify depth prediction network architecture<br/><br/> **Values:** DPT_Large, DPT_Hybrid, MiDaS_small, DPT_BEiT_L_512, DPT_BEiT_L_384, DPT_BEiT_B_384, DPT_SwinV2_L_384, DPT_SwinV2_B_384, DPT_SwinV2_T_256, DPT_Swin_L_384, DPT_Next_ViT_L_384, DPT_LeViT_224 |
 | --model_init_gain | float | 0.02 | scaling factor for normal, xavier and orthogonal. |
-| --model_init_type | string | normal | network initialization<br/><br/>_**Values:** normal, xavier, kaiming, orthogonal_ |
-| --model_input_nc | int | 3 | \# of input image channels: 3 for RGB and 1 for grayscale<br/><br/>_**Values:** 1, 3_ |
+| --model_init_type | string | normal | network initialization<br/><br/> **Values:** normal, xavier, kaiming, orthogonal |
+| --model_input_nc | int | 3 | \# of input image channels: 3 for RGB and 1 for grayscale<br/><br/> **Values:** 1, 3 |
 | --model_multimodal | flag |  | multimodal model with random latent input vector |
-| --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale<br/><br/>_**Values:** 1, 3_ |
+| --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale<br/><br/> **Values:** 1, 3 |
 
 ## Training
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| --train_D_accuracy_every | int | 1000 |  |
+| --train_D_accuracy_every | int | 1000 | compute D accuracy every N iterations |
 | --train_D_lr | float | 0.0001 | discriminator separate learning rate |
 | --train_G_ema | flag |  | whether to build G via exponential moving average |
 | --train_G_ema_beta | float | 0.999 | exponential decay for ema |
@@ -274,24 +274,24 @@ Here are all the available options to call with `train.py`
 | --train_beta2 | float | 0.999 | momentum term of adam |
 | --train_cls_l1_regression | flag |  | if true l1 loss will be used to compute regressor loss |
 | --train_cls_regression | flag |  | if true cls will be a regressor and not a classifier |
-| --train_compute_D_accuracy | flag |  |  |
+| --train_compute_D_accuracy | flag |  | whether to compute D accuracy explicitely |
 | --train_compute_metrics_test | flag |  |  |
 | --train_continue | flag |  | continue training: load the latest model |
 | --train_epoch | string | latest | which epoch to load? set to latest to use latest cached model |
 | --train_epoch_count | int | 1 | the starting epoch count, we save the model by \<epoch_count\>, \<epoch_count\>+\<save_latest_freq\>, ... |
 | --train_export_jit | flag |  | whether to export model in jit format |
-| --train_gan_mode | string | lsgan | the type of GAN objective. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.<br/><br/>_**Values:** vanilla, lsgan, wgangp, projected_ |
+| --train_gan_mode | string | lsgan | the type of GAN objective. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.<br/><br/> **Values:** vanilla, lsgan, wgangp, projected |
 | --train_iter_size | int | 1 | backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size\*iter_size |
 | --train_load_iter | int | 0 | which iteration to load? if load_iter \> 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch] |
 | --train_lr_decay_iters | int | 50 | multiply by a gamma every lr_decay_iters iterations |
-| --train_lr_policy | string | linear | learning rate policy.<br/><br/>_**Values:** linear, step, plateau, cosine_ |
+| --train_lr_policy | string | linear | learning rate policy.<br/><br/> **Values:** linear, step, plateau, cosine |
 | --train_metrics_every | int | 1000 |  |
 | --train_mm_lambda_z | float | 0.5 | weight for random z loss |
 | --train_mm_nz | int | 8 | number of latent vectors |
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |
 | --train_n_epochs_decay | int | 100 | number of epochs to linearly decay learning rate to zero |
 | --train_nb_img_max_fid | int | 1000000000 | Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used. |
-| --train_optim | string | adam | optimizer (adam, radam, adamw, ...)<br/><br/>_**Values:** adam, radam, adamw, lion_ |
+| --train_optim | string | adam | optimizer (adam, radam, adamw, ...)<br/><br/> **Values:** adam, radam, adamw, lion |
 | --train_pool_size | int | 50 | the size of image buffer that stores previously generated images |
 | --train_save_by_iter | flag |  | whether saves model by iteration |
 | --train_save_epoch_freq | int | 1 | frequency of saving checkpoints at the end of epochs |
@@ -327,7 +327,7 @@ Here are all the available options to call with `train.py`
 | --train_mask_f_s_B | flag |  | if true f_s will be trained not only on domain A but also on domain B |
 | --train_mask_for_removal | flag |  | if true, object removal mode, domain B images with label 0, cut models only |
 | --train_mask_lambda_out_mask | float | 10.0 | weight for loss out mask |
-| --train_mask_loss_out_mask | string | L1 | loss for out mask content (which should not change).<br/><br/>_**Values:** L1, MSE, Charbonnier_ |
+| --train_mask_loss_out_mask | string | L1 | loss for out mask content (which should not change).<br/><br/> **Values:** L1, MSE, Charbonnier |
 | --train_mask_miou_every | int | 1000 |  |
 | --train_mask_no_train_f_s_A | flag |  | if true f_s wont be trained on domain A |
 | --train_mask_out_mask | flag |  | use loss out mask |
