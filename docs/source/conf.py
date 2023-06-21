@@ -100,7 +100,7 @@ html_context = {
     "github_host": "github.com",
     "github_user": "jolibrain",  # Username
     "github_repo": "joliGEN",  # Repo name
-    "github_version": "feat_jolidoc",  # Branch
+    "github_version": "master",  # Branch
     "conf_py_path": "/docs/source/",  # Path in the checkout to the docs root
 }
 
