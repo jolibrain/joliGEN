@@ -136,13 +136,20 @@ class BaseModel(ABC):
         if self.opt.output_display_env == "":
             self.opt.output_display_env = self.opt.name
 
-        self.fid_metric = FID()
-        self.msid_metric = MSID()
-        self.kid_metric = KID()
+        if "FID" in self.opt.train_metrics_list:
+            self.fid_metric = FID()
+        if "MSID" in self.opt.train_metrics_list:
+            self.msid_metric = MSID()
+        if "KID" in self.opt.train_metrics_list:
+            self.kid_metric = KID()
 
     def init_metrics(self, dataloader, dataloader_test):
 
-        if self.opt.train_compute_metrics_test:
+        self.use_inception = any(
+            metric in self.opt.train_metrics_list for metric in ["KID", "FID", "MSID"]
+        )
+
+        if self.opt.train_compute_metrics_test and self.use_inception:
             dims = 2048
             self.netFid = base_networks.define_inception(self.gpu_ids[0], dims)
 
@@ -156,21 +163,22 @@ class BaseModel(ABC):
             if not os.path.exists(pathB):
                 os.mkdir(pathB)
 
-            path_sv_B = os.path.join(
-                self.opt.checkpoints_dir, self.opt.name, "fid_mu_sigma_B_test.npz"
-            )
+            if self.use_inception:
+                path_sv_B = os.path.join(
+                    self.opt.checkpoints_dir, self.opt.name, "fid_mu_sigma_B_test.npz"
+                )
 
-            self.realactB_test = _compute_statistics_of_dataloader(
-                path_sv=path_sv_B,
-                model=self.netFid,
-                domain="B",
-                batch_size=self.opt.test_batch_size,
-                dims=dims,
-                device=self.gpu_ids[0],
-                dataloader=dataloader_test,
-                nb_max_img=self.opt.train_nb_img_max_fid,
-                root=self.root,
-            )
+                self.realactB_test = _compute_statistics_of_dataloader(
+                    path_sv=path_sv_B,
+                    model=self.netFid,
+                    domain="B",
+                    batch_size=self.opt.test_batch_size,
+                    dims=dims,
+                    device=self.gpu_ids[0],
+                    dataloader=dataloader_test,
+                    nb_max_img=self.opt.train_nb_img_max_fid,
+                    root=self.root,
+                )
 
     def init_semantic_cls(self, opt):
         # specify the semantic training networks and losses.
@@ -1250,12 +1258,25 @@ class BaseModel(ABC):
         metrics_names = []
 
         if self.opt.train_compute_metrics_test:
-            metrics_names += [
-                "fidB_test",
-                "msidB_test",
-                "kidB_test",
-                "psnr_test",
-            ]
+            if "FID" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "fidB_test",
+                ]
+
+            if "MSID" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "msidB_test",
+                ]
+
+            if "KID" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "kidB_test",
+                ]
+
+            if "PSNR" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "psnr_test",
+                ]
 
         for name in metrics_names:
             if isinstance(name, str):
@@ -1323,21 +1344,24 @@ class BaseModel(ABC):
                 for name in sub_list:
                     setattr(self, name + "_test", getattr(self, name))
 
-        self.fakeactB_test = _compute_statistics_of_dataloader(
-            path_sv=None,
-            model=self.netFid,
-            domain="B",
-            batch_size=1,
-            dims=dims,
-            device=self.gpu_ids[0],
-            dataloader=fake_list,
-            nb_max_img=self.opt.train_nb_img_max_fid,
-            root=self.root,
-        )
+        if self.use_inception:
+            self.fakeactB_test = _compute_statistics_of_dataloader(
+                path_sv=None,
+                model=self.netFid,
+                domain="B",
+                batch_size=1,
+                dims=dims,
+                device=self.gpu_ids[0],
+                dataloader=fake_list,
+                nb_max_img=self.opt.train_nb_img_max_fid,
+                root=self.root,
+            )
 
-        self.fidB_test, self.msidB_test, self.kidB_test = self.compute_metrics_generic(
-            self.realactB_test, self.fakeactB_test
-        )
+            (
+                self.fidB_test,
+                self.msidB_test,
+                self.kidB_test,
+            ) = self.compute_metrics_generic(self.realactB_test, self.fakeactB_test)
 
         real_tensor = (torch.cat(real_list) + 1) / 2
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1, max=1) + 1) / 2
@@ -1345,23 +1369,35 @@ class BaseModel(ABC):
         self.psnr_test = psnr(real_tensor, fake_tensor)
 
     def compute_metrics_generic(self, real_act, fake_act):
+
         # FID
-        fid = self.fid_metric(real_act, fake_act)
+        if "FID" in self.opt.train_metrics_list:
+            fid = self.fid_metric(real_act, fake_act)
+
+        else:
+            fid = None
 
         # MSID
-        msid = self.msid_metric(real_act, fake_act)
+        if "MSID" in self.opt.train_metrics_list:
+            msid = self.msid_metric(real_act, fake_act)
+        else:
+            msid = None
 
         # KID needs to have the same number of examples
-
-        if fake_act.shape == real_act.shape:
-            kid = self.kid_metric(real_act, fake_act)
+        if "KID" in self.opt.train_metrics_list:
+            if fake_act.shape == real_act.shape:
+                kid = self.kid_metric(real_act, fake_act)
+            else:
+                print(
+                    "KID needs to have the same number of examples in both domains. Here, there %d examples in real domain and %d in fake domain,we will use a subsample from each"
+                    % (real_act.shape[0], fake_act.shape[0])
+                )
+                nb_sub_sample = min(real_act.shape[0], fake_act.shape[0])
+                kid = self.kid_metric(
+                    real_act[:nb_sub_sample], fake_act[:nb_sub_sample]
+                )
         else:
-            print(
-                "KID needs to have the same number of examples in both domains. Here, there %d examples in real domain and %d in fake domain,we will use a subsample from each"
-                % (real_act.shape[0], fake_act.shape[0])
-            )
-            nb_sub_sample = min(real_act.shape[0], fake_act.shape[0])
-            kid = self.kid_metric(real_act[:nb_sub_sample], fake_act[:nb_sub_sample])
+            kid = None
 
         return fid, msid, kid
 
