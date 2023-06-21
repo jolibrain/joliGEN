@@ -179,8 +179,17 @@ class TrainOptions(BaseOptions):
             default=0,
             help="which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]",
         )
+
         parser.add_argument("--train_compute_metrics_test", action="store_true")
         parser.add_argument("--train_metrics_every", type=int, default=1000)
+        parser.add_argument(
+            "--train_metrics_list",
+            type=str,
+            default=["FID"],
+            nargs="*",
+            choices=["FID", "KID", "MSID", "PSNR"],
+        )
+
         parser.add_argument(
             "--train_G_ema",
             action="store_true",

@@ -150,7 +150,7 @@ def _compute_statistics_of_dataloader(
 ):
 
     if path_sv is not None and os.path.isfile(path_sv):
-        print("Activations loaded for domain {domain}, from %s." % path_sv)
+        print("Activations loaded for domain %s, from %s." % (domain, path_sv))
         f = torch.load(path_sv)
         a = f["activation"][:]
     else:
