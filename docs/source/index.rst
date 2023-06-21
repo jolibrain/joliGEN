@@ -194,14 +194,6 @@ Contact: contact@jolibrain.com
    :hidden:
 
    docker
-   
-.. toctree::
-   :maxdepth: 2
-   :caption: Project Source Overview
-   :glob:
-   :hidden:
-
-   overview
 
 .. toctree::
    :maxdepth: 2
