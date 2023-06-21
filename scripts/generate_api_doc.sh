@@ -10,7 +10,7 @@ mkdir -p ${DOC_PATH}
 uvicorn server.joligen_api:app --host localhost --port ${PORT} &
 pid=$!
 
-sleep 3
+sleep 10
 
 for i in {1..30}
 do
