@@ -571,7 +571,7 @@ class PaletteModel(BaseDiffusionModel):
                         y_cond=self.cond_image[: self.inference_num],
                         y_t=self.y_t[: self.inference_num],
                         y_0=self.gt_image[: self.inference_num],
-                        mask=cur_class_mask[: self.inference_num],
+                        mask=cur_class_mask,
                         sample_num=self.sample_num,
                         cls=cur_class,
                     )
@@ -587,14 +587,23 @@ class PaletteModel(BaseDiffusionModel):
 
             # no class conditioning
             else:
+                if self.cls is not None:
+                    cls = self.cls[: self.inference_num]
+                else:
+                    cls = self.cls
+
+                if self.mask is not None:
+                    mask = self.mask[: self.inference_num]
+                else:
+                    mask = self.mask
 
                 self.output, self.visuals = netG.restoration(
                     y_cond=self.cond_image[: self.inference_num],
                     y_t=self.y_t[: self.inference_num],
                     y_0=self.gt_image[: self.inference_num],
-                    mask=self.mask[: self.inference_num],
+                    mask=mask,
                     sample_num=self.sample_num,
-                    cls=self.cls[: self.inference_num],
+                    cls=cls,
                 )
                 self.fake_B = self.output
 
