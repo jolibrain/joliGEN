@@ -213,7 +213,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --cls_all_classes_as_one | flag |  | if true, all classes will be considered as the same one (ie foreground vs background) |
 | --cls_class_weights | array | [] | class weights for imbalanced semantic classes |
-| --cls_config_segformer | string | models/configs/segformer/segformer_config_b0.py | path to segformer configuration file for cls |
+| --cls_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file for cls |
 | --cls_dropout | flag |  | dropout for the semantic network |
 | --cls_net | string | vgg | specify cls network [vgg\|unet\|segformer]<br/><br/> **Values:** vgg, unet, segformer |
 | --cls_nf | int | 64 | \# of filters in the first conv layer of classifier |
@@ -259,6 +259,7 @@ Here are all the available options to call with `train.py`
 | --model_input_nc | int | 3 | \# of input image channels: 3 for RGB and 1 for grayscale<br/><br/> **Values:** 1, 3 |
 | --model_multimodal | flag |  | multimodal model with random latent input vector |
 | --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale<br/><br/> **Values:** 1, 3 |
+| --model_prior_321_backwardcompatibility | flag |  | whether to load models from previous version of JG. |
 
 ## Training
 
@@ -286,6 +287,7 @@ Here are all the available options to call with `train.py`
 | --train_lr_decay_iters | int | 50 | multiply by a gamma every lr_decay_iters iterations |
 | --train_lr_policy | string | linear | learning rate policy.<br/><br/> **Values:** linear, step, plateau, cosine |
 | --train_metrics_every | int | 1000 |  |
+| --train_metrics_list | array | ['FID'] | <br/><br/> **Values:** FID, KID, MSID, PSNR |
 | --train_mm_lambda_z | float | 0.5 | weight for random z loss |
 | --train_mm_nz | int | 8 | number of latent vectors |
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |

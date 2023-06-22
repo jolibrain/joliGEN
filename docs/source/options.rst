@@ -751,7 +751,7 @@ Semantic classification network
      - class weights for imbalanced semantic classes
    * - --cls_config_segformer
      - string
-     - models/configs/segformer/segformer_config_b0.py
+     - models/configs/segformer/segformer_config_b0.json
      - path to segformer configuration file for cls
    * - --cls_dropout
      - flag
@@ -909,6 +909,10 @@ Model
      - int
      - 3
      - # of output image channels: 3 for RGB and 1 for grayscale\ :raw-html-m2r:`<br/>`\ :raw-html-m2r:`<br/>` **Values:** 1, 3
+   * - --model_prior_321_backwardcompatibility
+     - flag
+     - 
+     - whether to load models from previous version of JG.
 
 
 Training
@@ -1009,6 +1013,10 @@ Training
      - int
      - 1000
      - 
+   * - --train_metrics_list
+     - array
+     - ['FID']
+     - :raw-html-m2r:`<br/>`\ :raw-html-m2r:`<br/>` **Values:** FID, KID, MSID, PSNR
    * - --train_mm_lambda_z
      - float
      - 0.5
