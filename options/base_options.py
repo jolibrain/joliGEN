@@ -571,7 +571,7 @@ class BaseOptions:
         parser.add_argument(
             "--cls_config_segformer",
             type=str,
-            default="models/configs/segformer/segformer_config_b0.py",
+            default="models/configs/segformer/segformer_config_b0.json",
             help="path to segformer configuration file for cls",
         )
         parser.add_argument(
