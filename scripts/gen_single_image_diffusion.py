@@ -349,8 +349,9 @@ def generate(
             mask = cv2.resize(mask, (img_width, img_height))
 
     # insert cond image into original image
-    generated_bbox = bbox
+    generated_bbox = None
     if cond_in:
+        generated_bbox = bbox
         # fill the mask with cond image
         mask_bbox = Image.fromarray(mask).getbbox()
         x0, y0, x1, y1 = mask_bbox
@@ -599,6 +600,7 @@ def generate(
         if bbox_in:
             with open(os.path.join(dir_out, name + "_orig_bbox.json"), "w") as out:
                 out.write(json.dumps(bbox))
+        if generated_bbox:
             with open(os.path.join(dir_out, name + "_generated_bbox.json"), "w") as out:
                 out.write(json.dumps(generated_bbox))
 
