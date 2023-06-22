@@ -42,7 +42,14 @@ from util.mask_generation import (
 )
 
 
-def load_model(modelpath, model_in_file, device, sampling_steps, sampling_method):
+def load_model(
+    modelpath,
+    model_in_file,
+    device,
+    sampling_steps,
+    sampling_method,
+    model_prior_321_backwardcompatibility,
+):
     train_json_path = modelpath + "/train_config.json"
     with open(train_json_path, "r") as jsonf:
         train_json = json.load(jsonf)
@@ -62,9 +69,27 @@ def load_model(modelpath, model_in_file, device, sampling_steps, sampling_method
         )
         opt.data_online_creation_mask_random_offset_A = [0.0]
 
+    opt.model_prior_321_backwardcompatibility = model_prior_321_backwardcompatibility
     model = diffusion_networks.define_G(**vars(opt))
     model.eval()
-    model.load_state_dict(torch.load(modelpath + "/" + model_in_file))
+
+    # handle old models
+    weights = torch.load(modelpath + "/" + model_in_file)
+    if opt.model_prior_321_backwardcompatibility:
+        weights = {
+            k.replace("denoise_fn.cond_embed", "cond_embed"): v
+            for k, v in weights.items()
+        }
+    if not any(k.startswith("denoise_fn.model") for k in weights.keys()):
+        weights = {
+            k.replace("denoise_fn", "denoise_fn.model"): v for k, v in weights.items()
+        }
+    if not any(k.startswith("denoise_fn.netl_embedder_") for k in weights.keys()):
+        weights = {
+            k.replace("l_embedder_", "denoise_fn.netl_embedder_"): v
+            for k, v in weights.items()
+        }
+    model.load_state_dict(weights)
 
     # sampling steps
     if sampling_steps > 0:
@@ -167,6 +192,7 @@ def generate(
         device,
         sampling_steps,
         sampling_method,
+        args.model_prior_321_backwardcompatibility,
     )
 
     if alg_palette_cond_image_creation is not None:
@@ -507,7 +533,7 @@ def generate(
     if mask == None:
         img_tensor = None
 
-    if "class" in model.conditioning:
+    if "class" in model.denoise_fn.conditioning:
         cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls
     else:
         cls_tensor = None
@@ -734,6 +760,12 @@ if __name__ == "__main__":
         "--min_crop_bbox_ratio",
         type=float,
         help="minimum crop/bbox ratio, allows to add context when bbox is larger than crop",
+    )
+
+    options.parser.add_argument(
+        "--model_prior_321_backwardcompatibility",
+        action="store_true",
+        help="whether to load models from previous version of JG.",
     )
 
     args = options.parse()
