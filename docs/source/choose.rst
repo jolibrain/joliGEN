@@ -83,7 +83,9 @@ that gradually adds or removes details over time.
 
 *Schematic representation of the diffusion process in DDPMs*
 
-## Image-to-Image Generation with DDPMs
+**************************************
+ Image-to-Image Generation with DDPMs
+**************************************
 
 When applied to the field of image-to-image generation, such as
 inpainting (filling in missing parts of an image) and super-resolution
