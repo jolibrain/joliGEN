@@ -61,12 +61,8 @@
             "crop_size_B": 128,
             "load_size_A": [],
             "load_size_B": [],
-            "mask_delta_A": [
-                50
-            ],
-            "mask_delta_B": [
-                15
-            ],
+            "mask_delta_A": [[50]],
+            "mask_delta_B": [[15]],
             "mask_random_offset_A": [
                 0.0
             ],

@@ -20,4 +20,4 @@ onnx
 aim
 git+https://github.com/facebookresearch/segment-anything.git
 piq
-
+ultralytics

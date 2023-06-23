@@ -150,7 +150,6 @@ def crop_image(
                         mask_delta_y = mask_delta_cat[1]
                 else:
                     raise ValueError("mask_delta value is incorrect.")
-
             mask_delta_x = int(mask_delta_x)
             mask_delta_y = int(mask_delta_y)
 

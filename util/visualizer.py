@@ -1,14 +1,16 @@
-import numpy as np
+import json
+import math
+import ntpath
 import os
 import sys
-import ntpath
 import time
-from . import util, html_util
-from subprocess import Popen, PIPE
+from subprocess import PIPE, Popen
+
+import numpy as np
 from PIL import Image
-import json
 from torchinfo import summary
-import math
+
+from . import html_util, util
 
 if sys.version_info[0] == 2:
     VisdomExceptionBase = Exception
@@ -504,6 +506,8 @@ class Visualizer:
             if isinstance(name, str):
                 net = nets[name]
                 num_params = 0
+                if net is None:
+                    continue
                 for param in net.parameters():
                     num_params += param.numel()
                 if verbose:

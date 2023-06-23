@@ -1,5 +1,6 @@
-from data.unaligned_labeled_mask_dataset import UnalignedLabeledMaskDataset
 import torch
+
+from data.unaligned_labeled_mask_dataset import UnalignedLabeledMaskDataset
 
 
 class UnalignedLabeledMaskClsDataset(UnalignedLabeledMaskDataset):
@@ -35,7 +36,6 @@ class UnalignedLabeledMaskClsDataset(UnalignedLabeledMaskDataset):
         B_label_cls=None,
         index=None,
     ):
-
         return_dict = super().get_img(
             A_img_path,
             A_label_mask_path,

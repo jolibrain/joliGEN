@@ -1,16 +1,16 @@
 import os
 
 from .modules.classifiers import (
+    TORCH_MODEL_CLASSES,
     Classifier,
     VGG16_FCN8s,
     torch_model,
-    TORCH_MODEL_CLASSES,
 )
-from .modules.UNet_classification import UNet
-from .modules.segformer.segformer_generator import Segformer
-
-from .modules.utils import init_net, get_weights
+from .modules.sam.FastSAM import fastSAM, load_fastSam_weight
 from .modules.sam.sam_inference import load_sam_weight
+from .modules.segformer.segformer_generator import Segformer
+from .modules.UNet_classification import UNet
+from .modules.utils import get_weights, init_net
 
 
 def define_C(
@@ -48,6 +48,8 @@ def define_f(
     f_s_config_segformer,
     f_s_weight_segformer,
     f_s_weight_sam,
+    f_s_weight_fastsam,
+    use_fast_sam,
     jg_dir,
     data_crop_size,
     **unused_options
@@ -95,7 +97,11 @@ def define_f(
                 net.net.load_state_dict(weights, strict=False)
         return net
     elif f_s_net == "sam":
-        net, mg = load_sam_weight(f_s_weight_sam)
+        if use_fast_sam:
+            net = load_fastSam_weight(f_s_weight_fastsam)
+            mg = net
+        else:
+            net, mg = load_sam_weight(f_s_weight_sam)
         return net, mg
 
     return init_net(net, model_init_type, model_init_gain)

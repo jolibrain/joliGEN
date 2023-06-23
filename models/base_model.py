@@ -1082,9 +1082,33 @@ class BaseModel(ABC):
         return one_hot.scatter_(1, tensor.unsqueeze(1), 1.0)
 
     def compute_fake_real_masks(self):
-        fake_mask = self.netf_s(self.real_A)
+        if self.opt.use_fast_sam:
+            fake_mask = self.netf_s(
+                    self.real_A,
+                    imgsz=1024,
+                    device=self.device,
+                    retina_masks=True,
+                    iou=0.9,
+                    conf=0.4,
+                    max_det=300,
+                    verbose=False
+            )[0].masks.data
+        else:
+            fake_mask = self.netf_s(self.real_A)
         fake_mask = F.gumbel_softmax(fake_mask, tau=1.0, hard=True, dim=1)
-        real_mask = self.netf_s(self.real_B)
+        if self.opt.use_fast_sam:
+            real_mask = self.netf_s(
+                    self.real_B,
+                    imgsz=1024,
+                    device=self.device,
+                    retina_masks=True,
+                    iou=0.9,
+                    conf=0.4,
+                    max_det=300,
+                    verbose=False
+            )[0].masks.data
+        else:
+            real_mask = self.netf_s(self.real_B)
         real_mask = F.gumbel_softmax(real_mask, tau=1.0, hard=True, dim=1)
         setattr(self, "fake_mask_B_inv", fake_mask.argmax(dim=1))
         setattr(self, "real_mask_B_inv", real_mask.argmax(dim=1))
@@ -1123,7 +1147,19 @@ class BaseModel(ABC):
             if self.opt.train_mask_disjoint_f_s:
                 f_s = self.netf_s_A
             else:
-                f_s = self.netf_s
+                if self.opt.use_fast_sam:
+                    f_s = lambda image: self.netf_s(
+                            image,
+                            imgsz=1024,
+                            device=device,
+                            retina_masks=True,
+                            iou=0.9,
+                            conf=0.4,
+                            max_det=300,
+                            verbose=False,
+                    )[0].masks.data
+                else:
+                    f_s = self.netf_s
 
             pred_A = f_s(self.real_A)
             self.loss_f_s += self.criterionf_s(pred_A, label_A)  # .squeeze(1))
@@ -1132,7 +1168,19 @@ class BaseModel(ABC):
             if self.opt.train_mask_disjoint_f_s:
                 f_s = self.netf_s_B
             else:
-                f_s = self.netf_s
+                if self.opt.use_fast_sam:
+                    f_s = lambda image: self.netf_s(
+                            image,
+                            imgsz=1024,
+                            device=device,
+                            retina_masks=True,
+                            iou=0.9,
+                            conf=0.4,
+                            max_det=300,
+                            verbose=False,
+                    )[0].masks.data
+                else:
+                    f_s = self.netf_s
             label_B = self.input_B_label_mask
             pred_B = f_s(self.real_B)
             self.loss_f_s += self.criterionf_s(pred_B, label_B)  # .squeeze(1))
@@ -1178,7 +1226,19 @@ class BaseModel(ABC):
             if self.opt.train_mask_disjoint_f_s:
                 f_s = self.netf_s_A
             else:
-                f_s = self.netf_s
+                if self.opt.use_fast_sam:
+                    f_s = lambda image: self.netf_s(
+                            image,
+                            imgsz=1024,
+                            device=device,
+                            retina_masks=True,
+                            iou=0.9,
+                            conf=0.4,
+                            max_det=300,
+                            verbose=False,
+                    )[0].masks.data
+                else:
+                    f_s = self.netf_s
             self.pred_f_s_real_A = f_s(self.real_A)
 
             self.gt_pred_f_s_real_A = F.log_softmax(self.pred_f_s_real_A, dim=d)
@@ -1187,11 +1247,23 @@ class BaseModel(ABC):
         if self.opt.train_mask_disjoint_f_s:
             f_s = self.netf_s_B
         else:
-            f_s = self.netf_s
+            if self.opt.use_fast_sam:
+                f_s = lambda image: self.netf_s(
+                        image,
+                        imgsz=1024,
+                        device=device,
+                        retina_masks=True,
+                        iou=0.9,
+                        conf=0.4,
+                        max_det=300,
+                        verbose=False,
+                )[0].masks.data
+            else:
+                f_s = self.netf_s
 
         if self.opt.f_s_net == "sam":
             self.pred_f_s_real_B = predict_sam(
-                self.real_B, self.f_s_mg, self.input_B_ref_bbox
+                self.real_B, self.f_s_mg, self.input_B_ref_bbox, use_fast_sam=self.opt.use_fast_sam
             )
             self.input_B_label_mask = self.pred_f_s_real_B
             self.gt_pred_f_s_real_B_max = (self.input_B_label_mask > 0.0).float()
@@ -1202,7 +1274,7 @@ class BaseModel(ABC):
 
         if self.opt.f_s_net == "sam":
             self.pred_f_s_fake_B = predict_sam(
-                self.fake_B, self.f_s_mg, self.input_A_ref_bbox
+                self.fake_B, self.f_s_mg, self.input_A_ref_bbox, use_fast_sam=self.opt.use_fast_sam
             )
             self.pfB_max = (self.pred_f_s_fake_B > 0.0).float()
         else:
@@ -1219,7 +1291,7 @@ class BaseModel(ABC):
         if self.opt.train_sem_idt:
             if self.opt.f_s_net == "sam":
                 self.pred_f_s_idt_B = predict_sam(
-                    self.idt_B, self.f_s_mg, self.input_B_ref_bbox
+                    self.idt_B, self.f_s_mg, self.input_B_ref_bbox, use_fast_sam=self.opt.use_fast_sam
                 )
                 self.pfB_idt_max = (self.pred_f_s_idt_B > 0.0).float()
             else:

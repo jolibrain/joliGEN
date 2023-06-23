@@ -261,6 +261,16 @@ def download_sam_weight(path):
         )
 
 
+def download_fastsam_weight(path):
+    fastsam_weights = "https://huggingface.co/spaces/An-619/FastSAM/resolve/main/checkpoints/FastSAM.pt"
+    for i in range(2, len(path.split("/"))):
+        temp = path.split("/")[:i]
+        cur_path = "/".join(temp)
+        if not os.path.isdir(cur_path):
+            os.mkdir(cur_path)
+    wget.download(fastsam_weights, path)
+
+
 def predict_depth(img, midas, model_type):
     # img must be RGB
     input_size = 384

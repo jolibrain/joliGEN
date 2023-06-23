@@ -1,15 +1,13 @@
 import copy
+import itertools
 import math
 import random
 import warnings
 
 import torch
 import torchvision.transforms as T
-from torch import nn
-
-
-import itertools
 import tqdm
+from torch import nn
 
 from data.online_creation import fill_mask_with_color
 from models.modules.sam.sam_inference import compute_mask_with_sam
@@ -373,6 +371,7 @@ class PaletteModel(BaseDiffusionModel):
                         data["B_label_mask"].to(self.device)[:, 1],
                         self.freezenet_sam,
                         self.device,
+                        fast_sam=self.use_fast_sam,
                         batched=True,
                     )
                 else:
@@ -389,6 +388,7 @@ class PaletteModel(BaseDiffusionModel):
                         data["B_label_mask"].to(self.device),
                         self.freezenet_sam,
                         self.device,
+                        fast_sam=self.use_fast_sam,
                         batched=True,
                     )
                 else:

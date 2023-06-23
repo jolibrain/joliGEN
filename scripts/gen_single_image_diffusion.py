@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import math
 import os
@@ -12,11 +13,10 @@ import cv2
 import numpy as np
 import torch
 import torchvision.transforms as T
+from PIL import Image
 from torchvision import transforms
 from torchvision.utils import save_image
 from tqdm import tqdm
-from PIL import Image
-import copy
 
 sys.path.append("../")
 from diffusion_options import DiffusionOptions
@@ -25,12 +25,13 @@ from segment_anything import SamPredictor
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
 from models import diffusion_networks
 from models.modules.diffusion_utils import set_new_noise_schedule
+from models.modules.sam.FastSAM import load_fastSam_weight
 from models.modules.sam.sam_inference import (
     compute_mask_with_sam,
     load_sam_weight,
     predict_sam_mask,
 )
-from models.modules.utils import download_sam_weight
+from models.modules.utils import download_fastsam_weight, download_sam_weight
 from options.train_options import TrainOptions
 from util.mask_generation import (
     fill_img_with_canny,
@@ -356,7 +357,6 @@ def generate(
             mask = cv2.resize(mask, (img_width, img_height))
 
     # insert cond image into original image
-    generated_bbox = None
     if cond_in:
         generated_bbox = bbox
         # fill the mask with cond image
@@ -438,13 +438,24 @@ def generate(
 
     if mask is not None:
         if data_refined_mask:
-            opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
-            if not os.path.exists(opt.f_s_weight_sam):
-                download_sam_weight(path=opt.f_s_weight_sam)
-            sam_model, _ = load_sam_weight(model_path=opt.f_s_weight_sam)
-            sam_model = sam_model.to(device)
+            if not opt.use_fast_sam:
+                opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
+                if not os.path.exists(opt.f_s_weight_sam):
+                    download_sam_weight(path=opt.f_s_weight_sam)
+                sam_model, _ = load_sam_weight(model_path=opt.f_s_weight_sam)
+                sam_model = sam_model.to(device)
+            else:
+                opt.f_s_weight_fastsam = "../" + opt.f_s_weight_fastsam
+                if not os.path.exists(opt.f_s_weight_fastsam):
+                    download_fastsam_weight(path=opt.f_s_weight_fastsam)
+                sam_model = load_fastSam_weight(model_path=opt.f_s_weight_fastsam)
             mask = compute_mask_with_sam(
-                img_tensor, mask, sam_model, device, batched=False
+                img_tensor,
+                mask,
+                sam_model,
+                device,
+                fast_sam=opt.use_fast_sam,
+                batched=False,
             ).unsqueeze(0)
 
         if opt.data_online_creation_rand_mask_A:
@@ -755,14 +766,25 @@ if __name__ == "__main__":
     options.parser.add_argument(
         "--f_s_weight_sam",
         type=str,
-        default="models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
         help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+    )
+
+    options.parser.add_argument(
+        "f_s_weight_fastsam",
+        type=str,
+        help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/FastSAM.pth",
     )
 
     options.parser.add_argument(
         "--data_refined_mask",
         action="store_true",
         help="whether to use refined mask with sam",
+    )
+
+    options.parser.add_argument(
+        "--use_fast_sam",
+        action="store_true",
+        help="whether to use FastSAM instead of the reguler SAM",
     )
 
     options.parser.add_argument(

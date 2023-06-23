@@ -204,6 +204,7 @@ def fill_img_with_sam(img, mask, sam, opt):
     edges_list = predict_sam_edges(
         [crop[0] for crop in crops],
         sam,
+        use_fast_sam=opt.use_fast_sam,
         use_gaussian_filter=opt.alg_palette_sam_use_gaussian_filter,
         use_sobel_filter=opt.alg_palette_sam_no_sobel_filter,
         output_binary_sam=opt.alg_palette_sam_no_output_binary_sam,

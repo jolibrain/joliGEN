@@ -193,6 +193,13 @@ class BaseOptions:
             help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
         )
 
+        parser.add_argument(
+            "--D_weight_fastsam",
+            type=str,
+            default="",
+            help="path to FastSAM weight for D, e.g. models/configs/sam/pretrain/FastSAM.pth",
+        )
+
         # generator
         parser.add_argument(
             "--G_ngf",
@@ -525,6 +532,12 @@ class BaseOptions:
             help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
         )
 
+        parser.add_argument(
+            "--f_s_weight_fastsam",
+            type=str,
+            default="",
+            help="path to FastSAM weight for f_s, e.g. models/configs/sam/pretrain/FastSAM.pth",
+        )
         # cls semantic network
         parser.add_argument(
             "--cls_net",
@@ -651,6 +664,12 @@ class BaseOptions:
             "--data_refined_mask",
             action="store_true",
             help="whether to use refined mask with sam",
+        )
+
+        parser.add_argument(
+            "--use_fast_sam",
+            action="store_true",
+            help="whether to use fastSAM",
         )
 
         # Online dataset creation options
@@ -993,9 +1012,13 @@ class BaseOptions:
             opt.D_proj_interp = 224
 
         # Dsam requires D_weight_sam
-        if "sam" in opt.D_netDs and opt.D_weight_sam == "":
+        if "sam" in opt.D_netDs and opt.D_weight_sam == "" and not opt.use_fast_sam:
             raise ValueError(
                 "Dsam requires D_weight_sam, please specify a path to a pretrained sam model"
+            )
+        if "sam" in opt.D_netDs and opt.D_weight_fastsam == "" and opt.use_fast_sam:
+            raise ValueError(
+                "Dsam requires D_weight_fastsam, please specify a path to a pretrained sam model"
             )
 
         # diffusion D + vitsmall check
