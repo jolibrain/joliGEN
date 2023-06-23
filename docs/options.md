@@ -184,8 +184,10 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_crop_size_B | int | 512 | crop to this size during online creation, it needs to be greater than bbox size for domain B |
 | --data_online_creation_load_size_A | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
-| --data_online_creation_mask_delta_A | array | [0] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x) height (y) or only one size if square |
-| --data_online_creation_mask_delta_B | array | [0] | mask offset to allow genaration of a bigger object in domain B (for semantic loss) for domain B, format : width (y) height (x) or only one size if square |
+| --data_online_creation_mask_delta_A | array | [[0]] | mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
+| --data_online_creation_mask_delta_A_ratio | array | [[0.0]] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
+| --data_online_creation_mask_delta_B | array | [[0]] | mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : width (y),height (x) for each class or only one size if square |
+| --data_online_creation_mask_delta_B_ratio | array | [[0.0]] | ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : width (x),height (y) for each class or only one size if square |
 | --data_online_creation_mask_random_offset_A | array | [0.0] | ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square |
 | --data_online_creation_mask_random_offset_B | array | [0.0] | mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
