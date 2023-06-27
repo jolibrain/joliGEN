@@ -205,3 +205,10 @@ Contact: contact@jolibrain.com
    tips
    FAQ
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Tutorials
+   :glob:
+   :hidden:
+
+   tutorial_viton
