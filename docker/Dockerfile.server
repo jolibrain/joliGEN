@@ -1,4 +1,6 @@
 FROM docker.jolibrain.com/joligen_build AS joligen_server
+LABEL description="Generative AI Toolset with GANs and Diffusion for Real-World Applications"
+LABEL maintainer="contact@jolibrain.com"
 WORKDIR /app
 CMD ./server/run.sh --host 0.0.0.0 --port 8000
 EXPOSE 8000

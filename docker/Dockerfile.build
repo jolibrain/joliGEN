@@ -1,5 +1,8 @@
 FROM nvidia/cuda:11.7.0-devel-ubuntu20.04 AS joligen_build
 
+LABEL description="Generative AI Toolset with GANs and Diffusion for Real-World Applications"
+LABEL maintainer="contact@jolibrain.com"
+
 # add missing apt dependencies
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update -y && apt-get install -y \
