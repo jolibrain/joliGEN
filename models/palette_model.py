@@ -561,17 +561,17 @@ class PaletteModel(BaseDiffusionModel):
                         cur_class = None
 
                     if "mask" in self.opt.alg_palette_conditioning:
-                        cur_class_mask = self.mask[: self.inference_num].clone().clamp(
+                        cur_mask = self.mask[: self.inference_num].clone().clamp(
                             min=0, max=1
                         ) * (i + 1)
                     else:
-                        cur_class_mask = self.mask[: self.inference_num]
+                        cur_mask = self.mask[: self.inference_num]
 
                     output, visuals = netG.restoration(
                         y_cond=self.cond_image[: self.inference_num],
                         y_t=self.y_t[: self.inference_num],
                         y_0=self.gt_image[: self.inference_num],
-                        mask=cur_class_mask,
+                        mask=cur_mask,
                         sample_num=self.sample_num,
                         cls=cur_class,
                     )
