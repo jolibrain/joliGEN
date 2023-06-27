@@ -565,7 +565,7 @@ class PaletteModel(BaseDiffusionModel):
                             min=0, max=1
                         ) * (i + 1)
                     else:
-                        cur_class_mask = None
+                        cur_class_mask = self.mask[: self.inference_num]
 
                     output, visuals = netG.restoration(
                         y_cond=self.cond_image[: self.inference_num],
