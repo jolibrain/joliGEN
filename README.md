@@ -2,7 +2,9 @@
 <img src="imgs/joligen.svg" width="512">
 </div>
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Docs](https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-doc-options-update.yml/badge.svg)](https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-doc-options-update.yml)
+[![Website](https://img.shields.io/website-up-down-green-red/http/joligen.com/doc.svg)](https://www.joligen.com/doc)
 
 <h1 align="center">Generative AI Image Toolset with GANs and Diffusion for Real-World Applications</h1>
 
@@ -95,18 +97,22 @@ Clear to rainy (BDD100K)
 ---
 
 ## Code format and Contribution
+
 If you want to contribute please use [black](https://github.com/psf/black) code format.
 Install:
+
 ```
 pip install black 
 ```
 
 Usage :
+
 ```
 black .
 ```
 
 If you want to format the code automatically before every commit :
+
 ```
 pip install pre-commit
 pre-commit install
@@ -120,4 +126,4 @@ Code structure is inspired by [pytorch-CycleGAN-and-pix2pix](https://github.com/
 
 Elements from JoliGEN are supported by the French National AI program ["Confiance.AI"](https://www.confiance.ai/en/)
 
-Contact: contact@jolibrain.com
+Contact: <contact@jolibrain.com>
