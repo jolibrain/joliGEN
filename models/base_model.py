@@ -807,18 +807,19 @@ class BaseModel(ABC):
 
                 # patch InstanceNorm checkpoints prior to 0.4
 
-                for key in list(
-                    state_dict.keys()
-                ):  # need to copy keys here because we mutate in loop
-                    if "cond_embed" in key:
-                        new_key = key.replace("denoise_fn.cond_embed", "cond_embed")
-                        state_dict[new_key] = state_dict[key].clone()
-                        del state_dict[key]
+                if self.opt.model_prior_321_backwardcompatibility:
+                    for key in list(
+                        state_dict.keys()
+                    ):  # need to copy keys here because we mutate in loop
+                        if "cond_embed" in key:
+                            new_key = key.replace("denoise_fn.cond_embed", "cond_embed")
+                            state_dict[new_key] = state_dict[key].clone()
+                            del state_dict[key]
 
-                    elif "denoise_fn" in key:
-                        new_key = key.replace("denoise_fn", "denoise_fn.model")
-                        state_dict[new_key] = state_dict[key].clone()
-                        del state_dict[key]
+                        elif "denoise_fn" in key:
+                            new_key = key.replace("denoise_fn", "denoise_fn.model")
+                            state_dict[new_key] = state_dict[key].clone()
+                            del state_dict[key]
 
                 state1 = list(state_dict.keys())
                 state2 = list(net.state_dict().keys())
