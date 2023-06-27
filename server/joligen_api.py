@@ -34,6 +34,7 @@ description = (
 )
 app = FastAPI(title="JoliGEN server", description=description)
 
+
 # Additional schema
 class ServerTrainOptions(BaseModel):
     sync: bool = Field(
@@ -157,6 +158,11 @@ async def get_train_processes():
         processes.append({"status": status, "name": name})
 
     return {"processes": processes}
+
+
+@app.get("/info", status_code=200, summary="Get the server status")
+async def get_info():
+    return {"JoliGEN": version_str}
 
 
 @app.delete(
