@@ -1,5 +1,8 @@
 FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 AS joligen_build
 
+LABEL description="Generative AI Toolset with GANs and Diffusion for Real-World Applications"
+LABEL maintainer="contact@jolibrain.com"
+
 # user jenkins
 RUN addgroup --gid 127 jenkins
 RUN adduser jenkins --uid 119 --gid 127 --system
