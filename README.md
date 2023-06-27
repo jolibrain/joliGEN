@@ -2,6 +2,8 @@
 <img src="imgs/joligen.svg" width="512">
 </div>
 
+[![Docs](https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-doc-options-update.yml/badge.svg)](https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-doc-options-update.yml)
+
 <h1 align="center">Generative AI Image Toolset with GANs and Diffusion for Real-World Applications</h1>
 
 **JoliGEN** provides is an integrated framework for training custom generative AI image-to-image models
