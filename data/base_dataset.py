@@ -50,6 +50,10 @@ class BaseDataset(data.Dataset, ABC):
         self.use_domain_B = not "self_supervised" in self.opt.data_dataset_mode
 
         self.root = opt.dataroot
+
+        if not self.root.endswith("/"):
+            self.root += "/"
+
         self.sv_dir = os.path.join(opt.checkpoints_dir, opt.name)
         self.warning_mode = self.opt.warning_mode
         self.set_dataset_dirs_and_dims()
@@ -339,6 +343,37 @@ def get_transform(
             transform_list += [transforms.Normalize((0.5,), (0.5,))]
         else:
             transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+    return transforms.Compose(transform_list)
+
+
+def get_transform_ref(
+    opt,
+    params=None,
+    grayscale=False,
+    method=InterpolationMode.BICUBIC,
+    convert=True,
+    crop=True,
+):
+
+    transform_list = []
+
+    if grayscale:
+        transform_list.append(transforms.Grayscale(1))
+
+    osize = [opt.data_crop_size, opt.data_crop_size]
+    transform_list.append(transforms.Resize(osize, interpolation=method))
+
+    if convert:
+        transform_list += [transforms.ToTensor()]
+        """if grayscale:
+            transform_list += [transforms.Normalize((0.5,), (0.5,))]
+        else:
+            transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]"""
+
+        transforms.Normalize(
+            mean=(0.48145466, 0.4578275, 0.40821073),
+            std=(0.26862954, 0.26130258, 0.27577711),
+        )
     return transforms.Compose(transform_list)
 
 
