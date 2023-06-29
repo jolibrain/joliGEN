@@ -525,6 +525,13 @@ class BaseOptions:
             help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
         )
 
+        parser.add_argument(
+            "--f_s_weight_fastsam",
+            type=str,
+            default="",
+            help="path to FastSAM weight for f_s, e.g. models/configs/sam/pretrain/FastSAM.pth",
+        )
+
         # cls semantic network
         parser.add_argument(
             "--cls_net",
@@ -651,6 +658,12 @@ class BaseOptions:
             "--data_refined_mask",
             action="store_true",
             help="whether to use refined mask with sam",
+        )
+
+        parser.add_argument(
+            "--use_fast_sam",
+            action="store_true",
+            help="whether to use fastSAM",
         )
 
         # Online dataset creation options

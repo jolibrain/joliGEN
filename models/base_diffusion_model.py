@@ -17,6 +17,7 @@ from util.diff_aug import DiffAugment
 from util.util import save_image, tensor2im
 
 from .base_model import BaseModel
+from .modules.sam.FastSAM import load_fastSam_weight
 from .modules.sam.sam_inference import load_sam_weight, predict_sam_mask
 from .modules.utils import download_sam_weight
 
@@ -74,11 +75,19 @@ class BaseDiffusionModel(BaseModel):
             self.use_sam_edge = True
         else:
             self.use_sam_edge = False
+        if opt.use_fast_sam:
+            self.use_fast_sam = True
+        else:
+            self.use_fast_sam = False
+
         if opt.data_refined_mask or "sam" in opt.alg_palette_computed_sketch_list:
-            if not os.path.exists(opt.f_s_weight_sam):
-                download_sam_weight(path=opt.f_s_weight_sam)
-            self.freezenet_sam, _ = load_sam_weight(model_path=opt.f_s_weight_sam)
-            self.freezenet_sam = self.freezenet_sam.to(self.device)
+            if not self.use_fast_sam:
+                if not os.path.exists(opt.f_s_weight_sam):
+                    download_sam_weight(path=opt.f_s_weight_sam)
+                self.freezenet_sam, _ = load_sam_weight(model_path=opt.f_s_weight_sam)
+                self.freezenet_sam = self.freezenet_sam.to(self.device)
+            else:
+                self.freezenet_sam = load_fastSam_weight(opt.f_s_weight_fastsam)
 
     def init_semantic_cls(self, opt):
         # specify the training losses you want to print out.

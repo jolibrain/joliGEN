@@ -1,3 +1,4 @@
+import math
 import os
 import random
 import sys
@@ -17,6 +18,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from util.util import tensor2im
+
+from .FastSAM import fastSAM
 
 
 class Sam(nn.Module):
@@ -611,6 +614,7 @@ def prepare_image(image, transform, device):
 def predict_sam_edges(
     image,
     sam,
+    use_fast_sam=False,
     use_gaussian_filter=False,
     use_sobel_filter=False,
     output_binary_sam=False,
@@ -632,6 +636,7 @@ def predict_sam_edges(
         image ([np.ndarray]): Batch of image to calculate masks from. Expects
             images in HWC uint8 format, with pixel values in [0, 255].
         sam (Sam): The model to use for mask prediction.
+        use_fast_sam (bool): whether to use FastSAM instead of regular SAM for faster computation.
         use_gaussian_filter (bool): Whether to smooth each mask with gaussian blur
             before computing its edges.
         use_sobel_filter (bool): Whether to use a sobel filter on each mask.
@@ -661,66 +666,80 @@ def predict_sam_edges(
             where (H, W) is the original image size.
     """
 
-    resize_transform = ResizeLongestSide(sam.image_encoder.img_size)
-    batched_input = []
-    for k in range(len(image)):
-        if sample_points_in_ellipse:
-            points = random_sample_in_ellipse(
-                points_per_side * points_per_side,
-                image[k].shape[1],
-                image[k].shape[0],
-            )
-        else:
-            points = [
-                [
-                    i * image[k].shape[0] // points_per_side,
-                    j * image[k].shape[1] // points_per_side,
+    if not use_fast_sam:
+        resize_transform = ResizeLongestSide(sam.image_encoder.img_size)
+        batched_input = []
+        for k in range(len(image)):
+            if sample_points_in_ellipse:
+                points = random_sample_in_ellipse(
+                    points_per_side * points_per_side,
+                    image[k].shape[1],
+                    image[k].shape[0],
+                )
+            else:
+                points = [
+                    [
+                        i * image[k].shape[0] // points_per_side,
+                        j * image[k].shape[1] // points_per_side,
+                    ]
+                    for i in range(points_per_side)
+                    for j in range(points_per_side)
                 ]
-                for i in range(points_per_side)
-                for j in range(points_per_side)
-            ]
-        image_points = torch.tensor([[point] for point in points], device=sam.device)
+            image_points = torch.tensor(
+                [[point] for point in points], device=sam.device
+            )
 
-        batched_input.append(
-            {
-                "image": prepare_image(image[k], resize_transform, sam),
-                "point_coords": resize_transform.apply_coords_torch(
-                    image_points, image[k].shape[:2]
-                ),
-                "original_size": image[k].shape[:2],
-                "point_labels": torch.ones((points_per_side * points_per_side, 1)),
-            }
-        )
+            batched_input.append(
+                {
+                    "image": prepare_image(image[k], resize_transform, sam),
+                    "point_coords": resize_transform.apply_coords_torch(
+                        image_points, image[k].shape[:2]
+                    ),
+                    "original_size": image[k].shape[:2],
+                    "point_labels": torch.ones((points_per_side * points_per_side, 1)),
+                }
+            )
 
-    batched_output = []
-    with torch.no_grad():
-        for batch in batched_input:
-            batched_output.append(sam([batch], multimask_output=True)[0])
+        batched_output = []
+        with torch.no_grad():
+            for batch in batched_input:
+                batched_output.append(sam([batch], multimask_output=True)[0])
 
-    for k in range(len(image)):
-        flat_masks = []
-        flat_scores = []
-        for mask_out in batched_output[k]["masks"]:
-            for mask in mask_out:
-                flat_masks.append(mask.cpu().numpy())
-        for score_out in batched_output[k]["iou_predictions"]:
-            for score in score_out:
-                flat_scores.append(score.cpu().numpy())
+        for k in range(len(image)):
+            flat_masks = []
+            flat_scores = []
+            for mask_out in batched_output[k]["masks"]:
+                for mask in mask_out:
+                    flat_masks.append(mask.cpu().numpy())
+            for score_out in batched_output[k]["iou_predictions"]:
+                for score in score_out:
+                    flat_scores.append(score.cpu().numpy())
 
-        flat_masks = np.array(flat_masks)
-        flat_scores = np.array(flat_scores)
-        sorted_indices = np.argsort(flat_scores)[::-1]
-        sorted_masks = flat_masks[sorted_indices]
-        sorted_scores = flat_scores[sorted_indices]
-        batched_output[k]["sorted_masks"] = sorted_masks
-        batched_output[k]["sorted_scores"] = sorted_scores
+            flat_masks = np.array(flat_masks)
+            flat_scores = np.array(flat_scores)
+            sorted_indices = np.argsort(flat_scores)[::-1]
+            sorted_masks = flat_masks[sorted_indices]
+            sorted_scores = flat_scores[sorted_indices]
+            batched_output[k]["sorted_masks"] = sorted_masks
+            batched_output[k]["sorted_scores"] = sorted_scores
 
-    for k in range(len(image)):
-        non_redundant_masks = non_max_suppression(
-            batched_output[k]["sorted_masks"], redundancy_threshold
-        )
-        non_redundant_masks = np.array(non_redundant_masks)
-        batched_output[k]["non_redundant_masks"] = non_redundant_masks
+        for k in range(len(image)):
+            non_redundant_masks = non_max_suppression(
+                batched_output[k]["sorted_masks"], redundancy_threshold
+            )
+            non_redundant_masks = np.array(non_redundant_masks)
+            batched_output[k]["non_redundant_masks"] = non_redundant_masks
+    else:
+        batched_output = []
+        for k in range(len(image)):
+            fastsam_ann = fastSAM(
+                sam,
+                image[k],
+                imgsz=math.ceil(max(image[k].shape[0], image[k].shape[1]) / 32) * 32,
+                iou=1,
+                device=sam.device,
+            )
+            batched_output.append({"non_redundant_masks": fastsam_ann.numpy()})
 
     batched_edges = []
     for k in range(len(image)):
@@ -811,7 +830,9 @@ def predict_sam_edges(
     return batched_edges
 
 
-def compute_mask_with_sam(img, rect_mask, sam_model, device, batched=True):
+def compute_mask_with_sam(
+    img, rect_mask, sam_model, device, fast_sam=True, batched=True
+):
     # get bbox and cat from rect_mask
 
     if not batched:
@@ -832,13 +853,40 @@ def compute_mask_with_sam(img, rect_mask, sam_model, device, batched=True):
         box = box.to(device)
 
         if masks_exist:
-            mask = predict_sam_mask(
-                img=img,
-                bbox=np.array(box.cpu()),
-                predictor=SamPredictor(sam_model),
-                cat=category,
-            )
-            sam_masks = torch.from_numpy(mask).to(device)
+            if not fast_sam:
+                mask = predict_sam_mask(
+                    img=img,
+                    bbox=np.array(box.cpu()),
+                    predictor=SamPredictor(sam_model),
+                    cat=category,
+                )
+                sam_masks = torch.from_numpy(mask).to(device)
+            else:
+                f_box = box.tolist()
+                xywh_box = [
+                    f_box[0],
+                    f_box[1],
+                    f_box[2] - f_box[0],
+                    f_box[3] - f_box[1],
+                ]
+                cv_img = tensor2im(img)
+                mask = fastSAM(
+                    sam_model,
+                    cv_img,
+                    imgsz=math.ceil(max(cv_img.shape[0], cv_img.shape[1]) / 32) * 32,
+                    box_prompt=xywh_box,
+                    device=device,
+                )[0]
+                if mask[0] is None:
+                    sam_masks = rect_mask
+                else:
+                    if torch.is_tensor(mask):
+                        mask = mask.clone()
+                    else:
+                        mask = mask.copy()
+                        mask = torch.from_numpy(mask)
+                    mask[mask > 0] = category
+                    sam_masks = mask.to(device)
         else:
             sam_masks = rect_mask
         return sam_masks
@@ -856,6 +904,8 @@ def compute_mask_with_sam(img, rect_mask, sam_model, device, batched=True):
                 y_min = int(indices[:, 0].min())
                 x_max = int(indices[:, 1].max())
                 y_max = int(indices[:, 0].max())
+                if x_max - x_min == 0 and y_max - y_min == 0:
+                    masks_exist[i] = False
                 boxes[i] = torch.tensor([x_min, y_min, x_max, y_max])
                 categories.append(int(torch.unique(mask).max()))
             else:
@@ -865,23 +915,49 @@ def compute_mask_with_sam(img, rect_mask, sam_model, device, batched=True):
 
         boxes = boxes.to(device)
         sam_masks = torch.zeros_like(rect_mask)
-        predictor = SamPredictor(sam_model)
-        for i in range(rect_mask.shape[0]):
-            if masks_exist[i]:
-                mask = predict_sam_mask(
-                    img=img[i],
-                    bbox=np.array([int(coord) for coord in boxes[i].cpu()]),
-                    predictor=predictor,
-                    cat=categories[i],
-                )
-                """
-                xmin, ymin, xmax, ymax = boxes[i].cpu()
-                mask[: int(ymin), :] = 0
-                mask[int(ymax) :, :] = 0
-                mask[:, : int(xmin)] = 0
-                mask[:, int(xmax) :] = 0
-                """
-                sam_masks[i] = torch.from_numpy(mask).unsqueeze(0)
-            else:
-                sam_masks[i] = rect_mask[i]
+        if not fast_sam:
+            predictor = SamPredictor(sam_model)
+            for i in range(rect_mask.shape[0]):
+                if masks_exist[i]:
+                    mask = predict_sam_mask(
+                        img=img[i],
+                        bbox=np.array([int(coord) for coord in boxes[i].cpu()]),
+                        predictor=predictor,
+                        cat=categories[i],
+                    )
+                    sam_masks[i] = torch.from_numpy(mask).unsqueeze(0)
+                else:
+                    sam_masks[i] = rect_mask[i]
+        else:
+            for i in range(rect_mask.shape[0]):
+                if masks_exist[i]:
+                    f_box = [int(coord) for coord in boxes[i].cpu()]
+                    xywh_box = [
+                        f_box[0],
+                        f_box[1],
+                        f_box[2] - f_box[0],
+                        f_box[3] - f_box[1],
+                    ]
+                    cv_img = tensor2im(img[i].unsqueeze(0))
+                    mask = fastSAM(
+                        sam_model,
+                        cv_img,
+                        imgsz=math.ceil(max(cv_img.shape[0], cv_img.shape[1]) / 32)
+                        * 32,
+                        box_prompt=xywh_box,
+                        device=device,
+                    )[0]
+                    if mask[0] is None:
+                        sam_masks[i] = rect_mask[i]
+                    else:
+                        if torch.is_tensor(mask):
+                            mask = mask.clone()
+                        else:
+                            mask = mask.copy()
+                            mask = torch.from_numpy(mask)
+                        mask[mask > 0] = categories[i]
+                        mask = mask.to(device)
+                        sam_masks[i] = mask.unsqueeze(0)
+                else:
+                    sam_masks[i] = rect_mask[i]
         return sam_masks
