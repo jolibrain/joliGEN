@@ -95,7 +95,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             else:
                 mask_delta_A = self.opt.data_online_creation_mask_delta_A_ratio
 
-            A_img, A_label_mask, A_ref_bbox = crop_image(
+            A_img, A_label_mask, A_ref_bbox, A_ref_bbox_id = crop_image(
                 A_img_path,
                 A_label_mask_path,
                 mask_delta=mask_delta_A,
@@ -111,6 +111,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 inverted_mask=self.opt.data_inverted_mask,
                 single_bbox=self.opt.data_online_single_bbox,
             )
+
             self.cat_A_ref_bbox = torch.tensor(A_ref_bbox[0])
             A_ref_bbox = A_ref_bbox[1:]
 
@@ -134,6 +135,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
             "A_img_paths": A_img_path,
             "A_label_mask": A_label_mask,
             "A_ref_bbox": A_ref_bbox,
+            "A_ref_bbox_id": A_ref_bbox_id,
         }
 
         # Domain B
@@ -145,7 +147,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     mask_delta_B = self.opt.data_online_creation_mask_delta_B_ratio
 
                 if B_label_mask_path is not None:
-                    B_img, B_label_mask, B_ref_bbox = crop_image(
+                    B_img, B_label_mask, B_ref_bbox, B_ref_bbox_id = crop_image(
                         B_img_path,
                         B_label_mask_path,
                         mask_delta=mask_delta_B,
@@ -201,6 +203,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     {
                         "B_label_mask": B_label_mask,
                         "B_ref_bbox": B_ref_bbox,
+                        "B_ref_bbox_id": B_ref_bbox_id,
                     }
                 )
 

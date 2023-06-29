@@ -402,7 +402,7 @@ def crop_image(
         int(ref_bbox[3] * (output_dim + margin) / crop_size),
     ]
 
-    return img, mask, ref_bbox
+    return img, mask, ref_bbox, idx_bbox_ref
 
 
 def fill_mask_with_random(img, mask, cls):

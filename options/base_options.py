@@ -623,6 +623,10 @@ class BaseOptions:
                 "temporal_labeled_mask_online",
                 "self_supervised_temporal",
                 "single",
+                "unaligned_labeled_mask_ref",
+                "self_supervised_labeled_mask_ref",
+                "unaligned_labeled_mask_online_ref",
+                "self_supervised_labeled_mask_online_ref",
             ],
             help="chooses how datasets are loaded.",
         )
