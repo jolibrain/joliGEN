@@ -195,6 +195,20 @@ class PaletteModel(BaseDiffusionModel):
         )
 
         parser.add_argument(
+            "--alg_palette_ddim_num_steps",
+            type=int,
+            default=10,
+            help="number of steps for ddim sampling",
+        )
+
+        parser.add_argument(
+            "--alg_palette_ddim_eta",
+            type=float,
+            default=0.5,
+            help="eta for ddim sampling variance",
+        )
+
+        parser.add_argument(
             "--alg_palette_conditioning",
             type=str,
             default="",
@@ -239,6 +253,9 @@ class PaletteModel(BaseDiffusionModel):
             self.inference_num = min(
                 self.opt.alg_palette_inference_num, self.opt.train_batch_size
             )
+
+        self.ddim_num_steps = self.opt.alg_palette_ddim_num_steps
+        self.ddim_eta = self.opt.alg_palette_ddim_eta
 
         if self.opt.alg_palette_dropout_prob > 0:
             # we add a class to be the unconditionned one.
@@ -574,6 +591,8 @@ class PaletteModel(BaseDiffusionModel):
                         mask=cur_mask,
                         sample_num=self.sample_num,
                         cls=cur_class,
+                        ddim_num_steps=self.ddim_num_steps,
+                        ddim_eta=self.ddim_eta,
                     )
 
                     name = "output_" + str(i + 1)
