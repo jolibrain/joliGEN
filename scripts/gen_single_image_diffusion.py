@@ -93,8 +93,8 @@ def load_model(
 
     # sampling steps
     if sampling_steps > 0:
-        model.denoise_fn.beta_schedule["test"]["n_timestep"] = sampling_steps
-        set_new_noise_schedule(model.denoise_fn, "test")
+        model.denoise_fn.model.beta_schedule["test"]["n_timestep"] = sampling_steps
+        set_new_noise_schedule(model.denoise_fn.model, "test")
 
     model.set_new_sampling_method(sampling_method)
 
