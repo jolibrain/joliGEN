@@ -89,11 +89,12 @@ def load_model(
             k.replace("l_embedder_", "denoise_fn.netl_embedder_"): v
             for k, v in weights.items()
         }
-    model.load_state_dict(weights)
+    model.load_state_dict(weights, strict=False)
 
     # sampling steps
     if sampling_steps > 0:
         model.denoise_fn.model.beta_schedule["test"]["n_timestep"] = sampling_steps
+        # model.denoise_fn.model.beta_schedule["test"]["schedule"] = "quad"
         set_new_noise_schedule(model.denoise_fn.model, "test")
 
     model.set_new_sampling_method(sampling_method)
@@ -173,6 +174,8 @@ def generate(
     alg_palette_guidance_scale,
     data_refined_mask,
     min_crop_bbox_ratio,
+    ddim_num_steps,
+    ddim_eta,
     **unused_options,
 ):
     # seed
@@ -555,6 +558,8 @@ def generate(
             cls=cls_tensor,
             sample_num=2,
             guidance_scale=alg_palette_guidance_scale,
+            ddim_num_steps=ddim_num_steps,
+            ddim_eta=ddim_eta,
         )
         out_img = to_np(
             out_tensor

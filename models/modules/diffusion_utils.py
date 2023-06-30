@@ -88,7 +88,7 @@ def set_new_noise_schedule(model, phase):
 
     # calculations for diffusion q(x_t | x_{t-1}) and others
     model.register_buffer("gammas_" + phase, to_torch(gammas))
-    name = "gammas_" + phase
+    model.register_buffer("gammas_prev_" + phase, to_torch(gammas_prev))
     model.register_buffer("sqrt_recip_gammas_" + phase, to_torch(np.sqrt(1.0 / gammas)))
     model.register_buffer(
         "sqrt_recipm1_gammas_" + phase, to_torch(np.sqrt(1.0 / gammas - 1))

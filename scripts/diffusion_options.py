@@ -93,6 +93,20 @@ class DiffusionOptions:
         )
 
         self.parser.add_argument(
+            "--ddim_num_steps",
+            type=int,
+            default=10,
+            help="number of steps for ddim sampling method",
+        )
+
+        self.parser.add_argument(
+            "--ddim_eta",
+            type=float,
+            default=0.5,
+            help="eta parameter for ddim variance",
+        )
+
+        self.parser.add_argument(
             "--cls",
             type=int,
             default=-1,
