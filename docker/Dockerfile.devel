@@ -21,6 +21,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 USER jenkins
 RUN mkdir /home/jenkins/app
 WORKDIR /home/jenkins/app
+RUN python3 -m pip install --upgrade pip
 ADD requirements.txt .
 RUN pip3 install -r requirements.txt --upgrade
 RUN pip3 install uvicorn fastapi
