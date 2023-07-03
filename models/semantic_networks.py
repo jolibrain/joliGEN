@@ -52,6 +52,7 @@ def define_f(
     f_s_config_segformer,
     f_s_weight_segformer,
     f_s_weight_sam,
+    f_s_weight_mobile_sam,
     jg_dir,
     data_crop_size,
     **unused_options,
