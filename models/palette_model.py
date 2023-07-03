@@ -384,13 +384,25 @@ class PaletteModel(BaseDiffusionModel):
                 self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
                 ### Note: the sam related stuff should eventually go into the dataloader
                 if self.use_sam_mask:
+                    if self.opt.data_inverted_mask:
+                        temp_mask = data["B_label_mask"].clone()
+                        temp_mask[temp_mask > 0] = 2
+                        temp_mask[temp_mask == 0] = 1
+                        temp_mask[temp_mask == 2] = 0
+                    else:
+                        temp_mask = data["B_label_mask"].clone()
                     self.mask = compute_mask_with_sam(
                         self.gt_image,
-                        data["B_label_mask"].to(self.device)[:, 1],
+                        temp_mask.to(self.device)[:, 1],
                         self.freezenet_sam,
                         self.device,
                         batched=True,
                     )
+
+                    if self.opt.data_inverted_mask:
+                        self.mask[self.mask > 0] = 2
+                        self.mask[self.mask == 0] = 1
+                        self.mask[self.mask == 2] = 0
                     self.y_t = fill_mask_with_random(self.gt_image, self.mask, -1)
                 else:
                     self.mask = data["B_label_mask"].to(self.device)[:, 1]
@@ -402,14 +414,26 @@ class PaletteModel(BaseDiffusionModel):
                 self.gt_image = data["B"].to(self.device)
                 ### Note: the sam related stuff should eventually go into the dataloader
                 if self.use_sam_mask:
+                    if self.opt.data_inverted_mask:
+                        temp_mask = data["B_label_mask"].clone()
+                        temp_mask[temp_mask > 0] = 2
+                        temp_mask[temp_mask == 0] = 1
+                        temp_mask[temp_mask == 2] = 0
+                    else:
+                        temp_mask = data["B_label_mask"].clone()
                     self.mask = compute_mask_with_sam(
                         self.gt_image,
-                        data["B_label_mask"].to(self.device),
+                        temp_mask.to(self.device),
                         self.freezenet_sam,
                         self.device,
                         batched=True,
                     )
+                    if self.opt.data_inverted_mask:
+                        self.mask[self.mask > 0] = 2
+                        self.mask[self.mask == 0] = 1
+                        self.mask[self.mask == 2] = 0
                     self.y_t = fill_mask_with_random(self.gt_image, self.mask, -1)
+
                 else:
                     self.mask = data["B_label_mask"].to(self.device)
             else:  # e.g. super-resolution
