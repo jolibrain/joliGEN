@@ -18,6 +18,7 @@ RUN mkdir /app
 
 WORKDIR /app
 ADD requirements.txt .
+RUN python3 -m pip install --upgrade pip
 RUN pip3 install -r requirements.txt --upgrade
 RUN pip3 install uvicorn[standard] fastapi
 RUN mkdir .cache && mkdir .cache/torch 
