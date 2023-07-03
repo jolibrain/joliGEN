@@ -105,10 +105,10 @@
       "load_size_A": [],
       "load_size_B": [],
       "mask_delta_A": [
-        0
+	0
       ],
       "mask_delta_B": [
-        0
+	0
       ],
       "mask_random_offset_A": [
         0.0

@@ -1,17 +1,15 @@
 import copy
+import itertools
 import math
 import random
 import warnings
 
 import torch
 import torchvision.transforms as T
+import tqdm
 from torch import nn
 
-
-import itertools
-import tqdm
-
-from data.online_creation import fill_mask_with_color
+from data.online_creation import fill_mask_with_color, fill_mask_with_random
 from models.modules.sam.sam_inference import compute_mask_with_sam
 from util.iter_calculator import IterCalculator
 from util.mask_generation import random_edge_mask
@@ -384,6 +382,7 @@ class PaletteModel(BaseDiffusionModel):
             self.gt_image = data["B"].to(self.device)[:, 1]
             if self.task == "inpainting":
                 self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
+                ### Note: the sam related stuff should eventually go into the dataloader
                 if self.use_sam_mask:
                     self.mask = compute_mask_with_sam(
                         self.gt_image,
@@ -392,6 +391,7 @@ class PaletteModel(BaseDiffusionModel):
                         self.device,
                         batched=True,
                     )
+                    self.y_t = fill_mask_with_random(self.gt_image, self.mask, -1)
                 else:
                     self.mask = data["B_label_mask"].to(self.device)[:, 1]
             else:
@@ -400,6 +400,7 @@ class PaletteModel(BaseDiffusionModel):
             if self.task == "inpainting":
                 self.y_t = data["A"].to(self.device)
                 self.gt_image = data["B"].to(self.device)
+                ### Note: the sam related stuff should eventually go into the dataloader
                 if self.use_sam_mask:
                     self.mask = compute_mask_with_sam(
                         self.gt_image,
@@ -408,6 +409,7 @@ class PaletteModel(BaseDiffusionModel):
                         self.device,
                         batched=True,
                     )
+                    self.y_t = fill_mask_with_random(self.gt_image, self.mask, -1)
                 else:
                     self.mask = data["B_label_mask"].to(self.device)
             else:  # e.g. super-resolution

@@ -11,6 +11,7 @@ import torch
 import data
 import models
 from models.modules.classifiers import TORCH_MODEL_CLASSES
+from models.modules.utils import download_mobile_sam_weight, download_sam_weight
 from util import util
 from util.util import MAX_INT, flatten_json, pairs_of_floats, pairs_of_ints
 
@@ -190,7 +191,7 @@ class BaseOptions:
             "--D_weight_sam",
             type=str,
             default="",
-            help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+            help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
         )
 
         # generator
@@ -523,10 +524,9 @@ class BaseOptions:
             "--f_s_weight_sam",
             type=str,
             default="",
-            help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+            help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
         )
 
-        # cls semantic network
         parser.add_argument(
             "--cls_net",
             type=str,
@@ -652,6 +652,14 @@ class BaseOptions:
             "--data_refined_mask",
             action="store_true",
             help="whether to use refined mask with sam",
+        )
+
+        parser.add_argument(
+            "--model_type_sam",
+            type=str,
+            default="mobile_sam",
+            choices=["sam", "mobile_sam"],
+            help="which model to use for segment-anything mask generation",
         )
 
         # Online dataset creation options
@@ -994,10 +1002,12 @@ class BaseOptions:
             opt.D_proj_interp = 224
 
         # Dsam requires D_weight_sam
-        if "sam" in opt.D_netDs and opt.D_weight_sam == "":
-            raise ValueError(
-                "Dsam requires D_weight_sam, please specify a path to a pretrained sam model"
-            )
+        if "sam" in opt.D_netDs:
+            if opt.D_weight_sam == "":
+                raise ValueError(
+                    "Dsam requires D_weight_sam, please specify a path to a pretrained SAM or MobileSAM model"
+                )
+            download_sam_weight(opt.D_weight_sam)
 
         # diffusion D + vitsmall check
         if opt.dataaug_D_diffusion and "vit" in opt.D_proj_network_type:
