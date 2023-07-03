@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import math
 import os
@@ -12,11 +13,10 @@ import cv2
 import numpy as np
 import torch
 import torchvision.transforms as T
+from PIL import Image
 from torchvision import transforms
 from torchvision.utils import save_image
 from tqdm import tqdm
-from PIL import Image
-import copy
 
 sys.path.append("../")
 from diffusion_options import DiffusionOptions
@@ -199,22 +199,10 @@ def generate(
         opt.alg_palette_cond_image_creation = alg_palette_cond_image_creation
 
     conditioning = opt.alg_palette_conditioning
-    print("conditioning=", conditioning)
 
-    if not isinstance(mask_delta[0], list):
-        if len(opt.data_online_creation_mask_delta_A) == 1:
-            opt.data_online_creation_mask_delta_A.append(
-                opt.data_online_creation_mask_delta_A[0]
-            )
-
-        if len(mask_delta) == 1:
-            mask_delta.append(mask_delta[0])
-
-        if opt.data_online_creation_mask_square_A:
-            mask_square = True
-
-        mask_delta[0] += opt.data_online_creation_mask_delta_A[0]
-        mask_delta[1] += opt.data_online_creation_mask_delta_A[1]
+    for i, delta_values in enumerate(mask_delta):
+        if len(delta_values) == 1:
+            mask_delta[i].append(delta_values[0])
 
     # Load image
 
@@ -314,16 +302,21 @@ def generate(
 
         bbox_select = bbox.copy()
 
-        if not isinstance(mask_delta[0][0], float):
-            bbox_select[0] -= mask_delta[cls - 1][0]
-            bbox_select[1] -= mask_delta[cls - 1][1]
-            bbox_select[2] += mask_delta[cls - 1][0]
-            bbox_select[3] += mask_delta[cls - 1][1]
+        if len(mask_delta) == 1:
+            index_cls = 0
         else:
-            bbox_select[0] *= 1 + mask_delta[cls - 1][0]
-            bbox_select[1] *= 1 + mask_delta[cls - 1][1]
-            bbox_select[2] *= 1 + mask_delta[cls - 1][0]
-            bbox_select[3] *= 1 + mask_delta[cls - 1][1]
+            index_cls = int(cls) - 1
+
+        if not isinstance(mask_delta[0][0], float):
+            bbox_select[0] -= mask_delta[index_cls][0]
+            bbox_select[1] -= mask_delta[index_cls][1]
+            bbox_select[2] += mask_delta[index_cls][0]
+            bbox_select[3] += mask_delta[index_cls][1]
+        else:
+            bbox_select[0] *= 1 + mask_delta[index_cls][0]
+            bbox_select[1] *= 1 + mask_delta[index_cls][1]
+            bbox_select[2] *= 1 + mask_delta[index_cls][0]
+            bbox_select[3] *= 1 + mask_delta[index_cls][1]
 
         if mask_square:
             sdiff = (bbox_select[2] - bbox_select[0]) - (
