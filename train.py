@@ -42,6 +42,7 @@ from options.train_options import TrainOptions
 from util.util import flatten_json
 from util.visualizer import Visualizer
 from util.lion_pytorch import Lion
+from util.script import get_override_options_names
 
 
 def setup(rank, world_size, port):
@@ -414,16 +415,6 @@ def launch_training(opt=None):
 def compute_test_metrics(model, dataloader):
 
     return metrics
-
-
-def get_override_options_names(remaining_args):
-    return_options_names = []
-
-    for arg in remaining_args:
-        if arg.startswith("--"):
-            return_options_names.append(arg[2:])
-
-    return return_options_names
 
 
 if __name__ == "__main__":

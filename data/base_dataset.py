@@ -70,6 +70,10 @@ class BaseDataset(data.Dataset, ABC):
         """
         return parser
 
+    @staticmethod
+    def modify_commandline_options_train(parser):
+        return parser
+
     @abstractmethod
     def __len__(self):
         """Return the total number of images in the dataset."""

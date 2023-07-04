@@ -28,6 +28,16 @@ class PaletteModel(BaseDiffusionModel):
         parser = BaseDiffusionModel.modify_commandline_options(
             parser, is_train=is_train
         )
+
+        if is_train:
+            parser = PaletteModel.modify_commandline_options_train(parser)
+
+        return parser
+
+    @staticmethod
+    def modify_commandline_options_train(parser):
+        parser = BaseDiffusionModel.modify_commandline_options_train(parser)
+
         parser.add_argument(
             "--alg_palette_task",
             default="inpainting",
@@ -183,7 +193,6 @@ class PaletteModel(BaseDiffusionModel):
             default=0.5,
             help="prob to use previous frame as y cond",
         )
-
         parser.add_argument(
             "--alg_palette_sampling_method",
             type=str,
@@ -229,6 +238,14 @@ class PaletteModel(BaseDiffusionModel):
 
         return parser
 
+    @staticmethod
+    def after_parse(opt):
+        if opt.alg_palette_dropout_prob > 0:
+            # we add a class to be the unconditionned one.
+            opt.f_s_semantic_nclasses += 1
+            opt.cls_semantic_nclasses += 1
+        return opt
+
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
@@ -251,14 +268,6 @@ class PaletteModel(BaseDiffusionModel):
             self.inference_num = min(
                 self.opt.alg_palette_inference_num, self.opt.train_batch_size
             )
-
-        self.ddim_num_steps = self.opt.alg_palette_ddim_num_steps
-        self.ddim_eta = self.opt.alg_palette_ddim_eta
-
-        if self.opt.alg_palette_dropout_prob > 0:
-            # we add a class to be the unconditionned one.
-            self.opt.f_s_semantic_nclasses += 1
-            self.opt.cls_semantic_nclasses += 1
 
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
@@ -370,6 +379,9 @@ class PaletteModel(BaseDiffusionModel):
         self.iter_calculator_init()
 
         self.sample_num = 2
+
+        self.ddim_num_steps = self.opt.alg_palette_ddim_num_steps
+        self.ddim_eta = self.opt.alg_palette_ddim_eta
 
     def set_input(self, data):
         """must use set_device in tensor"""

@@ -1,5 +1,10 @@
+import torch
+
 from .base_options import BaseOptions
 from util.util import MAX_INT
+from models.modules.classifiers import TORCH_MODEL_CLASSES
+import models
+import data
 
 
 class TrainOptions(BaseOptions):
@@ -9,7 +14,51 @@ class TrainOptions(BaseOptions):
     """
 
     def initialize(self, parser):
-        parser = BaseOptions.initialize(self, parser)
+        """Define the common options that are used in both training and test."""
+        parser = self.initialize_mutable(parser)
+        parser = self.initialize_static(parser)
+
+        self.initialized = True
+
+        return parser
+
+    def initialize_static(self, parser):
+        parser = super().initialize_static(parser)
+
+        # basic parameters
+        parser.add_argument(
+            "--dataroot",
+            type=str,
+            required=True,
+            help="path to images (should have subfolders trainA, trainB, valA, valB, etc)",
+        )
+        parser.add_argument(
+            "--name",
+            type=str,
+            default="experiment_name",
+            help="name of the experiment. It decides where to store samples and models",
+        )
+        parser.add_argument(
+            "--suffix",
+            default="",
+            type=str,
+            help="customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}",
+        )
+
+        # model init parameters
+        parser.add_argument(
+            "--model_init_type",
+            type=str,
+            default="normal",
+            choices=["normal", "xavier", "kaiming", "orthogonal"],
+            help="network initialization",
+        )
+        parser.add_argument(
+            "--model_init_gain",
+            type=float,
+            default=0.02,
+            help="scaling factor for normal, xavier and orthogonal.",
+        )
 
         # visdom and HTML visualization parameters
         parser.add_argument(
@@ -133,13 +182,11 @@ class TrainOptions(BaseOptions):
             action="store_true",
             help="whether saves model by iteration",
         )
-
         parser.add_argument(
             "--train_export_jit",
             action="store_true",
             help="whether to export model in jit format",
         )
-
         parser.add_argument(
             "--train_continue",
             action="store_true",
@@ -152,15 +199,223 @@ class TrainOptions(BaseOptions):
             help="the starting epoch count, we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>, ...",
         )
 
+        # discriminator
+        parser.add_argument(
+            "--D_ndf",
+            type=int,
+            default=64,
+            help="# of discrim filters in the first conv layer",
+        )
+        parser.add_argument(
+            "--D_netDs",
+            type=str,
+            default=["projected_d", "basic"],
+            choices=[
+                "basic",
+                "n_layers",
+                "pixel",
+                "stylegan2",
+                "patchstylegan2",
+                "smallpatchstylegan2",
+                "projected_d",
+                "temporal",
+                "vision_aided",
+                "depth",
+                "mask",
+                "sam",
+            ]
+            + list(TORCH_MODEL_CLASSES.keys()),
+            help="specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored.",
+            nargs="+",
+        )
+        parser.add_argument(
+            "--D_vision_aided_backbones",
+            type=str,
+            default="clip+dino+swin",
+            help="specify vision aided discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with +",
+        )
+        parser.add_argument(
+            "--D_n_layers", type=int, default=3, help="only used if netD==n_layers"
+        )
+        parser.add_argument(
+            "--D_norm",
+            type=str,
+            default="instance",
+            choices=["instance", "batch", "none"],
+            help="instance normalization or batch normalization for D",
+        )
+        parser.add_argument(
+            "--D_dropout",
+            action="store_true",
+            help="whether to use dropout in the discriminator",
+        )
+        parser.add_argument(
+            "--D_spectral",
+            action="store_true",
+            help="whether to use spectral norm in the discriminator",
+        )
+        parser.add_argument(
+            "--D_proj_interp",
+            type=int,
+            default=-1,
+            help="whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation",
+        )
+        parser.add_argument(
+            "--D_proj_network_type",
+            type=str,
+            default="efficientnet",
+            choices=[
+                "efficientnet",
+                "segformer",
+                "vitbase",
+                "vitsmall",
+                "vitsmall2",
+                "vitclip16",
+            ],
+            help="projected discriminator architecture",
+        )
+        parser.add_argument(
+            "--D_no_antialias",
+            action="store_true",
+            help="if specified, use stride=2 convs instead of antialiased-downsampling (sad)",
+        )
+        parser.add_argument(
+            "--D_no_antialias_up",
+            action="store_true",
+            help="if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv]",
+        )
+        parser.add_argument(
+            "--D_proj_config_segformer",
+            type=str,
+            default="models/configs/segformer/segformer_config_b0.json",
+            help="path to segformer configuration file",
+        )
+        parser.add_argument(
+            "--D_proj_weight_segformer",
+            type=str,
+            default="models/configs/segformer/pretrain/segformer_mit-b0.pth",
+            help="path to segformer weight",
+        )
+        parser.add_argument(
+            "--D_temporal_every",
+            type=int,
+            default=4,
+            help="apply temporal discriminator every x steps",
+        )
+
+        # mask semantic network : f_s
+        parser.add_argument(
+            "--f_s_net",
+            type=str,
+            default="vgg",
+            choices=["vgg", "unet", "segformer", "sam"],
+            help="specify f_s network [vgg|unet|segformer|sam]",
+        )
+        parser.add_argument(
+            "--f_s_dropout",
+            action="store_true",
+            help="dropout for the semantic network",
+        )
+        parser.add_argument(
+            "--f_s_class_weights",
+            default=[],
+            nargs="*",
+            type=int,
+            help="class weights for imbalanced semantic classes",
+        )
+        parser.add_argument(
+            "--f_s_semantic_threshold",
+            default=1.0,
+            type=float,
+            help="threshold of the semantic classifier loss below with semantic loss is applied",
+        )
+        parser.add_argument(
+            "--f_s_all_classes_as_one",
+            action="store_true",
+            help="if true, all classes will be considered as the same one (ie foreground vs background)",
+        )
+        parser.add_argument(
+            "--f_s_nf",
+            type=int,
+            default=64,
+            help="# of filters in the first conv layer of classifier",
+        )
+        parser.add_argument(
+            "--f_s_config_segformer",
+            type=str,
+            default="models/configs/segformer/segformer_config_b0.json",
+            help="path to segformer configuration file for f_s",
+        )
+        parser.add_argument(
+            "--f_s_weight_segformer",
+            type=str,
+            default="",
+            help="path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
+        )
+        parser.add_argument(
+            "--f_s_weight_sam",
+            type=str,
+            default="",
+            help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+        )
+
+        # cls semantic network
+        parser.add_argument(
+            "--cls_net",
+            type=str,
+            default="vgg",
+            choices=["vgg", "unet", "segformer"],
+            help="specify cls network [vgg|unet|segformer]",
+        )
+        parser.add_argument(
+            "--cls_dropout",
+            action="store_true",
+            help="dropout for the semantic network",
+        )
+        parser.add_argument(
+            "--cls_class_weights",
+            default=[],
+            nargs="*",
+            type=int,
+            help="class weights for imbalanced semantic classes",
+        )
+        parser.add_argument(
+            "--cls_semantic_threshold",
+            default=1.0,
+            type=float,
+            help="threshold of the semantic classifier loss below with semantic loss is applied",
+        )
+        parser.add_argument(
+            "--cls_all_classes_as_one",
+            action="store_true",
+            help="if true, all classes will be considered as the same one (ie foreground vs background)",
+        )
+        parser.add_argument(
+            "--cls_nf",
+            type=int,
+            default=64,
+            help="# of filters in the first conv layer of classifier",
+        )
+        parser.add_argument(
+            "--cls_config_segformer",
+            type=str,
+            default="models/configs/segformer/segformer_config_b0.json",
+            help="path to segformer configuration file for cls",
+        )
+        parser.add_argument(
+            "--cls_weight_segformer",
+            type=str,
+            default="",
+            help="path to segformer weight for cls, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
+        )
+
         # training parameters
         parser.add_argument(
             "--train_batch_size", type=int, default=1, help="input batch size"
         )
-
         parser.add_argument(
             "--test_batch_size", type=int, default=1, help="input batch size"
         )
-
         parser.add_argument(
             "--train_epoch",
             type=str,
@@ -168,49 +423,10 @@ class TrainOptions(BaseOptions):
             help="which epoch to load? set to latest to use latest cached model",
         )
         parser.add_argument(
-            "--train_optim",
-            default="adam",
-            choices=["adam", "radam", "adamw", "lion"],
-            help="optimizer (adam, radam, adamw, ...)",
-        )
-        parser.add_argument(
             "--train_load_iter",
             type=int,
             default=0,
             help="which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]",
-        )
-
-        parser.add_argument("--train_compute_metrics_test", action="store_true")
-        parser.add_argument("--train_metrics_every", type=int, default=1000)
-        parser.add_argument(
-            "--train_metrics_list",
-            type=str,
-            default=["FID"],
-            nargs="*",
-            choices=["FID", "KID", "MSID", "PSNR"],
-        )
-
-        parser.add_argument(
-            "--train_G_ema",
-            action="store_true",
-            help="whether to build G via exponential moving average",
-        )
-        parser.add_argument(
-            "--train_G_ema_beta",
-            type=float,
-            default=0.999,
-            help="exponential decay for ema",
-        )
-        parser.add_argument(
-            "--train_compute_D_accuracy",
-            action="store_true",
-            help="whether to compute D accuracy explicitely",
-        )
-        parser.add_argument(
-            "--train_D_accuracy_every",
-            type=int,
-            default=1000,
-            help="compute D accuracy every N iterations",
         )
         parser.add_argument(
             "--train_n_epochs",
@@ -224,24 +440,77 @@ class TrainOptions(BaseOptions):
             default=100,
             help="number of epochs to linearly decay learning rate to zero",
         )
+
+        # metrics parameters
+        parser.add_argument("--train_compute_metrics_test", action="store_true")
+        parser.add_argument("--train_metrics_every", type=int, default=1000)
+        parser.add_argument(
+            "--train_metrics_list",
+            type=str,
+            default=["FID"],
+            nargs="*",
+            choices=["FID", "KID", "MSID", "PSNR"],
+        )
+
+        # optim
+        parser.add_argument(
+            "--train_optim",
+            default="adam",
+            choices=["adam", "radam", "adamw", "lion"],
+            help="optimizer (adam, radam, adamw, ...)",
+        )
         parser.add_argument(
             "--train_beta1", type=float, default=0.9, help="momentum term of adam"
         )
         parser.add_argument(
             "--train_beta2", type=float, default=0.999, help="momentum term of adam"
         )
+
+        # G hyperparams
         parser.add_argument(
             "--train_G_lr",
             type=float,
             default=0.0002,
             help="initial learning rate for generator",
         )
+
+        # G weight updating strategy
+        parser.add_argument(
+            "--train_G_ema",
+            action="store_true",
+            help="whether to build G via exponential moving average",
+        )
+        parser.add_argument(
+            "--train_G_ema_beta",
+            type=float,
+            default=0.999,
+            help="exponential decay for ema",
+        )
+
+        # D hyperparams
         parser.add_argument(
             "--train_D_lr",
             type=float,
             default=0.0001,
             help="discriminator separate learning rate",
         )
+
+        # D accuracy vizu
+        # TODO go to base gan params
+        parser.add_argument(
+            "--train_compute_D_accuracy",
+            action="store_true",
+            help="whether to compute D accuracy explicitely",
+        )
+        parser.add_argument(
+            "--train_D_accuracy_every",
+            type=int,
+            default=1000,
+            help="compute D accuracy every N iterations",
+        )
+
+        # G losses
+        # TODO goto basegan
         parser.add_argument(
             "--train_gan_mode",
             type=str,
@@ -281,6 +550,75 @@ class TrainOptions(BaseOptions):
             help="backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size*iter_size",
         )
         parser.add_argument("--train_use_contrastive_loss_D", action="store_true")
+
+        # dataset parameters
+        parser.add_argument(
+            "--data_dataset_mode",
+            type=str,
+            default="unaligned",
+            choices=[
+                "unaligned",
+                "unaligned_labeled_cls",
+                "unaligned_labeled_mask",
+                "self_supervised_labeled_mask",
+                "unaligned_labeled_mask_cls",
+                "self_supervised_labeled_mask_cls",
+                "unaligned_labeled_mask_online",
+                "self_supervised_labeled_mask_online",
+                "unaligned_labeled_mask_cls_online",
+                "self_supervised_labeled_mask_cls_online",
+                "aligned",
+                "nuplet_unaligned_labeled_mask",
+                "temporal_labeled_mask_online",
+                "self_supervised_temporal",
+                "single",
+            ],
+            help="chooses how datasets are loaded.",
+        )
+        parser.add_argument(
+            "--data_direction",
+            type=str,
+            default="AtoB",
+            choices=["AtoB", "BtoA"],
+            help="AtoB or BtoA",
+        )
+        parser.add_argument(
+            "--data_serial_batches",
+            action="store_true",
+            help="if true, takes images in order to make batches, otherwise takes them randomly",
+        )
+        parser.add_argument(
+            "--data_num_threads", default=4, type=int, help="# threads for loading data"
+        )
+        parser.add_argument(
+            "--data_max_dataset_size",
+            type=int,
+            default=MAX_INT,
+            help="Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.",
+        )
+        parser.add_argument(
+            "--data_preprocess",
+            type=str,
+            default="resize_and_crop",
+            choices=[
+                "resize_and_crop",
+                "crop",
+                "scale_width",
+                "scale_width_and_crop",
+                "none",
+            ],
+            help="scaling and cropping of images at load time",
+        )
+        parser.add_argument(
+            "--data_sanitize_paths",
+            action="store_true",
+            help="if true, wrong images or labels paths will be removed before training",
+        )
+        parser.add_argument(
+            "--data_relative_paths",
+            action="store_true",
+            help="whether paths to images are relative to dataroot",
+        )
 
         # multimodal training
         parser.add_argument(
@@ -585,11 +923,99 @@ class TrainOptions(BaseOptions):
             help="How often to perform diffusion augmentation adjustment",
         )
 
+        # Weights
+
         parser.add_argument(
-            "--model_prior_321_backwardcompatibility",
-            action="store_true",
-            help="whether to load models from previous version of JG.",
+            "--D_weight_sam",
+            type=str,
+            default="",
+            help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
         )
 
         self.isTrain = True
         return parser
+
+    def gather_specific_options(self, opt, parser, args):
+        """
+        Add additional model-specific and dataset-specific options.
+        These options are defined in the <modify_commandline_options> function
+        in model and dataset classes.
+        """
+        parser = super().gather_specific_options(opt=opt, parser=parser, args=args)
+
+        # modify dataset-related parser options
+        dataset_name = opt.data_dataset_mode
+        dataset_option_setter = data.get_option_setter(dataset_name)
+        parser = dataset_option_setter(parser, self.isTrain)
+
+        return parser
+
+    def _after_parse(self, opt, set_device=True):
+
+        opt = super()._after_parse(opt=opt, set_device=set_device)
+
+        # process opt.suffix
+        if opt.suffix:
+            suffix = ("_" + opt.suffix.format(**vars(opt))) if opt.suffix != "" else ""
+            opt.name = opt.name + suffix
+
+        # multimodal check
+        if opt.model_multimodal:
+            if not "cut" in opt.model_type:
+                raise ValueError(
+                    "Multimodal models are only supported with cut-based models at this stage, use --model_type accordingly"
+                )
+            if "resnet" in opt.G_netG:
+                warnings.warn(
+                    "ResNet encoder/decoder architectures do not mix well with multimodal training, use segformer or unet instead"
+                )
+            netE_size = int(opt.G_netE[-3:])
+            if opt.data_crop_size != netE_size:
+                msg = (
+                    "latent multimodal decoder E has input size different than G output size: "
+                    + str(netE_size)
+                    + " vs "
+                    + str(opt.data_crop_size)
+                    + ", run may fail, use --G_netE accordingly"
+                )
+                warnings.warn(msg)
+
+        # bbox selection check
+        if opt.data_online_select_category != -1 and not opt.data_sanitize_paths:
+            raise ValueError(
+                "Bounding box class selection requires --data_sanitize_paths"
+            )
+
+        # vitclip16 projector only works with input size 224
+        if opt.D_proj_network_type == "vitclip16":
+            if opt.D_proj_interp != 224:
+                warnings.warn(
+                    "ViT-B/16 (vitclip16) projector only works with input size 224, setting D_proj_interp to 224"
+                )
+            opt.D_proj_interp = 224
+
+        # Dsam requires D_weight_sam
+        if "sam" in opt.D_netDs and opt.D_weight_sam == "":
+            raise ValueError(
+                "Dsam requires D_weight_sam, please specify a path to a pretrained sam model"
+            )
+
+        # diffusion D + vitsmall check
+        if opt.dataaug_D_diffusion and "vit" in opt.D_proj_network_type:
+            raise ValueError(
+                "ViT type projectors are not yet compatible with diffusion augmentation at discriminator level"
+            )
+
+        # sam with bbox prompting requires Pytorch 2
+        if torch.__version__[0] != "2":
+            if (
+                opt.f_s_net == "sam"
+                and opt.data_dataset_mode == "unaligned_labeled_mask_online"
+            ):
+                raise ValueError("SAM with masks and bbox prompting requires Pytorch 2")
+        if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
+            raise warning.warn("SAM with direct masks does not use mask/bbox prompting")
+
+        self.opt = opt
+
+        return self.opt

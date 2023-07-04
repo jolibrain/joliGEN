@@ -19,7 +19,7 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 
 sys.path.append("../")
-from diffusion_options import DiffusionOptions
+from options.inference_diffusion_options import InferenceDiffusionOptions
 from segment_anything import SamPredictor
 
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
@@ -41,6 +41,8 @@ from util.mask_generation import (
     fill_img_with_sam,
     fill_img_with_sketch,
 )
+from util.script import get_override_options_names
+from util.util import flatten_json
 
 
 def load_model(
@@ -170,7 +172,7 @@ def generate(
     sampling_method,
     alg_palette_cond_image_creation,
     alg_palette_sketch_canny_thresholds,
-    cls,
+    cls_value,
     alg_palette_super_resolution_downsample,
     alg_palette_guidance_scale,
     data_refined_mask,
@@ -228,11 +230,10 @@ def generate(
                 elts = line.rstrip().split()
                 bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
                 if conditioning:
-                    if args.cls:
-                        cls = args.cls
+                    if args.cls_value > 0:
+                        cls = args.cls_value
                     else:
-                        cls = elts[0]
-                        print("generating with class=", cls)
+                        cls = int(elts[0])
                 else:
                     cls = 1
 
@@ -621,29 +622,11 @@ def generate(
     return out_img_real_size
 
 
-if __name__ == "__main__":
-    options = DiffusionOptions()
+def inference(args):
+    # overriding options
 
-    options.parser.add_argument("--img-in", help="image to transform", required=True)
-    options.parser.add_argument(
-        "--previous-frame", help="image to transform", default=None
-    )
-    options.parser.add_argument(
-        "--mask-in", help="mask used for image transformation", required=False
-    )
-    options.parser.add_argument("--bbox-in", help="bbox file used for masking")
+    """
 
-    options.parser.add_argument(
-        "--nb_samples", help="nb of samples generated", type=int, default=1
-    )
-    options.parser.add_argument(
-        "--bbox_ref_id", help="bbox id to use", type=int, default=-1
-    )
-    options.parser.add_argument("--cond-in", help="conditionning image to use")
-    options.parser.add_argument("--cond_keep_ratio", action="store_true")
-    options.parser.add_argument("--cond_rotation", type=float, default=0)
-    options.parser.add_argument("--cond_persp_horizontal", type=float, default=0)
-    options.parser.add_argument("--cond_persp_vertical", type=float, default=0)
     options.parser.add_argument(
         "--alg_palette_cond_image_creation",
         type=str,
@@ -784,6 +767,8 @@ if __name__ == "__main__":
 
     args = options.parse()
 
+    """
+
     if len(args.mask_delta_ratio[0]) == 1 and args.mask_delta_ratio[0][0] == 0.0:
         mask_delta = args.mask_delta
     else:
@@ -797,3 +782,32 @@ if __name__ == "__main__":
     for i in tqdm(range(args.nb_samples)):
         args.name = real_name + "_" + str(i).zfill(len(str(args.nb_samples)))
         generate(**vars(args))
+
+
+if __name__ == "__main__":
+
+    main_parser = argparse.ArgumentParser(add_help=False)
+
+    main_parser.add_argument(
+        "--config_json", type=str, default="", help="path to json config"
+    )
+
+    main_opt, remaining_args = main_parser.parse_known_args()
+
+    override_options_names = get_override_options_names(remaining_args)
+
+    override_options_json = flatten_json(
+        InferenceDiffusionOptions().parse_to_json(remaining_args)
+    )
+
+    with open(main_opt.config_json, "r") as jsonf:
+        train_json = flatten_json(json.load(jsonf))
+
+    for name in override_options_names:
+        train_json[name] = override_options_json[name]
+
+    args = InferenceDiffusionOptions().parse_json(train_json)
+
+    print("%s config file loaded" % main_opt.config_json)
+
+    inference(args)

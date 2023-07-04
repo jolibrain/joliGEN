@@ -10,8 +10,6 @@ import torch
 
 import data
 import models
-from models.modules.classifiers import TORCH_MODEL_CLASSES
-from models.modules.utils import download_mobile_sam_weight, download_sam_weight
 from util import util
 from util.util import MAX_INT, flatten_json, pairs_of_floats, pairs_of_ints
 
@@ -68,27 +66,8 @@ class BaseOptions:
         """Reset the class; indicates the class hasn't been initialized"""
         self.initialized = False
 
-    def initialize(self, parser):
-        """Define the common options that are used in both training and test."""
+    def initialize_mutable(self, parser):
         # basic parameters
-        parser.add_argument(
-            "--dataroot",
-            type=str,
-            required=True,
-            help="path to images (should have subfolders trainA, trainB, valA, valB, etc)",
-        )
-        parser.add_argument(
-            "--name",
-            type=str,
-            default="experiment_name",
-            help="name of the experiment. It decides where to store samples and models",
-        )
-        parser.add_argument(
-            "--suffix",
-            default="",
-            type=str,
-            help="customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}",
-        )
         parser.add_argument(
             "--gpu_ids",
             type=str,
@@ -124,6 +103,30 @@ class BaseOptions:
             "--warning_mode", action="store_true", help="whether to display warning"
         )
 
+        # dataset parameters
+        parser.add_argument(
+            "--data_load_size", type=int, default=286, help="scale images to this size"
+        )
+        parser.add_argument(
+            "--data_crop_size", type=int, default=256, help="then crop to this size"
+        )
+        parser.add_argument(
+            "--data_refined_mask",
+            action="store_true",
+            help="whether to use refined mask with sam",
+        )
+
+        # data temporal options
+        parser.add_argument(
+            "--data_temporal_num_common_char",
+            type=int,
+            default=-1,
+            help="how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used ",
+        )
+
+        return parser
+
+    def initialize_static(self, parser):
         # model parameters
         parser.add_argument(
             "--model_type",
@@ -147,25 +150,15 @@ class BaseOptions:
             help="# of output image channels: 3 for RGB and 1 for grayscale",
         )
         parser.add_argument(
-            "--model_init_type",
-            type=str,
-            default="normal",
-            choices=["normal", "xavier", "kaiming", "orthogonal"],
-            help="network initialization",
-        )
-        parser.add_argument(
-            "--model_init_gain",
-            type=float,
-            default=0.02,
-            help="scaling factor for normal, xavier and orthogonal.",
+            "--model_prior_321_backwardcompatibility",
+            action="store_true",
+            help="whether to load models from previous version of JG.",
         )
         parser.add_argument(
             "--model_multimodal",
             action="store_true",
             help="multimodal model with random latent input vector",
         )
-
-        # depth network
         parser.add_argument(
             "--model_depth_network",
             type=str,
@@ -185,13 +178,6 @@ class BaseOptions:
                 "DPT_LeViT_224",
             ],  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
             help="specify depth prediction network architecture",
-        )
-
-        parser.add_argument(
-            "--D_weight_sam",
-            type=str,
-            default="",
-            help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
         )
 
         # generator
@@ -263,9 +249,7 @@ class BaseOptions:
             help="path to segformer configuration file for G",
         )
         parser.add_argument("--G_attn_nb_mask_attn", default=10, type=int)
-
         parser.add_argument("--G_attn_nb_mask_input", default=1, type=int)
-
         parser.add_argument(
             "--G_backward_compatibility_twice_resnet_blocks",
             action="store_true",
@@ -286,30 +270,15 @@ class BaseOptions:
             help="specify multimodal latent vector encoder",
         )
 
+        # unet or uvit specific options
         parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
         parser.add_argument("--G_unet_mha_num_heads", default=1, type=int)
-
         parser.add_argument(
             "--G_uvit_num_transformer_blocks",
             default=6,
             type=int,
             help="Number of transformer blocks in UViT",
         )
-
-        parser.add_argument(
-            "--G_diff_n_timestep_train",
-            type=int,
-            default=2000,
-            help="Number of timesteps used for UNET mha training.",
-        )
-
-        parser.add_argument(
-            "--G_diff_n_timestep_test",
-            type=int,
-            default=1000,
-            help="Number of timesteps used for UNET mha inference (test time).",
-        )
-
         parser.add_argument(
             "--G_unet_mha_res_blocks",
             default=[2, 2, 2, 2],
@@ -317,7 +286,6 @@ class BaseOptions:
             type=int,
             help="distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults",
         )
-
         parser.add_argument(
             "--G_unet_mha_channel_mults",
             default=[1, 2, 4, 8],
@@ -325,7 +293,6 @@ class BaseOptions:
             type=int,
             help="channel multiplier for each level of the UNET mha",
         )
-
         parser.add_argument(
             "-G_unet_mha_attn_res",
             default=[16],
@@ -333,7 +300,6 @@ class BaseOptions:
             type=int,
             help="downrate samples at which attention takes place",
         )
-
         parser.add_argument(
             "--G_unet_mha_norm_layer",
             type=str,
@@ -346,320 +312,44 @@ class BaseOptions:
             ],
             default="groupnorm",
         )
-
         parser.add_argument(
             "--G_unet_mha_group_norm_size",
             type=int,
             default=32,
         )
-
         parser.add_argument(
             "--G_unet_mha_vit_efficient",
             action="store_true",
             help="if true, use efficient attention in UNet and UViT",
         )
 
-        # discriminator
+        # G diff params
         parser.add_argument(
-            "--D_ndf",
+            "--G_diff_n_timestep_train",
             type=int,
-            default=64,
-            help="# of discrim filters in the first conv layer",
+            default=2000,
+            help="Number of timesteps used for UNET mha training.",
         )
         parser.add_argument(
-            "--D_netDs",
-            type=str,
-            default=["projected_d", "basic"],
-            choices=[
-                "basic",
-                "n_layers",
-                "pixel",
-                "stylegan2",
-                "patchstylegan2",
-                "smallpatchstylegan2",
-                "projected_d",
-                "temporal",
-                "vision_aided",
-                "depth",
-                "mask",
-                "sam",
-            ]
-            + list(TORCH_MODEL_CLASSES.keys()),
-            help="specify discriminator architecture, another option, --D_n_layers allows you to specify the layers in the n_layers discriminator. NB: duplicated arguments are ignored. Values: basic, n_layers, pixel, projected_d, temporal, vision_aided, depth, mask, sam",
-            nargs="+",
-        )
-        parser.add_argument(
-            "--D_vision_aided_backbones",
-            type=str,
-            default="clip+dino+swin",
-            help="specify vision aided discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with +",
-        )
-        parser.add_argument(
-            "--D_n_layers", type=int, default=3, help="only used if netD==n_layers"
-        )
-        parser.add_argument(
-            "--D_norm",
-            type=str,
-            default="instance",
-            choices=["instance", "batch", "none"],
-            help="instance normalization or batch normalization for D",
-        )
-        parser.add_argument(
-            "--D_dropout",
-            action="store_true",
-            help="whether to use dropout in the discriminator",
-        )
-        parser.add_argument(
-            "--D_spectral",
-            action="store_true",
-            help="whether to use spectral norm in the discriminator",
-        )
-        parser.add_argument(
-            "--D_proj_interp",
+            "--G_diff_n_timestep_test",
             type=int,
-            default=-1,
-            help="whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation",
-        )
-        parser.add_argument(
-            "--D_proj_network_type",
-            type=str,
-            default="efficientnet",
-            choices=[
-                "efficientnet",
-                "segformer",
-                "vitbase",
-                "vitsmall",
-                "vitsmall2",
-                "vitclip16",
-                "depth",
-            ],
-            help="projected discriminator architecture",
-        )
-        parser.add_argument(
-            "--D_no_antialias",
-            action="store_true",
-            help="if specified, use stride=2 convs instead of antialiased-downsampling (sad)",
-        )
-        parser.add_argument(
-            "--D_no_antialias_up",
-            action="store_true",
-            help="if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv]",
-        )
-        parser.add_argument(
-            "--D_proj_config_segformer",
-            type=str,
-            default="models/configs/segformer/segformer_config_b0.json",
-            help="path to segformer configuration file",
-        )
-        parser.add_argument(
-            "--D_proj_weight_segformer",
-            type=str,
-            default="models/configs/segformer/pretrain/segformer_mit-b0.pth",
-            help="path to segformer weight",
-        )
-
-        parser.add_argument(
-            "--D_temporal_every",
-            type=int,
-            default=4,
-            help="apply temporal discriminator every x steps",
+            default=1000,
+            help="Number of timesteps used for UNET mha inference (test time).",
         )
 
         # mask semantic network : f_s
-        parser.add_argument(
-            "--f_s_net",
-            type=str,
-            default="vgg",
-            choices=["vgg", "unet", "segformer", "sam"],
-            help="specify f_s network [vgg|unet|segformer|sam]",
-        )
-        parser.add_argument(
-            "--f_s_dropout",
-            action="store_true",
-            help="dropout for the semantic network",
-        )
         parser.add_argument(
             "--f_s_semantic_nclasses",
             default=2,
             type=int,
             help="number of classes of the semantic loss classifier",
         )
-        parser.add_argument(
-            "--f_s_class_weights",
-            default=[],
-            nargs="*",
-            type=int,
-            help="class weights for imbalanced semantic classes",
-        )
-        parser.add_argument(
-            "--f_s_semantic_threshold",
-            default=1.0,
-            type=float,
-            help="threshold of the semantic classifier loss below with semantic loss is applied",
-        )
-        parser.add_argument(
-            "--f_s_all_classes_as_one",
-            action="store_true",
-            help="if true, all classes will be considered as the same one (ie foreground vs background)",
-        )
-        parser.add_argument(
-            "--f_s_nf",
-            type=int,
-            default=64,
-            help="# of filters in the first conv layer of classifier",
-        )
-        parser.add_argument(
-            "--f_s_config_segformer",
-            type=str,
-            default="models/configs/segformer/segformer_config_b0.json",
-            help="path to segformer configuration file for f_s",
-        )
-        parser.add_argument(
-            "--f_s_weight_segformer",
-            type=str,
-            default="",
-            help="path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
-        )
-        parser.add_argument(
-            "--f_s_weight_sam",
-            type=str,
-            default="",
-            help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
-        )
 
-        parser.add_argument(
-            "--cls_net",
-            type=str,
-            default="vgg",
-            choices=["vgg", "unet", "segformer"],
-            help="specify cls network [vgg|unet|segformer]",
-        )
-        parser.add_argument(
-            "--cls_dropout",
-            action="store_true",
-            help="dropout for the semantic network",
-        )
         parser.add_argument(
             "--cls_semantic_nclasses",
             default=2,
             type=int,
             help="number of classes of the semantic loss classifier",
-        )
-        parser.add_argument(
-            "--cls_class_weights",
-            default=[],
-            nargs="*",
-            type=int,
-            help="class weights for imbalanced semantic classes",
-        )
-        parser.add_argument(
-            "--cls_semantic_threshold",
-            default=1.0,
-            type=float,
-            help="threshold of the semantic classifier loss below with semantic loss is applied",
-        )
-        parser.add_argument(
-            "--cls_all_classes_as_one",
-            action="store_true",
-            help="if true, all classes will be considered as the same one (ie foreground vs background)",
-        )
-        parser.add_argument(
-            "--cls_nf",
-            type=int,
-            default=64,
-            help="# of filters in the first conv layer of classifier",
-        )
-        parser.add_argument(
-            "--cls_config_segformer",
-            type=str,
-            default="models/configs/segformer/segformer_config_b0.json",
-            help="path to segformer configuration file for cls",
-        )
-        parser.add_argument(
-            "--cls_weight_segformer",
-            type=str,
-            default="",
-            help="path to segformer weight for cls, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
-        )
-
-        # dataset parameters
-        parser.add_argument(
-            "--data_dataset_mode",
-            type=str,
-            default="unaligned",
-            choices=[
-                "unaligned",
-                "unaligned_labeled_cls",
-                "unaligned_labeled_mask",
-                "self_supervised_labeled_mask",
-                "unaligned_labeled_mask_cls",
-                "self_supervised_labeled_mask_cls",
-                "unaligned_labeled_mask_online",
-                "self_supervised_labeled_mask_online",
-                "unaligned_labeled_mask_cls_online",
-                "self_supervised_labeled_mask_cls_online",
-                "aligned",
-                "nuplet_unaligned_labeled_mask",
-                "temporal_labeled_mask_online",
-                "self_supervised_temporal",
-                "single",
-            ],
-            help="chooses how datasets are loaded.",
-        )
-        parser.add_argument(
-            "--data_direction",
-            type=str,
-            default="AtoB",
-            choices=["AtoB", "BtoA"],
-            help="AtoB or BtoA",
-        )
-        parser.add_argument(
-            "--data_serial_batches",
-            action="store_true",
-            help="if true, takes images in order to make batches, otherwise takes them randomly",
-        )
-        parser.add_argument(
-            "--data_num_threads", default=4, type=int, help="# threads for loading data"
-        )
-
-        parser.add_argument(
-            "--data_load_size", type=int, default=286, help="scale images to this size"
-        )
-        parser.add_argument(
-            "--data_crop_size", type=int, default=256, help="then crop to this size"
-        )
-        parser.add_argument(
-            "--data_max_dataset_size",
-            type=int,
-            default=MAX_INT,
-            help="Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.",
-        )
-        parser.add_argument(
-            "--data_preprocess",
-            type=str,
-            default="resize_and_crop",
-            choices=[
-                "resize_and_crop",
-                "crop",
-                "scale_width",
-                "scale_width_and_crop",
-                "none",
-            ],
-            help="scaling and cropping of images at load time",
-        )
-
-        parser.add_argument(
-            "--data_refined_mask",
-            action="store_true",
-            help="whether to use refined mask with sam",
-        )
-
-        parser.add_argument(
-            "--model_type_sam",
-            type=str,
-            default="mobile_sam",
-            choices=["sam", "mobile_sam"],
-            help="which model to use for segment-anything mask generation",
         )
 
         # Online dataset creation options
@@ -700,7 +390,6 @@ class BaseOptions:
             nargs="+",
             help="mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes",
         )
-
         parser.add_argument(
             "--data_online_creation_mask_delta_A_ratio",
             default=[[]],
@@ -708,7 +397,6 @@ class BaseOptions:
             nargs="+",
             help="ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square",
         )
-
         parser.add_argument(
             "--data_online_creation_mask_random_offset_A",
             type=float,
@@ -716,7 +404,6 @@ class BaseOptions:
             nargs="*",
             help="ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square",
         )
-
         parser.add_argument(
             "--data_online_creation_mask_square_A",
             action="store_true",
@@ -732,7 +419,6 @@ class BaseOptions:
             action="store_true",
             help="Perform task of replacing color-filled masks by objects",
         )
-
         parser.add_argument(
             "--data_online_creation_load_size_B",
             default=[],
@@ -740,7 +426,6 @@ class BaseOptions:
             type=int,
             help="load to this size during online creation, format : width height or only one size if square",
         )
-
         parser.add_argument(
             "--data_online_creation_crop_size_B",
             type=int,
@@ -760,7 +445,6 @@ class BaseOptions:
             nargs="+",
             help="mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes",
         )
-
         parser.add_argument(
             "--data_online_creation_mask_delta_B_ratio",
             default=[[]],
@@ -768,7 +452,6 @@ class BaseOptions:
             nargs="+",
             help="ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square",
         )
-
         parser.add_argument(
             "--data_online_creation_mask_random_offset_B",
             type=float,
@@ -776,7 +459,6 @@ class BaseOptions:
             nargs="*",
             help="mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square",
         )
-
         parser.add_argument(
             "--data_online_creation_mask_square_B",
             action="store_true",
@@ -788,7 +470,6 @@ class BaseOptions:
             default=0,
             help="context pixel band around the crop, unused for generation, only for disc ",
         )
-
         parser.add_argument(
             "--data_online_fixed_mask_size",
             type=int,
@@ -803,19 +484,11 @@ class BaseOptions:
             default=5,
             help="how many successive frames use for temporal loader",
         )
-
         parser.add_argument(
             "--data_temporal_frame_step",
             type=int,
             default=30,
             help="how many frames between successive frames selected",
-        )
-
-        parser.add_argument(
-            "--data_temporal_num_common_char",
-            type=int,
-            default=-1,
-            help="how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used ",
         )
 
         # other data options
@@ -825,27 +498,24 @@ class BaseOptions:
             help="whether to invert the mask, i.e. around the bbox",
         )
 
-        parser.add_argument(
-            "--data_sanitize_paths",
-            action="store_true",
-            help="if true, wrong images or labels paths will be removed before training",
-        )
-
-        parser.add_argument(
-            "--data_relative_paths",
-            action="store_true",
-            help="whether paths to images are relative to dataroot",
-        )
-
-        self.initialized = True
         return parser
 
-    def gather_options(self, args=None):
-        """Initialize our parser with basic options(only once).
+    def gather_specific_options(self, opt, parser, args):
+        """
         Add additional model-specific and dataset-specific options.
         These options are defined in the <modify_commandline_options> function
         in model and dataset classes.
         """
+        # modify model-related parser options
+        model_name = opt.model_type
+        model_option_setter = models.get_option_setter(model_name)
+        parser = model_option_setter(parser, self.isTrain)
+        opt, _ = parser.parse_known_args(args)  # parse again with new defaults
+
+        return parser
+
+    def gather_options(self, args=None):
+        """Initialize our parser with basic options(only once)."""
         if not self.initialized:  # check if it has been initialized
             parser = argparse.ArgumentParser(
                 formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -855,20 +525,12 @@ class BaseOptions:
         # get the basic options
         opt, _ = parser.parse_known_args(args)
 
-        # modify model-related parser options
-        model_name = opt.model_type
-        model_option_setter = models.get_option_setter(model_name)
-        parser = model_option_setter(parser, self.isTrain)
-        opt, _ = parser.parse_known_args(args)  # parse again with new defaults
-
-        # modify dataset-related parser options
-        dataset_name = opt.data_dataset_mode
-        dataset_option_setter = data.get_option_setter(dataset_name)
-        parser = dataset_option_setter(parser, self.isTrain)
+        # get specific options
+        parser = self.gather_specific_options(opt=opt, parser=parser, args=args)
 
         # save and return the parser
         self.parser = parser
-        return parser.parse_args(args)
+        return parser
 
     def print_options(self, opt):
         """Print and save options
@@ -940,9 +602,23 @@ class BaseOptions:
                 parent = json_args
                 for cat in path[:-1]:
                     parent = parent[cat]
+
                 parent[path[-1]] = v
 
         return dict(json_args)
+
+    def _after_parse_specific(self, opt):
+        """
+        Add additional model-specific after parse function.
+        These options are defined in the <after_parse> function
+        in model classes.
+        """
+        # modify model-related parser options
+        model_name = opt.model_type
+        model_after_parse = models.get_after_parse(model_name)
+        opt = model_after_parse(opt)
+
+        return opt
 
     def _after_parse(self, opt, set_device=True):
         if hasattr(self, "isTrain"):
@@ -950,11 +626,6 @@ class BaseOptions:
         else:
             opt.isTrain = False
             self.isTrain = False
-
-        # process opt.suffix
-        if opt.suffix:
-            suffix = ("_" + opt.suffix.format(**vars(opt))) if opt.suffix != "" else ""
-            opt.name = opt.name + suffix
 
         # set gpu ids
         str_ids = opt.gpu_ids.split(",")
@@ -987,84 +658,8 @@ class BaseOptions:
                 )
                 warnings.warn(msg)
 
-        # bbox selection check
-        if opt.data_online_select_category != -1 and not opt.data_sanitize_paths:
-            raise ValueError(
-                "Bounding box class selection requires --data_sanitize_paths"
-            )
-
-        # vitclip16 projector only works with input size 224
-        if opt.D_proj_network_type == "vitclip16":
-            if opt.D_proj_interp != 224:
-                warnings.warn(
-                    "ViT-B/16 (vitclip16) projector only works with input size 224, setting D_proj_interp to 224"
-                )
-            opt.D_proj_interp = 224
-
-        # Dsam requires D_weight_sam
-        if "sam" in opt.D_netDs:
-            if opt.D_weight_sam == "":
-                raise ValueError(
-                    "Dsam requires D_weight_sam, please specify a path to a pretrained SAM or MobileSAM model"
-                )
-            download_sam_weight(opt.D_weight_sam)
-
-        # diffusion D + vitsmall check
-        if opt.dataaug_D_diffusion and "vit" in opt.D_proj_network_type:
-            raise ValueError(
-                "ViT type projectors are not yet compatible with diffusion augmentation at discriminator level"
-            )
-
-        # sam with bbox prompting requires Pytorch 2
-        if torch.__version__[0] != "2":
-            if (
-                opt.f_s_net == "sam"
-                and opt.data_dataset_mode == "unaligned_labeled_mask_online"
-            ):
-                raise ValueError("SAM with masks and bbox prompting requires Pytorch 2")
-        if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
-            warnings.warn("SAM with direct masks does not use mask/bbox prompting")
-
-        # mask delta check
-        if opt.data_online_creation_mask_delta_A == [[]]:
-            pass
-        else:
-            if (
-                len(opt.data_online_creation_mask_delta_A)
-                < opt.f_s_semantic_nclasses - 1
-            ):
-                if len(opt.data_online_creation_mask_delta_A) == 1:
-                    warnings.warn(
-                        "Mask delta A list should be of length f_s_semantic_nclasses, distributing single value across all classes"
-                    )
-                opt.data_online_creation_mask_delta_A = (
-                    opt.data_online_creation_mask_delta_A
-                    * (opt.f_s_semantic_nclasses - 1)
-                )
-            elif len(opt.data_online_creation_mask_delta_A) > 1:
-                raise ValueError(
-                    "Mask delta A list must be of length f_s_semantic_nclasses"
-                )
-
-        if opt.data_online_creation_mask_delta_B == [[]]:
-            pass
-        else:
-            if (
-                len(opt.data_online_creation_mask_delta_B)
-                < opt.f_s_semantic_nclasses - 1
-            ):
-                if len(opt.data_online_creation_mask_delta_B) == 1:
-                    warnings.warn(
-                        "Mask delta B list should be of length f_s_semantic_nclasses, distributing single value across all classes"
-                    )
-                opt.data_online_creation_mask_delta_B = (
-                    opt.data_online_creation_mask_delta_B
-                    * (opt.f_s_semantic_nclasses - 1)
-                )
-            elif len(opt.data_online_creation_mask_delta_B) > 1:
-                raise ValueError(
-                    "Mask delta B list must be of length f_s_semantic_nclasses"
-                )
+        # specific after parse
+        opt = self._after_parse_specific(opt)
 
         self.opt = opt
 
@@ -1080,13 +675,13 @@ class BaseOptions:
 
     def parse(self):
         """Parse our options, create checkpoints directory suffix, and set up gpu device."""
-        self.opt = self.gather_options()
+        self.opt = self.gather_options().parse_args(args=None)
         self.save_options()
         opt = self._after_parse(self.opt)
         return opt
 
     def parse_to_json(self, args=None):
-        self.opt = self.gather_options(args)
+        self.opt = self.gather_options(args).parse_args(args=args)
         return self.to_json()
 
     def _json_parse_known_args(self, parser, opt, json_args):
