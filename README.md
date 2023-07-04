@@ -8,7 +8,7 @@
 
 <h1 align="center">Generative AI Image Toolset with GANs and Diffusion for Real-World Applications</h1>
 
-**JoliGEN** provides is an integrated framework for training custom generative AI image-to-image models
+**JoliGEN** is an integrated framework for training custom generative AI image-to-image models
 
 Main Features:
 
