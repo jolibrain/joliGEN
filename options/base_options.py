@@ -430,6 +430,7 @@ class BaseOptions:
                 "vitsmall",
                 "vitsmall2",
                 "vitclip16",
+                "depth",
             ],
             help="projected discriminator architecture",
         )

@@ -1,10 +1,15 @@
+import os
+
+import random
 import torch
 import torch.nn as nn
+from torchvision import transforms
+
 from .blocks import FeatureFusionBlockMatrix, FeatureFusionBlockVector
 from .diffusion import Diffusion
-import os
 from models.modules.segformer.config import load_config_file
 from models.modules.segformer.builder_from_scratch import JoliSegformer
+from models.modules.utils import download_midas_weight
 
 
 def _make_scratch_ccm(scratch, in_channels, cout, conv, expand=False):
@@ -66,6 +71,11 @@ def _make_vit_clip(model):
 
 def _make_segformer(model):
     model.get_feats = model.forward
+    return model
+
+
+def _make_depth(model):
+    configure_get_feats_depth(model)
     return model
 
 
@@ -132,6 +142,48 @@ def configure_get_feats_vit_timm(net):
     net.get_feats = get_feats
 
 
+def configure_get_feats_depth(net):
+    def get_feats(x):
+
+        x = net.transform(x)
+
+        if net.channels_last == True:
+            x.contiguous(memory_format=torch.channels_last)
+
+        layers = net.forward_transformer(net.pretrained, x)
+        if net.number_layers == 3:
+            layer_1, layer_2, layer_3 = layers
+        else:
+            layer_1, layer_2, layer_3, layer_4 = layers
+
+        layer_1_rn = net.scratch.layer1_rn(layer_1)
+        layer_2_rn = net.scratch.layer2_rn(layer_2)
+        layer_3_rn = net.scratch.layer3_rn(layer_3)
+        if net.number_layers >= 4:
+            layer_4_rn = net.scratch.layer4_rn(layer_4)
+
+        if net.number_layers == 3:
+            path_3 = net.scratch.refinenet3(layer_3_rn, size=layer_2_rn.shape[2:])
+        else:
+            path_4 = net.scratch.refinenet4(layer_4_rn, size=layer_3_rn.shape[2:])
+            path_3 = net.scratch.refinenet3(
+                path_4, layer_3_rn, size=layer_2_rn.shape[2:]
+            )
+        path_2 = net.scratch.refinenet2(path_3, layer_2_rn, size=layer_1_rn.shape[2:])
+        path_1 = net.scratch.refinenet1(path_2, layer_1_rn)
+
+        if net.scratch.stem_transpose is not None:
+            path_1 = net.scratch.stem_transpose(path_1)
+
+        out = net.scratch.output_conv(path_1)
+
+        outs = [layer_1_rn, layer_2_rn, layer_3_rn, layer_4_rn]
+
+        return outs
+
+    net.get_feats = get_feats
+
+
 def calc_channels(pretrained, inp_res=224):
     channels = []
     feats = []
@@ -190,6 +242,26 @@ def create_segformer_model(model_name, config_path, weight_path, img_size):
     return model
 
 
+def create_depth_model(model_name, config_path, weight_path, img_size):
+    model_type = weight_path
+    model = download_midas_weight(model_type)
+
+    input_size = 384
+    if model_type == "MiDas_small" or model_type == "DPT_SwinV2_T_256":
+        input_size = 256
+    elif model_type == "DPT_BEiT_L_512":
+        input_size = 512
+    elif model_type == "DPT_LeViT_224":
+        input_size = 224
+    model.transform = transforms.Compose(
+        [
+            transforms.Resize(input_size),
+        ]
+    )
+
+    return model
+
+
 projector_models = {
     "efficientnet": {
         "model_name": "tf_efficientnet_lite0",
@@ -220,6 +292,11 @@ projector_models = {
         "model_name": "ViT-B/16",
         "create_model_function": create_clip_model,
         "make_function": _make_vit_clip,
+    },
+    "depth": {
+        "model_name": "",
+        "create_model_function": create_depth_model,
+        "make_function": _make_depth,
     },
 }
 
@@ -320,6 +397,10 @@ class Proj(nn.Module):
             weight_path=weight_path,
             interp=interp,
         )
+
+        if hasattr(self.pretrained, "model"):
+            # To allow DDP
+            self.model = self.pretrained.model
 
         self.CHANNELS = self.pretrained.CHANNELS
         self.RESOLUTIONS = self.pretrained.RESOLUTIONS
