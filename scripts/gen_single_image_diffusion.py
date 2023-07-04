@@ -18,8 +18,8 @@ from torchvision import transforms
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-sys.path.append("../")
-from diffusion_options import DiffusionOptions
+jg_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../")
+sys.path.append(jg_dir)
 from segment_anything import SamPredictor
 
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
@@ -32,6 +32,7 @@ from models.modules.sam.sam_inference import (
     predict_sam_mask,
 )
 from models.modules.utils import download_sam_weight
+from options.inference_diffusion_options import InferenceDiffusionOptions
 from options.train_options import TrainOptions
 from util.mask_generation import (
     fill_img_with_canny,
@@ -41,6 +42,8 @@ from util.mask_generation import (
     fill_img_with_sam,
     fill_img_with_sketch,
 )
+from util.script import get_override_options_names
+from util.util import flatten_json
 
 
 def load_model(
@@ -56,7 +59,7 @@ def load_model(
         train_json = json.load(jsonf)
 
     opt = TrainOptions().parse_json(train_json)
-    opt.jg_dir = "../"
+    opt.jg_dir = jg_dir
 
     # if opt.G_nblocks == 9:
     #    warnings.warn(
@@ -173,15 +176,18 @@ def generate(
     mask_delta,
     mask_square,
     sampling_method,
+    cond_rotation,
+    cond_persp_horizontal,
+    cond_persp_vertical,
     alg_palette_cond_image_creation,
     alg_palette_sketch_canny_thresholds,
-    cls,
+    cls_value,
     alg_palette_super_resolution_downsample,
     alg_palette_guidance_scale,
     data_refined_mask,
     min_crop_bbox_ratio,
-    ddim_num_steps,
-    ddim_eta,
+    alg_palette_ddim_num_steps,
+    alg_palette_ddim_eta,
     model_prior_321_backwardcompatibility,
     **unused_options,
 ):
@@ -232,6 +238,7 @@ def generate(
         mask = cv2.imread(mask_in, 0)
 
     # reading reference image
+    ref = None
     if ref_in:
         ref = cv2.imread(ref_in)
         ref_orig = ref.copy()
@@ -245,11 +252,10 @@ def generate(
                 elts = line.rstrip().split()
                 bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
                 if conditioning:
-                    if args.cls:
-                        cls = args.cls
+                    if cls_value > 0:
+                        cls = cls_value
                     else:
-                        cls = elts[0]
-                        print("generating with class=", cls)
+                        cls = int(elts[0])
                 else:
                     cls = 1
 
@@ -384,9 +390,9 @@ def generate(
         cond = cv2.cvtColor(cond, cv2.COLOR_RGB2BGR)
         cond = cond_augment(
             cond,
-            args.cond_rotation,
-            args.cond_persp_horizontal,
-            args.cond_persp_vertical,
+            cond_rotation,
+            cond_persp_horizontal,
+            cond_persp_vertical,
         )
         if cond_keep_ratio:
             # pad cond image to match bbox aspect ratio
@@ -581,6 +587,8 @@ def generate(
         cls_tensor = None
     if ref is not None:
         ref_tensor = ref_tensor.unsqueeze(0)
+    else:
+        ref_tensor = None
 
     # run through model
     with torch.no_grad():
@@ -593,8 +601,8 @@ def generate(
             ref=ref_tensor,
             sample_num=2,
             guidance_scale=alg_palette_guidance_scale,
-            ddim_num_steps=ddim_num_steps,
-            ddim_eta=ddim_eta,
+            ddim_num_steps=alg_palette_ddim_num_steps,
+            ddim_eta=alg_palette_ddim_eta,
         )
         out_img = to_np(
             out_tensor
@@ -616,7 +624,8 @@ def generate(
 
         out_img_real_size = img_orig.copy()
     else:
-        out_img_real_size = out_img
+        out_img_resized = out_img
+        out_img_real_size = img_orig.copy()
 
     # fill out crop into original image
     if bbox_in:
@@ -655,173 +664,7 @@ def generate(
     return out_img_real_size, model, opt
 
 
-if __name__ == "__main__":
-    options = DiffusionOptions()
-
-    options.parser.add_argument("--img-in", help="image to transform", required=True)
-    options.parser.add_argument(
-        "--previous-frame", help="image to transform", default=None
-    )
-    options.parser.add_argument(
-        "--mask-in", help="mask used for image transformation", required=False
-    )
-    options.parser.add_argument(
-        "--ref-in", help="image used as reference", required=False
-    )
-    options.parser.add_argument("--bbox-in", help="bbox file used for masking")
-
-    options.parser.add_argument(
-        "--nb_samples", help="nb of samples generated", type=int, default=1
-    )
-    options.parser.add_argument(
-        "--bbox_ref_id", help="bbox id to use", type=int, default=-1
-    )
-    options.parser.add_argument("--cond-in", help="conditionning image to use")
-    options.parser.add_argument("--cond_keep_ratio", action="store_true")
-    options.parser.add_argument("--cond_rotation", type=float, default=0)
-    options.parser.add_argument("--cond_persp_horizontal", type=float, default=0)
-    options.parser.add_argument("--cond_persp_vertical", type=float, default=0)
-    options.parser.add_argument(
-        "--alg_palette_cond_image_creation",
-        type=str,
-        choices=[
-            "y_t",
-            "previous_frame",
-            "sketch",
-            "canny",
-            "depth",
-            "hed",
-            "hough",
-            "low_res",
-            "sam",
-            "pix2pix",
-        ],
-        help="how cond_image is created",
-    )
-    options.parser.add_argument(
-        "--alg_palette_sketch_canny_thresholds",
-        type=int,
-        nargs="+",
-        default=[0, 255 * 3],
-        help="Canny thresholds",
-    )
-    options.parser.add_argument(
-        "--alg_palette_super_resolution_downsample",
-        action="store_true",
-        help="whether to downsample the image for super resolution",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_use_gaussian_filter",
-        action="store_true",
-        default=False,
-        help="whether to apply a gaussian blur to each SAM masks",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_no_sobel_filter",
-        action="store_false",
-        default=True,
-        help="whether to not use a Sobel filter on each SAM masks",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_no_output_binary_sam",
-        action="store_false",
-        default=True,
-        help="whether to not output binary sketch before Canny",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_redundancy_threshold",
-        type=float,
-        default=0.62,
-        help="redundancy threshold above which redundant masks are not kept",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_sobel_threshold",
-        type=float,
-        default=0.7,
-        help="sobel threshold in %% of gradient magintude",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_final_canny",
-        action="store_true",
-        default=False,
-        help="whether to perform a Canny edge detection on sam sketch to soften the edges",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_min_mask_area",
-        type=float,
-        default=0.001,
-        help="minimum area in proportion of image size for a mask to be kept",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_max_mask_area",
-        type=float,
-        default=0.99,
-        help="maximum area in proportion of image size for a mask to be kept",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_points_per_side",
-        type=int,
-        default=16,
-        help="number of points per side of image to prompt SAM with (# of prompted points will be points_per_side**2)",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_no_sample_points_in_ellipse",
-        action="store_false",
-        default=True,
-        help="whether to not sample the points inside an ellipse to avoid the corners of the image",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_sam_crop_delta",
-        type=int,
-        default=True,
-        help="extend crop's width and height by 2*crop_delta before computing masks",
-    )
-
-    options.parser.add_argument(
-        "--alg_palette_guidance_scale",
-        type=float,
-        default=0.0,  # literature value: 0.2
-        help="scale for classifier-free guidance, default is conditional DDPM only",
-    )
-
-    options.parser.add_argument(
-        "--f_s_weight_sam",
-        type=str,
-        default="models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
-        help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
-    )
-
-    options.parser.add_argument(
-        "--data_refined_mask",
-        action="store_true",
-        help="whether to use refined mask with sam",
-    )
-
-    options.parser.add_argument(
-        "--min_crop_bbox_ratio",
-        type=float,
-        help="minimum crop/bbox ratio, allows to add context when bbox is larger than crop",
-    )
-
-    options.parser.add_argument(
-        "--model_prior_321_backwardcompatibility",
-        action="store_true",
-        help="whether to load models from previous version of JG.",
-    )
-
-    args = options.parse()
-
+def inference(args):
     if len(args.mask_delta_ratio[0]) == 1 and args.mask_delta_ratio[0][0] == 0.0:
         mask_delta = args.mask_delta
     else:
@@ -834,8 +677,14 @@ if __name__ == "__main__":
 
     args.lmodel = None
     args.lopt = None
+
     for i in tqdm(range(args.nb_samples)):
         args.name = real_name + "_" + str(i).zfill(len(str(args.nb_samples)))
         frame, lmodel, lopt = generate(**vars(args))
         args.lmodel = lmodel
         args.lopt = lopt
+
+
+if __name__ == "__main__":
+    args = InferenceDiffusionOptions().parse()
+    inference(args)

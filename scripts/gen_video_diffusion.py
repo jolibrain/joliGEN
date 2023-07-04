@@ -4,7 +4,7 @@ from tqdm import tqdm
 import os
 
 from gen_single_image_diffusion import generate
-from diffusion_options import DiffusionOptions
+from options.inference_diffusion_options import InferenceDiffusionOptions
 
 
 def atoi(text):
@@ -16,20 +16,10 @@ def natural_keys(text):
 
 
 if __name__ == "__main__":
-
-    options = DiffusionOptions()
-
+    options = InferenceDiffusionOptions()
     options.parser.add_argument("--dataroot", help="images to transform", required=True)
 
-    options.parser.add_argument("--data-prefix", help="images path dir prefix")
-
-    options.parser.add_argument(
-        "--video-width", default=-1, type=int, help="video width"
-    )
-
-    options.parser.add_argument(
-        "--video-height", default=-1, type=int, help="video height"
-    )
+    options.parser.add_argument("--data_prefix", help="images path dir prefix")
 
     options.parser.add_argument("--fps", default=30, type=int, help="video fps")
 
@@ -158,6 +148,3 @@ if __name__ == "__main__":
 
     # When everything done, release the video write objects
     out.release()
-
-    # Closes all the frames
-    cv2.destroyAllWindows()

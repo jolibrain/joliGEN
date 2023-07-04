@@ -28,6 +28,30 @@ class PaletteModel(BaseDiffusionModel):
         parser = BaseDiffusionModel.modify_commandline_options(
             parser, is_train=is_train
         )
+
+        parser.add_argument(
+            "--alg_palette_ddim_num_steps",
+            type=int,
+            default=10,
+            help="number of steps for ddim sampling",
+        )
+
+        parser.add_argument(
+            "--alg_palette_ddim_eta",
+            type=float,
+            default=0.5,
+            help="eta for ddim sampling variance",
+        )
+
+        if is_train:
+            parser = PaletteModel.modify_commandline_options_train(parser)
+
+        return parser
+
+    @staticmethod
+    def modify_commandline_options_train(parser):
+        parser = BaseDiffusionModel.modify_commandline_options_train(parser)
+
         parser.add_argument(
             "--alg_palette_task",
             default="inpainting",
@@ -134,7 +158,7 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_sam_sobel_threshold",
             type=float,
             default=0.7,
-            help="sobel threshold in % of gradient magintude",
+            help="sobel threshold in % of gradient magnitude",
         )
 
         parser.add_argument(
@@ -185,27 +209,12 @@ class PaletteModel(BaseDiffusionModel):
             default=0.5,
             help="prob to use previous frame as y cond",
         )
-
         parser.add_argument(
             "--alg_palette_sampling_method",
             type=str,
             default="ddpm",
             choices=["ddpm", "ddim"],
             help="choose the sampling method between ddpm and ddim",
-        )
-
-        parser.add_argument(
-            "--alg_palette_ddim_num_steps",
-            type=int,
-            default=10,
-            help="number of steps for ddim sampling",
-        )
-
-        parser.add_argument(
-            "--alg_palette_ddim_eta",
-            type=float,
-            default=0.5,
-            help="eta for ddim sampling variance",
         )
 
         parser.add_argument(
@@ -239,6 +248,14 @@ class PaletteModel(BaseDiffusionModel):
 
         return parser
 
+    @staticmethod
+    def after_parse(opt):
+        if opt.isTrain and opt.alg_palette_dropout_prob > 0:
+            # we add a class to be the unconditionned one.
+            opt.f_s_semantic_nclasses += 1
+            opt.cls_semantic_nclasses += 1
+        return opt
+
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
@@ -263,14 +280,6 @@ class PaletteModel(BaseDiffusionModel):
             self.inference_num = batch_size
         else:
             self.inference_num = min(self.opt.alg_palette_inference_num, batch_size)
-
-        self.ddim_num_steps = self.opt.alg_palette_ddim_num_steps
-        self.ddim_eta = self.opt.alg_palette_ddim_eta
-
-        if self.opt.alg_palette_dropout_prob > 0:
-            # we add a class to be the unconditionned one.
-            self.opt.f_s_semantic_nclasses += 1
-            self.opt.cls_semantic_nclasses += 1
 
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
@@ -397,6 +406,9 @@ class PaletteModel(BaseDiffusionModel):
         self.iter_calculator_init()
 
         self.sample_num = 2
+
+        self.ddim_num_steps = self.opt.alg_palette_ddim_num_steps
+        self.ddim_eta = self.opt.alg_palette_ddim_eta
 
     def set_input(self, data):
         """must use set_device in tensor"""
