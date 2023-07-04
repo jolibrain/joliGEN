@@ -263,6 +263,7 @@ def define_D(
     D_vision_aided_backbones,
     dataaug_D_diffusion,
     f_s_semantic_nclasses,
+    model_depth_network,
     **unused_options
 ):
 
@@ -364,6 +365,11 @@ def define_D(
                         "Downloading pretrained segformer weights for projected D feature extractor."
                     )
                     download_segformer_weight(weight_path)
+
+            elif D_proj_network_type == "depth":
+
+                weight_path = model_depth_network
+
             else:
                 weight_path = ""
             net = ProjectedDiscriminator(

@@ -48,7 +48,7 @@ models_semantic_mask = [
 
 G_netG = ["mobile_resnet_attn", "segformer_attn_conv", "ittr", "unet_mha"]
 
-D_proj_network_type = ["efficientnet", "vitsmall"]
+D_proj_network_type = ["efficientnet", "vitsmall", "depth"]
 
 f_s_net = ["unet", "segformer"]
 
