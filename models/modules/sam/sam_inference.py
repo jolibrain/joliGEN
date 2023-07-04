@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import scipy
 import torch
+
 from mobile_sam.modeling import (
     ImageEncoderViT,
     MaskDecoder,
@@ -876,7 +877,7 @@ def predict_sam_edges(
         redundancy_threshold (float): Threshold for Non-Maximum Suppression.
             A mask sharing redundancy_threshold * 100 % or more of its area with
             another one is not kept.
-        sobel_threshold (float): Threshold for the % of gradient magintude to kept
+        sobel_threshold (float): Threshold for the % of gradient magnitude to kept
             after Sobel filter.
         gaussian_sigma (float): Standard deviation used to perform Gaussian blur.
         final_canny (bool): Whether to perform a Canny edge detection on

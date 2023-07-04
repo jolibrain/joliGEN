@@ -70,6 +70,12 @@ def get_option_setter(model_name):
     return model_class.modify_commandline_options
 
 
+def get_after_parse(model_name):
+    """Return the static method <modify_commandline_options> of the model class."""
+    model_class = find_model_using_name(model_name)
+    return model_class.after_parse
+
+
 def create_model(opt, rank):
     """Create a model given the option.
 

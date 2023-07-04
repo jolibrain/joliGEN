@@ -1,4 +1,5 @@
 import sys
+import os
 from itertools import product
 
 import pytest
@@ -8,6 +9,7 @@ sys.path.append(sys.path[0] + "/..")
 import train
 from data import create_dataset
 from options.train_options import TrainOptions
+from scripts.gen_single_image_diffusion import InferenceDiffusionOptions, inference
 
 json_like_dict = {
     "name": "joligen_utest",
@@ -41,6 +43,11 @@ json_like_dict = {
     "G_diff_n_timestep_test": 10,
 }
 
+infer_options = {
+    "gpu_ids": "0",
+    "img_width": 128,
+    "img_height": 128,
+}
 
 models_diffusion = ["palette"]
 G_netG = ["unet_mha", "uvit"]
@@ -52,6 +59,14 @@ product_list = product(models_diffusion, G_netG, data_dataset_mode)
 def test_diffusion_online(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
+
+    with open(
+        os.path.join(json_like_dict["dataroot"], "trainA", "paths.txt")
+    ) as paths_file:
+        line = paths_file.readline().strip().split(" ")
+        infer_options["img_in"] = os.path.join(json_like_dict["dataroot"], line[0])
+        infer_options["mask_in"] = os.path.join(json_like_dict["dataroot"], line[1])
+
     for model, Gtype, dataset_mode in product_list:
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
@@ -67,3 +82,17 @@ def test_diffusion_online(dataroot):
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
+
+        # Inference
+        infer_options_c = infer_options.copy()
+        infer_options_c["model_in_file"] = os.path.join(
+            json_like_dict_c["checkpoints_dir"],
+            json_like_dict_c["name"],
+            "latest_net_G_A.pth",
+        )
+        infer_options_c["dir_out"] = os.path.join(
+            json_like_dict_c["checkpoints_dir"], json_like_dict_c["name"]
+        )
+
+        opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=False)
+        inference(opt)

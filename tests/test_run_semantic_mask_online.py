@@ -1,4 +1,5 @@
 import sys
+import os
 from itertools import product
 
 import pytest
@@ -8,6 +9,7 @@ sys.path.append(sys.path[0] + "/..")
 import train
 from data import create_dataset
 from options.train_options import TrainOptions
+from scripts.gen_single_image import InferenceGANOptions, inference
 
 json_like_dict = {
     "name": "joligen_utest",
@@ -52,6 +54,10 @@ json_like_dict = {
     "train_save_latest_freq": 10,
 }
 
+infer_options = {
+    "gpu_ids": "0",
+}
+
 models_semantic_mask = [
     "cycle_gan",
     "cut",
@@ -91,6 +97,13 @@ def test_semantic_mask_online(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 
+    with open(
+        os.path.join(json_like_dict["dataroot"], "trainA", "paths.txt")
+    ) as paths_file:
+        line = paths_file.readline().strip().split(" ")
+        infer_options["img_in"] = os.path.join(json_like_dict["dataroot"], line[0])
+        infer_options["mask_in"] = os.path.join(json_like_dict["dataroot"], line[1])
+
     for (
         model,
         Gtype,
@@ -121,3 +134,19 @@ def test_semantic_mask_online(dataroot):
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
+
+        # Inference
+        infer_options_c = infer_options.copy()
+        infer_options_c["model_in_file"] = os.path.join(
+            json_like_dict_c["checkpoints_dir"],
+            json_like_dict_c["name"],
+            "latest_net_G_A.pth",
+        )
+        infer_options_c["img_out"] = os.path.join(
+            json_like_dict_c["checkpoints_dir"],
+            json_like_dict_c["name"],
+            "test_image.jpg",
+        )
+
+        opt = InferenceGANOptions().parse_json(infer_options_c, save_config=False)
+        inference(opt)

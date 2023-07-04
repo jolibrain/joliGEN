@@ -371,6 +371,10 @@ class BaseModel(ABC):
         """
         return parser
 
+    @staticmethod
+    def modify_commandline_options_train(parser):
+        return parser
+
     def set_input(self, data):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
         Parameters:

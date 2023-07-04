@@ -1,15 +1,21 @@
-from .base_options import BaseOptions
+import warnings
+import torch
+
+from .common_options import CommonOptions
 from util.util import MAX_INT
+from models.modules.classifiers import TORCH_MODEL_CLASSES
+import models
+import data
 
 
-class TrainOptions(BaseOptions):
+class TrainOptions(CommonOptions):
     """This class includes training options.
 
     It also includes shared options defined in BaseOptions.
     """
 
     def initialize(self, parser):
-        parser = BaseOptions.initialize(self, parser)
+        parser = super().initialize(parser)
 
         # visdom and HTML visualization parameters
         parser.add_argument(
@@ -631,3 +637,108 @@ class TrainOptions(BaseOptions):
 
         self.isTrain = True
         return parser
+
+    def gather_specific_options(self, opt, parser, args):
+        """
+        Add additional model-specific and dataset-specific options.
+        These options are defined in the <modify_commandline_options> function
+        in model and dataset classes.
+        """
+        parser = super().gather_specific_options(opt=opt, parser=parser, args=args)
+
+        # modify dataset-related parser options
+
+        return parser
+
+    def _after_parse(self, opt, set_device=True):
+        opt = super()._after_parse(opt=opt, set_device=set_device)
+
+        # process opt.suffix
+        if opt.suffix:
+            suffix = ("_" + opt.suffix.format(**vars(opt))) if opt.suffix != "" else ""
+            opt.name = opt.name + suffix
+
+        # multimodal check
+        if opt.model_multimodal:
+            if not "cut" in opt.model_type:
+                raise ValueError(
+                    "Multimodal models are only supported with cut-based models at this stage, use --model_type accordingly"
+                )
+            if "resnet" in opt.G_netG:
+                warnings.warn(
+                    "ResNet encoder/decoder architectures do not mix well with multimodal training, use segformer or unet instead"
+                )
+            netE_size = int(opt.G_netE[-3:])
+            if opt.data_crop_size != netE_size:
+                msg = (
+                    "latent multimodal decoder E has input size different than G output size: "
+                    + str(netE_size)
+                    + " vs "
+                    + str(opt.data_crop_size)
+                    + ", run may fail, use --G_netE accordingly"
+                )
+                warnings.warn(msg)
+
+        # bbox selection check
+        if opt.data_online_select_category != -1 and not opt.data_sanitize_paths:
+            raise ValueError(
+                "Bounding box class selection requires --data_sanitize_paths"
+            )
+
+        # vitclip16 projector only works with input size 224
+        if opt.D_proj_network_type == "vitclip16":
+            if opt.D_proj_interp != 224:
+                warnings.warn(
+                    "ViT-B/16 (vitclip16) projector only works with input size 224, setting D_proj_interp to 224"
+                )
+            opt.D_proj_interp = 224
+
+        elif "siglip" in opt.D_proj_network_type:
+            if "so400m" in opt.D_proj_network_type:
+                avail_sizes = [224, 384]
+            else:
+                avail_sizes = [224, 384, 512]
+
+            takeClosest = lambda num, collection: min(
+                collection, key=lambda x: abs(x - num)
+            )
+
+            if opt.D_proj_interp in avail_sizes:
+                img_project = opt.D_proj_interp
+            else:
+                takeClosest = lambda num, collection: min(
+                    collection, key=lambda x: abs(x - num)
+                )
+                img_project = takeClosest(opt.data_load_size, avail_sizes)
+                opt.D_proj_interp = img_project
+
+                warnings.warn(
+                    "SiGLIP projector only works with some input sizes, setting D_proj_interp to "
+                    + str(img_project)
+                )
+
+        # Dsam requires D_weight_sam
+        if "sam" in opt.D_netDs and opt.D_weight_sam == "":
+            raise ValueError(
+                "Dsam requires D_weight_sam, please specify a path to a pretrained sam model"
+            )
+
+        # diffusion D + vitsmall check
+        if opt.dataaug_D_diffusion and "vit" in opt.D_proj_network_type:
+            raise ValueError(
+                "ViT type projectors are not yet compatible with diffusion augmentation at discriminator level"
+            )
+
+        # sam with bbox prompting requires Pytorch 2
+        if torch.__version__[0] != "2":
+            if (
+                opt.f_s_net == "sam"
+                and opt.data_dataset_mode == "unaligned_labeled_mask_online"
+            ):
+                raise ValueError("SAM with masks and bbox prompting requires Pytorch 2")
+        if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
+            raise warning.warn("SAM with direct masks does not use mask/bbox prompting")
+
+        self.opt = opt
+
+        return self.opt

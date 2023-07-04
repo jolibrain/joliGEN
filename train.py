@@ -41,6 +41,7 @@ from models import create_model
 from util.parser import get_opt
 from util.visualizer import Visualizer
 from util.lion_pytorch import Lion
+from util.script import get_override_options_names
 
 
 def setup(rank, world_size, port):
@@ -414,6 +415,11 @@ def launch_training(opt):
         )
     else:
         train_gpu(0, world_size, opt, trainset, trainset_temporal)
+
+
+def compute_test_metrics(model, dataloader):
+
+    return metrics
 
 
 if __name__ == "__main__":

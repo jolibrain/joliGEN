@@ -3,6 +3,7 @@ import json
 import math
 import os
 import warnings
+from copy import deepcopy
 from argparse import _HelpAction, _StoreConstAction, _SubParsersAction
 from collections import defaultdict
 
@@ -10,8 +11,6 @@ import torch
 
 import data
 import models
-from models.modules.classifiers import TORCH_MODEL_CLASSES
-from models.modules.utils import download_mobile_sam_weight, download_sam_weight
 from util import util
 from util.util import MAX_INT, flatten_json, pairs_of_floats, pairs_of_ints
 
@@ -25,70 +24,13 @@ class BaseOptions:
     It also gathers additional options defined in <modify_commandline_options> functions in both dataset class and model class.
     """
 
-    opt_schema = {
-        "properties": {
-            "D": {"title": "Discriminator"},
-            "G": {"title": "Generator"},
-            "alg": {
-                "title": "Algorithm-specific",
-                "properties": {
-                    "gan": {"title": "GAN model"},
-                    "cut": {"title": "CUT model"},
-                    "cyclegan": {"title": "CycleGAN model"},
-                    "re": {"title": "ReCUT / ReCycleGAN"},
-                    "palette": {"title": "Diffusion model"},
-                },
-            },
-            "data": {
-                "title": "Datasets",
-                "properties": {"online_creation": {"title": "Online created datasets"}},
-            },
-            "f_s": {"title": "Semantic segmentation network"},
-            "cls": {"title": "Semantic classification network"},
-            "output": {
-                "title": "Output",
-                "properties": {"display": {"title": "Visdom display"}},
-            },
-            "model": {"title": "Model"},
-            "train": {
-                "title": "Training",
-                "properties": {
-                    "sem": {"title": "Semantic training"},
-                    "mask": {"title": "Semantic training with masks"},
-                },
-            },
-            "dataaug": {"title": "Data augmentation"},
-        }
-    }
-
-    # Options that should stay at the root of the schema
-    general_options = ["model_type"]
-
     def __init__(self):
         """Reset the class; indicates the class hasn't been initialized"""
         self.initialized = False
+        self.opt_schema = {}
+        self.general_options = []
 
     def initialize(self, parser):
-        """Define the common options that are used in both training and test."""
-        # basic parameters
-        parser.add_argument(
-            "--dataroot",
-            type=str,
-            required=True,
-            help="path to images (should have subfolders trainA, trainB, valA, valB, etc)",
-        )
-        parser.add_argument(
-            "--name",
-            type=str,
-            default="experiment_name",
-            help="name of the experiment. It decides where to store samples and models",
-        )
-        parser.add_argument(
-            "--suffix",
-            default="",
-            type=str,
-            help="customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}",
-        )
         parser.add_argument(
             "--gpu_ids",
             type=str,
@@ -124,1028 +66,74 @@ class BaseOptions:
             "--warning_mode", action="store_true", help="whether to display warning"
         )
 
-        # model parameters
-        parser.add_argument(
-            "--model_type",
-            type=str,
-            default="cut",
-            choices=["cut", "cycle_gan", "palette"],
-            help="chooses which model to use.",
-        )
-        parser.add_argument(
-            "--model_input_nc",
-            type=int,
-            default=3,
-            choices=[1, 3],
-            help="# of input image channels: 3 for RGB and 1 for grayscale",
-        )
-        parser.add_argument(
-            "--model_output_nc",
-            type=int,
-            default=3,
-            choices=[1, 3],
-            help="# of output image channels: 3 for RGB and 1 for grayscale",
-        )
-        parser.add_argument(
-            "--model_init_type",
-            type=str,
-            default="normal",
-            choices=["normal", "xavier", "kaiming", "orthogonal"],
-            help="network initialization",
-        )
-        parser.add_argument(
-            "--model_init_gain",
-            type=float,
-            default=0.02,
-            help="scaling factor for normal, xavier and orthogonal.",
-        )
-        parser.add_argument(
-            "--model_multimodal",
-            action="store_true",
-            help="multimodal model with random latent input vector",
-        )
-
-        # depth network
-        parser.add_argument(
-            "--model_depth_network",
-            type=str,
-            default="DPT_Large",
-            choices=[
-                "DPT_Large",
-                "DPT_Hybrid",  # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
-                "MiDaS_small",
-                "DPT_BEiT_L_512",
-                "DPT_BEiT_L_384",
-                "DPT_BEiT_B_384",
-                "DPT_SwinV2_L_384",
-                "DPT_SwinV2_B_384",
-                "DPT_SwinV2_T_256",
-                "DPT_Swin_L_384",
-                "DPT_Next_ViT_L_384",
-                "DPT_LeViT_224",
-            ],  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
-            help="specify depth prediction network architecture",
-        )
-
-        parser.add_argument(
-            "--D_weight_sam",
-            type=str,
-            default="",
-            help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
-        )
-
-        # generator
-        parser.add_argument(
-            "--G_ngf",
-            type=int,
-            default=64,
-            help="# of gen filters in the last conv layer",
-        )
-        parser.add_argument(
-            "--G_netG",
-            type=str,
-            default="mobile_resnet_attn",
-            choices=[
-                "resnet",
-                "resnet_attn",
-                "mobile_resnet",
-                "mobile_resnet_attn",
-                "unet_256",
-                "unet_128",
-                "segformer_attn_conv",
-                "segformer_conv",
-                "ittr",
-                "unet_mha",
-                "uvit",
-                "unet_mha_ref_attn",
-            ],
-            help="specify generator architecture",
-        )
-        parser.add_argument(
-            "--G_nblocks",
-            type=int,
-            default=9,
-            help="# of layer blocks in G, applicable to resnets",
-        )
-        parser.add_argument(
-            "--G_dropout", action="store_true", help="dropout for the generator"
-        )
-        parser.add_argument(
-            "--G_spectral",
-            action="store_true",
-            help="whether to use spectral norm in the generator",
-        )
-        parser.add_argument(
-            "--G_padding_type",
-            type=str,
-            choices=["reflect", "replicate", "zeros"],
-            help="whether to use padding in the generator",
-            default="reflect",
-        )
-        parser.add_argument(
-            "--G_norm",
-            type=str,
-            default="instance",
-            choices=["instance", "batch", "none"],
-            help="instance normalization or batch normalization for G",
-        )
-        parser.add_argument(
-            "--G_config_segformer",
-            type=str,
-            default="models/configs/segformer/segformer_config_b0.json",
-            help="path to segformer configuration file for G",
-        )
-        parser.add_argument(
-            "--G_attn_nb_mask_attn",
-            default=10,
-            type=int,
-            help="number of attention masks in _attn model architectures",
-        )
-
-        parser.add_argument(
-            "--G_attn_nb_mask_input",
-            default=1,
-            type=int,
-            help="number of mask dedicated to input in _attn model architectures",
-        )
-
-        parser.add_argument(
-            "--G_backward_compatibility_twice_resnet_blocks",
-            action="store_true",
-            help="if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way).",
-        )
-        parser.add_argument(
-            "--G_netE",
-            type=str,
-            default="resnet_256",
-            choices=[
-                "resnet_128",
-                "resnet_256",
-                "resnet_512",
-                "conv_128",
-                "conv_256",
-                "conv_512",
-            ],
-            help="specify multimodal latent vector encoder",
-        )
-
-        parser.add_argument(
-            "--G_unet_mha_num_head_channels",
-            default=32,
-            type=int,
-            help="number of channels in each head of the mha architecture",
-        )
-        parser.add_argument(
-            "--G_unet_mha_num_heads",
-            default=1,
-            type=int,
-            help="number of heads in the mha architecture",
-        )
-
-        parser.add_argument(
-            "--G_uvit_num_transformer_blocks",
-            default=6,
-            type=int,
-            help="Number of transformer blocks in UViT",
-        )
-
-        parser.add_argument(
-            "--G_diff_n_timestep_train",
-            type=int,
-            default=2000,
-            help="Number of timesteps used for UNET mha training.",
-        )
-
-        parser.add_argument(
-            "--G_diff_n_timestep_test",
-            type=int,
-            default=1000,
-            help="Number of timesteps used for UNET mha inference (test time).",
-        )
-
-        parser.add_argument(
-            "--G_unet_mha_res_blocks",
-            default=[2, 2, 2, 2],
-            nargs="*",
-            type=int,
-            help="distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults",
-        )
-
-        parser.add_argument(
-            "--G_unet_mha_channel_mults",
-            default=[1, 2, 4, 8],
-            nargs="*",
-            type=int,
-            help="channel multiplier for each level of the UNET mha",
-        )
-
-        parser.add_argument(
-            "--G_unet_mha_attn_res",
-            default=[16],
-            nargs="*",
-            type=int,
-            help="downrate samples at which attention takes place",
-        )
-
-        parser.add_argument(
-            "--G_unet_mha_norm_layer",
-            type=str,
-            choices=[
-                "groupnorm",
-                "batchnorm",
-                "layernorm",
-                "instancenorm",
-                "switchablenorm",
-            ],
-            default="groupnorm",
-        )
-
-        parser.add_argument(
-            "--G_unet_mha_group_norm_size",
-            type=int,
-            default=32,
-        )
-
-        parser.add_argument(
-            "--G_unet_mha_vit_efficient",
-            action="store_true",
-            help="if true, use efficient attention in UNet and UViT",
-        )
-
-        # discriminator
-        parser.add_argument(
-            "--D_ndf",
-            type=int,
-            default=64,
-            help="# of discrim filters in the first conv layer",
-        )
-        parser.add_argument(
-            "--D_netDs",
-            type=str,
-            default=["projected_d", "basic"],
-            choices=[
-                "basic",
-                "n_layers",
-                "pixel",
-                "projected_d",
-                "temporal",
-                "vision_aided",
-                "depth",
-                "mask",
-                "sam",
-            ]
-            + list(TORCH_MODEL_CLASSES.keys()),
-            help="specify discriminator architecture, another option, --D_n_layers allows you to specify the layers in the n_layers discriminator. NB: duplicated arguments are ignored. Values: basic, n_layers, pixel, projected_d, temporal, vision_aided, depth, mask, sam",
-            nargs="+",
-        )
-        parser.add_argument(
-            "--D_vision_aided_backbones",
-            type=str,
-            default="clip+dino+swin",
-            help="specify vision aided discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with +",
-        )
-        parser.add_argument(
-            "--D_n_layers", type=int, default=3, help="only used if netD==n_layers"
-        )
-        parser.add_argument(
-            "--D_norm",
-            type=str,
-            default="instance",
-            choices=["instance", "batch", "none"],
-            help="instance normalization or batch normalization for D",
-        )
-        parser.add_argument(
-            "--D_dropout",
-            action="store_true",
-            help="whether to use dropout in the discriminator",
-        )
-        parser.add_argument(
-            "--D_spectral",
-            action="store_true",
-            help="whether to use spectral norm in the discriminator",
-        )
-        parser.add_argument(
-            "--D_proj_interp",
-            type=int,
-            default=-1,
-            help="whether to force projected discriminator interpolation to a value > 224, -1 means no interpolation",
-        )
-        parser.add_argument(
-            "--D_proj_network_type",
-            type=str,
-            default="efficientnet",
-            choices=[
-                "efficientnet",
-                "segformer",
-                "vitbase",
-                "vitsmall",
-                "vitsmall2",
-                "vitclip16",
-                "vitclip14",
-                "depth",
-                "dinov2_vits14",
-                "dinov2_vitb14",
-                "dinov2_vitl14",
-                "dinov2_vitg14",
-                "dinov2_vits14_reg",
-                "dinov2_vitb14_reg",
-                "dinov2_vitl14_reg",
-                "dinov2_vitg14_reg",
-                "siglip_vitb16",
-                "siglip_vitl16",
-                "siglip_vit_so400m",
-            ],
-            help="projected discriminator architecture",
-        )
-        parser.add_argument(
-            "--D_no_antialias",
-            action="store_true",
-            help="if specified, use stride=2 convs instead of antialiased-downsampling (sad)",
-        )
-        parser.add_argument(
-            "--D_no_antialias_up",
-            action="store_true",
-            help="if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv]",
-        )
-        parser.add_argument(
-            "--D_proj_config_segformer",
-            type=str,
-            default="models/configs/segformer/segformer_config_b0.json",
-            help="path to segformer configuration file",
-        )
-        parser.add_argument(
-            "--D_proj_weight_segformer",
-            type=str,
-            default="models/configs/segformer/pretrain/segformer_mit-b0.pth",
-            help="path to segformer weight",
-        )
-
-        parser.add_argument(
-            "--D_temporal_every",
-            type=int,
-            default=4,
-            help="apply temporal discriminator every x steps",
-        )
-
-        # mask semantic network : f_s
-        parser.add_argument(
-            "--f_s_net",
-            type=str,
-            default="vgg",
-            choices=["vgg", "unet", "segformer", "sam"],
-            help="specify f_s network [vgg|unet|segformer|sam]",
-        )
-        parser.add_argument(
-            "--f_s_dropout",
-            action="store_true",
-            help="dropout for the semantic network",
-        )
-        parser.add_argument(
-            "--f_s_semantic_nclasses",
-            default=2,
-            type=int,
-            help="number of classes of the semantic loss classifier",
-        )
-        parser.add_argument(
-            "--f_s_class_weights",
-            default=[],
-            nargs="*",
-            type=int,
-            help="class weights for imbalanced semantic classes",
-        )
-        parser.add_argument(
-            "--f_s_semantic_threshold",
-            default=1.0,
-            type=float,
-            help="threshold of the semantic classifier loss below with semantic loss is applied",
-        )
-        parser.add_argument(
-            "--f_s_all_classes_as_one",
-            action="store_true",
-            help="if true, all classes will be considered as the same one (ie foreground vs background)",
-        )
-        parser.add_argument(
-            "--f_s_nf",
-            type=int,
-            default=64,
-            help="# of filters in the first conv layer of classifier",
-        )
-        parser.add_argument(
-            "--f_s_config_segformer",
-            type=str,
-            default="models/configs/segformer/segformer_config_b0.json",
-            help="path to segformer configuration file for f_s",
-        )
-        parser.add_argument(
-            "--f_s_weight_segformer",
-            type=str,
-            default="",
-            help="path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
-        )
-        parser.add_argument(
-            "--f_s_weight_sam",
-            type=str,
-            default="",
-            help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
-        )
-
-        parser.add_argument(
-            "--cls_net",
-            type=str,
-            default="vgg",
-            choices=["vgg", "unet", "segformer"],
-            help="specify cls network [vgg|unet|segformer]",
-        )
-        parser.add_argument(
-            "--cls_dropout",
-            action="store_true",
-            help="dropout for the semantic network",
-        )
-        parser.add_argument(
-            "--cls_semantic_nclasses",
-            default=2,
-            type=int,
-            help="number of classes of the semantic loss classifier",
-        )
-        parser.add_argument(
-            "--cls_class_weights",
-            default=[],
-            nargs="*",
-            type=int,
-            help="class weights for imbalanced semantic classes",
-        )
-        parser.add_argument(
-            "--cls_semantic_threshold",
-            default=1.0,
-            type=float,
-            help="threshold of the semantic classifier loss below with semantic loss is applied",
-        )
-        parser.add_argument(
-            "--cls_all_classes_as_one",
-            action="store_true",
-            help="if true, all classes will be considered as the same one (ie foreground vs background)",
-        )
-        parser.add_argument(
-            "--cls_nf",
-            type=int,
-            default=64,
-            help="# of filters in the first conv layer of classifier",
-        )
-        parser.add_argument(
-            "--cls_config_segformer",
-            type=str,
-            default="models/configs/segformer/segformer_config_b0.json",
-            help="path to segformer configuration file for cls",
-        )
-        parser.add_argument(
-            "--cls_weight_segformer",
-            type=str,
-            default="",
-            help="path to segformer weight for cls, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth",
-        )
-
-        # dataset parameters
-        parser.add_argument(
-            "--data_dataset_mode",
-            type=str,
-            default="unaligned",
-            choices=[
-                "unaligned",
-                "unaligned_labeled_cls",
-                "unaligned_labeled_mask",
-                "self_supervised_labeled_mask",
-                "unaligned_labeled_mask_cls",
-                "self_supervised_labeled_mask_cls",
-                "unaligned_labeled_mask_online",
-                "self_supervised_labeled_mask_online",
-                "unaligned_labeled_mask_cls_online",
-                "self_supervised_labeled_mask_cls_online",
-                "aligned",
-                "nuplet_unaligned_labeled_mask",
-                "temporal_labeled_mask_online",
-                "self_supervised_temporal",
-                "single",
-                "unaligned_labeled_mask_ref",
-                "self_supervised_labeled_mask_ref",
-                "unaligned_labeled_mask_online_ref",
-                "self_supervised_labeled_mask_online_ref",
-            ],
-            help="chooses how datasets are loaded.",
-        )
-        parser.add_argument(
-            "--data_direction",
-            type=str,
-            default="AtoB",
-            choices=["AtoB", "BtoA"],
-            help="AtoB or BtoA",
-        )
-        parser.add_argument(
-            "--data_serial_batches",
-            action="store_true",
-            help="if true, takes images in order to make batches, otherwise takes them randomly",
-        )
-        parser.add_argument(
-            "--data_num_threads", default=4, type=int, help="# threads for loading data"
-        )
-
-        parser.add_argument(
-            "--data_load_size", type=int, default=286, help="scale images to this size"
-        )
-        parser.add_argument(
-            "--data_crop_size", type=int, default=256, help="then crop to this size"
-        )
-        parser.add_argument(
-            "--data_max_dataset_size",
-            type=int,
-            default=MAX_INT,
-            help="Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.",
-        )
-        parser.add_argument(
-            "--data_preprocess",
-            type=str,
-            default="resize_and_crop",
-            choices=[
-                "resize_and_crop",
-                "crop",
-                "scale_width",
-                "scale_width_and_crop",
-                "none",
-            ],
-            help="scaling and cropping of images at load time",
-        )
-
-        parser.add_argument(
-            "--data_refined_mask",
-            action="store_true",
-            help="whether to use refined mask with sam",
-        )
-
-        parser.add_argument(
-            "--model_type_sam",
-            type=str,
-            default="mobile_sam",
-            choices=["sam", "mobile_sam"],
-            help="which model to use for segment-anything mask generation",
-        )
-
-        # Online dataset creation options
-        parser.add_argument(
-            "--data_online_select_category",
-            default=-1,
-            type=int,
-            help="category to select for bounding boxes, -1 means all boxes selected",
-        )
-        parser.add_argument(
-            "--data_online_single_bbox",
-            action="store_true",
-            help="whether to only allow a single bbox per online crop",
-        )
-        parser.add_argument(
-            "--data_online_creation_load_size_A",
-            default=[],
-            nargs="*",
-            type=int,
-            help="load to this size during online creation, format : width height or only one size if square",
-        )
-        parser.add_argument(
-            "--data_online_creation_crop_size_A",
-            type=int,
-            default=512,
-            help="crop to this size during online creation, it needs to be greater than bbox size for domain A",
-        )
-        parser.add_argument(
-            "--data_online_creation_crop_delta_A",
-            type=int,
-            default=50,
-            help="size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain A",
-        )
-        parser.add_argument(
-            "--data_online_creation_mask_delta_A",
-            default=[[]],
-            type=pairs_of_ints,
-            nargs="+",
-            help="mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes",
-        )
-
-        parser.add_argument(
-            "--data_online_creation_mask_delta_A_ratio",
-            default=[[]],
-            type=pairs_of_floats,
-            nargs="+",
-            help="ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square",
-        )
-
-        parser.add_argument(
-            "--data_online_creation_mask_random_offset_A",
-            type=float,
-            default=[0.0],
-            nargs="*",
-            help="ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square",
-        )
-
-        parser.add_argument(
-            "--data_online_creation_mask_square_A",
-            action="store_true",
-            help="whether masks should be squared for domain A",
-        )
-        parser.add_argument(
-            "--data_online_creation_rand_mask_A",
-            action="store_true",
-            help="Perform task of replacing noised masks by objects",
-        )
-        parser.add_argument(
-            "--data_online_creation_color_mask_A",
-            action="store_true",
-            help="Perform task of replacing color-filled masks by objects",
-        )
-
-        parser.add_argument(
-            "--data_online_creation_load_size_B",
-            default=[],
-            nargs="*",
-            type=int,
-            help="load to this size during online creation, format : width height or only one size if square",
-        )
-
-        parser.add_argument(
-            "--data_online_creation_crop_size_B",
-            type=int,
-            default=512,
-            help="crop to this size during online creation, it needs to be greater than bbox size for domain B",
-        )
-        parser.add_argument(
-            "--data_online_creation_crop_delta_B",
-            type=int,
-            default=50,
-            help="size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain B",
-        )
-        parser.add_argument(
-            "--data_online_creation_mask_delta_B",
-            default=[[]],
-            type=pairs_of_ints,
-            nargs="+",
-            help="mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes",
-        )
-
-        parser.add_argument(
-            "--data_online_creation_mask_delta_B_ratio",
-            default=[[]],
-            type=pairs_of_floats,
-            nargs="+",
-            help="ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square",
-        )
-
-        parser.add_argument(
-            "--data_online_creation_mask_random_offset_B",
-            type=float,
-            default=[0.0],
-            nargs="*",
-            help="mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square",
-        )
-
-        parser.add_argument(
-            "--data_online_creation_mask_square_B",
-            action="store_true",
-            help="whether masks should be squared for domain B",
-        )
-        parser.add_argument(
-            "--data_online_context_pixels",
-            type=int,
-            default=0,
-            help="context pixel band around the crop, unused for generation, only for disc ",
-        )
-
-        parser.add_argument(
-            "--data_online_fixed_mask_size",
-            type=int,
-            default=-1,
-            help="if >0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing) ",
-        )
-
-        # data temporal options
-        parser.add_argument(
-            "--data_temporal_number_frames",
-            type=int,
-            default=5,
-            help="how many successive frames use for temporal loader",
-        )
-
-        parser.add_argument(
-            "--data_temporal_frame_step",
-            type=int,
-            default=30,
-            help="how many frames between successive frames selected",
-        )
-
-        parser.add_argument(
-            "--data_temporal_num_common_char",
-            type=int,
-            default=-1,
-            help="how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used ",
-        )
-
-        # other data options
-        parser.add_argument(
-            "--data_inverted_mask",
-            action="store_true",
-            help="whether to invert the mask, i.e. around the bbox",
-        )
-
-        parser.add_argument(
-            "--data_sanitize_paths",
-            action="store_true",
-            help="if true, wrong images or labels paths will be removed before training",
-        )
-
-        parser.add_argument(
-            "--data_relative_paths",
-            action="store_true",
-            help="whether paths to images are relative to dataroot",
-        )
-
         self.initialized = True
         return parser
 
-    def gather_options(self, args=None):
-        """Initialize our parser with basic options(only once).
+    def gather_options(self, args=None, json_args=None):
+        """Initialize our parser with options (only once).
+
+        Parameters:
+            args command line arguments, if None, using sys.argv
+            json_args json containing arguments. If not None, using json_args in
+            place of args.
+        """
+        if not hasattr(self, "isTrain"):
+            self.isTrain = False
+
+        if not self.initialized:  # check if it has been initialized
+            parser = argparse.ArgumentParser(
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                add_help=False,
+            )
+            # set_custom_help(parser)
+            parser = self.initialize(parser)
+
+        flat_json = None
+        if json_args is not None:
+            flat_json = flatten_json(json_args)
+
+        # get the basic options
+        opt = self._parse_args(parser, None, args, flat_json)
+
+        # get specific options
+        opt, parser = self._gather_specific_options(opt, parser, args, flat_json)
+
+        # save and return the parser
+        self.parser = parser
+        return opt
+
+    def _gather_specific_options(self, opt, parser, args, flat_json):
+        """
         Add additional model-specific and dataset-specific options.
         These options are defined in the <modify_commandline_options> function
         in model and dataset classes.
         """
-        if not self.initialized:  # check if it has been initialized
-            parser = argparse.ArgumentParser(
-                formatter_class=argparse.ArgumentDefaultsHelpFormatter
-            )
-            parser = self.initialize(parser)
+        return opt, parser
 
-        # get the basic options
-        opt, _ = parser.parse_known_args(args)
-
-        # modify model-related parser options
-        model_name = opt.model_type
-        model_option_setter = models.get_option_setter(model_name)
-        parser = model_option_setter(parser, self.isTrain)
-        opt, _ = parser.parse_known_args(args)  # parse again with new defaults
-
-        # modify dataset-related parser options
-        dataset_name = opt.data_dataset_mode
-        dataset_option_setter = data.get_option_setter(dataset_name)
-        parser = dataset_option_setter(parser, self.isTrain)
-
-        # save and return the parser
-        self.parser = parser
-        return parser.parse_args(args)
-
-    def print_options(self, opt):
-        """Print and save options
-
-        It will print both current options and default values(if different).
-        It will save options into a text file / [checkpoints_dir] / opt.txt
+    def _parse_args(self, parser, opt, args, flat_json, only_known=True):
         """
-        message = ""
-        message += "----------------- Options ---------------\n"
-        for k, v in sorted(vars(opt).items()):
-            comment = ""
-            default = self.parser.get_default(k)
-            if v != default:
-                comment = "\t[default: %s]" % str(default)
-            message += "{:>25}: {:<30}{}\n".format(str(k), str(v), comment)
-        message += "----------------- End -------------------"
-        print(message)
-
-        # save to the disk
-        expr_dir = os.path.join(opt.checkpoints_dir, opt.name)
-        util.mkdirs(expr_dir)
-        file_name = os.path.join(expr_dir, "{}_opt.txt".format(opt.phase))
-        with open(file_name, "wt") as opt_file:
-            opt_file.write(message)
-            opt_file.write("\n")
-
-    def _split_key(self, key, schema):
+        Parameters:
+            args Command line arguments as an array of strings, or None
+            flat_json If not None, arguments will be parsed from flattened json
         """
-        Converts argparse option key to json path
-        (ex: data_online_creation_crop_delta_A will be converted to
-        ("data", "online_creation", "delta_A")
-        """
-        # General options are always in the root of the json
-        if key in self.general_options:
-            return (key,)
+        if flat_json is not None:
+            if opt is None:
+                opt = argparse.Namespace()
+            self._json_parse_known_args(parser, opt, flat_json)
 
-        if "properties" in schema:
-            for prop in schema["properties"]:
-                if key.startswith(prop + "_"):
-                    nested_keys = self._split_key(
-                        key[len(prop) + 1 :], schema["properties"][prop]
-                    )
-                    return (prop, *nested_keys)
-        return (key,)
-
-    def to_json(self, ignore_default=False):
-        """
-        Converts an argparse namespace to a json-like dict containing the same arguments.
-        This dict can be used to re-run with the same arguments from the API
-
-        Parameters
-            ignore_default Add only non-default options to json
-        """
-
-        def schema_to_json(schema):
-            json_args = {}
-            if "properties" in schema:
-                for key in schema["properties"]:
-                    json_args[key] = schema_to_json(schema["properties"][key])
-            return json_args
-
-        json_args = schema_to_json(self.opt_schema)
-
-        for k, v in sorted(vars(self.opt).items()):
-            default = self.parser.get_default(k)
-
-            if v != default or not ignore_default:
-                path = self._split_key(k, self.opt_schema)
-                parent = json_args
-                for cat in path[:-1]:
-                    parent = parent[cat]
-                parent[path[-1]] = v
-
-        return dict(json_args)
-
-    def _after_parse(self, opt, set_device=True):
-        if hasattr(self, "isTrain"):
-            opt.isTrain = self.isTrain  # train or test
+            if not only_known:
+                if len(flat_json) != 0:
+                    # raise ValueError("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
+                    print(
+                        "%d remaining keys in json args: %s"
+                        % (len(flat_json), ",".join(flat_json.keys()))
+                    )  # it's not an error anymore because server launching is done with all of the options even those from other models, raising an error will lead to a server crash
         else:
-            opt.isTrain = False
-            self.isTrain = False
-
-        # process opt.suffix
-        if opt.suffix:
-            suffix = ("_" + opt.suffix.format(**vars(opt))) if opt.suffix != "" else ""
-            opt.name = opt.name + suffix
-
-        # set gpu ids
-        str_ids = opt.gpu_ids.split(",")
-        opt.gpu_ids = []
-        for str_id in str_ids:
-            id = int(str_id)
-            if id >= 0:
-                opt.gpu_ids.append(id)
-        if set_device and len(opt.gpu_ids) > 0 and torch.cuda.is_available():
-            torch.cuda.set_device(opt.gpu_ids[0])
-
-        # multimodal check
-        if opt.model_multimodal:
-            if not "cut" in opt.model_type:
-                raise ValueError(
-                    "Multimodal models are only supported with cut-based models at this stage, use --model_type accordingly"
-                )
-            if "resnet" in opt.G_netG:
-                warnings.warn(
-                    "ResNet encoder/decoder architectures do not mix well with multimodal training, use segformer or unet instead"
-                )
-            netE_size = int(opt.G_netE[-3:])
-            if opt.data_crop_size != netE_size:
-                msg = (
-                    "latent multimodal decoder E has input size different than G output size: "
-                    + str(netE_size)
-                    + " vs "
-                    + str(opt.data_crop_size)
-                    + ", run may fail, use --G_netE accordingly"
-                )
-                warnings.warn(msg)
-
-        # bbox selection check
-        if opt.data_online_select_category != -1 and not opt.data_sanitize_paths:
-            raise ValueError(
-                "Bounding box class selection requires --data_sanitize_paths"
-            )
-
-        # vitclip16 projector only works with input size 224
-        if opt.D_proj_network_type == "vitclip16":
-            if opt.D_proj_interp != 224:
-                warnings.warn(
-                    "ViT-B/16 (vitclip16) projector only works with input size 224, setting D_proj_interp to 224"
-                )
-            opt.D_proj_interp = 224
-
-        elif "siglip" in opt.D_proj_network_type:
-            if "so400m" in opt.D_proj_network_type:
-                avail_sizes = [224, 384]
+            if only_known:
+                opt, _ = parser.parse_known_args(args)
             else:
-                avail_sizes = [224, 384, 512]
-
-            takeClosest = lambda num, collection: min(
-                collection, key=lambda x: abs(x - num)
-            )
-
-            if opt.D_proj_interp in avail_sizes:
-                img_project = opt.D_proj_interp
-            else:
-                takeClosest = lambda num, collection: min(
-                    collection, key=lambda x: abs(x - num)
-                )
-                img_project = takeClosest(opt.data_load_size, avail_sizes)
-                opt.D_proj_interp = img_project
-
-                warnings.warn(
-                    "SiGLIP projector only works with some input sizes, setting D_proj_interp to "
-                    + str(img_project)
-                )
-
-        # Dsam requires D_weight_sam
-        if "sam" in opt.D_netDs:
-            if opt.D_weight_sam == "":
-                raise ValueError(
-                    "Dsam requires D_weight_sam, please specify a path to a pretrained SAM or MobileSAM model"
-                )
-            download_sam_weight(opt.D_weight_sam)
-
-        # diffusion D + vitsmall check
-        if opt.dataaug_D_diffusion and "vit" in opt.D_proj_network_type:
-            raise ValueError(
-                "ViT type projectors are not yet compatible with diffusion augmentation at discriminator level"
-            )
-
-        # sam with bbox prompting requires Pytorch 2
-        if torch.__version__[0] != "2":
-            if (
-                opt.f_s_net == "sam"
-                and opt.data_dataset_mode == "unaligned_labeled_mask_online"
-            ):
-                raise ValueError("SAM with masks and bbox prompting requires Pytorch 2")
-        if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
-            warnings.warn("SAM with direct masks does not use mask/bbox prompting")
-
-        # mask delta check
-        if opt.data_online_creation_mask_delta_A == [[]]:
-            pass
-        else:
-            if (
-                len(opt.data_online_creation_mask_delta_A)
-                < opt.f_s_semantic_nclasses - 1
-            ):
-                if len(opt.data_online_creation_mask_delta_A) == 1:
-                    warnings.warn(
-                        "Mask delta A list should be of length f_s_semantic_nclasses, distributing single value across all classes"
-                    )
-                opt.data_online_creation_mask_delta_A = (
-                    opt.data_online_creation_mask_delta_A
-                    * (opt.f_s_semantic_nclasses - 1)
-                )
-            elif len(opt.data_online_creation_mask_delta_A) > 1:
-                raise ValueError(
-                    "Mask delta A list must be of length f_s_semantic_nclasses"
-                )
-
-        if opt.data_online_creation_mask_delta_B == [[]]:
-            pass
-        else:
-            if (
-                len(opt.data_online_creation_mask_delta_B)
-                < opt.f_s_semantic_nclasses - 1
-            ):
-                if len(opt.data_online_creation_mask_delta_B) == 1:
-                    warnings.warn(
-                        "Mask delta B list should be of length f_s_semantic_nclasses, distributing single value across all classes"
-                    )
-                opt.data_online_creation_mask_delta_B = (
-                    opt.data_online_creation_mask_delta_B
-                    * (opt.f_s_semantic_nclasses - 1)
-                )
-            elif len(opt.data_online_creation_mask_delta_B) > 1:
-                raise ValueError(
-                    "Mask delta B list must be of length f_s_semantic_nclasses"
-                )
-
-        # training is frequency space only available for a few architectures atm
-        if opt.train_feat_wavelet:
-            if not opt.G_netG in ["mobile_resnet_attn", "unet_mha", "uvit"]:
-                raise ValueError(
-                    "Wavelet training is only available for mobile_resnet_attn, unet_mha and uvit architectures"
-                )
-
-        # register options
-        self.opt = opt
-
-        return self.opt
-
-    def save_options(self):
-        self.print_options(self.opt)
-        with open(
-            os.path.join(self.opt.checkpoints_dir, self.opt.name, TRAIN_JSON_FILENAME),
-            "w+",
-        ) as outfile:
-            json.dump(self.to_json(), outfile, indent=4)
-
-    def parse(self):
-        """Parse our options, create checkpoints directory suffix, and set up gpu device."""
-        self.opt = self.gather_options()
-        self.save_options()
-        opt = self._after_parse(self.opt)
+                opt = parser.parse_args(args)
         return opt
-
-    def parse_to_json(self, args=None):
-        self.opt = self.gather_options(args)
-        return self.to_json()
 
     def _json_parse_known_args(self, parser, opt, json_args):
         """
@@ -1215,11 +203,131 @@ class BaseOptions:
 
                 setattr(opt, action.dest, val)
 
+    def print_options(self, opt):
+        """Print and save options
+
+        It will print both current options and default values(if different).
+        It will save options into a text file / [checkpoints_dir] / opt.txt
+        """
+        message = ""
+        message += "----------------- Options ---------------\n"
+        for k, v in sorted(vars(opt).items()):
+            comment = ""
+            default = self.parser.get_default(k)
+            if v != default:
+                comment = "\t[default: %s]" % str(default)
+            message += "{:>25}: {:<30}{}\n".format(str(k), str(v), comment)
+        message += "----------------- End -------------------"
+        print(message)
+
+        # save to the disk
+        expr_dir = os.path.join(opt.checkpoints_dir, opt.name)
+        util.mkdirs(expr_dir)
+        file_name = os.path.join(expr_dir, "{}_opt.txt".format(opt.phase))
+        with open(file_name, "wt") as opt_file:
+            opt_file.write(message)
+            opt_file.write("\n")
+
+    def _split_key(self, key, schema):
+        """
+        Converts argparse option key to json path
+        (ex: data_online_creation_crop_delta_A will be converted to
+        ("data", "online_creation", "delta_A")
+        """
+        # General options are always in the root of the json
+        if key in self.general_options:
+            return (key,)
+
+        if "properties" in schema:
+            for prop in schema["properties"]:
+                if key.startswith(prop + "_"):
+                    nested_keys = self._split_key(
+                        key[len(prop) + 1 :], schema["properties"][prop]
+                    )
+                    return (prop, *nested_keys)
+        return (key,)
+
+    def to_json(self, ignore_default=False):
+        """
+        Converts an argparse namespace to a json-like dict containing the same arguments.
+        This dict can be used to re-run with the same arguments from the API
+
+        Parameters
+            ignore_default Add only non-default options to json
+        """
+
+        def order_like_schema(json_args, schema):
+            """
+            Put keys in the same order as templated schema.
+            It makes browsing the json easier and has an impact on documentation organization
+            """
+            if "properties" in schema:
+                for key in schema["properties"]:
+                    if key in json_args:
+                        new_entry = order_like_schema(
+                            json_args[key], schema["properties"][key]
+                        )
+                        # readd = reorder
+                        del json_args[key]
+                        json_args[key] = new_entry
+            return json_args
+
+        json_args = {}
+
+        for k, v in sorted(vars(self.opt).items()):
+            default = self.parser.get_default(k)
+
+            if v != default or not ignore_default:
+                path = self._split_key(k, self.opt_schema)
+                parent = json_args
+                for cat in path[:-1]:
+                    if cat not in parent:
+                        parent[cat] = {}
+                    parent = parent[cat]
+
+                parent[path[-1]] = v
+
+        json_args = order_like_schema(json_args, self.opt_schema)
+        return dict(json_args)
+
+    def _after_parse(self, opt, set_device=True):
+        if hasattr(self, "isTrain"):
+            opt.isTrain = self.isTrain  # train or test
+        else:
+            opt.isTrain = False
+            self.isTrain = False
+
+        # set gpu ids
+        str_ids = opt.gpu_ids.split(",")
+        opt.gpu_ids = []
+        for str_id in str_ids:
+            id = int(str_id)
+            if id >= 0:
+                opt.gpu_ids.append(id)
+        if set_device and len(opt.gpu_ids) > 0 and torch.cuda.is_available():
+            torch.cuda.set_device(opt.gpu_ids[0])
+
+        # register options
+        self.opt = opt
+
+        return self.opt
+
+    def parse(self):
+        """Parse our options, create checkpoints directory suffix, and set up gpu device."""
+        self.opt = self.gather_options()
+        self.save_options()
+        opt = self._after_parse(self.opt)
+        return opt
+
+    def parse_to_json(self, args=None):
+        self.opt = self.gather_options(args)
+        return self.to_json()
+
     def parse_json(self, json_args, save_config=False, set_device=True):
         """
         Parse a json-like dict using the joliGEN argument parser.
 
-        JSON structure is
+        JSON structure can be flattened like this:
 
         ```
         {
@@ -1229,42 +337,41 @@ class BaseOptions:
             ...
         }
         ```
+        or it can use categories:
+        ```
+        {
+            "base": {
+                "option1": ...,
+                "option2": ...,
+            },
+            {
+                "cut": ...
+            },
+            ...
+        }
+        ```
         """
-
-        if not hasattr(self, "isTrain"):
-            self.isTrain = False
-
-        if not self.initialized:  # check if it has been initialized
-            parser = argparse.ArgumentParser(
-                formatter_class=argparse.ArgumentDefaultsHelpFormatter
-            )
-            parser = self.initialize(parser)
-
-        flat_json = flatten_json(json_args)
-
-        opt = argparse.Namespace()
-        self._json_parse_known_args(parser, opt, flat_json)
-
-        model_name = opt.model_type
-        model_option_setter = models.get_option_setter(model_name)
-        parser = model_option_setter(parser, self.isTrain)
-        self._json_parse_known_args(parser, opt, flat_json)
-        self.parser = parser
-
-        if len(flat_json) != 0:
-            # raise ValueError("%d remaining keys in json args: %s" % (len(json_args), ",".join(json_args.keys())))
-            print(
-                "%d remaining keys in json args: %s"
-                % (len(flat_json), ",".join(flat_json.keys()))
-            )  # it's not an error anymore because server launching is done with all of the options even those from other models, raising an error will lead to a server crash
+        opt = self.gather_options(json_args=json_args)
 
         if save_config:
             self.opt = opt
             self.save_options()
-
         return self._after_parse(opt, set_device)
 
-    def get_schema(self, allow_nan=False):
+    # TODO only works with common options, not with inference options
+    def save_options(self):
+        self.print_options(self.opt)
+        with open(
+            os.path.join(self.opt.checkpoints_dir, self.opt.name, TRAIN_JSON_FILENAME),
+            "w+",
+        ) as outfile:
+            json.dump(self.to_json(), outfile, indent=4)
+
+    def get_schema(self, allow_nan=False, model_names=None):
+        """
+        Generate a pydantic schema of the options. This schema will be used
+        in server documentation and input validation from the server.
+        """
         if not self.initialized:
             parser = argparse.ArgumentParser(
                 formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -1275,12 +382,15 @@ class BaseOptions:
         self._json_parse_known_args(parser, opt, {})
 
         named_parsers = {"": parser}
-        for model_name in models.get_models_names():
+        if model_names is None:
+            model_names = models.get_models_names()
+
+        for model_name in model_names:
             if self.isTrain and model_name in ["test", "template"]:
                 continue
-            setter = models.get_option_setter(model_name)
+            model_setter = models.get_option_setter(model_name)
             model_parser = argparse.ArgumentParser()
-            setter(model_parser)
+            model_setter(model_parser)
             self._json_parse_known_args(model_parser, opt, {})
             named_parsers[model_name] = model_parser
 
@@ -1290,19 +400,13 @@ class BaseOptions:
 
         from pydantic import create_model
 
-        def replace_item(obj, existing_value, replace_value, allow_nan):
-            for k, v in obj.items():
-                if isinstance(v, dict):
-                    obj[k] = replace_item(v, existing_value, replace_value, allow_nan)
-                if v == existing_value:
-                    obj[k] = replace_value
-                if not allow_nan:
-                    if type(obj[k]) == float and math.isnan(obj[k]):
-                        obj[k] = 0
-            return obj
-
         def json_to_schema(name, json_vals, schema_tmplate):
-            replace_item(json_vals, None, "None", allow_nan=allow_nan)
+            for k in json_vals:
+                if json_vals[k] is None:
+                    json_vals[k] = "None"
+                if not allow_nan:
+                    if type(json_vals[k]) == float and math.isnan(json_vals[k]):
+                        json_vals[k] = 0
 
             schema = create_model(name, **json_vals).schema()
 
@@ -1344,9 +448,13 @@ class BaseOptions:
 
                         if action.nargs == "+":
                             field["items"]["enum"] = action.choices
+                            cur_type = None
                             if isinstance(action.default[0], str):
                                 cur_type = "string"
-                            field["items"]["type"] = cur_type
+                            elif isinstance(action.default[0], list):
+                                cur_type = "list"
+                            if cur_type is not None:
+                                field["items"]["type"] = cur_type
 
                         elif action.choices:
                             field["enum"] = action.choices
