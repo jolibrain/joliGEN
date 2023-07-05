@@ -384,7 +384,7 @@ class BaseOptions:
                 "sam",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
-            help="specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored.",
+            help="specify discriminator architecture, another option, --D_n_layers allows you to specify the layers in the n_layers discriminator. NB: duplicated arguments are ignored. Values: basic, n_layers, pixel, projected_d, temporal, vision_aided, depth, mask, sam",
             nargs="+",
         )
         parser.add_argument(
