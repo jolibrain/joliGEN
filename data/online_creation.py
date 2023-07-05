@@ -38,6 +38,8 @@ def crop_image(
     try:
         img = Image.open(img_path).convert("RGB")
         if load_size != []:
+            if len(load_size) == 1:
+                load_size.extend(load_size)
             old_size = img.size
             img = F.resize(img, load_size)
             new_size = img.size
@@ -283,16 +285,19 @@ def crop_image(
             else:
                 x_padding = 0
 
+            x_padding = math.ceil(x_padding / 2)
+            y_padding = math.ceil(y_padding / 2)
+
             img = np.pad(
                 img,
-                ((y_padding, x_padding), (y_padding, x_padding), (0, 0)),
+                ((y_padding, y_padding), (x_padding, x_padding), (0, 0)),
                 "constant",
                 constant_values=0,
             )
 
             mask = np.pad(
                 mask,
-                ((y_padding, x_padding), (y_padding, x_padding)),
+                ((y_padding, y_padding), (x_padding, x_padding)),
                 "constant",
                 constant_values=0,
             )
