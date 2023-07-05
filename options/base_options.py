@@ -687,15 +687,15 @@ class BaseOptions:
         )
         parser.add_argument(
             "--data_online_creation_mask_delta_A",
-            default=[[0]],
+            default=[[]],
             type=pairs_of_ints,
             nargs="+",
-            help="mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square",
+            help="mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes",
         )
 
         parser.add_argument(
             "--data_online_creation_mask_delta_A_ratio",
-            default=[[0.0]],
+            default=[[]],
             type=pairs_of_floats,
             nargs="+",
             help="ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square",
@@ -747,18 +747,18 @@ class BaseOptions:
         )
         parser.add_argument(
             "--data_online_creation_mask_delta_B",
-            default=[[0]],
+            default=[[]],
             type=pairs_of_ints,
             nargs="+",
-            help="mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : width (y),height (x) for each class or only one size if square",
+            help="mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes",
         )
 
         parser.add_argument(
             "--data_online_creation_mask_delta_B_ratio",
-            default=[[0.0]],
+            default=[[]],
             type=pairs_of_floats,
             nargs="+",
-            help="ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : width (x),height (y) for each class or only one size if square",
+            help="ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square",
         )
 
         parser.add_argument(
@@ -1015,6 +1015,52 @@ class BaseOptions:
         if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
             raise warning.warn("SAM with direct masks does not use mask/bbox prompting")
 
+        # mask delta check
+        if opt.data_online_creation_mask_delta_A == None:
+            pass
+        else:
+            if (
+                len(opt.data_online_creation_mask_delta_A) > 1
+                and len(opt.data_online_creation_mask_delta_A)
+                < opt.f_s_semantic_nclasses - 1
+            ):
+                raise ValueError(
+                    "Mask delta A list must be of length f_s_semantic_nclasses"
+                )
+            if (
+                len(opt.data_online_creation_mask_delta_A)
+                == opt.f_s_semantic_nclasses - 1
+            ):
+                if (
+                    len(opt.data_online_creation_mask_delta_A[0]) == 1
+                    and not opt.data_online_creation_mask_square_A
+                ):
+                    raise ValueError(
+                        "Mask delta A has a single value per dimension but --data_online_creation_mask_square_A is not set, please set it to True"
+                    )
+        if opt.data_online_creation_mask_delta_B == None:
+            pass
+        else:
+            if (
+                len(opt.data_online_creation_mask_delta_B) > 1
+                and len(opt.data_online_creation_mask_delta_B)
+                < opt.f_s_semantic_nclasses - 1
+            ):
+                raise ValueError(
+                    "Mask delta B list must be of length f_s_semantic_nclasses"
+                )
+            if (
+                len(opt.data_online_creation_mask_delta_B)
+                == opt.f_s_semantic_nclasses - 1
+            ):
+                if (
+                    len(opt.data_online_creation_mask_delta_B[0]) == 1
+                    and not opt.data_online_creation_mask_square_B
+                ):
+                    raise ValueError(
+                        "Mask delta B has a single value per dimension but --data_online_creation_mask_square_B is not set, please set it to True"
+                    )
+
         self.opt = opt
 
         return self.opt
@@ -1181,13 +1227,19 @@ class BaseOptions:
 
         from pydantic import create_model
 
-        def json_to_schema(name, json_vals, schema_tmplate):
-            for k in json_vals:
-                if json_vals[k] is None:
-                    json_vals[k] = "None"
+        def replace_item(obj, existing_value, replace_value, allow_nan):
+            for k, v in obj.items():
+                if isinstance(v, dict):
+                    obj[k] = replace_item(v, existing_value, replace_value, allow_nan)
+                if v == existing_value:
+                    obj[k] = replace_value
                 if not allow_nan:
-                    if type(json_vals[k]) == float and math.isnan(json_vals[k]):
-                        json_vals[k] = 0
+                    if type(obj[k]) == float and math.isnan(obj[k]):
+                        obj[k] = 0
+            return obj
+
+        def json_to_schema(name, json_vals, schema_tmplate):
+            replace_item(json_vals, None, "None", allow_nan=allow_nan)
 
             schema = create_model(name, **json_vals).schema()
 

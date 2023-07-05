@@ -20,7 +20,7 @@ json_like_dict = {
     "data_crop_size": 180,
     "data_online_creation_crop_size_A": 420,
     "data_online_creation_crop_delta_A": 50,
-    "data_online_creation_mask_delta_A": [[50]],
+    "data_online_creation_mask_delta_A": [[50, 50]],
     "data_online_creation_mask_delta_A_ratio": [[0.2, 0.2]],
     "data_online_creation_crop_size_B": 420,
     "data_online_creation_crop_delta_B": 50,
