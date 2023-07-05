@@ -127,6 +127,8 @@ Here are all the available options to call with `train.py`
 | --alg_palette_cond_embed_dim | int | 32 | nb of examples processed for inference |
 | --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/> **Values:** y_t, previous_frame, computed_sketch, low_res |
 | --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/> **Values:** , mask, class, mask_and_class |
+| --alg_palette_ddim_eta | float | 0.5 | eta for ddim sampling variance |
+| --alg_palette_ddim_num_steps | int | 10 | number of steps for ddim sampling |
 | --alg_palette_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
 | --alg_palette_generate_per_class | flag |  | whether to generate samples of each images |
 | --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
