@@ -114,51 +114,51 @@ def crop_image(
             bbox_width = xmax - xmin
             bbox_height = ymax - ymin
 
-            if len(mask_delta) == 1:
-                if isinstance(mask_delta[0][0], float):
-                    if len(mask_delta[0]) == 1:
-                        mask_delta_x = mask_delta[0][0] * bbox_width
-                        mask_delta_y = mask_delta[0][0] * bbox_height
+            if mask_delta != [[]]:
+                if len(mask_delta) == 1:
+                    if isinstance(mask_delta[0][0], float):
+                        if len(mask_delta[0]) == 1:
+                            mask_delta_x = mask_delta[0][0] * bbox_width
+                            mask_delta_y = mask_delta[0][0] * bbox_height
+                        else:
+                            mask_delta_x = mask_delta[0][0] * bbox_width
+                            mask_delta_y = mask_delta[0][1] * bbox_height
+                    elif isinstance(mask_delta[0][0], int):
+                        if len(mask_delta[0]) == 1:
+                            mask_delta_x = mask_delta[0][0]
+                            mask_delta_y = mask_delta[0][0]
+                        else:
+                            mask_delta_x = mask_delta[0][0]
+                            mask_delta_y = mask_delta[0][1]
                     else:
-                        mask_delta_x = mask_delta[0][0] * bbox_width
-                        mask_delta_y = mask_delta[0][1] * bbox_height
-                elif isinstance(mask_delta[0][0], int):
-                    if len(mask_delta[0]) == 1:
-                        mask_delta_x = mask_delta[0][0]
-                        mask_delta_y = mask_delta[0][0]
-                    else:
-                        mask_delta_x = mask_delta[0][0]
-                        mask_delta_y = mask_delta[0][1]
+                        raise ValueError("mask_delta value is incorrect.")
                 else:
-                    raise ValueError("mask_delta value is incorrect.")
-            else:
-                assert cat - 1 in range(len(mask_delta)), "cat not in mask_delta"
-                mask_delta_cat = mask_delta[cat - 1]
-                if isinstance(mask_delta[0][0], float):
-                    if len(mask_delta_cat) == 1:
-                        mask_delta_x = mask_delta_cat[0] * bbox_width
-                        mask_delta_y = mask_delta_cat[0] * bbox_height
+                    mask_delta_cat = mask_delta[cat - 1]
+                    if isinstance(mask_delta[0][0], float):
+                        if len(mask_delta_cat) == 1:
+                            mask_delta_x = mask_delta_cat[0] * bbox_width
+                            mask_delta_y = mask_delta_cat[0] * bbox_height
+                        else:
+                            mask_delta_x = mask_delta_cat[0] * bbox_width
+                            mask_delta_y = mask_delta_cat[1] * bbox_height
+                    elif isinstance(mask_delta[0][0], int):
+                        if len(mask_delta_cat) == 1:
+                            mask_delta_x = mask_delta_cat[0]
+                            mask_delta_y = mask_delta_cat[0]
+                        else:
+                            mask_delta_x = mask_delta_cat[0]
+                            mask_delta_y = mask_delta_cat[1]
                     else:
-                        mask_delta_x = mask_delta_cat[0] * bbox_width
-                        mask_delta_y = mask_delta_cat[1] * bbox_height
-                elif isinstance(mask_delta[0][0], int):
-                    if len(mask_delta_cat) == 1:
-                        mask_delta_x = mask_delta_cat[0]
-                        mask_delta_y = mask_delta_cat[0]
-                    else:
-                        mask_delta_x = mask_delta_cat[0]
-                        mask_delta_y = mask_delta_cat[1]
-                else:
-                    raise ValueError("mask_delta value is incorrect.")
+                        raise ValueError("mask_delta value is incorrect.")
 
-            mask_delta_x = int(mask_delta_x)
-            mask_delta_y = int(mask_delta_y)
+                mask_delta_x = int(mask_delta_x)
+                mask_delta_y = int(mask_delta_y)
 
-            if mask_delta_x > 0 or mask_delta_y > 0:
-                ymin -= mask_delta_y
-                ymax += mask_delta_y
-                xmin -= mask_delta_x
-                xmax += mask_delta_x
+                if mask_delta_x > 0 or mask_delta_y > 0:
+                    ymin -= mask_delta_y
+                    ymax += mask_delta_y
+                    xmin -= mask_delta_x
+                    xmax += mask_delta_x
 
             if len(mask_random_offset) == 1:
                 mask_random_offset_x = mask_random_offset[0]

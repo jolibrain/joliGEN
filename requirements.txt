@@ -14,7 +14,7 @@ einops
 torchinfo
 addict
 thop
-pydantic
+pydantic==1.10.10
 positional_encodings
 onnx
 aim
