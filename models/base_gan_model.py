@@ -108,7 +108,7 @@ class BaseGanModel(BaseModel):
         else:
             self.use_depth = False
 
-        if "sam" in opt.D_netDs:
+        if "sam" in opt.D_netDs or opt.data_refined_mask:
             self.use_sam = True
             self.netfreeze_sam, self.predictor_sam = load_sam_weight(
                 self.opt.D_weight_sam

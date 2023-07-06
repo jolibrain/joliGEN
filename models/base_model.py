@@ -1084,8 +1084,11 @@ class BaseModel(ABC):
     def compute_fake_real_masks(self):
         fake_mask = self.netf_s(self.real_A)
         fake_mask = F.gumbel_softmax(fake_mask, tau=1.0, hard=True, dim=1)
-        real_mask = self.netf_s(self.real_B)
+        real_mask = self.netf_s(
+            self.real_B
+        )  # f_s(B) is a good approximation of the real mask when task is easy
         real_mask = F.gumbel_softmax(real_mask, tau=1.0, hard=True, dim=1)
+
         setattr(self, "fake_mask_B_inv", fake_mask.argmax(dim=1))
         setattr(self, "real_mask_B_inv", real_mask.argmax(dim=1))
         setattr(self, "fake_mask_B", fake_mask)
@@ -1133,7 +1136,16 @@ class BaseModel(ABC):
                 f_s = self.netf_s_B
             else:
                 f_s = self.netf_s
-            label_B = self.input_B_label_mask
+
+            if self.opt.data_refined_mask:
+                # get mask with sam instead of label from self.real_B and self.input_B_ref_bbox
+                self.label_sam_B = (
+                    predict_sam(self.real_B, self.predictor_sam, self.input_B_ref_bbox)
+                    > 0.0
+                )
+                label_B = self.label_sam_B.long()
+            else:
+                label_B = self.input_B_label_mask
             pred_B = f_s(self.real_B)
             self.loss_f_s += self.criterionf_s(pred_B, label_B)  # .squeeze(1))
 
