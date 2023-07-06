@@ -26,7 +26,7 @@ Here are all the available options to call with `train.py`
 | --D_dropout | flag |  | whether to use dropout in the discriminator |
 | --D_n_layers | int | 3 | only used if netD==n_layers |
 | --D_ndf | int | 64 | \# of discrim filters in the first conv layer |
-| --D_netDs | array | ['projected_d', 'basic'] | specify discriminator architecture, D_n_layers allows you to specify the layers in the discriminator. NB: duplicated arguments will be ignored. |
+| --D_netDs | array | ['projected_d', 'basic'] | specify discriminator architecture, another option, --D_n_layers allows you to specify the layers in the n_layers discriminator. NB: duplicated arguments are ignored. Values: basic, n_layers, pixel, projected_d, temporal, vision_aided, depth, mask, sam |
 | --D_no_antialias | flag |  | if specified, use stride=2 convs instead of antialiased-downsampling (sad) |
 | --D_no_antialias_up | flag |  | if specified, use [upconv(learned filter)] instead of [upconv(hard-coded [1,3,3,1] filter), conv] |
 | --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/> **Values:** instance, batch, none |
@@ -186,10 +186,10 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_crop_size_B | int | 512 | crop to this size during online creation, it needs to be greater than bbox size for domain B |
 | --data_online_creation_load_size_A | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
-| --data_online_creation_mask_delta_A | array | [[0]] | mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
-| --data_online_creation_mask_delta_A_ratio | array | [[0.0]] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
-| --data_online_creation_mask_delta_B | array | [[0]] | mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : width (y),height (x) for each class or only one size if square |
-| --data_online_creation_mask_delta_B_ratio | array | [[0.0]] | ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : width (x),height (y) for each class or only one size if square |
+| --data_online_creation_mask_delta_A | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
+| --data_online_creation_mask_delta_A_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
+| --data_online_creation_mask_delta_B | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
+| --data_online_creation_mask_delta_B_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square |
 | --data_online_creation_mask_random_offset_A | array | [0.0] | ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square |
 | --data_online_creation_mask_random_offset_B | array | [0.0] | mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
