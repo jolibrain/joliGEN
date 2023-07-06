@@ -453,6 +453,8 @@ class CUTModel(BaseGanModel):
 
         if "mask" in self.opt.D_netDs:
             visual_names_seg_B += ["real_mask_B_inv", "fake_mask_B_inv"]
+            if self.opt.data_refined_mask:
+                visual_names_seg_B += ["label_sam_B"]
 
         self.visual_names += [visual_names_seg_A, visual_names_seg_B]
 
