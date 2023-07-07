@@ -5,6 +5,7 @@ import json
 import subprocess
 import os
 import shutil
+import time
 
 import torch.multiprocessing as mp
 
@@ -147,7 +148,7 @@ async def predict(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=400, detail="{0}".format(e))
 
-    print("pass here")
+    name = "predict_{}".format(int(time.time()))
     ctx[name] = Process(target=launch_predict, args=(opt,))
     ctx[name].start()
 
