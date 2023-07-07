@@ -15,28 +15,18 @@ class PredictOptions(TrainOptions):
             "--model-in-file",
             type=str,
             help="file path to generator model (.pth file)",
-            required=True
+            required=True,
         )
 
         parser.add_argument(
-            "--img-in",
-            type=str,
-            help="image to transform",
-            required=True
+            "--img-in", type=str, help="image to transform", required=True
         )
 
         parser.add_argument(
-            "--img-out",
-            type=str,
-            help="transformed image",
-            required=True
+            "--img-out", type=str, help="transformed image", required=True
         )
 
-        parser.add_argument(
-            "--cpu",
-            action="store_true",
-            help="whether to use CPU"
-        )
+        parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
 
         parser.add_argument(
             "--gpuid",

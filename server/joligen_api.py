@@ -18,6 +18,7 @@ from pydantic import create_model, BaseModel, Field
 from options.predict_options import PredictOptions
 
 import sys
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../scripts"))
 from gen_single_image import launch_predict
 
@@ -128,6 +129,7 @@ def stop_training(process):
 def is_alive(process):
     return process.is_alive()
 
+
 @app.post(
     "/predict",
     status_code=201,
@@ -153,6 +155,7 @@ async def predict(request: Request):
     ctx[name].start()
 
     return {"message": "ok", "name": name, "status": "running"}
+
 
 @app.post(
     "/train/{name}",

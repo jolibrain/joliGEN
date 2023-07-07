@@ -44,6 +44,7 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
     model = model.to(device)
     return model, opt, device
 
+
 def launch_predict(args):
     # loading model
     modelpath = args.model_in_file.replace(os.path.basename(args.model_in_file), "")
@@ -97,7 +98,9 @@ def launch_predict(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model-in-file", help="file path to generator model (.pth file)", required=True
+        "--model-in-file",
+        help="file path to generator model (.pth file)",
+        required=True,
     )
 
     parser.add_argument("--img-in", help="image to transform", required=True)
