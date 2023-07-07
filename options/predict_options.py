@@ -1,15 +1,15 @@
-from .base_options import BaseOptions
+from .train_options import TrainOptions
 from util.util import MAX_INT
 
 
-class PredictOptions(BaseOptions):
+class PredictOptions(TrainOptions):
     """This class includes inference options.
 
     It also includes shared options defined in BaseOptions.
     """
 
     def initialize(self, parser):
-        parser = BaseOptions.initialize(self, parser)
+        parser = TrainOptions.initialize(self, parser)
 
         parser.add_argument(
             "--model-in-file",
