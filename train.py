@@ -25,6 +25,7 @@ import signal
 import time
 import warnings
 import copy
+import sys
 
 import torch
 import torch.distributed as dist
@@ -157,6 +158,20 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         data = next(iter(dataloader))
         for path in model.save_networks_img(data):
             visualizer.display_img(path + ".png")
+
+    if rank_0:
+        # Get the command line arguments
+        command_line_arguments = sys.argv
+
+        # Join the arguments into a single string
+        command_line = " ".join(command_line_arguments)
+
+        # Save the command line to a file
+        sv_path = os.path.join(opt.checkpoints_dir, opt.name, "command_line.txt")
+        with open(sv_path, "w") as file:
+            file.write(command_line)
+
+            print(f"Command line was saved at {sv_path}")
 
     for epoch in range(
         opt.train_epoch_count, opt.train_n_epochs + opt.train_n_epochs_decay + 1
