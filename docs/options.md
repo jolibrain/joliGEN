@@ -37,7 +37,7 @@ Here are all the available options to call with `train.py`
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
 | --D_temporal_every | int | 4 | apply temporal discriminator every x steps |
 | --D_vision_aided_backbones | string | clip+dino+swin | specify vision aided discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with + |
-| --D_weight_sam | string |  | path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth |
+| --D_weight_sam | string |  | path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM |
 
 ## Generator
 
@@ -208,7 +208,7 @@ Here are all the available options to call with `train.py`
 | --f_s_nf | int | 64 | \# of filters in the first conv layer of classifier |
 | --f_s_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
 | --f_s_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
-| --f_s_weight_sam | string |  | path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth |
+| --f_s_weight_sam | string |  | path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM |
 | --f_s_weight_segformer | string |  | path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth |
 
 ## Semantic classification network
@@ -264,6 +264,7 @@ Here are all the available options to call with `train.py`
 | --model_multimodal | flag |  | multimodal model with random latent input vector |
 | --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale<br/><br/> **Values:** 1, 3 |
 | --model_prior_321_backwardcompatibility | flag |  | whether to load models from previous version of JG. |
+| --model_type_sam | string | mobile_sam | which model to use for segment-anything mask generation<br/><br/> **Values:** sam, mobile_sam |
 
 ## Training
 
