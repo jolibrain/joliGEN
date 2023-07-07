@@ -1023,53 +1023,48 @@ class BaseOptions:
             ):
                 raise ValueError("SAM with masks and bbox prompting requires Pytorch 2")
         if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
-            raise warning.warn("SAM with direct masks does not use mask/bbox prompting")
+            warnings.warn("SAM with direct masks does not use mask/bbox prompting")
 
         # mask delta check
-        if opt.data_online_creation_mask_delta_A == None:
+        if opt.data_online_creation_mask_delta_A == [[]]:
             pass
         else:
             if (
-                len(opt.data_online_creation_mask_delta_A) > 1
-                and len(opt.data_online_creation_mask_delta_A)
+                len(opt.data_online_creation_mask_delta_A)
                 < opt.f_s_semantic_nclasses - 1
             ):
+                if len(opt.data_online_creation_mask_delta_A) == 1:
+                    warnings.warn(
+                        "Mask delta A list should be of length f_s_semantic_nclasses, distributing single value across all classes"
+                    )
+                opt.data_online_creation_mask_delta_A = (
+                    opt.data_online_creation_mask_delta_A
+                    * (opt.f_s_semantic_nclasses - 1)
+                )
+            elif len(opt.data_online_creation_mask_delta_A) > 1:
                 raise ValueError(
                     "Mask delta A list must be of length f_s_semantic_nclasses"
                 )
-            if (
-                len(opt.data_online_creation_mask_delta_A)
-                == opt.f_s_semantic_nclasses - 1
-            ):
-                if (
-                    len(opt.data_online_creation_mask_delta_A[0]) == 1
-                    and not opt.data_online_creation_mask_square_A
-                ):
-                    raise ValueError(
-                        "Mask delta A has a single value per dimension but --data_online_creation_mask_square_A is not set, please set it to True"
-                    )
-        if opt.data_online_creation_mask_delta_B == None:
+
+        if opt.data_online_creation_mask_delta_B == [[]]:
             pass
         else:
             if (
-                len(opt.data_online_creation_mask_delta_B) > 1
-                and len(opt.data_online_creation_mask_delta_B)
+                len(opt.data_online_creation_mask_delta_B)
                 < opt.f_s_semantic_nclasses - 1
             ):
+                if len(opt.data_online_creation_mask_delta_B) == 1:
+                    warnings.warn(
+                        "Mask delta B list should be of length f_s_semantic_nclasses, distributing single value across all classes"
+                    )
+                opt.data_online_creation_mask_delta_B = (
+                    opt.data_online_creation_mask_delta_B
+                    * (opt.f_s_semantic_nclasses - 1)
+                )
+            elif len(opt.data_online_creation_mask_delta_B) > 1:
                 raise ValueError(
                     "Mask delta B list must be of length f_s_semantic_nclasses"
                 )
-            if (
-                len(opt.data_online_creation_mask_delta_B)
-                == opt.f_s_semantic_nclasses - 1
-            ):
-                if (
-                    len(opt.data_online_creation_mask_delta_B[0]) == 1
-                    and not opt.data_online_creation_mask_square_B
-                ):
-                    raise ValueError(
-                        "Mask delta B has a single value per dimension but --data_online_creation_mask_square_B is not set, please set it to True"
-                    )
 
         self.opt = opt
 
