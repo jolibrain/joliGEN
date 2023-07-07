@@ -14,6 +14,12 @@ from data import create_dataset
 from enum import Enum
 from pydantic import create_model, BaseModel, Field
 
+from options.predict_options import PredictOptions
+
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "../scripts"))
+from gen_single_image import launch_predict
+
 from multiprocessing import Process
 
 git_hash = (
@@ -36,6 +42,8 @@ app = FastAPI(title="JoliGEN server", description=description)
 
 
 # Additional schema
+
+## TrainOptions
 class ServerTrainOptions(BaseModel):
     sync: bool = Field(
         False,
@@ -51,6 +59,31 @@ class TrainBody(BaseModel):
 
 TrainBodySchema = TrainBody.schema()
 TrainBodySchema["properties"]["train_options"] = TrainOptions().get_schema()
+
+# Ensure schema is valid at startup
+json.dumps(
+    TrainBodySchema,
+    ensure_ascii=False,
+    indent=None,
+    separators=(",", ":"),
+).encode("utf-8")
+
+## PredictOptions
+class ServerPredictOptions(BaseModel):
+    sync: bool = Field(
+        False,
+        description="if false, the call returns immediately and inference process "
+        "is executed in the background. If true, the call returns only "
+        "when inference process is finished",
+    )
+
+
+class PredictBody(BaseModel):
+    server: ServerPredictOptions = ServerPredictOptions()
+
+
+PredictBodySchema = PredictBody.schema()
+PredictBodySchema["properties"]["predict_options"] = PredictOptions().get_schema()
 
 # Ensure schema is valid at startup
 json.dumps(
@@ -94,6 +127,31 @@ def stop_training(process):
 def is_alive(process):
     return process.is_alive()
 
+@app.post(
+    "/predict",
+    status_code=201,
+    summary="Start an inference process.",
+    description="The inference process will be created using the same options as command line",
+)
+async def predict(request: Request):
+    predict_body = await request.json()
+
+    parser = PredictOptions()
+    try:
+        opt = parser.parse_json(predict_body["predict_options"], save_config=True)
+
+        # Parse the remaining options
+        del predict_body["predict_options"]
+        predict_body = PredictBody.parse_obj(predict_body)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail="{0}".format(e))
+
+    print("pass here")
+    ctx[name] = Process(target=launch_predict, args=(opt,))
+    ctx[name].start()
+
+    return {"message": "ok", "name": name, "status": "running"}
 
 @app.post(
     "/train/{name}",
