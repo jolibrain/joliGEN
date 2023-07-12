@@ -27,6 +27,7 @@ from models import diffusion_networks
 from models.modules.diffusion_utils import set_new_noise_schedule
 from models.modules.sam.sam_inference import (
     compute_mask_with_sam,
+    init_sam_net,
     load_sam_weight,
     predict_sam_mask,
 )
@@ -433,15 +434,21 @@ def generate(
             mask = mask.to(device).clone().detach()
 
     if mask is not None:
-        if data_refined_mask:
+        if data_refined_mask or opt.data_refined_mask:
             opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
-            if not os.path.exists(opt.f_s_weight_sam):
-                download_sam_weight(path=opt.f_s_weight_sam)
-            sam_model, _ = load_sam_weight(model_path=opt.f_s_weight_sam)
-            sam_model = sam_model.to(device)
+            sam_model, _ = init_sam_net(
+                model_type_sam=opt.model_type_sam,
+                model_path=opt.f_s_weight_sam,
+                device=device,
+            )
             mask = compute_mask_with_sam(
                 img_tensor, mask, sam_model, device, batched=False
             ).unsqueeze(0)
+
+        if opt.data_inverted_mask:
+            mask[mask > 0] = 2
+            mask[mask == 0] = 1
+            mask[mask == 2] = 0
 
         if opt.data_online_creation_rand_mask_A:
             y_t = fill_mask_with_random(
