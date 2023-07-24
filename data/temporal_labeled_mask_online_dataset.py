@@ -48,10 +48,13 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
             self.B_img_paths.sort(key=natural_keys)
             self.B_label_mask_paths.sort(key=natural_keys)
 
-        self.A_img_paths, self.A_label_mask_paths = (
-            self.A_img_paths[: opt.data_max_dataset_size],
-            self.A_label_mask_paths[: opt.data_max_dataset_size],
-        )
+        if self.opt.data_sanitize_paths:
+            self.sanitize()
+        elif opt.data_max_dataset_size != float("inf"):
+            self.A_img_paths, self.A_label_mask_paths = (
+                self.A_img_paths[: opt.data_max_dataset_size],
+                self.A_label_mask_paths[: opt.data_max_dataset_size],
+            )
 
         if self.use_domain_B:
             self.B_img_paths, self.B_label_mask_paths = (
@@ -122,6 +125,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                     mask_delta_A = self.opt.data_online_creation_mask_delta_A
                 else:
                     mask_delta_A = self.opt.data_online_creation_mask_delta_A_ratio
+
                 if i == 0:
                     crop_coordinates = crop_image(
                         cur_A_img_path,
@@ -137,6 +141,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                         get_crop_coordinates=True,
                         fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     )
+
                 cur_A_img, cur_A_label, ref_A_bbox = crop_image(
                     cur_A_img_path,
                     cur_A_label_path,
@@ -248,7 +253,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
         else:
             images_B = None
             labels_B = None
-            ref_B_img_path = None
+            ref_B_img_path = ""
 
         result = {
             "A": images_A,
