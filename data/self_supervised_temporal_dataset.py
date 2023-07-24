@@ -1,11 +1,10 @@
 import torch
 
-
-from data.temporal_dataset import TemporalDataset
+from data.temporal_labeled_mask_online_dataset import TemporalLabeledMaskOnlineDataset
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
 
 
-class SelfSupervisedTemporalDataset(TemporalDataset):
+class SelfSupervisedTemporalDataset(TemporalLabeledMaskOnlineDataset):
     """
     This dataset class can create datasets with mask labels from one domain.
     """
