@@ -118,10 +118,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                     cur_A_label_path = os.path.join(self.root, cur_A_label_path)
 
             try:
-                if (
-                    len(self.opt.data_online_creation_mask_delta_A_ratio[0]) == 1
-                    and self.opt.data_online_creation_mask_delta_A_ratio[0][0] == 0
-                ):
+                if self.opt.data_online_creation_mask_delta_A_ratio == [[]]:
                     mask_delta_A = self.opt.data_online_creation_mask_delta_A
                 else:
                     mask_delta_A = self.opt.data_online_creation_mask_delta_A_ratio
@@ -201,10 +198,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                         cur_B_label_path = os.path.join(self.root, cur_B_label_path)
 
                 try:
-                    if (
-                        len(self.opt.data_online_creation_mask_delta_B_ratio[0]) == 1
-                        and self.opt.data_online_creation_mask_delta_B_ratio[0][0] == 0
-                    ):
+                    if self.opt.data_online_creation_mask_delta_B_ratio == [[]]:
                         mask_delta_B = self.opt.data_online_creation_mask_delta_B
                     else:
                         mask_delta_B = self.opt.data_online_creation_mask_delta_B_ratio
