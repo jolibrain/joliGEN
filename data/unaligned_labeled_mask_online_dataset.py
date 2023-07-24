@@ -142,7 +142,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_B,
                     data_relative_paths=self.opt.data_relative_paths,
-                    data_root_path=self.opt.root,
+                    data_root_path=self.opt.dataroot,
                 )
                 write_paths_file(
                     self.B_img_paths,
@@ -164,12 +164,8 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         clamp_semantics=True,
     ):
         # Domain A
-
         try:
-            if (
-                len(self.opt.data_online_creation_mask_delta_A_ratio[0]) == 1
-                and self.opt.data_online_creation_mask_delta_A_ratio[0][0] == 0
-            ):
+            if self.opt.data_online_creation_mask_delta_A_ratio == [[]]:
                 mask_delta_A = self.opt.data_online_creation_mask_delta_A
             else:
                 mask_delta_A = self.opt.data_online_creation_mask_delta_A_ratio
@@ -218,10 +214,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         # Domain B
         if B_img_path is not None:
             try:
-                if (
-                    len(self.opt.data_online_creation_mask_delta_B_ratio[0]) == 1
-                    and self.opt.data_online_creation_mask_delta_B_ratio[0][0] == 0
-                ):
+                if self.opt.data_online_creation_mask_delta_B_ratio == [[]]:
                     mask_delta_B = self.opt.data_online_creation_mask_delta_B
                 else:
                     mask_delta_B = self.opt.data_online_creation_mask_delta_B_ratio
