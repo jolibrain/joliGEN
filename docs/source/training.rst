@@ -44,7 +44,7 @@ Dataset: https://joligen.com/datasets/horse2zebra.zip
 
 .. code:: bash
 
-  python3 train.py --dataroot /home/beniz/tmp/joligan/datasets/horse2zebra --checkpoints_dir /home/beniz/tmp/joligan/checkpoints --name horse2zebra --config_json examples/example_gan_horse2zebra.json
+  python3 train.py --dataroot /path/to/horse2zebra --checkpoints_dir /path/to/checkpoints --name horse2zebra --config_json examples/example_gan_horse2zebra.json
 
 .. _training-im2im-with-class-semantics:
 
