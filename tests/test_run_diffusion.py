@@ -35,6 +35,7 @@ json_like_dict = {
 models_diffusion = ["palette"]
 G_netG = ["unet_mha", "uvit"]
 G_efficient = [True, False]
+train_feat_wavelet = [False, True]
 
 G_unet_mha_norm_layer = [
     "groupnorm",
@@ -55,6 +56,7 @@ product_list = product(
     G_unet_mha_norm_layer,
     alg_palette_conditioning,
     G_efficient,
+    train_feat_wavelet,
 )
 
 
@@ -62,7 +64,14 @@ def test_semantic_mask(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 
-    for model, Gtype, G_norm, alg_palette_conditioning, G_efficient in product_list:
+    for (
+        model,
+        Gtype,
+        G_norm,
+        alg_palette_conditioning,
+        G_efficient,
+        train_feat_wavelet,
+    ) in product_list:
 
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
@@ -73,6 +82,7 @@ def test_semantic_mask(dataroot):
         json_like_dict_c["G_unet_mha_vit_efficient"] = G_efficient
 
         json_like_dict_c["alg_palette_conditioning"] = alg_palette_conditioning
+        json_like_dict_c["train_feat_wavelet"] = train_feat_wavelet
 
         opt = TrainOptions().parse_json(json_like_dict_c)
         train.launch_training(opt)

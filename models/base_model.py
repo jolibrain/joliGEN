@@ -720,8 +720,13 @@ class BaseModel(ABC):
                         input_nc += self.opt.train_mm_nz
 
                     # onnx
-                    if not "ittr" in self.opt.G_netG and not (
-                        torch.__version__[0] == "2" and "segformer" in self.opt.G_netG
+                    if (
+                        not self.opt.train_feat_wavelet
+                        and not "ittr" in self.opt.G_netG
+                        and not (
+                            torch.__version__[0] == "2"
+                            and "segformer" in self.opt.G_netG
+                        )
                     ):  # XXX: segformer export fails with ONNX and Pytorch2
                         export_path_onnx = save_path.replace(".pth", ".onnx")
 

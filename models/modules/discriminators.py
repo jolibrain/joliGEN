@@ -4,9 +4,8 @@ import numpy as np
 from torch import nn
 from torch.nn import functional as F
 
-# from .spade_architecture.normalization import get_nonspade_norm_layer
-
 from .utils import spectral_norm, normal_init
+from .utils import InverseHaarTransform, HaarTransform
 
 
 class NLayerDiscriminator(nn.Module):
@@ -20,6 +19,7 @@ class NLayerDiscriminator(nn.Module):
         norm_layer=nn.BatchNorm2d,
         use_dropout=False,
         use_spectral=False,
+        freq_space=False,
     ):
         """Construct a PatchGAN discriminator
 
@@ -38,6 +38,12 @@ class NLayerDiscriminator(nn.Module):
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
+
+        self.freq_space = freq_space
+        if self.freq_space:
+            self.iwt = InverseHaarTransform(input_nc)
+            self.dwt = HaarTransform(input_nc)
+            input_nc *= 4
 
         kw = 4
         padw = 1
@@ -103,7 +109,12 @@ class NLayerDiscriminator(nn.Module):
 
     def forward(self, input):
         """Standard forward."""
-        return self.model(input)
+        if self.freq_space:
+            x = self.dwt(input)
+        else:
+            x = input
+        x = self.model(x)
+        return x
 
 
 class PixelDiscriminator(nn.Module):
