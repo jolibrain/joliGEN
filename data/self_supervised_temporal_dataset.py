@@ -27,15 +27,17 @@ class SelfSupervisedTemporalDataset(TemporalLabeledMaskOnlineDataset):
         B_label_cls=None,
         index=None,
     ):
-        result = super().get_img(
-            A_img_path,
-            A_label_mask_path,
-            A_label_cls,
-            B_img_path,
-            B_label_mask_path,
-            B_label_cls,
-            index,
-        )
+        result = None
+        while result is None:
+            result = super().get_img(
+                A_img_path,
+                A_label_mask_path,
+                A_label_cls,
+                B_img_path,
+                B_label_mask_path,
+                B_label_cls,
+                index,
+            )
 
         try:
             A_img_list = [result["A"][0]]
