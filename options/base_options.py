@@ -1066,6 +1066,14 @@ class BaseOptions:
                     "Mask delta B list must be of length f_s_semantic_nclasses"
                 )
 
+        # training is frequency space only available for a few architectures atm
+        if opt.train_feat_wavelet:
+            if not opt.G_netG in ["mobile_resnet_attn", "unet_mha", "uvit"]:
+                raise ValueError(
+                    "Wavelet training is only available for mobile_resnet_attn, unet_mha and uvit architectures"
+                )
+
+        # register options
         self.opt = opt
 
         return self.opt

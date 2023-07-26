@@ -69,6 +69,7 @@ def define_G(
     G_unet_mha_channel_mults,
     G_unet_mha_norm_layer,
     G_unet_mha_group_norm_size,
+    train_feat_wavelet,
     **unused_options
 ):
     """Create a generator
@@ -148,6 +149,7 @@ def define_G(
             use_spectral=G_spectral,
             padding_type=G_padding_type,
             twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
+            freq_space=train_feat_wavelet,
         )
     elif G_netG == "mobile_resnet_attn":
         net = ResnetGenerator_attn(
@@ -161,6 +163,7 @@ def define_G(
             padding_type=G_padding_type,
             mobile=True,
             twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
+            freq_space=train_feat_wavelet,
         )
     elif G_netG == "stylegan2":
         net = StyleGAN2Generator(
@@ -264,6 +267,7 @@ def define_D(
     dataaug_D_diffusion,
     f_s_semantic_nclasses,
     model_depth_network,
+    train_feat_wavelet,
     **unused_options
 ):
 
@@ -316,6 +320,7 @@ def define_D(
                 norm_layer=norm_layer,
                 use_dropout=D_dropout,
                 use_spectral=D_spectral,
+                freq_space=train_feat_wavelet,
             )
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 

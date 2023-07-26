@@ -282,6 +282,13 @@ class TrainOptions(BaseOptions):
         )
         parser.add_argument("--train_use_contrastive_loss_D", action="store_true")
 
+        # frequency space training
+        parser.add_argument(
+            "--train_feat_wavelet",
+            action="store_true",
+            help="if true, train in wavelet features space (Note: this may not include all discriminators, when training GANs)",
+        )
+
         # multimodal training
         parser.add_argument(
             "--train_mm_lambda_z",

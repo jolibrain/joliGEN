@@ -16,8 +16,8 @@ json_like_dict = {
     "output_display_id": 0,
     "gpu_ids": "0",
     "data_dataset_mode": "unaligned",
-    "data_load_size": 180,
-    "data_crop_size": 180,
+    "data_load_size": 128,
+    "data_crop_size": 128,
     "train_n_epochs": 1,
     "train_n_epochs_decay": 0,
     "data_max_dataset_size": 10,
@@ -33,16 +33,19 @@ models_nosemantic = [
 
 D_netDs = [["projected_d", "basic"], ["projected_d", "basic", "depth"]]
 
-product_list = product(models_nosemantic, D_netDs)
+train_feat_wavelet = [False, True]
+
+product_list = product(models_nosemantic, D_netDs, train_feat_wavelet)
 
 
 def test_nosemantic(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 
-    for model, Dtype in product_list:
+    for model, Dtype, train_feat_wavelet in product_list:
         json_like_dict["model_type"] = model
         json_like_dict["D_netDs"] = Dtype
+        json_like_dict["train_feat_wavelet"] = train_feat_wavelet
         if model == "cycle_gan" and "depth" in Dtype:
             continue  # skip
 
