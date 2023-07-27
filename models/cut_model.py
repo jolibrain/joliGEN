@@ -360,12 +360,13 @@ class CUTModel(BaseGanModel):
             losses_E = ["G_z"]
             losses_G += ["G_z"]
 
-        for discriminator in self.discriminators:
-            losses_D.append(discriminator.loss_name_D)
-            if "mask" in discriminator.name:
-                continue
-            else:
-                losses_G.append(discriminator.loss_name_G)
+        if self.isTrain:
+            for discriminator in self.discriminators:
+                losses_D.append(discriminator.loss_name_D)
+                if "mask" in discriminator.name:
+                    continue
+                else:
+                    losses_G.append(discriminator.loss_name_G)
 
         self.loss_names_G += losses_G
         self.loss_names_D += losses_D

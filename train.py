@@ -38,8 +38,7 @@ from data import (
     create_iterable_dataloader,
 )
 from models import create_model
-from options.train_options import TrainOptions
-from util.util import flatten_json
+from util.parser import get_opt
 from util.visualizer import Visualizer
 from util.lion_pytorch import Lion
 
@@ -128,7 +127,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     rank_0 = rank == 0
 
     if rank_0:
-        model.init_metrics(dataloader, dataloader_test)
+        model.init_metrics(dataloader_test)
 
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
@@ -376,10 +375,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         print("End of training")
 
 
-def launch_training(opt=None):
+def launch_training(opt):
     signal.signal(signal.SIGINT, signal_handler)  # to really kill the process
-    if opt is None:
-        opt = TrainOptions().parse()  # get training options
     opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-1]))
     world_size = len(opt.gpu_ids)
 
@@ -411,21 +408,6 @@ def launch_training(opt=None):
         train_gpu(0, world_size, opt, trainset, trainset_temporal)
 
 
-def compute_test_metrics(model, dataloader):
-
-    return metrics
-
-
-def get_override_options_names(remaining_args):
-    return_options_names = []
-
-    for arg in remaining_args:
-        if arg.startswith("--"):
-            return_options_names.append(arg[2:])
-
-    return return_options_names
-
-
 if __name__ == "__main__":
     main_parser = argparse.ArgumentParser(add_help=False)
 
@@ -435,25 +417,6 @@ if __name__ == "__main__":
 
     main_opt, remaining_args = main_parser.parse_known_args()
 
-    if main_opt.config_json != "":
-        override_options_names = get_override_options_names(remaining_args)
-
-        if not "--dataroot" in remaining_args:
-            remaining_args += ["--dataroot", "unused"]
-        override_options_json = flatten_json(
-            TrainOptions().parse_to_json(remaining_args)
-        )
-
-        with open(main_opt.config_json, "r") as jsonf:
-            train_json = flatten_json(json.load(jsonf))
-
-        for name in override_options_names:
-            train_json[name] = override_options_json[name]
-
-        opt = TrainOptions().parse_json(train_json)
-
-        print("%s config file loaded" % main_opt.config_json)
-    else:
-        opt = None
+    opt = get_opt(main_opt, remaining_args)
 
     launch_training(opt)

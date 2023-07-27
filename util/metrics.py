@@ -102,7 +102,9 @@ def get_activations(
                 "Number of images limitation doesn't work with pytorch dataloaders, the full dataset will be used instead for activations computation."
             )
 
-    for batch in tqdm(dataloader, total=len(dataloader) // batch_size):
+    for batch in tqdm(
+        dataloader, total=len(dataloader) // batch_size, desc="activations"
+    ):
         if isinstance(batch, dict) and domain is not None:
             img = batch[domain].to(device)
         else:
