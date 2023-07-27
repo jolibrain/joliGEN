@@ -82,6 +82,14 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+# test new dl
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 ####### mask cls semantics test with online dataloading
 echo "Running mask online semantics training tests"
 URL=https://joligen.com/datasets/online_mario2sonic_lite.zip 
@@ -101,6 +109,7 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
+
 
 ###### diffusion process test online
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
