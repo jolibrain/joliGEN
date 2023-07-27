@@ -54,182 +54,215 @@ def crop_image(
         raise ValueError(f"failure with loading image {img_path}") from e
 
     try:
-        f = open(bbox_path, "r")
+        if bbox_path.endswith(".txt"):
+            # Bbox file
+            f = open(bbox_path, "r")
+        else:
+
+            # bbox_img = np.array(Image.open(img_path))
+            import cv2
+
+            bbox_img = cv2.imread(bbox_path)
+
     except Exception as e:
         raise ValueError(
             f"failure with loading label {bbox_path} for image {img_path}"
         ) from e
 
-    with f:
-        bboxes = []
+    if bbox_path.endswith(".txt"):
+        # Bbox file
 
-        for line in f:
-            if len(line) > 2:  # to make sure the current line is a real bbox
-                if override_class != -1:
-                    bbox = line.split()
-                    bbox[0] = str(override_class)
-                    line = " ".join(bbox)
-                    bboxes.append(line)
-                elif select_cat != -1:
-                    bbox = line.split()
-                    cat = int(bbox[0])
-                    if cat != select_cat:
-                        continue  # skip bboxes
+        with f:
+            bboxes = []
+            for line in f:
+                if len(line) > 2:  # to make sure the current line is a real bbox
+                    if override_class != -1:
+                        bbox = line.split()
+                        bbox[0] = str(override_class)
+                        line = " ".join(bbox)
+                        bboxes.append(line)
+                    elif select_cat != -1:
+                        bbox = line.split()
+                        cat = int(bbox[0])
+                        if cat != select_cat:
+                            continue  # skip bboxes
+                        else:
+                            bboxes.append(line)
                     else:
                         bboxes.append(line)
-                else:
-                    bboxes.append(line)
-            elif line != "" or line != " ":
-                print("%s does not describe a bbox" % line)
+                elif line != "" or line != " ":
+                    print("%s does not describe a bbox" % line)
 
-        # If one bbox only per crop
-        if single_bbox and bbox_ref_id == -1:
-            bbox_ref_id = np.random.randint(low=0, high=len(bboxes))
+    else:
 
-        # If a bbox ref is given, only select for that box
-        if bbox_ref_id >= 0:
-            bboxes_tmp = []
-            bboxes_tmp.append(bboxes[bbox_ref_id])
-            bboxes = bboxes_tmp
+        cat = str(int(np.max(bbox_img)))
 
-        if len(bboxes) == 0:
-            raise ValueError(f"There is no bbox at {bbox_path} for image {img_path}.")
+        # Find the indices of non-zero elements in the image
+        non_zero_indices = np.nonzero(bbox_img)
 
-        # Creation of a blank mask
-        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        # Extract the rows and columns containing non-zero elements
+        non_zero_rows = non_zero_indices[1]
+        non_zero_cols = non_zero_indices[0]
 
-        # A bbox of reference will be used to compute the crop
-        idx_bbox_ref = random.randint(0, len(bboxes) - 1)
+        # Find the minimum and maximum indices for rows and columns
+        min_row, max_row = np.min(non_zero_rows), np.max(non_zero_rows)
+        min_col, max_col = np.min(non_zero_cols), np.max(non_zero_cols)
 
-        for i, cur_bbox in enumerate(bboxes):
-            bbox = cur_bbox.split()
-            cat = int(bbox[0])
-            if select_cat != -1:
-                if cat != select_cat:
-                    continue  # skip bboxes
+        xmin = str(min_row)
+        ymin = str(min_col)
+        xmax = str(max_row)
+        ymax = str(max_col)
 
-            xmin = math.floor(int(bbox[1]) * ratio_x)
-            ymin = math.floor(int(bbox[2]) * ratio_y)
-            xmax = math.floor(int(bbox[3]) * ratio_x)
-            ymax = math.floor(int(bbox[4]) * ratio_y)
+        bboxes = [cat + " " + xmin + " " + ymin + " " + xmax + " " + ymax]
 
-            bbox_width = xmax - xmin
-            bbox_height = ymax - ymin
+    # If one bbox only per crop
+    if single_bbox and bbox_ref_id == -1:
+        bbox_ref_id = np.random.randint(low=0, high=len(bboxes))
 
-            if mask_delta != [[]]:
-                if len(mask_delta) == 1:
-                    if isinstance(mask_delta[0][0], float):
-                        if len(mask_delta[0]) == 1:
-                            mask_delta_x = mask_delta[0][0] * bbox_width
-                            mask_delta_y = mask_delta[0][0] * bbox_height
-                        else:
-                            mask_delta_x = mask_delta[0][0] * bbox_width
-                            mask_delta_y = mask_delta[0][1] * bbox_height
-                    elif isinstance(mask_delta[0][0], int):
-                        if len(mask_delta[0]) == 1:
-                            mask_delta_x = mask_delta[0][0]
-                            mask_delta_y = mask_delta[0][0]
-                        else:
-                            mask_delta_x = mask_delta[0][0]
-                            mask_delta_y = mask_delta[0][1]
+    # If a bbox ref is given, only select for that box
+    if bbox_ref_id >= 0:
+        bboxes_tmp = []
+        bboxes_tmp.append(bboxes[bbox_ref_id])
+        bboxes = bboxes_tmp
+
+    if len(bboxes) == 0:
+        raise ValueError(f"There is no bbox at {bbox_path} for image {img_path}.")
+
+    # Creation of a blank mask
+    mask = np.zeros(img.shape[:2], dtype=np.uint8)
+
+    # A bbox of reference will be used to compute the crop
+    idx_bbox_ref = random.randint(0, len(bboxes) - 1)
+
+    for i, cur_bbox in enumerate(bboxes):
+        bbox = cur_bbox.split()
+        cat = int(bbox[0])
+        if select_cat != -1:
+            if cat != select_cat:
+                continue  # skip bboxes
+
+        xmin = math.floor(int(bbox[1]) * ratio_x)
+        ymin = math.floor(int(bbox[2]) * ratio_y)
+        xmax = math.floor(int(bbox[3]) * ratio_x)
+        ymax = math.floor(int(bbox[4]) * ratio_y)
+
+        bbox_width = xmax - xmin
+        bbox_height = ymax - ymin
+
+        if mask_delta != [[]]:
+            if len(mask_delta) == 1:
+                if isinstance(mask_delta[0][0], float):
+                    if len(mask_delta[0]) == 1:
+                        mask_delta_x = mask_delta[0][0] * bbox_width
+                        mask_delta_y = mask_delta[0][0] * bbox_height
                     else:
-                        raise ValueError("mask_delta value is incorrect.")
-                else:
-                    mask_delta_cat = mask_delta[cat - 1]
-                    if isinstance(mask_delta[0][0], float):
-                        if len(mask_delta_cat) == 1:
-                            mask_delta_x = mask_delta_cat[0] * bbox_width
-                            mask_delta_y = mask_delta_cat[0] * bbox_height
-                        else:
-                            mask_delta_x = mask_delta_cat[0] * bbox_width
-                            mask_delta_y = mask_delta_cat[1] * bbox_height
-                    elif isinstance(mask_delta[0][0], int):
-                        if len(mask_delta_cat) == 1:
-                            mask_delta_x = mask_delta_cat[0]
-                            mask_delta_y = mask_delta_cat[0]
-                        else:
-                            mask_delta_x = mask_delta_cat[0]
-                            mask_delta_y = mask_delta_cat[1]
+                        mask_delta_x = mask_delta[0][0] * bbox_width
+                        mask_delta_y = mask_delta[0][1] * bbox_height
+                elif isinstance(mask_delta[0][0], int):
+                    if len(mask_delta[0]) == 1:
+                        mask_delta_x = mask_delta[0][0]
+                        mask_delta_y = mask_delta[0][0]
                     else:
-                        raise ValueError("mask_delta value is incorrect.")
-
-                mask_delta_x = int(mask_delta_x)
-                mask_delta_y = int(mask_delta_y)
-
-                if mask_delta_x > 0 or mask_delta_y > 0:
-                    ymin -= mask_delta_y
-                    ymax += mask_delta_y
-                    xmin -= mask_delta_x
-                    xmax += mask_delta_x
-
-            if len(mask_random_offset) == 1:
-                mask_random_offset_x = mask_random_offset[0]
-                mask_random_offset_y = mask_random_offset[0]
-            elif len(mask_random_offset) == 2:
-                mask_random_offset_x = mask_random_offset[0]
-                mask_random_offset_y = mask_random_offset[1]
-
-            # from ratio to pixel gap
-            mask_random_offset_x = round(mask_random_offset_x * (xmax - xmin))
-            mask_random_offset_y = round(mask_random_offset_y * (ymax - ymin))
-
-            if mask_random_offset_x > 0 or mask_random_offset_y > 0:
-                ymin -= random.randint(0, mask_random_offset_y)
-                ymax += random.randint(0, mask_random_offset_y)
-                xmin -= random.randint(0, mask_random_offset_x)
-                xmax += random.randint(0, mask_random_offset_x)
-
-            if mask_square:
-                sdiff = (xmax - xmin) - (ymax - ymin)
-                if sdiff > 0:
-                    ymax += int(sdiff / 2)
-                    ymin -= int(sdiff / 2)
+                        mask_delta_x = mask_delta[0][0]
+                        mask_delta_y = mask_delta[0][1]
                 else:
-                    xmax += -int(sdiff / 2)
-                    xmin -= -int(sdiff / 2)
+                    raise ValueError("mask_delta value is incorrect.")
+            else:
+                mask_delta_cat = mask_delta[cat - 1]
+                if isinstance(mask_delta[0][0], float):
+                    if len(mask_delta_cat) == 1:
+                        mask_delta_x = mask_delta_cat[0] * bbox_width
+                        mask_delta_y = mask_delta_cat[0] * bbox_height
+                    else:
+                        mask_delta_x = mask_delta_cat[0] * bbox_width
+                        mask_delta_y = mask_delta_cat[1] * bbox_height
+                elif isinstance(mask_delta[0][0], int):
+                    if len(mask_delta_cat) == 1:
+                        mask_delta_x = mask_delta_cat[0]
+                        mask_delta_y = mask_delta_cat[0]
+                    else:
+                        mask_delta_x = mask_delta_cat[0]
+                        mask_delta_y = mask_delta_cat[1]
+                else:
+                    raise ValueError("mask_delta value is incorrect.")
 
-            if fixed_mask_size > 0:
-                xdiff = fixed_mask_size - (xmax - xmin)
-                ydiff = fixed_mask_size - (ymax - ymin)
+            mask_delta_x = int(mask_delta_x)
+            mask_delta_y = int(mask_delta_y)
 
-                ymax += int(ydiff / 2)
-                ymin -= int(ydiff / 2)
+            if mask_delta_x > 0 or mask_delta_y > 0:
+                ymin -= mask_delta_y
+                ymax += mask_delta_y
+                xmin -= mask_delta_x
+                xmax += mask_delta_x
 
-                xmax += int(xdiff / 2)
-                xmin -= int(xdiff / 2)
+        if len(mask_random_offset) == 1:
+            mask_random_offset_x = mask_random_offset[0]
+            mask_random_offset_y = mask_random_offset[0]
+        elif len(mask_random_offset) == 2:
+            mask_random_offset_x = mask_random_offset[0]
+            mask_random_offset_y = mask_random_offset[1]
 
-            xmin = max(0, xmin)
-            ymin = max(0, ymin)
-            xmax = min(xmax, img.shape[1])
-            ymax = min(ymax, img.shape[0])
+        # from ratio to pixel gap
+        mask_random_offset_x = round(mask_random_offset_x * (xmax - xmin))
+        mask_random_offset_y = round(mask_random_offset_y * (ymax - ymin))
 
-            mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
+        if mask_random_offset_x > 0 or mask_random_offset_y > 0:
+            ymin -= random.randint(0, mask_random_offset_y)
+            ymax += random.randint(0, mask_random_offset_y)
+            xmin -= random.randint(0, mask_random_offset_x)
+            xmax += random.randint(0, mask_random_offset_x)
 
-            if i == idx_bbox_ref:
-                cat_ref = cat
-                x_min_ref = xmin
-                x_max_ref = xmax
-                y_min_ref = ymin
-                y_max_ref = ymax
+        if mask_square:
+            sdiff = (xmax - xmin) - (ymax - ymin)
+            if sdiff > 0:
+                ymax += int(sdiff / 2)
+                ymin -= int(sdiff / 2)
+            else:
+                xmax += -int(sdiff / 2)
+                xmin -= -int(sdiff / 2)
 
-                if (
-                    x_min_ref < context_pixels
-                    or y_min_ref < context_pixels
-                    or x_max_ref + context_pixels > img.shape[1]
-                    or y_max_ref + context_pixels > img.shape[0]
-                ):
-                    new_context_pixels = min(
-                        x_min_ref,
-                        y_min_ref,
-                        img.shape[1] - x_max_ref,
-                        img.shape[0] - y_max_ref,
-                    )
+        if fixed_mask_size > 0:
+            xdiff = fixed_mask_size - (xmax - xmin)
+            ydiff = fixed_mask_size - (ymax - ymin)
 
-                    warnings.warn(
-                        f"Bbox is too close to the edge to crop with context ({context_pixels} pixels)  for {img_path},using context_pixels=distance to the edge {new_context_pixels}"
-                    )
+            ymax += int(ydiff / 2)
+            ymin -= int(ydiff / 2)
 
-                    context_pixels = new_context_pixels
+            xmax += int(xdiff / 2)
+            xmin -= int(xdiff / 2)
+
+        xmin = max(0, xmin)
+        ymin = max(0, ymin)
+        xmax = min(xmax, img.shape[1])
+        ymax = min(ymax, img.shape[0])
+
+        mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
+
+        if i == idx_bbox_ref:
+            cat_ref = cat
+            x_min_ref = xmin
+            x_max_ref = xmax
+            y_min_ref = ymin
+            y_max_ref = ymax
+
+            if (
+                x_min_ref < context_pixels
+                or y_min_ref < context_pixels
+                or x_max_ref + context_pixels > img.shape[1]
+                or y_max_ref + context_pixels > img.shape[0]
+            ):
+                new_context_pixels = min(
+                    x_min_ref,
+                    y_min_ref,
+                    img.shape[1] - x_max_ref,
+                    img.shape[0] - y_max_ref,
+                )
+
+                warnings.warn(
+                    f"Bbox is too close to the edge to crop with context ({context_pixels} pixels)  for {img_path},using context_pixels=distance to the edge {new_context_pixels}"
+                )
+
+                context_pixels = new_context_pixels
 
     height = y_max_ref - y_min_ref
     width = x_max_ref - x_min_ref
