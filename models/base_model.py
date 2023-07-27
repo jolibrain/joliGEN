@@ -19,7 +19,7 @@ from torchviz import make_dot
 from data.base_dataset import get_transform
 from util.metrics import _compute_statistics_of_dataloader
 
-
+from tqdm import tqdm
 from piq import MSID, KID, FID, psnr
 
 from util.util import save_image, tensor2im, delete_flop_param
@@ -37,7 +37,7 @@ from util.image_pool import ImagePool
 # Iter Calculator
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
-from util.util import delete_flop_param, save_image, tensor2im
+from util.util import delete_flop_param, save_image, tensor2im, MAX_INT
 
 from . import base_networks, semantic_networks
 
@@ -143,7 +143,7 @@ class BaseModel(ABC):
         if "KID" in self.opt.train_metrics_list:
             self.kid_metric = KID()
 
-    def init_metrics(self, dataloader, dataloader_test):
+    def init_metrics(self, dataloader_test):
 
         self.use_inception = any(
             metric in self.opt.train_metrics_list for metric in ["KID", "FID", "MSID"]
@@ -1336,6 +1336,15 @@ class BaseModel(ABC):
         fake_list = []
         real_list = []
 
+        if self.opt.train_nb_img_max_fid != MAX_INT:
+            progress = tqdm(
+                desc="compute metrics test",
+                position=1,
+                total=self.opt.train_nb_img_max_fid,
+            )
+        else:
+            progress = None
+
         for i, data_test_list in enumerate(
             dataloaders_test
         ):  # inner loop (minibatch) within one epoch
@@ -1379,7 +1388,21 @@ class BaseModel(ABC):
 
             for sub_list in self.visual_names:
                 for name in sub_list:
-                    setattr(self, name + "_test", getattr(self, name))
+                    if hasattr(self, name):
+                        setattr(self, name + "_test", getattr(self, name))
+
+            if progress:
+                progress.n = min(len(fake_list), progress.total)
+                progress.refresh()
+
+            if len(fake_list) >= self.opt.train_nb_img_max_fid:
+                break
+
+        fake_list = fake_list[: self.opt.train_nb_img_max_fid]
+        real_list = real_list[: self.opt.train_nb_img_max_fid]
+
+        if progress:
+            progress.close()
 
         if self.use_inception:
             self.fakeactB_test = _compute_statistics_of_dataloader(
@@ -1410,7 +1433,6 @@ class BaseModel(ABC):
         # FID
         if "FID" in self.opt.train_metrics_list:
             fid = self.fid_metric(real_act, fake_act)
-
         else:
             fid = None
 

@@ -38,6 +38,7 @@ json_like_dict = {
     "data_online_creation_rand_mask_A": True,
     "train_export_jit": True,
     "train_save_latest_freq": 10,
+    "G_diff_n_timestep_test": 10,
 }
 
 
@@ -64,5 +65,5 @@ def test_diffusion_online(dataroot):
             json_like_dict_c["data_temporal_num_common_char"] = 3
             json_like_dict_c["alg_palette_cond_image_creation"] = "previous_frame"
 
-        opt = TrainOptions().parse_json(json_like_dict_c)
+        opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)

@@ -87,5 +87,5 @@ def test_semantic_mask_online(dataroot):
         json_like_dict_c["f_s_net"] = f_s_type
         json_like_dict_c["model_type_sam"] = sam_type
 
-        opt = TrainOptions().parse_json(json_like_dict_c)
+        opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)

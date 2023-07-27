@@ -245,12 +245,14 @@ class PaletteModel(BaseDiffusionModel):
                 (self.opt.data_crop_size, self.opt.data_crop_size)
             )
 
-        if self.opt.alg_palette_inference_num == -1:
-            self.inference_num = self.opt.train_batch_size
+        if opt.isTrain:
+            batch_size = self.opt.train_batch_size
         else:
-            self.inference_num = min(
-                self.opt.alg_palette_inference_num, self.opt.train_batch_size
-            )
+            batch_size = self.opt.test_batch_size
+        if self.opt.alg_palette_inference_num == -1:
+            self.inference_num = batch_size
+        else:
+            self.inference_num = min(self.opt.alg_palette_inference_num, batch_size)
 
         self.ddim_num_steps = self.opt.alg_palette_ddim_num_steps
         self.ddim_eta = self.opt.alg_palette_ddim_eta
@@ -313,14 +315,14 @@ class PaletteModel(BaseDiffusionModel):
         G_parameters = itertools.chain(*G_parameters)
 
         # Define optimizer
-        self.optimizer_G = opt.optim(
-            opt,
-            G_parameters,
-            lr=opt.train_G_lr,
-            betas=(opt.train_beta1, opt.train_beta2),
-        )
-
-        self.optimizers.append(self.optimizer_G)
+        if opt.isTrain:
+            self.optimizer_G = opt.optim(
+                opt,
+                G_parameters,
+                lr=opt.train_G_lr,
+                betas=(opt.train_beta1, opt.train_beta2),
+            )
+            self.optimizers.append(self.optimizer_G)
 
         # Define loss functions
         if self.opt.alg_palette_loss == "MSE":
