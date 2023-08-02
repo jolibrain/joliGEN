@@ -5,7 +5,6 @@ from torch import nn
 from torch.nn import functional as F
 
 from .utils import spectral_norm, normal_init
-from .freq_utils import InverseHaarTransform, HaarTransform
 
 
 class NLayerDiscriminator(nn.Module):
@@ -41,6 +40,8 @@ class NLayerDiscriminator(nn.Module):
 
         self.freq_space = freq_space
         if self.freq_space:
+            from .freq_utils import InverseHaarTransform, HaarTransform
+
             self.iwt = InverseHaarTransform(input_nc)
             self.dwt = HaarTransform(input_nc)
             input_nc *= 4
