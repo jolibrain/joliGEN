@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import math
 from models.modules.attn_network import BaseGenerator_attn
 from models.modules.mobile_modules import SeparableConv2d
-from ..utils import InverseHaarTransform, HaarTransform
+from ..freq_utils import InverseHaarTransform, HaarTransform
 
 
 class ResnetBlock(nn.Module):
