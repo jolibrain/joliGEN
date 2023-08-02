@@ -262,9 +262,19 @@ class BaseOptions:
             default="models/configs/segformer/segformer_config_b0.json",
             help="path to segformer configuration file for G",
         )
-        parser.add_argument("--G_attn_nb_mask_attn", default=10, type=int)
+        parser.add_argument(
+            "--G_attn_nb_mask_attn",
+            default=10,
+            type=int,
+            help="number of attention masks in _attn model architectures",
+        )
 
-        parser.add_argument("--G_attn_nb_mask_input", default=1, type=int)
+        parser.add_argument(
+            "--G_attn_nb_mask_input",
+            default=1,
+            type=int,
+            help="number of mask dedicated to input in _attn model architectures",
+        )
 
         parser.add_argument(
             "--G_backward_compatibility_twice_resnet_blocks",
@@ -286,8 +296,18 @@ class BaseOptions:
             help="specify multimodal latent vector encoder",
         )
 
-        parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
-        parser.add_argument("--G_unet_mha_num_heads", default=1, type=int)
+        parser.add_argument(
+            "--G_unet_mha_num_head_channels",
+            default=32,
+            type=int,
+            help="number of channels in each head of the mha architecture",
+        )
+        parser.add_argument(
+            "--G_unet_mha_num_heads",
+            default=1,
+            type=int,
+            help="number of heads in the mha architecture",
+        )
 
         parser.add_argument(
             "--G_uvit_num_transformer_blocks",
