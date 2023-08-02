@@ -22,8 +22,6 @@ from .unet_attn_utils import (
 
 from models.modules.diffusion_utils import gamma_embedding
 
-from ..freq_utils import InverseHaarTransform, HaarTransform
-
 
 class EmbedBlock(nn.Module):
     """
@@ -70,6 +68,8 @@ class Upsample(nn.Module):
         self.freq_space = freq_space
 
         if freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
             self.iwt = InverseHaarTransform(3)
             self.dwt = HaarTransform(3)
             self.channels = int(self.channels / 4)
@@ -112,6 +112,8 @@ class Downsample(nn.Module):
         self.freq_space = freq_space
 
         if self.freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
             self.iwt = InverseHaarTransform(3)
             self.dwt = HaarTransform(3)
             self.channels = int(self.channels / 4)
@@ -463,6 +465,8 @@ class UNet(nn.Module):
         self.freq_space = freq_space
 
         if self.freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
             self.iwt = InverseHaarTransform(3)
             self.dwt = HaarTransform(3)
             in_channel *= 4
@@ -815,6 +819,8 @@ class UViT(nn.Module):
         self.freq_space = freq_space
 
         if self.freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
             self.iwt = InverseHaarTransform(3)
             self.dwt = HaarTransform(3)
             in_channel *= 4
