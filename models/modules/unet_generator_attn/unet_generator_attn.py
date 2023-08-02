@@ -22,7 +22,7 @@ from .unet_attn_utils import (
 
 from models.modules.diffusion_utils import gamma_embedding
 
-from ..utils import InverseHaarTransform, HaarTransform
+from ..freq_utils import InverseHaarTransform, HaarTransform
 
 
 class EmbedBlock(nn.Module):

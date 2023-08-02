@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .utils import spectral_norm, normal_init
-from .utils import InverseHaarTransform, HaarTransform
+from .freq_utils import InverseHaarTransform, HaarTransform
 
 
 class NLayerDiscriminator(nn.Module):
