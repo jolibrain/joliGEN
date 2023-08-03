@@ -10,7 +10,7 @@ When testing a previously trained model, make sure the ``train_config.json`` fil
    python3 test.py \
         --test_model_dir /path/to/model/directory \
         --test_epoch 1 \
-        --test_metrics_list FID KID MSID PSNR \
+        --test_metrics_list FID KID MSID PSNR LPIPS \
         --test_nb_img 1000 \
         --test_batch_size 16 \
         --test_seed 42

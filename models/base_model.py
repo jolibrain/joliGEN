@@ -21,6 +21,7 @@ from util.metrics import _compute_statistics_of_dataloader
 
 from tqdm import tqdm
 from piq import MSID, KID, FID, psnr
+from lpips import LPIPS
 
 from util.util import save_image, tensor2im, delete_flop_param
 
@@ -142,6 +143,8 @@ class BaseModel(ABC):
             self.msid_metric = MSID()
         if "KID" in self.opt.train_metrics_list:
             self.kid_metric = KID()
+        if "LPIPS" in self.opt.train_metrics_list:
+            self.lpips_metric = LPIPS().to(self.device)
 
     def init_metrics(self, dataloader_test):
 
@@ -1320,6 +1323,11 @@ class BaseModel(ABC):
                     "psnr_test",
                 ]
 
+            if "LPIPS" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "lpips_test",
+                ]
+
         for name in metrics_names:
             if isinstance(name, str):
                 metrics[name] = float(
@@ -1430,8 +1438,12 @@ class BaseModel(ABC):
 
         real_tensor = (torch.cat(real_list) + 1) / 2
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1, max=1) + 1) / 2
-
         self.psnr_test = psnr(real_tensor, fake_tensor)
+
+        if "LPIPS" in self.opt.train_metrics_list:
+            real_tensor = torch.cat(real_list)
+            fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)
+            self.lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
 
     def compute_metrics_generic(self, real_act, fake_act):
 

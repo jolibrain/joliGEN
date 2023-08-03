@@ -196,7 +196,7 @@ class TrainOptions(BaseOptions):
             type=str,
             default=["FID"],
             nargs="*",
-            choices=["FID", "KID", "MSID", "PSNR"],
+            choices=["FID", "KID", "MSID", "PSNR", "LPIPS"],
             help="metrics on results quality to compute",
         )
 
