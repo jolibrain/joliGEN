@@ -114,7 +114,7 @@ fi
 echo "Running test cut"
 python3 "${current_dir}/../test.py" \
 	--test_model_dir $DIR/joligen_utest_cut/ \
-	--test_metrics_list FID KID PSNR
+	--test_metrics_list FID KID PSNR LPIPS
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -125,7 +125,7 @@ fi
 echo "Running test cycle_gan"
 python3 "${current_dir}/../test.py" \
 	--test_model_dir $DIR/joligen_utest_cycle_gan/ \
-	--test_metrics_list FID KID PSNR
+	--test_metrics_list FID KID PSNR LPIPS
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -136,7 +136,7 @@ fi
 echo "Running test palette"
 python3 "${current_dir}/../test.py" \
 	--test_model_dir $DIR/joligen_utest_palette/ \
-	--test_metrics_list FID KID PSNR
+	--test_metrics_list FID KID PSNR LPIPS
 OUT=$?
 
 if [ $OUT != 0 ]; then

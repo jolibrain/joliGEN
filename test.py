@@ -91,8 +91,8 @@ if __name__ == "__main__":
         "--test_metrics_list",
         type=str,
         nargs="*",
-        choices=["FID", "KID", "MSID", "PSNR"],
-        default=["FID", "KID", "MSID", "PSNR"],
+        choices=["FID", "KID", "MSID", "PSNR", "LPIPS"],
+        default=["FID", "KID", "MSID", "PSNR", "LPIPS"],
     )
     main_parser.add_argument(
         "--test_nb_img",
