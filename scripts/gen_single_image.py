@@ -45,7 +45,7 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
     return model, opt, device
 
 
-def launch_predict(args):
+def launch_predict_single_image(args):
     # loading model
     modelpath = args.model_in_file.replace(os.path.basename(args.model_in_file), "")
     print("modelpath=", modelpath)
@@ -109,4 +109,4 @@ if __name__ == "__main__":
     parser.add_argument("--gpuid", type=int, default=0, help="which GPU to use")
     args = parser.parse_args()
 
-    launch_predict(args)
+    launch_predict_single_image(args)

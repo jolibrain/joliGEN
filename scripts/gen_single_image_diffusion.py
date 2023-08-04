@@ -142,7 +142,7 @@ def cond_augment(cond, rotation, persp_horizontal, persp_vertical):
     return np.array(cond)
 
 
-def generate(
+def launch_predict_diffusion(
     seed,
     model_in_file,
     cpu,
@@ -789,4 +789,4 @@ if __name__ == "__main__":
 
     for i in tqdm(range(args.nb_samples)):
         args.name = real_name + "_" + str(i).zfill(len(str(args.nb_samples)))
-        generate(**vars(args))
+        launch_predict_diffusion(**vars(args))
