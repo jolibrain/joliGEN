@@ -20,7 +20,8 @@ from options.predict_options import PredictOptions
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../scripts"))
-from gen_single_image import launch_predict
+from gen_single_image import launch_predict_single_image
+from gen_single_image_diffusion import launch_predict_diffusion
 
 from multiprocessing import Process
 
@@ -141,6 +142,7 @@ async def predict(request: Request):
 
     parser = PredictOptions()
     try:
+        predict_method = predict_body["predict_options"]["predict-method"]
         opt = parser.parse_json(predict_body["predict_options"], save_config=True)
 
         # Parse the remaining options
@@ -150,8 +152,14 @@ async def predict(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=400, detail="{0}".format(e))
 
+    target = None
+    if predict_method == "gen_single_image":
+        target = launch_predict_single_image
+    elif predict_method == "gen_single_image_diffusion":
+        target = launch_predict_diffusion
+
     name = "predict_{}".format(int(time.time()))
-    ctx[name] = Process(target=launch_predict, args=(opt,))
+    ctx[name] = Process(target=target, args=(opt,))
     ctx[name].start()
 
     return {"message": "ok", "name": name, "status": "running"}
