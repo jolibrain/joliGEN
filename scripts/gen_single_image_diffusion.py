@@ -19,7 +19,6 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 
 sys.path.append("../")
-from options.inference_diffusion_options import InferenceDiffusionOptions
 from segment_anything import SamPredictor
 
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
@@ -43,6 +42,8 @@ from util.mask_generation import (
 )
 from util.script import get_override_options_names
 from util.util import flatten_json
+
+from options.inference_diffusion_options import InferenceDiffusionOptions
 
 
 def load_model(
@@ -177,8 +178,8 @@ def generate(
     alg_palette_guidance_scale,
     data_refined_mask,
     min_crop_bbox_ratio,
-    ddim_num_steps,
-    ddim_eta,
+    alg_palette_ddim_num_steps,
+    alg_palette_ddim_eta,
     **unused_options,
 ):
     # seed
@@ -559,8 +560,8 @@ def generate(
             cls=cls_tensor,
             sample_num=2,
             guidance_scale=alg_palette_guidance_scale,
-            ddim_num_steps=ddim_num_steps,
-            ddim_eta=ddim_eta,
+            ddim_num_steps=alg_palette_ddim_num_steps,
+            ddim_eta=alg_palette_ddim_eta,
         )
         out_img = to_np(
             out_tensor
@@ -586,6 +587,10 @@ def generate(
             out_img_real_size = img_orig.copy()
         else:
             out_img_real_size = out_img
+
+    else:
+        out_img_resized = out_img
+        out_img_real_size = img_orig.copy()
 
     # fill out crop into original image
     if bbox_in:
@@ -789,7 +794,10 @@ if __name__ == "__main__":
     main_parser = argparse.ArgumentParser(add_help=False)
 
     main_parser.add_argument(
-        "--config_json", type=str, default="", help="path to json config"
+        "--config_json",
+        type=str,
+        required=True,
+        help="path to json config",
     )
 
     main_opt, remaining_args = main_parser.parse_known_args()

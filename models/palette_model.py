@@ -29,8 +29,7 @@ class PaletteModel(BaseDiffusionModel):
             parser, is_train=is_train
         )
 
-        if is_train:
-            parser = PaletteModel.modify_commandline_options_train(parser)
+        parser = PaletteModel.modify_commandline_options_train(parser)
 
         return parser
 

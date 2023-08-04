@@ -7,7 +7,9 @@ from util.util import MAX_INT
 class InferenceDiffusionOptions(BaseOptions):
     def initialize(self, parser):
         """Define the common options that are used in both training and test."""
-        parser = self.initialize_mutable(parser)
+        parser = super().initialize(parser)
+
+        # parser = self.initialize_mutable(parser)
 
         self.initialized = True
 

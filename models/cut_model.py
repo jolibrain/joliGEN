@@ -138,6 +138,10 @@ class CUTModel(BaseGanModel):
 
         return parser
 
+    @staticmethod
+    def after_parse(opt):
+        return opt
+
     def __init__(self, opt, rank):
 
         super().__init__(opt, rank)

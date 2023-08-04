@@ -60,6 +60,15 @@ class TrainOptions(BaseOptions):
             help="scaling factor for normal, xavier and orthogonal.",
         )
 
+        # sam option
+        parser.add_argument(
+            "--model_type_sam",
+            type=str,
+            default="mobile_sam",
+            choices=["sam", "mobile_sam"],
+            help="which model to use for segment-anything mask generation",
+        )
+
         # visdom and HTML visualization parameters
         parser.add_argument(
             "--output_display_freq",

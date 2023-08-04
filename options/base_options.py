@@ -66,6 +66,12 @@ class BaseOptions:
         """Reset the class; indicates the class hasn't been initialized"""
         self.initialized = False
 
+    def initialize(self, parser):
+        print("initialize")
+        parser = self.initialize_mutable(parser)
+        parser = self.initialize_static(parser)
+        return parser
+
     def initialize_mutable(self, parser):
         # basic parameters
         parser.add_argument(
@@ -783,6 +789,7 @@ class BaseOptions:
         self._json_parse_known_args(parser, opt, flat_json)
 
         model_name = opt.model_type
+        print("model_name", model_name)
         model_option_setter = models.get_option_setter(model_name)
         parser = model_option_setter(parser, self.isTrain)
         self._json_parse_known_args(parser, opt, flat_json)
@@ -883,6 +890,9 @@ class BaseOptions:
                             field["items"]["enum"] = action.choices
                             if isinstance(action.default[0], str):
                                 cur_type = "string"
+                            elif isinstance(action.default[0], list):
+                                cur_type = "list"
+                            print("field", field)
                             field["items"]["type"] = cur_type
 
                         elif action.choices:
