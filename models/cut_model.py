@@ -17,6 +17,7 @@ import util.util as util
 from util.util import gaussian
 
 import itertools
+import warnings
 
 
 class CUTModel(BaseGanModel):
@@ -139,7 +140,6 @@ class CUTModel(BaseGanModel):
         return parser
 
     def __init__(self, opt, rank):
-
         super().__init__(opt, rank)
 
         # Vanilla cut
@@ -150,6 +150,10 @@ class CUTModel(BaseGanModel):
 
         if "segformer" in self.opt.G_netG:
             self.opt.alg_cut_nce_layers = "0,1,2,3"
+            self.opt.alg_cut_nce_T = 0.2  # default 0.07 is too low, https://openaccess.thecvf.com/content/CVPR2021/papers/Wang_Understanding_the_Behaviour_of_Contrastive_Loss_CVPR_2021_paper.pdf for a related study
+            warnings.warn(
+                "cut with segformer requires nce_layers 0,1,2,3 and nce_T set to 0.2, these values are enforced"
+            )
         elif "ittr" in self.opt.G_netG:
             self.opt.alg_cut_nce_layers = ",".join(
                 [str(k) for k in range(self.opt.G_nblocks)]
