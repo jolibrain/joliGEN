@@ -286,7 +286,7 @@ class DiffusionGenerator(nn.Module):
 
         tlist = torch.zeros([y_t.shape[0]], device=y_t.device).long()
         for i in tqdm(
-            reversed(range(num_steps)),
+            range(num_steps),
             desc="sampling loop time step",
             total=num_steps,
         ):
