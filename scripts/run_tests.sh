@@ -180,6 +180,40 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+####### mask ref test
+echo "Running mask ref training tests"
+URL=https://joligen.com/datasets/viton_mask_ref_mini.zip
+ZIP_FILE=$DIR/viton_mask_ref_mini.zip
+TARGET_MASK_REF_DIR=$DIR/viton_mask_ref_mini
+wget -N $URL -O $ZIP_FILE
+mkdir $TARGET_MASK_REF_DIR
+unzip $ZIP_FILE -d $DIR
+rm $ZIP_FILE
+
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_mask_ref.py" --dataroot "$TARGET_MASK_REF_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+####### mask ref online test
+echo "Running mask ref online training tests"
+URL=https://joligen.com/datasets/viton_bbox_ref_mini.zip
+ZIP_FILE=$DIR/viton_bbox_ref_mini.zip
+TARGET_MASK_ONLINE_REF_DIR=$DIR/viton_bbox_ref_mini
+wget -N $URL -O $ZIP_FILE
+mkdir $TARGET_MASK_ONLINE_REF_DIR
+unzip $ZIP_FILE -d $DIR
+rm $ZIP_FILE
+
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_mask_online_ref.py" --dataroot "$TARGET_MASK_ONLINE_REF_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 echo "Deleting target dir $DIR"
 rm -rf $DIR/*
 
