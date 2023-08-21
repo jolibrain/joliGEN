@@ -1,4 +1,5 @@
 import argparse
+import logging
 import copy
 import json
 import math
@@ -143,87 +144,62 @@ def cond_augment(cond, rotation, persp_horizontal, persp_vertical):
     return np.array(cond)
 
 
-def launch_predict_diffusion(
-    seed,
-    model_in_file,
-    cpu,
-    gpuid,
-    sampling_steps,
-    img_in,
-    mask_in,
-    bbox_in,
-    cond_in,
-    cond_keep_ratio,
-    bbox_width_factor,
-    bbox_height_factor,
-    bbox_ref_id,
-    crop_width,
-    crop_height,
-    img_width,
-    img_height,
-    dir_out,
-    write,
-    previous_frame,
-    name,
-    mask_delta,
-    mask_square,
-    sampling_method,
-    alg_palette_cond_image_creation,
-    alg_palette_sketch_canny_thresholds,
-    cls,
-    alg_palette_super_resolution_downsample,
-    alg_palette_guidance_scale,
-    data_refined_mask,
-    min_crop_bbox_ratio,
-    ddim_num_steps,
-    ddim_eta,
-    **unused_options,
-):
+def launch_predict_diffusion(args, process_name):
+
+    LOG_PATH = os.environ.get(
+        "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
+    )
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+    log_file = f"{LOG_PATH}/{process_name}.log"
+
+    logging.basicConfig(filename=log_file, filemode="w", level=logging.INFO)
+
     # seed
-    if seed >= 0:
-        torch.manual_seed(seed)
+    if args.seed >= 0:
+        torch.manual_seed(args.seed)
 
     # loading model
-    modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
+    modelpath = args.model_in_file.replace(os.path.basename(args.model_in_file), "")
 
-    if not cpu:
-        device = torch.device("cuda:" + str(gpuid))
+    if not args.cpu:
+        device = torch.device("cuda:" + str(args.gpuid))
     else:
         device = torch.device("cpu")
     model, opt = load_model(
         modelpath,
-        os.path.basename(model_in_file),
+        os.path.basename(args.model_in_file),
         device,
-        sampling_steps,
-        sampling_method,
+        args.sampling_steps,
+        args.sampling_method,
         args.model_prior_321_backwardcompatibility,
     )
 
-    if alg_palette_cond_image_creation is not None:
-        opt.alg_palette_cond_image_creation = alg_palette_cond_image_creation
+    if args.alg_palette_cond_image_creation is not None:
+        opt.alg_palette_cond_image_creation = args.alg_palette_cond_image_creation
 
     conditioning = opt.alg_palette_conditioning
 
-    for i, delta_values in enumerate(mask_delta):
+    for i, delta_values in enumerate(args.mask_delta):
         if len(delta_values) == 1:
-            mask_delta[i].append(delta_values[0])
+            args.mask_delta[i].append(delta_values[0])
 
     # Load image
 
     # reading image
-    img = cv2.imread(img_in)
+    img = cv2.imread(args.img_in)
     img_orig = img.copy()
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # reading the mask
     mask = None
-    if mask_in:
-        mask = cv2.imread(mask_in, 0)
+    if args.mask_in:
+        mask = cv2.imread(args.mask_in, 0)
 
     bboxes = []
-    if bbox_in:
+    if args.bbox_in:
         # mask = np.zeros(img.shape[:2], dtype=np.uint8)
-        with open(bbox_in, "r") as bboxf:
+        with open(args.bbox_in, "r") as bboxf:
             for line in bboxf:
                 elts = line.rstrip().split()
                 bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
@@ -233,25 +209,26 @@ def launch_predict_diffusion(
                     else:
                         cls = elts[0]
                         print("generating with class=", cls)
+                        logging.debug("generating with class=", cls)
                 else:
                     cls = 1
 
-        if bbox_ref_id == -1:
+        if args.bbox_ref_id == -1:
             # sample a bbox here since we are calling crop_image multiple times
             bbox_idx = random.choice(range(len(bboxes)))
         else:
-            bbox_idx = bbox_ref_id
+            bbox_idx = args.bbox_ref_id
 
-        if crop_width > 0 or crop_height > 0:
-            hc_width = int(crop_width / 2)
-            hc_height = int(crop_height / 2)
+        if args.crop_width > 0 or args.crop_height > 0:
+            hc_width = int(args.crop_width / 2)
+            hc_height = int(args.crop_height / 2)
             bbox_orig = bboxes[bbox_idx]
-            if bbox_width_factor > 0.0:
-                bbox_orig[0] -= max(0, int(bbox_width_factor * bbox_orig[0]))
-                bbox_orig[2] += max(0, int(bbox_width_factor * bbox_orig[2]))
-            if bbox_height_factor > 0.0:
-                bbox_orig[1] -= max(0, int(bbox_height_factor * bbox_orig[1]))
-                bbox_orig[3] += max(0, int(bbox_height_factor * bbox_orig[3]))
+            if args.bbox_width_factor > 0.0:
+                bbox_orig[0] -= max(0, int(args.bbox_width_factor * bbox_orig[0]))
+                bbox_orig[2] += max(0, int(args.bbox_width_factor * bbox_orig[2]))
+            if args.bbox_height_factor > 0.0:
+                bbox_orig[1] -= max(0, int(args.bbox_height_factor * bbox_orig[1]))
+                bbox_orig[3] += max(0, int(args.bbox_height_factor * bbox_orig[3]))
 
             # TODO: unused?
             bbox_select = bbox_orig.copy()
@@ -267,12 +244,12 @@ def launch_predict_diffusion(
             bbox = bboxes[bbox_idx]
 
         crop_coordinates = crop_image(
-            img_path=img_in,
-            bbox_path=bbox_in,
-            mask_delta=mask_delta,  # =opt.data_online_creation_mask_delta_A,
+            img_path=args.img_in,
+            bbox_path=args.bbox_in,
+            mask_delta=args.mask_delta,  # =opt.data_online_creation_mask_delta_A,
             mask_random_offset=opt.data_online_creation_mask_random_offset_A,
             crop_delta=0,
-            mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            mask_square=args.mask_square,  # opt.data_online_creation_mask_square_A,
             crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
             output_dim=opt.data_load_size,
             context_pixels=opt.data_online_context_pixels,
@@ -280,16 +257,16 @@ def launch_predict_diffusion(
             get_crop_coordinates=True,
             crop_center=True,
             bbox_ref_id=bbox_idx,
-            min_crop_bbox_ratio=min_crop_bbox_ratio,
+            min_crop_bbox_ratio=args.min_crop_bbox_ratio,
         )
 
         img, mask, ref_bbox = crop_image(
-            img_path=img_in,
-            bbox_path=bbox_in,
-            mask_delta=mask_delta,  # opt.data_online_creation_mask_delta_A,
+            img_path=args.img_in,
+            bbox_path=args.bbox_in,
+            mask_delta=args.mask_delta,  # opt.data_online_creation_mask_delta_A,
             mask_random_offset=opt.data_online_creation_mask_random_offset_A,
             crop_delta=0,
-            mask_square=mask_square,  # opt.data_online_creation_mask_square_A,
+            mask_square=args.mask_square,  # opt.data_online_creation_mask_square_A,
             crop_dim=opt.data_online_creation_crop_size_A,  # we use the average crop_dim
             output_dim=opt.data_load_size,
             context_pixels=opt.data_online_context_pixels,
@@ -297,7 +274,7 @@ def launch_predict_diffusion(
             crop_coordinates=crop_coordinates,
             crop_center=True,
             bbox_ref_id=bbox_idx,
-            override_class=cls,
+            override_class=args.cls,
         )
 
         x_crop, y_crop, crop_size = crop_coordinates
@@ -306,23 +283,23 @@ def launch_predict_diffusion(
 
         bbox_select = bbox.copy()
 
-        if len(mask_delta) == 1:
+        if len(args.mask_delta) == 1:
             index_cls = 0
         else:
-            index_cls = int(cls) - 1
+            index_cls = int(args.cls) - 1
 
-        if not isinstance(mask_delta[0][0], float):
-            bbox_select[0] -= mask_delta[index_cls][0]
-            bbox_select[1] -= mask_delta[index_cls][1]
-            bbox_select[2] += mask_delta[index_cls][0]
-            bbox_select[3] += mask_delta[index_cls][1]
+        if not isinstance(args.mask_delta[0][0], float):
+            bbox_select[0] -= args.mask_delta[index_cls][0]
+            bbox_select[1] -= args.mask_delta[index_cls][1]
+            bbox_select[2] += args.mask_delta[index_cls][0]
+            bbox_select[3] += args.mask_delta[index_cls][1]
         else:
-            bbox_select[0] *= 1 + mask_delta[index_cls][0]
-            bbox_select[1] *= 1 + mask_delta[index_cls][1]
-            bbox_select[2] *= 1 + mask_delta[index_cls][0]
-            bbox_select[3] *= 1 + mask_delta[index_cls][1]
+            bbox_select[0] *= 1 + args.mask_delta[index_cls][0]
+            bbox_select[1] *= 1 + args.mask_delta[index_cls][1]
+            bbox_select[2] *= 1 + args.mask_delta[index_cls][0]
+            bbox_select[3] *= 1 + args.mask_delta[index_cls][1]
 
-        if mask_square:
+        if args.mask_square:
             sdiff = (bbox_select[2] - bbox_select[0]) - (
                 bbox_select[3] - bbox_select[1]
             )  # (xmax - xmin) - (ymax - ymin)
@@ -347,21 +324,21 @@ def launch_predict_diffusion(
 
         img, mask = np.array(img), np.array(mask)
 
-    if img_width > 0 and img_height > 0:
-        img = cv2.resize(img, (img_width, img_height))
+    if args.img_width > 0 and args.img_height > 0:
+        img = cv2.resize(img, (args.img_width, args.img_height))
         if mask is not None:
-            mask = cv2.resize(mask, (img_width, img_height))
+            mask = cv2.resize(mask, (args.img_width, args.img_height))
 
     # insert cond image into original image
     generated_bbox = None
-    if cond_in:
+    if args.cond_in:
         generated_bbox = bbox
         # fill the mask with cond image
         mask_bbox = Image.fromarray(mask).getbbox()
         x0, y0, x1, y1 = mask_bbox
         bbox_w = x1 - x0
         bbox_h = y1 - y0
-        cond = cv2.imread(cond_in)
+        cond = cv2.imread(args.cond_in)
         cond = cv2.cvtColor(cond, cv2.COLOR_RGB2BGR)
         cond = cond_augment(
             cond,
@@ -369,7 +346,7 @@ def launch_predict_diffusion(
             args.cond_persp_horizontal,
             args.cond_persp_vertical,
         )
-        if cond_keep_ratio:
+        if args.cond_keep_ratio:
             # pad cond image to match bbox aspect ratio
             bbox_ratio = bbox_w / bbox_h
             new_w = cond_w = cond.shape[1]
@@ -425,16 +402,16 @@ def launch_predict_diffusion(
 
     if mask is not None:
         mask = torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
-        """if crop_width > 0 and crop_height > 0:
+        """if args.crop_width > 0 and args.crop_height > 0:
         mask = resize(mask).clone().detach()"""
 
-    if not cpu:
+    if not args.cpu:
         img_tensor = img_tensor.to(device).clone().detach()
         if mask is not None:
             mask = mask.to(device).clone().detach()
 
     if mask is not None:
-        if data_refined_mask or opt.data_refined_mask:
+        if args.data_refined_mask or opt.data_refined_mask:
             opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
             sam_model, _ = init_sam_net(
                 model_type_sam=opt.model_type_sam,
@@ -462,10 +439,13 @@ def launch_predict_diffusion(
         y_t = img_tensor.clone().detach()
 
     if opt.alg_palette_cond_image_creation == "previous_frame":
-        if previous_frame is not None:
-            if isinstance(previous_frame, str):
+        if args.previous_frame is not None:
+            if isinstance(args.previous_frame, str):
                 # load the previous frame
-                previous_frame = cv2.imread(previous_frame)
+                previous_frame = cv2.imread(args.previous_frame)
+            else:
+                # use the previous frame as the previous frame
+                previous_frame = args.previous_frame
 
             previous_frame = cv2.cvtColor(previous_frame, cv2.COLOR_BGR2RGB)
             previous_frame = previous_frame[
@@ -486,7 +466,7 @@ def launch_predict_diffusion(
         cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "canny":
         clamp = torch.clamp(mask, 0, 1)
-        if cond_in:
+        if args.cond_in:
             # mask the background to avoid canny edges around cond image
             img_tensor_canny = clamp * img_tensor + clamp - 1
         else:
@@ -494,12 +474,12 @@ def launch_predict_diffusion(
         cond_image = fill_img_with_canny(
             img_tensor_canny.unsqueeze(0),
             mask.unsqueeze(0),
-            low_threshold=alg_palette_sketch_canny_thresholds[0],
-            high_threshold=alg_palette_sketch_canny_thresholds[1],
+            low_threshold=args.alg_palette_sketch_canny_thresholds[0],
+            high_threshold=args.alg_palette_sketch_canny_thresholds[1],
             low_threshold_random=-1,
             high_threshold_random=-1,
         )
-        if cond_in:
+        if args.cond_in:
             # restore background
             cond_image = cond_image * clamp + img_tensor * (1 - clamp)
     elif opt.alg_palette_cond_image_creation == "sam":
@@ -518,7 +498,7 @@ def launch_predict_diffusion(
     elif opt.alg_palette_cond_image_creation == "depth":
         cond_image = fill_img_with_depth(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_palette_cond_image_creation == "low_res":
-        if alg_palette_super_resolution_downsample:
+        if args.alg_palette_super_resolution_downsample:
             data_crop_size_low_res = int(
                 opt.data_crop_size / opt.alg_palette_super_resolution_scale
             )
@@ -545,7 +525,7 @@ def launch_predict_diffusion(
         img_tensor = None
 
     if "class" in model.denoise_fn.conditioning:
-        cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls
+        cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * args.cls
     else:
         cls_tensor = None
 
@@ -557,9 +537,9 @@ def launch_predict_diffusion(
             mask=mask,
             cls=cls_tensor,
             sample_num=2,
-            guidance_scale=alg_palette_guidance_scale,
-            ddim_num_steps=ddim_num_steps,
-            ddim_eta=ddim_eta,
+            guidance_scale=args.alg_palette_guidance_scale,
+            ddim_num_steps=args.ddim_num_steps,
+            ddim_eta=args.ddim_eta,
         )
         out_img = to_np(
             out_tensor
@@ -570,10 +550,15 @@ def launch_predict_diffusion(
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
     out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)"""
 
-    if img_width > 0 or img_height > 0 or crop_width > 0 or crop_height > 0:
+    if (
+        args.img_width > 0
+        or args.img_height > 0
+        or args.crop_width > 0
+        or args.crop_height > 0
+    ):
         # img_orig = cv2.cvtColor(img_orig, cv2.COLOR_RGB2BGR)
 
-        if bbox_in:
+        if args.bbox_in:
             out_img_resized = cv2.resize(
                 out_img,
                 (
@@ -587,36 +572,51 @@ def launch_predict_diffusion(
             out_img_real_size = out_img
 
     # fill out crop into original image
-    if bbox_in:
+    if args.bbox_in:
         out_img_real_size[
             bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
         ] = out_img_resized
 
     cond_img = to_np(cond_image)
 
-    if write:
-        cv2.imwrite(os.path.join(dir_out, name + "_orig.png"), img_orig)
-        cv2.imwrite(os.path.join(dir_out, name + "_cond.png"), cond_img)
-        cv2.imwrite(os.path.join(dir_out, name + "_generated.png"), out_img_real_size)
-        cv2.imwrite(os.path.join(dir_out, name + "_y_t.png"), to_np(y_t))
+    if args.write:
+        cv2.imwrite(os.path.join(args.dir_out, args.name + "_orig.png"), img_orig)
+        cv2.imwrite(os.path.join(args.dir_out, args.name + "_cond.png"), cond_img)
+        cv2.imwrite(
+            os.path.join(args.dir_out, args.name + "_generated.png"), out_img_real_size
+        )
+        cv2.imwrite(os.path.join(args.dir_out, args.name + "_y_t.png"), to_np(y_t))
         if mask is not None:
-            cv2.imwrite(os.path.join(dir_out, name + "_y_0.png"), to_np(img_tensor))
-            cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.png"), out_img)
-            cv2.imwrite(os.path.join(dir_out, name + "_mask.png"), to_np(mask))
-        if cond_in:
+            cv2.imwrite(
+                os.path.join(args.dir_out, args.name + "_y_0.png"), to_np(img_tensor)
+            )
+            cv2.imwrite(
+                os.path.join(args.dir_out, args.name + "_generated_crop.png"), out_img
+            )
+            cv2.imwrite(
+                os.path.join(args.dir_out, args.name + "_mask.png"), to_np(mask)
+            )
+        if args.cond_in:
             # crop before cond image
             orig_crop = img_orig[
                 bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
             ]
-            cv2.imwrite(os.path.join(dir_out, name + "_orig_crop.png"), orig_crop)
-        if bbox_in:
-            with open(os.path.join(dir_out, name + "_orig_bbox.json"), "w") as out:
+            cv2.imwrite(
+                os.path.join(args.dir_out, args.name + "_orig_crop.png"), orig_crop
+            )
+        if args.bbox_in:
+            with open(
+                os.path.join(args.dir_out, args.name + "_orig_bbox.json"), "w"
+            ) as out:
                 out.write(json.dumps(bbox))
         if generated_bbox:
-            with open(os.path.join(dir_out, name + "_generated_bbox.json"), "w") as out:
+            with open(
+                os.path.join(args.dir_out, args.name + "_generated_bbox.json"), "w"
+            ) as out:
                 out.write(json.dumps(generated_bbox))
 
-        print("Successfully generated image ", name)
+        print("Successfully generated image ", args.name)
+        logging.info("Successfully generated image " + args.name)
 
     return out_img_real_size
 

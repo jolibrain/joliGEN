@@ -1,21 +1,31 @@
-from .train_options import TrainOptions
-from util.util import MAX_INT
+from .base_options import BaseOptions
+from util.util import MAX_INT, pairs_of_floats, pairs_of_ints
 
 
-class PredictOptions(TrainOptions):
+class PredictOptions(BaseOptions):
     """This class includes inference options.
 
     It also includes shared options defined in BaseOptions.
     """
 
     def initialize(self, parser):
-        parser = TrainOptions.initialize(self, parser)
+        parser = BaseOptions.initialize(self, parser)
 
         parser.add_argument(
             "--model-in-file",
             type=str,
             help="file path to generator model (.pth file)",
             required=True,
+        )
+
+        parser.add_argument(
+            "--predict-method",
+            type=str,
+            help="Python script filename to load from $JOLIGEN/scripts/ folder",
+        )
+
+        parser.add_argument(
+            "--seed", type=int, help="Torch seed, desactivated by default", default=0
         )
 
         parser.add_argument(
@@ -173,28 +183,61 @@ class PredictOptions(TrainOptions):
             help="minimum crop/bbox ratio, allows to add context when bbox is larger than crop",
         )
 
-        # TODO: CONFLICT: option already defined somewhere else
-        #
-        # parser.add_argument(
-        #     "--f_s_weight_sam",
-        #     type=str,
-        #     default="models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
-        #     help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
-        # )
-        #
-        # parser.add_argument(
-        #     "--data_refined_mask",
-        #     action="store_true",
-        #     help="whether to use refined mask with sam",
-        # )
-        #
-        # parser.add_argument(
-        #     "--model_prior_321_backwardcompatibility",
-        #     action="store_true",
-        #     help="whether to load models from previous version of JG.",
-        # )
+        parser.add_argument(
+            "--sampling-steps",
+            type=int,
+            default=0,
+            help="nb of sampling steps for diffusion",
+        )
 
-        # TODO: remove references in base_options.py
-        # or replace by `isPredict`
+        parser.add_argument(
+            "--mask_delta",
+            default=[[0]],
+            nargs="+",
+            type=pairs_of_ints,
+            help="mask offset to allow generation of a bigger object, format : width (x) height (y) for each class or only one size if square",
+        )
+        parser.add_argument(
+            "--mask_delta_ratio",
+            default=[[0]],
+            nargs="+",
+            type=pairs_of_floats,
+            help="ratio mask offset to allow generation of a bigger object, format : width (x),height (y) for each class or only one size if square",
+        )
+
+        parser.add_argument(
+            "--mask_square", action="store_true", help="whether to use square mask"
+        )
+
+        parser.add_argument(
+            "--sampling_method",
+            type=str,
+            default="ddpm",
+            choices=["ddpm", "ddim"],
+            help="choose the sampling method between ddpm and ddim",
+        )
+
+        parser.add_argument(
+            "--ddim_num_steps",
+            type=int,
+            default=10,
+            help="number of steps for ddim sampling method",
+        )
+
+        parser.add_argument(
+            "--ddim_eta",
+            type=float,
+            default=0.5,
+            help="eta parameter for ddim variance",
+        )
+
+        parser.add_argument(
+            "--cls",
+            action="store_false",
+            help="override input bbox classe for generation",
+        )
+
+        # TODO: fix and change to false in order to pass asset test
         self.isTrain = True
+        self.isPredict = True
         return parser
