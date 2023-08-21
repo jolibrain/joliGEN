@@ -1,4 +1,5 @@
-from fastapi import Request, FastAPI, HTTPException
+from fastapi import Request, FastAPI, HTTPException, WebSocket
+import logging
 import asyncio
 import traceback
 import json
@@ -6,6 +7,7 @@ import subprocess
 import os
 import shutil
 import time
+from pathlib import Path
 
 import torch.multiprocessing as mp
 
@@ -116,6 +118,44 @@ app.openapi = custom_openapi
 
 # Context variables
 ctx = {}
+
+LOG_PATH = os.environ.get(
+    "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
+)
+if not os.path.exists(LOG_PATH):
+    os.makedirs(LOG_PATH)
+
+
+async def log_reader_last_line(job_name):
+    global LOG_PATH
+    log_lines = []
+    with open(f"{LOG_PATH}/{job_name}.log", "r") as file:
+        try:
+            return file.readlines()[-1]
+        except Exception as e:
+            print(e)
+            return ""
+
+
+@app.websocket("/ws/logs/{job_name}")
+async def websocket_endpoint_log(job_name: str, websocket: WebSocket):
+    await websocket.accept()
+
+    try:
+        while True:
+            await asyncio.sleep(1)
+            logs = await log_reader_last_line(job_name)
+
+            # close ws if last log line contains success message
+            if "success" in logs:
+                print("success in logs, closing websocket")
+                await websocket.send_text(logs)
+                await websocket.close()
+                break
+            else:
+                await websocket.send_text(logs)
+    except Exception as e:
+        print(e)
 
 
 def stop_training(process):
