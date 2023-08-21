@@ -14,7 +14,6 @@ json_like_dict = {
     "output_display_env": "joligen_utest",
     "output_display_id": 0,
     "gpu_ids": "0",
-    "data_dataset_mode": "self_supervised_labeled_mask_online",
     "data_load_size": 128,
     "data_crop_size": 128,
     "data_online_creation_crop_size_A": 420,
@@ -39,24 +38,32 @@ json_like_dict = {
     "data_online_creation_rand_mask_A": True,
     "train_export_jit": True,
     "train_save_latest_freq": 10,
+    "G_diff_n_timestep_test": 10,
 }
 
 
 models_diffusion = ["palette"]
 G_netG = ["unet_mha", "uvit"]
+data_dataset_mode = ["self_supervised_labeled_mask_online", "self_supervised_temporal"]
 
-
-product_list = product(models_diffusion, G_netG)
+product_list = product(models_diffusion, G_netG, data_dataset_mode)
 
 
 def test_diffusion_online(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
-    for model, Gtype in product_list:
+    for model, Gtype, dataset_mode in product_list:
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
 
-        opt = TrainOptions().parse_json(json_like_dict_c)
+        json_like_dict_c["data_dataset_mode"] = dataset_mode
+        if dataset_mode == "self_supervised_temporal":
+            json_like_dict_c["data_temporal_number_frames"] = 2
+            json_like_dict_c["data_temporal_frame_step"] = 1
+            json_like_dict_c["data_temporal_num_common_char"] = 3
+            json_like_dict_c["alg_palette_cond_image_creation"] = "previous_frame"
+
+        opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)

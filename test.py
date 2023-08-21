@@ -1,85 +1,127 @@
-"""General-purpose test script for image-to-image translation.
-
-Once you have trained your model with train.py, you can use this script to test the model.
-It will load a saved model from --checkpoints_dir and save the results to --results_dir.
-
-It first creates model and dataset given the option. It will hard-code some parameters.
-It then runs inference for --num_test images and save results to an HTML file.
-
-Example (You need to train models first or download pre-trained models from our website):
-    Test a CycleGAN model (both sides):
-        python test.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
-
-    Test a CycleGAN model (one side only):
-        python test.py --dataroot datasets/horse2zebra/testA --name horse2zebra_pretrained --model test 
-
-    The option '--model test' is used for generating CycleGAN results only for one side.
-    This option will automatically set '--dataset_mode single', which only loads the images from one set.
-    On the contrary, using '--model cycle_gan' requires loading and generating results in both directions,
-    which is sometimes unnecessary. The results will be saved at ./results/.
-    Use '--results_dir <directory_path_to_save_result>' to specify the results directory.
-
-    Test a pix2pix model:
-        python test.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
-
-See options/base_options.py and options/test_options.py for more test options.
-See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
-See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
-"""
+import argparse
 import os
-from options.test_options import TestOptions
-from data import create_dataset
+import torch
+import random
+import numpy as np
+import time
+import json
+
+from data import (
+    create_dataloader,
+    create_dataset,
+    create_dataset_temporal,
+    create_iterable_dataloader,
+)
 from models import create_model
-from util.visualizer import save_images
-from util import html_util
+from util.parser import get_opt
+from util.util import MAX_INT
+
+
+def launch_testing(opt):
+    rank = 0
+
+    opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-1]))
+    opt.use_cuda = torch.cuda.is_available() and opt.gpu_ids and opt.gpu_ids[0] >= 0
+    if opt.use_cuda:
+        torch.cuda.set_device(opt.gpu_ids[rank])
+    opt.isTrain = False
+
+    testset = create_dataset(opt, phase="test")
+    print("The number of testing images = %d" % len(testset))
+    opt.train_nb_img_max_fid = min(opt.train_nb_img_max_fid, len(testset))
+
+    dataloader_test = create_dataloader(
+        opt, rank, testset, batch_size=opt.test_batch_size
+    )  # create a dataset given opt.dataset_mode and other options
+
+    use_temporal = ("temporal" in opt.D_netDs) or opt.train_temporal_criterion
+
+    if use_temporal:
+        testset_temporal = create_dataset_temporal(opt, phase="test")
+
+        dataloader_test_temporal = create_iterable_dataloader(
+            opt, rank, testset_temporal, batch_size=opt.test_batch_size
+        )
+    else:
+        dataloader_test_temporal = None
+
+    model = create_model(opt, rank)  # create a model given opt.model and other options
+    model.setup(opt)  # regular setup: load and print networks; create schedulers
+    model.use_temporal = use_temporal
+    model.eval()
+    if opt.use_cuda:
+        model.single_gpu()
+    model.init_metrics(dataloader_test)
+
+    if use_temporal:
+        dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
+    else:
+        dataloaders_test = zip(dataloader_test)
+
+    epoch = "test"
+    total_iters = "test"
+    with torch.no_grad():
+        model.compute_metrics_test(dataloaders_test, epoch, total_iters)
+
+    metrics = model.get_current_metrics()
+    for metric, value in metrics.items():
+        print(f"{metric}: {value}")
+
+    metrics_dir = os.path.join(opt.test_model_dir, "metrics")
+    os.makedirs(metrics_dir, exist_ok=True)
+    metrics_file = os.path.join(metrics_dir, time.strftime("%Y%m%d-%H%M%S") + ".json")
+    with open(metrics_file, "w") as f:
+        f.write(json.dumps(metrics, indent=4))
+    print("metrics written to:", metrics_file)
+
 
 if __name__ == "__main__":
-    opt = TestOptions().parse()  # get test options
-    # hard-code some parameters for test
-    opt.num_threads = 0  # test code only supports num_threads = 1
-    opt.batch_size = 1  # test code only supports batch_size = 1
-    opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
-    opt.no_flip = (
-        True  # no flip; comment this line if results on flipped images are needed.
+    main_parser = argparse.ArgumentParser()
+
+    main_parser.add_argument(
+        "--test_model_dir", type=str, required=True, help="path to model directory"
     )
-    opt.display_id = (
-        -1
-    )  # no visdom display; the test code saves the results to a HTML file.
-    dataset = create_dataset(
-        opt
-    )  # create a dataset given opt.dataset_mode and other options
-    model = create_model(opt)  # create a model given opt.model and other options
-    model.setup(opt)  # regular setup: load and print networks; create schedulers
-    # create a website
-    web_dir = os.path.join(
-        opt.results_dir, opt.name, "{}_{}".format(opt.phase, opt.epoch)
-    )  # define the website directory
-    if opt.load_iter > 0:  # load_iter is 0 by default
-        web_dir = "{:s}_iter{:d}".format(web_dir, opt.load_iter)
-    print("creating web directory", web_dir)
-    webpage = html_util.HTML(
-        web_dir,
-        "Experiment = %s, Phase = %s, Epoch = %s" % (opt.name, opt.phase, opt.epoch),
+    main_parser.add_argument(
+        "--test_epoch",
+        type=str,
+        default="latest",
+        help="which epoch to load? set to latest to use latest cached model",
     )
-    # test with eval mode. This only affects layers like batchnorm and dropout.
-    # For [pix2pix]: we use batchnorm and dropout in the original pix2pix. You can experiment it with and without eval() mode.
-    # For [CycleGAN]: It should not affect CycleGAN as CycleGAN uses instancenorm without dropout.
-    if opt.eval:
-        model.eval()
-    for i, data in enumerate(dataset):
-        if i >= opt.num_test:  # only apply our model to opt.num_test images.
-            break
-        model.set_input(data)  # unpack data from data loader
-        model.test()  # run inference
-        visuals = model.get_current_visuals()  # get image results
-        img_path = model.get_image_paths()  # get image paths
-        if i % 5 == 0:  # save images to an HTML file
-            print("processing (%04d)-th image... %s" % (i, img_path))
-        save_images(
-            webpage,
-            visuals,
-            img_path,
-            aspect_ratio=opt.aspect_ratio,
-            width=opt.display_winsize,
-        )
-    webpage.save()  # save the HTML
+    main_parser.add_argument(
+        "--test_metrics_list",
+        type=str,
+        nargs="*",
+        choices=["FID", "KID", "MSID", "PSNR", "LPIPS"],
+        default=["FID", "KID", "MSID", "PSNR", "LPIPS"],
+    )
+    main_parser.add_argument(
+        "--test_nb_img",
+        type=int,
+        default=MAX_INT,
+        help="Number of samples to compute metrics. If the dataset directory contains more, only a subset is used.",
+    )
+    main_parser.add_argument(
+        "--test_batch_size", type=int, default=1, help="input batch size"
+    )
+    main_parser.add_argument(
+        "--test_seed", type=int, default=42, help="seed to use for tests"
+    )
+
+    main_opt, remaining_args = main_parser.parse_known_args()
+    main_opt.config_json = os.path.join(main_opt.test_model_dir, "train_config.json")
+
+    opt = get_opt(main_opt, remaining_args)
+
+    # override global options with local test options
+    opt.train_compute_metrics_test = True
+    opt.test_model_dir = main_opt.test_model_dir
+    opt.train_epoch = main_opt.test_epoch
+    opt.train_metrics_list = main_opt.test_metrics_list
+    opt.train_nb_img_max_fid = main_opt.test_nb_img
+    opt.test_batch_size = main_opt.test_batch_size
+
+    random.seed(main_opt.test_seed)
+    torch.manual_seed(main_opt.test_seed)
+    np.random.seed(main_opt.test_seed)
+
+    launch_testing(opt)

@@ -400,6 +400,7 @@ class ResnetGenerator_attn(BaseGenerator_attn):
         padding_type="reflect",
         mobile=False,
         twice_resnet_blocks=False,
+        freq_space=False,
     ):
         super(ResnetGenerator_attn, self).__init__(
             nb_mask_attn=nb_mask_attn, nb_mask_input=nb_mask_input
@@ -415,48 +416,70 @@ class ResnetGenerator_attn(BaseGenerator_attn):
         self.nb = n_blocks
         self.padding_type = padding_type
         self.twice_resnet_blocks = twice_resnet_blocks
+        self.freq_space = freq_space
 
-        self.conv1 = spectral_norm(nn.Conv2d(input_nc, ngf, 7, 1, 0), use_spectral)
+        if freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
+            self.iwt = InverseHaarTransform(self.input_nc)
+            self.dwt = HaarTransform(self.input_nc)
+            self.input_nc = input_nc * 4
+
+        self.conv1 = spectral_norm(
+            nn.Conv2d(self.input_nc, self.ngf, 7, 1, 0), use_spectral
+        )
         self.input_nc = output_nc  # hack
-        self.conv1_norm = nn.InstanceNorm2d(ngf)
-        self.conv2 = spectral_norm(nn.Conv2d(ngf, ngf * 2, 3, 2, 1), use_spectral)
-        self.conv2_norm = nn.InstanceNorm2d(ngf * 2)
-        self.conv3 = spectral_norm(nn.Conv2d(ngf * 2, ngf * 4, 3, 2, 1), use_spectral)
-        self.conv3_norm = nn.InstanceNorm2d(ngf * 4)
+        self.conv1_norm = nn.InstanceNorm2d(self.ngf)
+        self.conv2 = spectral_norm(
+            nn.Conv2d(self.ngf, self.ngf * 2, 3, 2, 1), use_spectral
+        )
+        self.conv2_norm = nn.InstanceNorm2d(self.ngf * 2)
+        self.conv3 = spectral_norm(
+            nn.Conv2d(self.ngf * 2, self.ngf * 4, 3, 2, 1), use_spectral
+        )
+        self.conv3_norm = nn.InstanceNorm2d(self.ngf * 4)
 
         self.resnet_blocks = []
         for i in range(n_blocks):
             self.resnet_blocks.append(
-                resnet_block_attn(ngf * 4, 3, 1, self.padding_type, conv=conv)
+                resnet_block_attn(self.ngf * 4, 3, 1, self.padding_type, conv=conv)
             )
             self.resnet_blocks[i].weight_init(0, 0.02)
 
         self.resnet_blocks = nn.Sequential(*self.resnet_blocks)
 
         self.deconv1_content = spectral_norm(
-            nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, 2, 1, 1), use_spectral
+            nn.ConvTranspose2d(self.ngf * 4, self.ngf * 2, 3, 2, 1, 1), use_spectral
         )
-        self.deconv1_norm_content = nn.InstanceNorm2d(ngf * 2)
+        self.deconv1_norm_content = nn.InstanceNorm2d(self.ngf * 2)
         self.deconv2_content = spectral_norm(
-            nn.ConvTranspose2d(ngf * 2, ngf, 3, 2, 1, 1), use_spectral
+            nn.ConvTranspose2d(self.ngf * 2, self.ngf, 3, 2, 1, 1), use_spectral
         )
-        self.deconv2_norm_content = nn.InstanceNorm2d(ngf)
+        self.deconv2_norm_content = nn.InstanceNorm2d(self.ngf)
+        if self.freq_space:
+            deconv3_ngf = int(self.ngf / 4)
+        else:
+            deconv3_ngf = self.ngf
         self.deconv3_content = spectral_norm(
             nn.Conv2d(
-                ngf, self.input_nc * (self.nb_mask_attn - self.nb_mask_input), 7, 1, 0
+                deconv3_ngf,
+                self.input_nc * (self.nb_mask_attn - self.nb_mask_input),
+                7,
+                1,
+                0,
             ),
             use_spectral,
         )
 
         self.deconv1_attention = spectral_norm(
-            nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, 2, 1, 1), use_spectral
+            nn.ConvTranspose2d(self.ngf * 4, self.ngf * 2, 3, 2, 1, 1), use_spectral
         )
-        self.deconv1_norm_attention = nn.InstanceNorm2d(ngf * 2)
+        self.deconv1_norm_attention = nn.InstanceNorm2d(self.ngf * 2)
         self.deconv2_attention = spectral_norm(
-            nn.ConvTranspose2d(ngf * 2, ngf, 3, 2, 1, 1), use_spectral
+            nn.ConvTranspose2d(self.ngf * 2, self.ngf, 3, 2, 1, 1), use_spectral
         )
-        self.deconv2_norm_attention = nn.InstanceNorm2d(ngf)
-        self.deconv3_attention = nn.Conv2d(ngf, self.nb_mask_attn, 1, 1, 0)
+        self.deconv2_norm_attention = nn.InstanceNorm2d(self.ngf)
+        self.deconv3_attention = nn.Conv2d(self.ngf, self.nb_mask_attn, 1, 1, 0)
 
         self.tanh = nn.Tanh()
 
@@ -470,6 +493,10 @@ class ResnetGenerator_attn(BaseGenerator_attn):
             x = F.pad(input, (3, 3, 3, 3), "reflect")
         else:
             x = F.pad(input, (3, 3, 3, 3), "constant", 0)
+
+        if self.freq_space:
+            x = self.dwt(x)
+
         x = F.relu(self.conv1_norm(self.conv1(x)))
         x = F.relu(self.conv2_norm(self.conv2(x)))
         x = F.relu(self.conv3_norm(self.conv3(x)))
@@ -495,11 +522,16 @@ class ResnetGenerator_attn(BaseGenerator_attn):
 
         x_content = F.relu(self.deconv1_norm_content(self.deconv1_content(x)))
         x_content = F.relu(self.deconv2_norm_content(self.deconv2_content(x_content)))
+
+        if self.freq_space:
+            x_content = self.iwt(x_content)
+
         if self.padding_type == "reflect":
             x_content = F.pad(x_content, (3, 3, 3, 3), "reflect")
         else:
             x_content = F.pad(x_content, (3, 3, 3, 3), "constant", 0)
         content = self.deconv3_content(x_content)
+
         image = self.tanh(content)
 
         images = []

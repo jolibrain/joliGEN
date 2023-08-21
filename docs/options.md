@@ -37,14 +37,14 @@ Here are all the available options to call with `train.py`
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
 | --D_temporal_every | int | 4 | apply temporal discriminator every x steps |
 | --D_vision_aided_backbones | string | clip+dino+swin | specify vision aided discriminators architectures, they are frozen then output are combined and fitted with a linear network on top, choose from dino, clip, swin, det_coco, seg_ade and combine them with + |
-| --D_weight_sam | string |  | path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth |
+| --D_weight_sam | string |  | path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM |
 
 ## Generator
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| --G_attn_nb_mask_attn | int | 10 |  |
-| --G_attn_nb_mask_input | int | 1 |  |
+| --G_attn_nb_mask_attn | int | 10 | number of attention masks in _attn model architectures |
+| --G_attn_nb_mask_input | int | 1 | number of mask dedicated to input in _attn model architectures |
 | --G_backward_compatibility_twice_resnet_blocks | flag |  | if true, feats will go througt resnet blocks two times for resnet_attn generators. This option will be deleted, it's for backward compatibility (old models were trained that way). |
 | --G_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file for G |
 | --G_diff_n_timestep_test | int | 1000 | Number of timesteps used for UNET mha inference (test time). |
@@ -62,8 +62,8 @@ Here are all the available options to call with `train.py`
 | --G_unet_mha_channel_mults | array | [1, 2, 4, 8] | channel multiplier for each level of the UNET mha |
 | --G_unet_mha_group_norm_size | int | 32 |  |
 | --G_unet_mha_norm_layer | string | groupnorm | <br/><br/> **Values:** groupnorm, batchnorm, layernorm, instancenorm, switchablenorm |
-| --G_unet_mha_num_head_channels | int | 32 |  |
-| --G_unet_mha_num_heads | int | 1 |  |
+| --G_unet_mha_num_head_channels | int | 32 | number of channels in each head of the mha architecture |
+| --G_unet_mha_num_heads | int | 1 | number of heads in the mha architecture |
 | --G_unet_mha_res_blocks | array | [2, 2, 2, 2] | distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults |
 | --G_unet_mha_vit_efficient | flag |  | if true, use efficient attention in UNet and UViT |
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
@@ -208,7 +208,7 @@ Here are all the available options to call with `train.py`
 | --f_s_nf | int | 64 | \# of filters in the first conv layer of classifier |
 | --f_s_semantic_nclasses | int | 2 | number of classes of the semantic loss classifier |
 | --f_s_semantic_threshold | float | 1.0 | threshold of the semantic classifier loss below with semantic loss is applied |
-| --f_s_weight_sam | string |  | path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth |
+| --f_s_weight_sam | string |  | path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM |
 | --f_s_weight_segformer | string |  | path to segformer weight for f_s, e.g. models/configs/segformer/pretrain/segformer_mit-b0.pth |
 
 ## Semantic classification network
@@ -264,6 +264,7 @@ Here are all the available options to call with `train.py`
 | --model_multimodal | flag |  | multimodal model with random latent input vector |
 | --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale<br/><br/> **Values:** 1, 3 |
 | --model_prior_321_backwardcompatibility | flag |  | whether to load models from previous version of JG. |
+| --model_type_sam | string | mobile_sam | which model to use for segment-anything mask generation<br/><br/> **Values:** sam, mobile_sam |
 
 ## Training
 
@@ -280,18 +281,19 @@ Here are all the available options to call with `train.py`
 | --train_cls_l1_regression | flag |  | if true l1 loss will be used to compute regressor loss |
 | --train_cls_regression | flag |  | if true cls will be a regressor and not a classifier |
 | --train_compute_D_accuracy | flag |  | whether to compute D accuracy explicitely |
-| --train_compute_metrics_test | flag |  |  |
+| --train_compute_metrics_test | flag |  | whether to compute test metrics, e.g. FID, ... |
 | --train_continue | flag |  | continue training: load the latest model |
 | --train_epoch | string | latest | which epoch to load? set to latest to use latest cached model |
 | --train_epoch_count | int | 1 | the starting epoch count, we save the model by \<epoch_count\>, \<epoch_count\>+\<save_latest_freq\>, ... |
 | --train_export_jit | flag |  | whether to export model in jit format |
+| --train_feat_wavelet | flag |  | if true, train in wavelet features space (Note: this may not include all discriminators, when training GANs) |
 | --train_gan_mode | string | lsgan | the type of GAN objective. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.<br/><br/> **Values:** vanilla, lsgan, wgangp, projected |
 | --train_iter_size | int | 1 | backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size\*iter_size |
 | --train_load_iter | int | 0 | which iteration to load? if load_iter \> 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch] |
 | --train_lr_decay_iters | int | 50 | multiply by a gamma every lr_decay_iters iterations |
 | --train_lr_policy | string | linear | learning rate policy.<br/><br/> **Values:** linear, step, plateau, cosine |
-| --train_metrics_every | int | 1000 |  |
-| --train_metrics_list | array | ['FID'] | <br/><br/> **Values:** FID, KID, MSID, PSNR |
+| --train_metrics_every | int | 1000 | compute metrics every N iterations |
+| --train_metrics_list | array | ['FID'] | metrics on results quality to compute<br/><br/> **Values:** FID, KID, MSID, PSNR, LPIPS |
 | --train_mm_lambda_z | float | 0.5 | weight for random z loss |
 | --train_mm_nz | int | 8 | number of latent vectors |
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |
@@ -328,13 +330,13 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --train_mask_charbonnier_eps | float | 1e-06 | Charbonnier loss epsilon value |
-| --train_mask_compute_miou | flag |  |  |
+| --train_mask_compute_miou | flag |  | whether to compute mIoU on semantic masks prediction |
 | --train_mask_disjoint_f_s | flag |  | whether to use a disjoint f_s with the same exact structure |
 | --train_mask_f_s_B | flag |  | if true f_s will be trained not only on domain A but also on domain B |
 | --train_mask_for_removal | flag |  | if true, object removal mode, domain B images with label 0, cut models only |
 | --train_mask_lambda_out_mask | float | 10.0 | weight for loss out mask |
 | --train_mask_loss_out_mask | string | L1 | loss for out mask content (which should not change).<br/><br/> **Values:** L1, MSE, Charbonnier |
-| --train_mask_miou_every | int | 1000 |  |
+| --train_mask_miou_every | int | 1000 | compute mIoU every n iterations |
 | --train_mask_no_train_f_s_A | flag |  | if true f_s wont be trained on domain A |
 | --train_mask_out_mask | flag |  | use loss out mask |
 

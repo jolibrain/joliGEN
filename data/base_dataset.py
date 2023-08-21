@@ -20,6 +20,9 @@ if torch.__version__[0] == "2":
 
 import torchvision.transforms.functional as F
 
+from data.image_folder import make_dataset, make_dataset_path, make_labeled_path_dataset
+from data.online_creation import sanitize_paths, write_paths_file
+
 from abc import ABC, abstractmethod
 import imgaug as ia
 import imgaug.augmenters as iaa
@@ -137,7 +140,7 @@ class BaseDataset(data.Dataset, ABC):
                 if B_label_mask_path is not None:
                     B_label_mask_path = os.path.join(self.root, B_label_mask_path)
 
-        return self.get_img(
+        results = self.get_img(
             A_img_path,
             A_label_mask_path,
             A_label_cls,
@@ -146,6 +149,8 @@ class BaseDataset(data.Dataset, ABC):
             B_label_cls,
             index,
         )
+
+        return results
 
     def set_dataset_dirs_and_dims(self):
         btoA = self.opt.data_direction == "BtoA"
@@ -248,6 +253,81 @@ class BaseDataset(data.Dataset, ABC):
             return_B_list = torch.cat(return_B_list)
 
         return return_A_list, return_B_list
+
+    def sanitize(self):
+        paths_sanitized_train_A = os.path.join(
+            self.sv_dir, "paths_sanitized_train_A.txt"
+        )
+        if hasattr(self, "B_img_paths"):
+            paths_sanitized_train_B = os.path.join(
+                self.sv_dir, "paths_sanitized_train_B.txt"
+            )
+        if hasattr(self, "B_img_paths"):
+            train_sanitized_exist = os.path.exists(
+                paths_sanitized_train_A
+            ) and os.path.exists(paths_sanitized_train_B)
+        else:
+            train_sanitized_exist = os.path.exists(paths_sanitized_train_A)
+
+        if train_sanitized_exist:
+            self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
+                self.sv_dir, "/paths_sanitized_train_A.txt"
+            )
+            if hasattr(self, "B_img_paths"):
+                self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
+                    self.sv_dir, "/paths_sanitized_train_B.txt"
+                )
+        else:
+            print("--------------")
+            print("Sanitizing images and labels paths")
+            print("--- DOMAIN A ---")
+
+            self.A_img_paths, self.A_label_mask_paths = sanitize_paths(
+                self.A_img_paths,
+                self.A_label_mask_paths,
+                mask_delta=self.opt.data_online_creation_mask_delta_A,
+                mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
+                crop_delta=self.opt.data_online_creation_crop_delta_A,
+                mask_square=self.opt.data_online_creation_mask_square_A,
+                crop_dim=self.opt.data_online_creation_crop_size_A,
+                output_dim=self.opt.data_load_size,
+                max_dataset_size=self.opt.data_max_dataset_size,
+                context_pixels=self.opt.data_online_context_pixels,
+                load_size=self.opt.data_online_creation_load_size_A,
+                select_cat=self.opt.data_online_select_category,
+                data_relative_paths=self.opt.data_relative_paths,
+                data_root_path=self.opt.dataroot,
+            )
+            write_paths_file(
+                self.A_img_paths,
+                self.A_label_mask_paths,
+                paths_sanitized_train_A,
+            )
+
+            print("--- DOMAIN B ---")
+            if hasattr(self, "B_img_paths"):
+                self.B_img_paths, self.B_label_mask_paths = sanitize_paths(
+                    self.B_img_paths,
+                    self.B_label_mask_paths,
+                    mask_delta=self.opt.data_online_creation_mask_delta_B,
+                    mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
+                    crop_delta=self.opt.data_online_creation_crop_delta_B,
+                    mask_square=self.opt.data_online_creation_mask_square_B,
+                    crop_dim=self.opt.data_online_creation_crop_size_B,
+                    output_dim=self.opt.data_load_size,
+                    max_dataset_size=self.opt.data_max_dataset_size,
+                    context_pixels=self.opt.data_online_context_pixels,
+                    load_size=self.opt.data_online_creation_load_size_B,
+                    data_relative_paths=self.opt.data_relative_paths,
+                    data_root_path=self.opt.dataroot,
+                )
+                write_paths_file(
+                    self.B_img_paths,
+                    self.B_label_mask_paths,
+                    paths_sanitized_train_B,
+                )
+
+            print("--------------")
 
 
 def get_params(opt, size):

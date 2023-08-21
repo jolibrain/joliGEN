@@ -1,17 +1,15 @@
 import copy
+import itertools
 import math
 import random
 import warnings
 
 import torch
 import torchvision.transforms as T
+import tqdm
 from torch import nn
 
-
-import itertools
-import tqdm
-
-from data.online_creation import fill_mask_with_color
+from data.online_creation import fill_mask_with_color, fill_mask_with_random
 from models.modules.sam.sam_inference import compute_mask_with_sam
 from util.iter_calculator import IterCalculator
 from util.mask_generation import random_edge_mask
@@ -247,12 +245,14 @@ class PaletteModel(BaseDiffusionModel):
                 (self.opt.data_crop_size, self.opt.data_crop_size)
             )
 
-        if self.opt.alg_palette_inference_num == -1:
-            self.inference_num = self.opt.train_batch_size
+        if opt.isTrain:
+            batch_size = self.opt.train_batch_size
         else:
-            self.inference_num = min(
-                self.opt.alg_palette_inference_num, self.opt.train_batch_size
-            )
+            batch_size = self.opt.test_batch_size
+        if self.opt.alg_palette_inference_num == -1:
+            self.inference_num = batch_size
+        else:
+            self.inference_num = min(self.opt.alg_palette_inference_num, batch_size)
 
         self.ddim_num_steps = self.opt.alg_palette_ddim_num_steps
         self.ddim_eta = self.opt.alg_palette_ddim_eta
@@ -315,14 +315,14 @@ class PaletteModel(BaseDiffusionModel):
         G_parameters = itertools.chain(*G_parameters)
 
         # Define optimizer
-        self.optimizer_G = opt.optim(
-            opt,
-            G_parameters,
-            lr=opt.train_G_lr,
-            betas=(opt.train_beta1, opt.train_beta2),
-        )
-
-        self.optimizers.append(self.optimizer_G)
+        if opt.isTrain:
+            self.optimizer_G = opt.optim(
+                opt,
+                G_parameters,
+                lr=opt.train_G_lr,
+                betas=(opt.train_beta1, opt.train_beta2),
+            )
+            self.optimizers.append(self.optimizer_G)
 
         # Define loss functions
         if self.opt.alg_palette_loss == "MSE":
@@ -384,14 +384,28 @@ class PaletteModel(BaseDiffusionModel):
             self.gt_image = data["B"].to(self.device)[:, 1]
             if self.task == "inpainting":
                 self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
+                ### Note: the sam related stuff should eventually go into the dataloader
                 if self.use_sam_mask:
+                    if self.opt.data_inverted_mask:
+                        temp_mask = data["B_label_mask"].clone()
+                        temp_mask[temp_mask > 0] = 2
+                        temp_mask[temp_mask == 0] = 1
+                        temp_mask[temp_mask == 2] = 0
+                    else:
+                        temp_mask = data["B_label_mask"].clone()
                     self.mask = compute_mask_with_sam(
                         self.gt_image,
-                        data["B_label_mask"].to(self.device)[:, 1],
+                        temp_mask.to(self.device)[:, 1],
                         self.freezenet_sam,
                         self.device,
                         batched=True,
                     )
+
+                    if self.opt.data_inverted_mask:
+                        self.mask[self.mask > 0] = 2
+                        self.mask[self.mask == 0] = 1
+                        self.mask[self.mask == 2] = 0
+                    self.y_t = fill_mask_with_random(self.gt_image, self.mask, -1)
                 else:
                     self.mask = data["B_label_mask"].to(self.device)[:, 1]
             else:
@@ -400,14 +414,28 @@ class PaletteModel(BaseDiffusionModel):
             if self.task == "inpainting":
                 self.y_t = data["A"].to(self.device)
                 self.gt_image = data["B"].to(self.device)
+                ### Note: the sam related stuff should eventually go into the dataloader
                 if self.use_sam_mask:
+                    if self.opt.data_inverted_mask:
+                        temp_mask = data["B_label_mask"].clone()
+                        temp_mask[temp_mask > 0] = 2
+                        temp_mask[temp_mask == 0] = 1
+                        temp_mask[temp_mask == 2] = 0
+                    else:
+                        temp_mask = data["B_label_mask"].clone()
                     self.mask = compute_mask_with_sam(
                         self.gt_image,
-                        data["B_label_mask"].to(self.device),
+                        temp_mask.to(self.device),
                         self.freezenet_sam,
                         self.device,
                         batched=True,
                     )
+                    if self.opt.data_inverted_mask:
+                        self.mask[self.mask > 0] = 2
+                        self.mask[self.mask == 0] = 1
+                        self.mask[self.mask == 2] = 0
+                    self.y_t = fill_mask_with_random(self.gt_image, self.mask, -1)
+
                 else:
                     self.mask = data["B_label_mask"].to(self.device)
             else:  # e.g. super-resolution

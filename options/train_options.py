@@ -180,14 +180,24 @@ class TrainOptions(BaseOptions):
             help="which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]",
         )
 
-        parser.add_argument("--train_compute_metrics_test", action="store_true")
-        parser.add_argument("--train_metrics_every", type=int, default=1000)
+        parser.add_argument(
+            "--train_compute_metrics_test",
+            action="store_true",
+            help="whether to compute test metrics, e.g. FID, ...",
+        )
+        parser.add_argument(
+            "--train_metrics_every",
+            type=int,
+            default=1000,
+            help="compute metrics every N iterations",
+        )
         parser.add_argument(
             "--train_metrics_list",
             type=str,
             default=["FID"],
             nargs="*",
-            choices=["FID", "KID", "MSID", "PSNR"],
+            choices=["FID", "KID", "MSID", "PSNR", "LPIPS"],
+            help="metrics on results quality to compute",
         )
 
         parser.add_argument(
@@ -281,6 +291,13 @@ class TrainOptions(BaseOptions):
             help="backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size*iter_size",
         )
         parser.add_argument("--train_use_contrastive_loss_D", action="store_true")
+
+        # frequency space training
+        parser.add_argument(
+            "--train_feat_wavelet",
+            action="store_true",
+            help="if true, train in wavelet features space (Note: this may not include all discriminators, when training GANs)",
+        )
 
         # multimodal training
         parser.add_argument(
@@ -419,8 +436,17 @@ class TrainOptions(BaseOptions):
             help="if true, object removal mode, domain B images with label 0, cut models only",
         )
 
-        parser.add_argument("--train_mask_compute_miou", action="store_true")
-        parser.add_argument("--train_mask_miou_every", type=int, default=1000)
+        parser.add_argument(
+            "--train_mask_compute_miou",
+            action="store_true",
+            help="whether to compute mIoU on semantic masks prediction",
+        )
+        parser.add_argument(
+            "--train_mask_miou_every",
+            type=int,
+            default=1000,
+            help="compute mIoU every n iterations",
+        )
 
         # train with temporal criterion loss
         parser.add_argument(

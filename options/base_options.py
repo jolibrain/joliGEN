@@ -11,6 +11,7 @@ import torch
 import data
 import models
 from models.modules.classifiers import TORCH_MODEL_CLASSES
+from models.modules.utils import download_mobile_sam_weight, download_sam_weight
 from util import util
 from util.util import MAX_INT, flatten_json, pairs_of_floats, pairs_of_ints
 
@@ -190,7 +191,7 @@ class BaseOptions:
             "--D_weight_sam",
             type=str,
             default="",
-            help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+            help="path to sam weight for D, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
         )
 
         # generator
@@ -261,9 +262,19 @@ class BaseOptions:
             default="models/configs/segformer/segformer_config_b0.json",
             help="path to segformer configuration file for G",
         )
-        parser.add_argument("--G_attn_nb_mask_attn", default=10, type=int)
+        parser.add_argument(
+            "--G_attn_nb_mask_attn",
+            default=10,
+            type=int,
+            help="number of attention masks in _attn model architectures",
+        )
 
-        parser.add_argument("--G_attn_nb_mask_input", default=1, type=int)
+        parser.add_argument(
+            "--G_attn_nb_mask_input",
+            default=1,
+            type=int,
+            help="number of mask dedicated to input in _attn model architectures",
+        )
 
         parser.add_argument(
             "--G_backward_compatibility_twice_resnet_blocks",
@@ -285,8 +296,18 @@ class BaseOptions:
             help="specify multimodal latent vector encoder",
         )
 
-        parser.add_argument("--G_unet_mha_num_head_channels", default=32, type=int)
-        parser.add_argument("--G_unet_mha_num_heads", default=1, type=int)
+        parser.add_argument(
+            "--G_unet_mha_num_head_channels",
+            default=32,
+            type=int,
+            help="number of channels in each head of the mha architecture",
+        )
+        parser.add_argument(
+            "--G_unet_mha_num_heads",
+            default=1,
+            type=int,
+            help="number of heads in the mha architecture",
+        )
 
         parser.add_argument(
             "--G_uvit_num_transformer_blocks",
@@ -523,10 +544,9 @@ class BaseOptions:
             "--f_s_weight_sam",
             type=str,
             default="",
-            help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth",
+            help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
         )
 
-        # cls semantic network
         parser.add_argument(
             "--cls_net",
             type=str,
@@ -652,6 +672,14 @@ class BaseOptions:
             "--data_refined_mask",
             action="store_true",
             help="whether to use refined mask with sam",
+        )
+
+        parser.add_argument(
+            "--model_type_sam",
+            type=str,
+            default="mobile_sam",
+            choices=["sam", "mobile_sam"],
+            help="which model to use for segment-anything mask generation",
         )
 
         # Online dataset creation options
@@ -994,10 +1022,12 @@ class BaseOptions:
             opt.D_proj_interp = 224
 
         # Dsam requires D_weight_sam
-        if "sam" in opt.D_netDs and opt.D_weight_sam == "":
-            raise ValueError(
-                "Dsam requires D_weight_sam, please specify a path to a pretrained sam model"
-            )
+        if "sam" in opt.D_netDs:
+            if opt.D_weight_sam == "":
+                raise ValueError(
+                    "Dsam requires D_weight_sam, please specify a path to a pretrained SAM or MobileSAM model"
+                )
+            download_sam_weight(opt.D_weight_sam)
 
         # diffusion D + vitsmall check
         if opt.dataaug_D_diffusion and "vit" in opt.D_proj_network_type:
@@ -1013,54 +1043,57 @@ class BaseOptions:
             ):
                 raise ValueError("SAM with masks and bbox prompting requires Pytorch 2")
         if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
-            raise warning.warn("SAM with direct masks does not use mask/bbox prompting")
+            warnings.warn("SAM with direct masks does not use mask/bbox prompting")
 
         # mask delta check
-        if opt.data_online_creation_mask_delta_A == None:
+        if opt.data_online_creation_mask_delta_A == [[]]:
             pass
         else:
             if (
-                len(opt.data_online_creation_mask_delta_A) > 1
-                and len(opt.data_online_creation_mask_delta_A)
+                len(opt.data_online_creation_mask_delta_A)
                 < opt.f_s_semantic_nclasses - 1
             ):
+                if len(opt.data_online_creation_mask_delta_A) == 1:
+                    warnings.warn(
+                        "Mask delta A list should be of length f_s_semantic_nclasses, distributing single value across all classes"
+                    )
+                opt.data_online_creation_mask_delta_A = (
+                    opt.data_online_creation_mask_delta_A
+                    * (opt.f_s_semantic_nclasses - 1)
+                )
+            elif len(opt.data_online_creation_mask_delta_A) > 1:
                 raise ValueError(
                     "Mask delta A list must be of length f_s_semantic_nclasses"
                 )
-            if (
-                len(opt.data_online_creation_mask_delta_A)
-                == opt.f_s_semantic_nclasses - 1
-            ):
-                if (
-                    len(opt.data_online_creation_mask_delta_A[0]) == 1
-                    and not opt.data_online_creation_mask_square_A
-                ):
-                    raise ValueError(
-                        "Mask delta A has a single value per dimension but --data_online_creation_mask_square_A is not set, please set it to True"
-                    )
-        if opt.data_online_creation_mask_delta_B == None:
+
+        if opt.data_online_creation_mask_delta_B == [[]]:
             pass
         else:
             if (
-                len(opt.data_online_creation_mask_delta_B) > 1
-                and len(opt.data_online_creation_mask_delta_B)
+                len(opt.data_online_creation_mask_delta_B)
                 < opt.f_s_semantic_nclasses - 1
             ):
+                if len(opt.data_online_creation_mask_delta_B) == 1:
+                    warnings.warn(
+                        "Mask delta B list should be of length f_s_semantic_nclasses, distributing single value across all classes"
+                    )
+                opt.data_online_creation_mask_delta_B = (
+                    opt.data_online_creation_mask_delta_B
+                    * (opt.f_s_semantic_nclasses - 1)
+                )
+            elif len(opt.data_online_creation_mask_delta_B) > 1:
                 raise ValueError(
                     "Mask delta B list must be of length f_s_semantic_nclasses"
                 )
-            if (
-                len(opt.data_online_creation_mask_delta_B)
-                == opt.f_s_semantic_nclasses - 1
-            ):
-                if (
-                    len(opt.data_online_creation_mask_delta_B[0]) == 1
-                    and not opt.data_online_creation_mask_square_B
-                ):
-                    raise ValueError(
-                        "Mask delta B has a single value per dimension but --data_online_creation_mask_square_B is not set, please set it to True"
-                    )
 
+        # training is frequency space only available for a few architectures atm
+        if opt.train_feat_wavelet:
+            if not opt.G_netG in ["mobile_resnet_attn", "unet_mha", "uvit"]:
+                raise ValueError(
+                    "Wavelet training is only available for mobile_resnet_attn, unet_mha and uvit architectures"
+                )
+
+        # register options
         self.opt = opt
 
         return self.opt

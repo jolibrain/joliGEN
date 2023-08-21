@@ -1,29 +1,35 @@
-import os
 import copy
-import torch
-from collections import OrderedDict
+import os
 from abc import abstractmethod
-from . import gan_networks
-from .modules.utils import get_scheduler, predict_depth, download_midas_weight
-from .modules.sam.sam_inference import load_sam_weight, predict_sam
-from torchviz import make_dot
-from .base_model import BaseModel
+from collections import OrderedDict
 
-from util.network_group import NetworkGroup
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torchviz import make_dot
 
 # for FID
 from data.base_dataset import get_transform
-from util.util import save_image, tensor2im
-import numpy as np
 from util.diff_aug import DiffAugment
+from util.discriminator import DiscriminatorInfo
 
 # for D accuracy
 from util.image_pool import ImagePool
-import torch.nn.functional as F
+from util.network_group import NetworkGroup
+from util.util import save_image, tensor2im
+
+from . import gan_networks
+from .base_model import BaseModel
 
 # For D loss computing
 from .modules import loss
-from util.discriminator import DiscriminatorInfo
+from .modules.sam.sam_inference import (
+    init_sam_net,
+    load_mobile_sam_weight,
+    load_sam_weight,
+    predict_sam,
+)
+from .modules.utils import download_midas_weight, get_scheduler, predict_depth
 
 
 class BaseGanModel(BaseModel):
@@ -108,10 +114,10 @@ class BaseGanModel(BaseModel):
         else:
             self.use_depth = False
 
-        if "sam" in opt.D_netDs:
+        if "sam" in opt.D_netDs or opt.data_refined_mask:
             self.use_sam = True
-            self.netfreeze_sam, self.predictor_sam = load_sam_weight(
-                self.opt.D_weight_sam
+            self.netfreeze_sam, self.predictor_sam = init_sam_net(
+                opt.model_type_sam, self.opt.D_weight_sam, self.device
             )
         else:
             self.use_sam = False
@@ -142,14 +148,12 @@ class BaseGanModel(BaseModel):
             self.loss_functions_G.append("compute_temporal_criterion_loss")
 
     def init_semantic_cls(self, opt):
-
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
         super().init_semantic_cls(opt)
 
     def init_semantic_mask(self, opt):
-
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
 
@@ -172,7 +176,6 @@ class BaseGanModel(BaseModel):
                 setattr(self, "image_" + str(i), cur_image)
 
         if self.opt.data_online_context_pixels > 0:
-
             bs = self.get_current_batch_size()
             self.mask_context = torch.ones(
                 [
@@ -413,7 +416,6 @@ class BaseGanModel(BaseModel):
             real = getattr(self, real_name)
 
         if hasattr(self, "diff_augment"):
-
             real = self.diff_augment(real)
             fake = self.diff_augment(fake)
 
@@ -544,7 +546,6 @@ class BaseGanModel(BaseModel):
         self.discriminators = []
 
         for discriminator_name in self.discriminators_names:
-
             loss_calculator_name = "D_" + discriminator_name + "_loss_calculator"
 
             if "temporal" in discriminator_name or "projected" in discriminator_name:

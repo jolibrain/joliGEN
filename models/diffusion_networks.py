@@ -47,6 +47,7 @@ def define_G(
     resblock_updown=True,
     use_new_attention_order=False,
     f_s_semantic_nclasses=-1,
+    train_feat_wavelet=False,
     **unused_options
 ):
     """Create a generator
@@ -102,6 +103,7 @@ def define_G(
             group_norm_size=G_unet_mha_group_norm_size,
             efficient=G_unet_mha_vit_efficient,
             cond_embed_dim=cond_embed_dim,
+            freq_space=train_feat_wavelet,
         )
 
     elif G_netG == "uvit":
@@ -124,6 +126,7 @@ def define_G(
             num_transformer_blocks=G_uvit_num_transformer_blocks,
             efficient=G_unet_mha_vit_efficient,
             cond_embed_dim=alg_palette_cond_embed_dim,
+            freq_space=train_feat_wavelet,
         )
         cond_embed_dim = alg_palette_cond_embed_dim
 

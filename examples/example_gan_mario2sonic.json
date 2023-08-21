@@ -62,17 +62,13 @@
             "load_size_A": [],
             "load_size_B": [],
             "mask_delta_A": [
-                50
+                [50]
             ],
             "mask_delta_B": [
-                15
+                [15]
             ],
-            "mask_random_offset_A": [
-                0.0
-            ],
-            "mask_random_offset_B": [
-                0.0
-            ],
+            "mask_random_offset_A": [0.0],
+            "mask_random_offset_B": [0.0],
             "mask_square_A": false,
             "mask_square_B": false,
             "rand_mask_A": false
@@ -99,20 +95,9 @@
         "dropout": false,
         "net": "unet",
         "nf": 64,
-        "semantic_nclasses": 2,
+        "semantic_nclasses": 7,
         "semantic_threshold": 1.0,
         "weight_sam": "",
-        "weight_segformer": ""
-    },
-    "cls": {
-        "all_classes_as_one": false,
-        "class_weights": [],
-        "config_segformer": "models/configs/segformer/segformer_config_b0.py",
-        "dropout": false,
-        "net": "vgg",
-        "nf": 64,
-        "semantic_nclasses": 2,
-        "semantic_threshold": 1.0,
         "weight_segformer": ""
     },
     "output": {

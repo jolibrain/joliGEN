@@ -19,8 +19,9 @@ from torchviz import make_dot
 from data.base_dataset import get_transform
 from util.metrics import _compute_statistics_of_dataloader
 
-
+from tqdm import tqdm
 from piq import MSID, KID, FID, psnr
+from lpips import LPIPS
 
 from util.util import save_image, tensor2im, delete_flop_param
 
@@ -37,7 +38,7 @@ from util.image_pool import ImagePool
 # Iter Calculator
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
-from util.util import delete_flop_param, save_image, tensor2im
+from util.util import delete_flop_param, save_image, tensor2im, MAX_INT
 
 from . import base_networks, semantic_networks
 
@@ -142,8 +143,10 @@ class BaseModel(ABC):
             self.msid_metric = MSID()
         if "KID" in self.opt.train_metrics_list:
             self.kid_metric = KID()
+        if "LPIPS" in self.opt.train_metrics_list:
+            self.lpips_metric = LPIPS().to(self.device)
 
-    def init_metrics(self, dataloader, dataloader_test):
+    def init_metrics(self, dataloader_test):
 
         self.use_inception = any(
             metric in self.opt.train_metrics_list for metric in ["KID", "FID", "MSID"]
@@ -720,8 +723,13 @@ class BaseModel(ABC):
                         input_nc += self.opt.train_mm_nz
 
                     # onnx
-                    if not "ittr" in self.opt.G_netG and not (
-                        torch.__version__[0] == "2" and "segformer" in self.opt.G_netG
+                    if (
+                        not self.opt.train_feat_wavelet
+                        and not "ittr" in self.opt.G_netG
+                        and not (
+                            torch.__version__[0] == "2"
+                            and "segformer" in self.opt.G_netG
+                        )
                     ):  # XXX: segformer export fails with ONNX and Pytorch2
                         export_path_onnx = save_path.replace(".pth", ".onnx")
 
@@ -1084,8 +1092,11 @@ class BaseModel(ABC):
     def compute_fake_real_masks(self):
         fake_mask = self.netf_s(self.real_A)
         fake_mask = F.gumbel_softmax(fake_mask, tau=1.0, hard=True, dim=1)
-        real_mask = self.netf_s(self.real_B)
+        real_mask = self.netf_s(
+            self.real_B
+        )  # f_s(B) is a good approximation of the real mask when task is easy
         real_mask = F.gumbel_softmax(real_mask, tau=1.0, hard=True, dim=1)
+
         setattr(self, "fake_mask_B_inv", fake_mask.argmax(dim=1))
         setattr(self, "real_mask_B_inv", real_mask.argmax(dim=1))
         setattr(self, "fake_mask_B", fake_mask)
@@ -1133,7 +1144,16 @@ class BaseModel(ABC):
                 f_s = self.netf_s_B
             else:
                 f_s = self.netf_s
-            label_B = self.input_B_label_mask
+
+            if self.opt.data_refined_mask:
+                # get mask with sam instead of label from self.real_B and self.input_B_ref_bbox
+                self.label_sam_B = (
+                    predict_sam(self.real_B, self.predictor_sam, self.input_B_ref_bbox)
+                    > 0.0
+                )
+                label_B = self.label_sam_B.long()
+            else:
+                label_B = self.input_B_label_mask
             pred_B = f_s(self.real_B)
             self.loss_f_s += self.criterionf_s(pred_B, label_B)  # .squeeze(1))
 
@@ -1303,6 +1323,11 @@ class BaseModel(ABC):
                     "psnr_test",
                 ]
 
+            if "LPIPS" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "lpips_test",
+                ]
+
         for name in metrics_names:
             if isinstance(name, str):
                 metrics[name] = float(
@@ -1323,6 +1348,15 @@ class BaseModel(ABC):
 
         fake_list = []
         real_list = []
+
+        if self.opt.train_nb_img_max_fid != MAX_INT:
+            progress = tqdm(
+                desc="compute metrics test",
+                position=1,
+                total=self.opt.train_nb_img_max_fid,
+            )
+        else:
+            progress = None
 
         for i, data_test_list in enumerate(
             dataloaders_test
@@ -1367,7 +1401,21 @@ class BaseModel(ABC):
 
             for sub_list in self.visual_names:
                 for name in sub_list:
-                    setattr(self, name + "_test", getattr(self, name))
+                    if hasattr(self, name):
+                        setattr(self, name + "_test", getattr(self, name))
+
+            if progress:
+                progress.n = min(len(fake_list), progress.total)
+                progress.refresh()
+
+            if len(fake_list) >= self.opt.train_nb_img_max_fid:
+                break
+
+        fake_list = fake_list[: self.opt.train_nb_img_max_fid]
+        real_list = real_list[: self.opt.train_nb_img_max_fid]
+
+        if progress:
+            progress.close()
 
         if self.use_inception:
             self.fakeactB_test = _compute_statistics_of_dataloader(
@@ -1390,15 +1438,18 @@ class BaseModel(ABC):
 
         real_tensor = (torch.cat(real_list) + 1) / 2
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1, max=1) + 1) / 2
-
         self.psnr_test = psnr(real_tensor, fake_tensor)
+
+        if "LPIPS" in self.opt.train_metrics_list:
+            real_tensor = torch.cat(real_list)
+            fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)
+            self.lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
 
     def compute_metrics_generic(self, real_act, fake_act):
 
         # FID
         if "FID" in self.opt.train_metrics_list:
             fid = self.fid_metric(real_act, fake_act)
-
         else:
             fid = None
 

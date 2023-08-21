@@ -91,6 +91,8 @@ wget -N $URL -O $ZIP_FILE
 mkdir $TARGET_MASK_SEM_ONLINE_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
+ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainA $TARGET_MASK_SEM_ONLINE_DIR/testA
+ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainB $TARGET_MASK_SEM_ONLINE_DIR/testB
 
 
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
@@ -102,6 +104,39 @@ fi
 
 ###### diffusion process test online
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+###### test cut
+echo "Running test cut"
+python3 "${current_dir}/../test.py" \
+	--test_model_dir $DIR/joligen_utest_cut/ \
+	--test_metrics_list FID KID PSNR LPIPS
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+###### test cycle_gan
+echo "Running test cycle_gan"
+python3 "${current_dir}/../test.py" \
+	--test_model_dir $DIR/joligen_utest_cycle_gan/ \
+	--test_metrics_list FID KID PSNR LPIPS
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+###### test palette
+echo "Running test palette"
+python3 "${current_dir}/../test.py" \
+	--test_model_dir $DIR/joligen_utest_palette/ \
+	--test_metrics_list FID KID PSNR LPIPS
 OUT=$?
 
 if [ $OUT != 0 ]; then
