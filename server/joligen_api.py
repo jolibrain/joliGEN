@@ -143,7 +143,7 @@ async def predict(request: Request):
     parser = PredictOptions()
     try:
         predict_method = predict_body["predict_options"]["predict-method"]
-        opt = parser.parse_json(predict_body["predict_options"], save_config=True)
+        opt = parser.parse_json(predict_body["predict_options"], save_config=False)
 
         # Parse the remaining options
         del predict_body["predict_options"]
