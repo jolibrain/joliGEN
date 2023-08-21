@@ -199,10 +199,25 @@ async def predict(request: Request):
         target = launch_predict_diffusion
 
     name = "predict_{}".format(int(time.time()))
-    ctx[name] = Process(target=target, args=(opt,))
+
+    LOG_PATH = os.environ.get(
+        "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
+    )
+    Path(f"{LOG_PATH}/{name}.log").touch()
+
+    ctx[name] = Process(target=target, args=(opt, name))
     ctx[name].start()
 
-    return {"message": "ok", "name": name, "status": "running"}
+    if predict_body.server.sync:
+        try:
+            # XXX could be awaited
+            ctx[name].join()
+        except Exception as e:
+            return {"predict_name": name, "message": str(e), "status": "error"}
+        del ctx[name]
+        return {"message": "ok", "predict_name": name, "status": "stopped"}
+
+    return {"message": "ok", "predict_name": name, "status": "running"}
 
 
 @app.post(
