@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import logging
 
 sys.path.append("../")
 from models import gan_networks
@@ -45,18 +46,34 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
     return model, opt, device
 
 
-def launch_predict_single_image(args):
+def launch_predict_single_image(args, process_name):
+
+    PROGRESS_NUM_STEPS = 6
+
+    LOG_PATH = os.environ.get(
+        "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
+    )
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+    log_file = f"{LOG_PATH}/{process_name}.log"
+
+    logging.basicConfig(filename=log_file, filemode="w", level=logging.INFO)
+    logging.info(f"[1/%i] launch process" % PROGRESS_NUM_STEPS)
+
     # loading model
     modelpath = args.model_in_file.replace(os.path.basename(args.model_in_file), "")
     print("modelpath=", modelpath)
+    logging.debug("modelpath=%s" % modelpath)
 
     model, opt, device = load_model(
         modelpath, os.path.basename(args.model_in_file), args.cpu, args.gpuid
     )
+    logging.info(f"[2/%i] model loaded" % PROGRESS_NUM_STEPS)
 
     # reading image
     img = cv2.imread(args.img_in)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    logging.info(f"[3/%i] image loaded" % PROGRESS_NUM_STEPS)
 
     # preprocessing
     tranlist = [
@@ -81,18 +98,22 @@ def launch_predict_single_image(args):
         img_tensor = torch.cat([img_tensor.unsqueeze(0), z_real], 1)
     else:
         img_tensor = img_tensor.unsqueeze(0)
+    logging.info(f"[4/%i] preprocessing finished" % PROGRESS_NUM_STEPS)
 
     # run through model
     out_tensor = model(img_tensor)[0].detach()
+    logging.info(f"[5/%i] out tensor available" % PROGRESS_NUM_STEPS)
 
     # post-processing
     out_img = out_tensor.data.cpu().float().numpy()
     print(out_img.shape)
+    logging.debug("out_img.shape=%s" % str(out_img.shape))
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
     # print(out_img)
     out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
     cv2.imwrite(args.img_out, out_img)
     print("Successfully generated image ", args.img_out)
+    logging.info(f"[6/%i] success - %s" % (PROGRESS_NUM_STEPS, args.img_out))
 
 
 if __name__ == "__main__":
