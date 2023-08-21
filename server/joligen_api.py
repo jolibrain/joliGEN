@@ -90,7 +90,7 @@ PredictBodySchema["properties"]["predict_options"] = PredictOptions().get_schema
 
 # Ensure schema is valid at startup
 json.dumps(
-    TrainBodySchema,
+    PredictBodySchema,
     ensure_ascii=False,
     indent=None,
     separators=(",", ":"),
