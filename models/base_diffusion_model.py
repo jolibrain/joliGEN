@@ -9,7 +9,6 @@ from inspect import isfunction
 import numpy as np
 import torch
 import torch.nn.functional as F
-from segment_anything import SamPredictor
 from torchviz import make_dot
 from tqdm import tqdm
 
@@ -17,8 +16,13 @@ from util.diff_aug import DiffAugment
 from util.util import save_image, tensor2im
 
 from .base_model import BaseModel
-from .modules.sam.sam_inference import load_sam_weight, predict_sam_mask
-from .modules.utils import download_sam_weight
+from .modules.sam.sam_inference import (
+    init_sam_net,
+    load_mobile_sam_weight,
+    load_sam_weight,
+    predict_sam_mask,
+)
+from .modules.utils import download_mobile_sam_weight, download_sam_weight
 
 
 class BaseDiffusionModel(BaseModel):
@@ -75,10 +79,9 @@ class BaseDiffusionModel(BaseModel):
         else:
             self.use_sam_edge = False
         if opt.data_refined_mask or "sam" in opt.alg_palette_computed_sketch_list:
-            if not os.path.exists(opt.f_s_weight_sam):
-                download_sam_weight(path=opt.f_s_weight_sam)
-            self.freezenet_sam, _ = load_sam_weight(model_path=opt.f_s_weight_sam)
-            self.freezenet_sam = self.freezenet_sam.to(self.device)
+            self.freezenet_sam, _ = init_sam_net(
+                opt.model_type_sam, opt.f_s_weight_sam, self.device
+            )
 
     def init_semantic_cls(self, opt):
         # specify the training losses you want to print out.

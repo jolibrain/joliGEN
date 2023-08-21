@@ -58,16 +58,31 @@ class Upsample(nn.Module):
 
     """
 
-    def __init__(self, channels, use_conv, out_channel=None, efficient=False):
+    def __init__(
+        self, channels, use_conv, out_channel=None, efficient=False, freq_space=False
+    ):
         super().__init__()
         self.channels = channels
         self.out_channel = out_channel or channels
         self.use_conv = use_conv
+        self.freq_space = freq_space
+
+        if freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
+            self.iwt = InverseHaarTransform(3)
+            self.dwt = HaarTransform(3)
+            self.channels = int(self.channels / 4)
+            self.out_channel = int(self.out_channel / 4)
+
         if use_conv:
             self.conv = nn.Conv2d(self.channels, self.out_channel, 3, padding=1)
         self.efficient = efficient
 
     def forward(self, x):
+        if self.freq_space:
+            x = self.iwt(x)
+
         assert x.shape[1] == self.channels
         if not self.efficient:
             x = F.interpolate(x, scale_factor=2, mode="nearest")
@@ -75,6 +90,10 @@ class Upsample(nn.Module):
             x = self.conv(x)
         if self.efficient:  # if efficient, we do the interpolation after the conv
             x = F.interpolate(x, scale_factor=2, mode="nearest")
+
+        if self.freq_space:
+            x = self.dwt(x)
+
         return x
 
 
@@ -85,11 +104,21 @@ class Downsample(nn.Module):
     :param use_conv: a bool determining if a convolution is applied.
     """
 
-    def __init__(self, channels, use_conv, out_channel=None):
+    def __init__(self, channels, use_conv, out_channel=None, freq_space=False):
         super().__init__()
         self.channels = channels
         self.out_channel = out_channel or channels
         self.use_conv = use_conv
+        self.freq_space = freq_space
+
+        if self.freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
+            self.iwt = InverseHaarTransform(3)
+            self.dwt = HaarTransform(3)
+            self.channels = int(self.channels / 4)
+            self.out_channel = int(self.out_channel / 4)
+
         stride = 2
         if use_conv:
             self.op = nn.Conv2d(
@@ -100,8 +129,16 @@ class Downsample(nn.Module):
             self.op = nn.AvgPool2d(kernel_size=stride, stride=stride)
 
     def forward(self, x):
+        if self.freq_space:
+            x = self.iwt(x)
+
         assert x.shape[1] == self.channels
-        return self.op(x)
+        opx = self.op(x)
+
+        if self.freq_space:
+            opx = self.dwt(opx)
+
+        return opx
 
 
 class ResBlock(EmbedBlock):
@@ -132,6 +169,7 @@ class ResBlock(EmbedBlock):
         up=False,
         down=False,
         efficient=False,
+        freq_space=False,
     ):
         super().__init__()
         self.channels = channels
@@ -143,21 +181,21 @@ class ResBlock(EmbedBlock):
         self.use_scale_shift_norm = use_scale_shift_norm
         self.up = up
         self.efficient = efficient
-
-        self.in_layers = nn.Sequential(
-            normalization(channels, norm),
-            torch.nn.SiLU(),
-            nn.Conv2d(channels, self.out_channel, 3, padding=1),
-        )
-
+        self.freq_space = freq_space
         self.updown = up or down
 
+        self.in_layers = nn.Sequential(
+            normalization(self.channels, norm),
+            torch.nn.SiLU(),
+            nn.Conv2d(self.channels, self.out_channel, 3, padding=1),
+        )
+
         if up:
-            self.h_upd = Upsample(channels, False)
-            self.x_upd = Upsample(channels, False)
+            self.h_upd = Upsample(channels, False, freq_space=self.freq_space)
+            self.x_upd = Upsample(channels, False, freq_space=self.freq_space)
         elif down:
-            self.h_upd = Downsample(channels, False)
-            self.x_upd = Downsample(channels, False)
+            self.h_upd = Downsample(channels, False, freq_space=self.freq_space)
+            self.x_upd = Downsample(channels, False, freq_space=self.freq_space)
         else:
             self.h_upd = self.x_upd = nn.Identity()
 
@@ -196,7 +234,9 @@ class ResBlock(EmbedBlock):
     def _forward(self, x, emb):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
+
             h = in_rest(x)
+
             if self.efficient and self.up:
                 h = in_conv(h)
                 h = self.h_upd(h)
@@ -205,6 +245,7 @@ class ResBlock(EmbedBlock):
                 h = self.h_upd(h)
                 x = self.x_upd(x)
                 h = in_conv(h)
+
         else:
             h = self.in_layers(x)
         emb_out = self.emb_layers(emb).type(h.dtype)
@@ -400,6 +441,7 @@ class UNet(nn.Module):
         resblock_updown=True,
         use_new_attention_order=False,
         efficient=False,
+        freq_space=False,
     ):
         super().__init__()
 
@@ -420,13 +462,22 @@ class UNet(nn.Module):
         self.num_heads = num_heads
         self.num_head_channels = num_head_channels
         self.num_heads_upsample = num_heads_upsample
+        self.freq_space = freq_space
+
+        if self.freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
+            self.iwt = InverseHaarTransform(3)
+            self.dwt = HaarTransform(3)
+            in_channel *= 4
+            out_channel *= 4
 
         if norm == "groupnorm":
             norm = norm + str(group_norm_size)
 
         self.cond_embed_dim = cond_embed_dim
 
-        ch = input_ch = int(channel_mults[0] * inner_channel)
+        ch = input_ch = int(channel_mults[0] * self.inner_channel)
         self.input_blocks = nn.ModuleList(
             [EmbedSequential(nn.Conv2d(in_channel, ch, 3, padding=1))]
         )
@@ -440,14 +491,15 @@ class UNet(nn.Module):
                         ch,
                         self.cond_embed_dim,
                         dropout,
-                        out_channel=int(mult * inner_channel),
+                        out_channel=int(mult * self.inner_channel),
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
                         norm=norm,
                         efficient=efficient,
+                        freq_space=self.freq_space,
                     )
                 ]
-                ch = int(mult * inner_channel)
+                ch = int(mult * self.inner_channel)
                 if ds in attn_res:
                     layers.append(
                         AttentionBlock(
@@ -475,9 +527,15 @@ class UNet(nn.Module):
                             down=True,
                             norm=norm,
                             efficient=efficient,
+                            freq_space=self.freq_space,
                         )
                         if resblock_updown
-                        else Downsample(ch, conv_resample, out_channel=out_ch)
+                        else Downsample(
+                            ch,
+                            conv_resample,
+                            out_channel=out_ch,
+                            freq_space=self.freq_space,
+                        )
                     )
                 )
                 ch = out_ch
@@ -494,6 +552,7 @@ class UNet(nn.Module):
                 use_scale_shift_norm=use_scale_shift_norm,
                 norm=norm,
                 efficient=efficient,
+                freq_space=self.freq_space,
             ),
             AttentionBlock(
                 ch,
@@ -510,6 +569,7 @@ class UNet(nn.Module):
                 use_scale_shift_norm=use_scale_shift_norm,
                 norm=norm,
                 efficient=efficient,
+                freq_space=self.freq_space,
             ),
         )
         self._feature_size += ch
@@ -523,14 +583,15 @@ class UNet(nn.Module):
                         ch + ich,
                         self.cond_embed_dim,
                         dropout,
-                        out_channel=int(inner_channel * mult),
+                        out_channel=int(self.inner_channel * mult),
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
                         norm=norm,
                         efficient=efficient,
+                        freq_space=self.freq_space,
                     )
                 ]
-                ch = int(inner_channel * mult)
+                ch = int(self.inner_channel * mult)
                 if ds in attn_res:
                     layers.append(
                         AttentionBlock(
@@ -554,9 +615,15 @@ class UNet(nn.Module):
                             up=True,
                             norm=norm,
                             efficient=efficient,
+                            freq_space=self.freq_space,
                         )
                         if resblock_updown
-                        else Upsample(ch, conv_resample, out_channel=out_ch)
+                        else Upsample(
+                            ch,
+                            conv_resample,
+                            out_channel=out_ch,
+                            freq_space=self.freq_space,
+                        )
                     )
                     ds //= 2
                 self.output_blocks.append(EmbedSequential(*layers))
@@ -601,6 +668,10 @@ class UNet(nn.Module):
         hs = []
 
         h = input.type(torch.float32)
+
+        if self.freq_space:
+            h = self.dwt(h)
+
         for module in self.input_blocks:
 
             h = module(h, emb)
@@ -617,7 +688,12 @@ class UNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = module(h, emb)
         h = h.type(input.dtype)
-        return self.out(h)
+        outh = self.out(h)
+
+        if self.freq_space:
+            outh = self.iwt(outh)
+
+        return outh
 
     def get_feats(self, input, extract_layer_ids):
         _, hs, _ = self.compute_feats(input, embed_gammas=None)
@@ -719,6 +795,7 @@ class UViT(nn.Module):
         use_new_attention_order=False,
         num_transformer_blocks=6,
         efficient=False,
+        freq_space=False,
     ):
         super().__init__()
 
@@ -739,6 +816,15 @@ class UViT(nn.Module):
         self.num_heads = num_heads
         self.num_head_channels = num_head_channels
         self.num_heads_upsample = num_heads_upsample
+        self.freq_space = freq_space
+
+        if self.freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
+            self.iwt = InverseHaarTransform(3)
+            self.dwt = HaarTransform(3)
+            in_channel *= 4
+            out_channel *= 4
 
         if norm == "groupnorm":
             norm = norm + str(group_norm_size)
@@ -746,7 +832,7 @@ class UViT(nn.Module):
         self.cond_embed_dim = cond_embed_dim
         self.inner_channel = inner_channel
 
-        ch = input_ch = int(channel_mults[0] * inner_channel)
+        ch = input_ch = int(channel_mults[0] * self.inner_channel)
         self.input_blocks = nn.ModuleList(
             [EmbedSequential(nn.Conv2d(in_channel, ch, 3, padding=1))]
         )
@@ -760,20 +846,28 @@ class UViT(nn.Module):
                         ch,
                         cond_embed_dim,
                         dropout,
-                        out_channel=int(mult * inner_channel),
+                        out_channel=int(mult * self.inner_channel),
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
                         norm=norm,
+                        freq_space=self.freq_space,
                     )
                 ]
-                ch = int(mult * inner_channel)
+                ch = int(mult * self.inner_channel)
                 self.input_blocks.append(EmbedSequential(*layers))
                 self._feature_size += ch
                 input_block_chans.append(ch)
             if level != len(channel_mults) - 1:
                 out_ch = ch
                 self.input_blocks.append(
-                    EmbedSequential(Downsample(ch, conv_resample, out_channel=out_ch))
+                    EmbedSequential(
+                        Downsample(
+                            ch,
+                            conv_resample,
+                            out_channel=out_ch,
+                            freq_space=self.freq_space,
+                        )
+                    )
                 )
                 ch = out_ch
                 input_block_chans.append(ch)
@@ -807,18 +901,23 @@ class UViT(nn.Module):
                         ch + ich,
                         cond_embed_dim,
                         dropout,
-                        out_channel=int(inner_channel * mult),
+                        out_channel=int(self.inner_channel * mult),
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
                         norm=norm,
+                        freq_space=self.freq_space,
                     )
                 ]
-                ch = int(inner_channel * mult)
+                ch = int(self.inner_channel * mult)
                 if level and i == res_blocks[level]:
                     out_ch = ch
                     layers.append(
                         Upsample(
-                            ch, conv_resample, out_channel=out_ch, efficient=efficient
+                            ch,
+                            conv_resample,
+                            out_channel=out_ch,
+                            efficient=efficient,
+                            freq_space=self.freq_space,
                         )
                     )
                     ds //= 2
@@ -864,6 +963,10 @@ class UViT(nn.Module):
         hs = []
 
         h = input.type(torch.float32)
+
+        if self.freq_space:
+            h = self.dwt(h)
+
         for module in self.input_blocks:
             h = module(h, emb)
             hs.append(h)
@@ -886,7 +989,12 @@ class UViT(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = module(h, emb)
         h = h.type(input.dtype)
-        return self.out(h)
+        outh = self.out(h)
+
+        if self.freq_space:
+            outh = self.iwt(outh)
+
+        return outh
 
     def get_feats(self, input, extract_layer_ids):
         _, hs, _ = self.compute_feats(input, embed_gammas=None)

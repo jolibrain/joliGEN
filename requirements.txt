@@ -20,4 +20,6 @@ onnx
 aim
 git+https://github.com/facebookresearch/segment-anything.git
 piq
-
+git+https://github.com/ChaoningZhang/MobileSAM.git
+Ninja
+lpips

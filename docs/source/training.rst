@@ -44,7 +44,7 @@ Dataset: https://joligen.com/datasets/horse2zebra.zip
 
 .. code:: bash
 
-  python3 train.py --dataroot /home/beniz/tmp/joligan/datasets/horse2zebra --checkpoints_dir /home/beniz/tmp/joligan/checkpoints --name horse2zebra --config_json examples/example_gan_horse2zebra.json
+  python3 train.py --dataroot /path/to/horse2zebra --checkpoints_dir /path/to/checkpoints --name horse2zebra --config_json examples/example_gan_horse2zebra.json
 
 .. _training-im2im-with-class-semantics:
 
@@ -97,7 +97,7 @@ Trains a diffusion model to insert glasses onto faces.
 
 .. code:: bash
 
-   python3 train.py --dataroot noglasses2glasses_ffhq --checkpoints_dir ./checkpoints --name glasses2noglasses --output_display_env glasses2noglasses --config_json examples/example_ddpm_glasses2noglasses.json
+   python3 train.py --dataroot /path/to/data/noglasses2glasses_ffhq --checkpoints_dir /path/to/checkpoints --name noglasses2glasses --config_json examples/example_ddpm_noglasses2glasses.json
    
 
 

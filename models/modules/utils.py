@@ -241,24 +241,46 @@ def download_midas_weight(model_type="DPT_Large"):
 
 
 def download_sam_weight(path):
-    sam_weights = {
-        "sam_vit_h_4b8939.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
-        "sam_vit_l_0b3195.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
-        "sam_vit_b_01ec64.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
-    }
-    for i in range(2, len(path.split("/"))):
-        temp = path.split("/")[:i]
-        cur_path = "/".join(temp)
-        if not os.path.isdir(cur_path):
-            os.mkdir(cur_path)
-    model_name = path.split("/")[-1]
-    if model_name in sam_weights:
-        wget.download(sam_weights[model_name], path)
-    else:
-        raise NameError(
-            "There is no pretrained weight to download for %s, you need to provide a path to segformer weights."
-            % model_name
-        )
+    if not os.path.exists(path):
+        if not "mobile_sam" in path:
+            sam_weights = {
+                "sam_vit_h_4b8939.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
+                "sam_vit_l_0b3195.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
+                "sam_vit_b_01ec64.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+            }
+            for i in range(2, len(path.split("/"))):
+                temp = path.split("/")[:i]
+                cur_path = "/".join(temp)
+                if not os.path.isdir(cur_path):
+                    os.mkdir(cur_path)
+            model_name = path.split("/")[-1]
+            if model_name in sam_weights:
+                wget.download(sam_weights[model_name], path)
+            else:
+                raise NameError(
+                    "There is no pretrained weight to download for %s, you need to provide a path to sam weights."
+                    % model_name
+                )
+        else:
+            download_mobile_sam_weight(path)
+
+
+def download_mobile_sam_weight(path):
+    if not os.path.exists(path):
+        sam_weights = "https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt"
+        for i in range(2, len(path.split("/"))):
+            temp = path.split("/")[:i]
+            cur_path = "/".join(temp)
+            if not os.path.isdir(cur_path):
+                os.mkdir(cur_path)
+        model_name = path.split("/")[-1]
+        if model_name in sam_weights:
+            wget.download(sam_weights, path)
+        else:
+            raise NameError(
+                "There is no pretrained weight to download for %s, you need to provide a path to mobileSam weights."
+                % model_name
+            )
 
 
 def predict_depth(img, midas, model_type):
