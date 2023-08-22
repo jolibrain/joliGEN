@@ -128,12 +128,17 @@ if not os.path.exists(LOG_PATH):
 
 async def log_reader_last_line(job_name):
     global LOG_PATH
-    log_lines = []
-    with open(f"{LOG_PATH}/{job_name}.log", "r") as file:
+
+    log_file = Path(f"{LOG_PATH}/{job_name}.log")
+
+    if not log_file.exists() or log_file.stat().st_size == 0:
+        return ""
+
+    with open(log_file, "r") as f:
         try:
-            return file.readlines()[-1]
+            return f.readlines()[-1]
         except Exception as e:
-            print(e)
+            print(f"error reading logs for {job_name}: {e}")
             return ""
 
 
@@ -155,6 +160,7 @@ async def websocket_endpoint_log(job_name: str, websocket: WebSocket):
             else:
                 await websocket.send_text(logs)
     except Exception as e:
+        print(f"error on ws log endpoint for {job_name}: {e}")
         print(e)
 
 
