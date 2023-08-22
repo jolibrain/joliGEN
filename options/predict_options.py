@@ -231,6 +231,14 @@ class PredictOptions(BaseOptions):
             help="eta parameter for ddim variance",
         )
 
+        # TODO: raise exception when running server
+        #   File "/home/alx/code/alx/joliGEN/server/joligen_api.py", line 91, in <module>
+        #  PredictBodySchema["properties"]["predict_options"] = PredictOptions().get_schema()
+        #   File "/home/alx/code/alx/joliGEN/options/base_options.py", line 1261, in get_schema
+        #     json_vals = self.to_json()
+        #   File "/home/alx/code/alx/joliGEN/options/base_options.py", line 965, in to_json
+        #     parent[path[-1]] = v
+        # TypeError: 'bool' object does not support item assignment
         parser.add_argument(
             "--cls",
             action="store_false",
