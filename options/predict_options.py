@@ -36,14 +36,29 @@ class PredictOptions(BaseOptions):
             "--img-out", type=str, help="transformed image", required=True
         )
 
-        parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
+        parser.add_argument(
+            "--img-width", type=int, help="width of the image to generate", default=0
+        )
 
         parser.add_argument(
-            "--gpuid",
-            type=int,
-            default=0,
-            help="which GPU to use",
+            "--img-height", type=int, help="height of the image to generate", default=0
         )
+
+        parser.add_argument(
+            "--crop-width",
+            type=int,
+            help="crop width of the image to generate",
+            default=0,
+        )
+
+        parser.add_argument(
+            "--crop-height",
+            type=int,
+            help="crop height of the image to generate",
+            default=0,
+        )
+
+        parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
 
         # Diffusion arguments
 
@@ -235,6 +250,43 @@ class PredictOptions(BaseOptions):
             "--cls-override",
             action="store_false",
             help="override input bbox classe for generation",
+        )
+
+        # augmentation using D
+        parser.add_argument(
+            "--dataaug_D_label_smooth",
+            action="store_true",
+            help="whether to use one-sided label smoothing with discriminator",
+        )
+        parser.add_argument(
+            "--dataaug_D_noise",
+            type=float,
+            default=0.0,
+            help="whether to add instance noise to discriminator inputs",
+        )
+        parser.add_argument(
+            "--dataaug_D_diffusion",
+            action="store_true",
+            help="whether to apply diffusion noise augmentation to discriminator inputs, projected discriminator only",
+        )
+        parser.add_argument(
+            "--dataaug_D_diffusion_every",
+            type=int,
+            default=4,
+            help="How often to perform diffusion augmentation adjustment",
+        )
+
+        # frequency space training
+        parser.add_argument(
+            "--train_feat_wavelet",
+            action="store_false",
+            help="if true, train in wavelet features space (Note: this may not include all discriminators, when training GANs)",
+        )
+
+        parser.add_argument(
+            "--model_prior_321_backwardcompatibility",
+            action="store_true",
+            help="whether to load models from previous version of JG.",
         )
 
         # TODO: fix and change to false in order to pass asset test
