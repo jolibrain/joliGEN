@@ -9,6 +9,7 @@ import re
 import sys
 import tempfile
 import warnings
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -146,6 +147,7 @@ def cond_augment(cond, rotation, persp_horizontal, persp_vertical):
 
 def launch_predict_diffusion(args, process_name):
 
+    PROGRESS_NUM_STEPS = 8
     LOG_PATH = os.environ.get(
         "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
     )
@@ -154,16 +156,19 @@ def launch_predict_diffusion(args, process_name):
     log_file = f"{LOG_PATH}/{process_name}.log"
 
     logging.basicConfig(filename=log_file, filemode="w", level=logging.INFO)
+    logging.info(f"[1/%i] launch process" % PROGRESS_NUM_STEPS)
 
     # seed
     if args.seed >= 0:
         torch.manual_seed(args.seed)
 
     # loading model
+    logging.info(f"[2/%i] loading model" % PROGRESS_NUM_STEPS)
     modelpath = args.model_in_file.replace(os.path.basename(args.model_in_file), "")
 
     if not args.cpu:
-        device = torch.device("cuda:" + str(args.gpuid))
+        print(args.gpu_ids)
+        device = torch.device("cuda:" + ",".join(str(n) for n in args.gpu_ids))
     else:
         device = torch.device("cpu")
     model, opt = load_model(
@@ -185,6 +190,7 @@ def launch_predict_diffusion(args, process_name):
             args.mask_delta[i].append(delta_values[0])
 
     # Load image
+    logging.info(f"[3/%i] loading image" % PROGRESS_NUM_STEPS)
 
     # reading image
     img = cv2.imread(args.img_in)
@@ -330,6 +336,7 @@ def launch_predict_diffusion(args, process_name):
             mask = cv2.resize(mask, (args.img_width, args.img_height))
 
     # insert cond image into original image
+    logging.info(f"[4/%i] insert cond image into original image" % PROGRESS_NUM_STEPS)
     generated_bbox = None
     if args.cond_in:
         generated_bbox = bbox
@@ -390,6 +397,7 @@ def launch_predict_diffusion(args, process_name):
         img[y0:y1, x0:x1] = cond
 
     # preprocessing to torch
+    logging.info(f"[5/%i] pre-processing to torch" % PROGRESS_NUM_STEPS)
     totensor = transforms.ToTensor()
     tranlist = [
         totensor,
@@ -549,6 +557,7 @@ def launch_predict_diffusion(args, process_name):
     
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
     out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)"""
+    logging.info(f"[6/%i] post processing" % PROGRESS_NUM_STEPS)
 
     if (
         args.img_width > 0
@@ -568,8 +577,8 @@ def launch_predict_diffusion(args, process_name):
             )
 
             out_img_real_size = img_orig.copy()
-        else:
-            out_img_real_size = out_img
+    else:
+        out_img_real_size = out_img
 
     # fill out crop into original image
     if args.bbox_in:
@@ -579,46 +588,32 @@ def launch_predict_diffusion(args, process_name):
 
     cond_img = to_np(cond_image)
 
-    if args.write:
-        cv2.imwrite(os.path.join(args.dir_out, args.name + "_orig.png"), img_orig)
-        cv2.imwrite(os.path.join(args.dir_out, args.name + "_cond.png"), cond_img)
-        cv2.imwrite(
-            os.path.join(args.dir_out, args.name + "_generated.png"), out_img_real_size
-        )
-        cv2.imwrite(os.path.join(args.dir_out, args.name + "_y_t.png"), to_np(y_t))
-        if mask is not None:
-            cv2.imwrite(
-                os.path.join(args.dir_out, args.name + "_y_0.png"), to_np(img_tensor)
-            )
-            cv2.imwrite(
-                os.path.join(args.dir_out, args.name + "_generated_crop.png"), out_img
-            )
-            cv2.imwrite(
-                os.path.join(args.dir_out, args.name + "_mask.png"), to_np(mask)
-            )
-        if args.cond_in:
-            # crop before cond image
-            orig_crop = img_orig[
-                bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
-            ]
-            cv2.imwrite(
-                os.path.join(args.dir_out, args.name + "_orig_crop.png"), orig_crop
-            )
-        if args.bbox_in:
-            with open(
-                os.path.join(args.dir_out, args.name + "_orig_bbox.json"), "w"
-            ) as out:
-                out.write(json.dumps(bbox))
-        if generated_bbox:
-            with open(
-                os.path.join(args.dir_out, args.name + "_generated_bbox.json"), "w"
-            ) as out:
-                out.write(json.dumps(generated_bbox))
+    logging.info(
+        f"[7/%i] writing files with basename: {args.img_out}" % PROGRESS_NUM_STEPS
+    )
+    out_file = Path(args.img_out)
+    cv2.imwrite(str(out_file.with_suffix(".orig.png")), img_orig)
+    cv2.imwrite(str(out_file.with_suffix(".cond.png")), cond_img)
+    cv2.imwrite(str(out_file.with_suffix(".generated.png")), out_img_real_size)
+    cv2.imwrite(str(out_file.with_suffix(".y_t.png")), to_np(y_t))
+    if mask is not None:
+        cv2.imwrite(str(out_file.with_suffix(".y_0.png")), to_np(img_tensor))
+        cv2.imwrite(str(out_file.with_suffix(".generated_crop.png")), out_img)
+        cv2.imwrite(str(out_file.with_suffix(".mask.png")), to_np(mask))
+    if args.cond_in:
+        # crop before cond image
+        orig_crop = img_orig[
+            bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
+        ]
+        cv2.imwrite(str(out_file.with_suffix(".orig_crop.png")), orig_crop)
+    if args.bbox_in:
+        with open(str(out_file.with_suffix(".orig_bbox.json")), "w") as out:
+            out.write(json.dumps(bbox))
+    if generated_bbox:
+        with open(str(out_file.with_suffix(".generated_bbox.json")), "w") as out:
+            out.write(json.dumps(generated_bbox))
 
-        print("Successfully generated image ", args.name)
-        logging.info("Successfully generated image " + args.name)
-
-    return out_img_real_size
+    logging.info(f"[8/%i] Successfully generated image" % PROGRESS_NUM_STEPS)
 
 
 if __name__ == "__main__":
