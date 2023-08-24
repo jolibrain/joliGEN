@@ -190,15 +190,14 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             dataloaders
         ):  # inner loop (minibatch) within one epoch
             data = data_list[0]
-            if use_temporal:
-                temporal_data = data_list[1]
 
             iter_start_time = time.time()  # timer for computation per iteration
             t_data_mini_batch = iter_start_time - iter_data_time
 
-            model.set_input(data)  # unpack data from dataloader and apply preprocessing
             if use_temporal:
+                temporal_data = data_list[1]
                 model.set_input_temporal(temporal_data)
+            model.set_input(data)  # unpack data from dataloader and apply preprocessing
 
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
             t_comp = (time.time() - iter_start_time) / opt.train_batch_size

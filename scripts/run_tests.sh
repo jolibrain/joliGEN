@@ -92,9 +92,9 @@ fi
 
 ####### mask cls semantics test with online dataloading
 echo "Running mask online semantics training tests"
-URL=https://joligen.com/datasets/online_mario2sonic_lite.zip 
-ZIP_FILE=$DIR/online_mario2sonic_lite.zip 
-TARGET_MASK_SEM_ONLINE_DIR=$DIR/online_mario2sonic_lite
+URL=https://joligen.com/datasets/online_mario2sonic_lite2.zip 
+ZIP_FILE=$DIR/online_mario2sonic_lite2.zip 
+TARGET_MASK_SEM_ONLINE_DIR=$DIR/online_mario2sonic_lite2
 wget -N $URL -O $ZIP_FILE
 mkdir $TARGET_MASK_SEM_ONLINE_DIR
 unzip $ZIP_FILE -d $DIR
