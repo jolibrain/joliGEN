@@ -651,6 +651,8 @@ class PaletteModel(BaseDiffusionModel):
                     mask=mask,
                     sample_num=self.sample_num,
                     cls=cls,
+                    ddim_num_steps=self.ddim_num_steps,
+                    ddim_eta=self.ddim_eta,
                 )
                 self.fake_B = self.output
 

@@ -15,9 +15,10 @@ from data import (
 from models import create_model
 from util.parser import get_opt
 from util.util import MAX_INT
+from models.modules.diffusion_utils import set_new_noise_schedule
 
 
-def launch_testing(opt):
+def launch_testing(opt, main_opt):
     rank = 0
 
     opt.jg_dir = os.path.join("/".join(__file__.split("/")[:-1]))
@@ -47,6 +48,20 @@ def launch_testing(opt):
 
     model = create_model(opt, rank)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
+
+    # sampling options
+    if main_opt.sampling_steps is not None:
+        model.netG_A.denoise_fn.model.beta_schedule["test"][
+            "n_timestep"
+        ] = main_opt.sampling_steps
+        set_new_noise_schedule(model.netG_A.denoise_fn.model, "test")
+    if main_opt.sampling_method is not None:
+        model.netG_A.set_new_sampling_method(main_opt.sampling_method)
+    if main_opt.ddim_num_steps is not None:
+        model.ddim_num_steps = main_opt.ddim_num_steps
+    if main_opt.ddim_eta is not None:
+        model.ddim_eta = main_opt.ddim_eta
+
     model.use_temporal = use_temporal
     model.eval()
     if opt.use_cuda:
@@ -106,6 +121,25 @@ if __name__ == "__main__":
     main_parser.add_argument(
         "--test_seed", type=int, default=42, help="seed to use for tests"
     )
+    main_parser.add_argument(
+        "--sampling_steps", type=int, help="number of sampling steps"
+    )
+    main_parser.add_argument(
+        "--sampling_method",
+        type=str,
+        choices=["ddpm", "ddim"],
+        help="choose the sampling method between ddpm and ddim",
+    )
+    main_parser.add_argument(
+        "--ddim_num_steps",
+        type=int,
+        help="number of steps for ddim sampling method",
+    )
+    main_parser.add_argument(
+        "--ddim_eta",
+        type=float,
+        help="eta parameter for ddim variance",
+    )
 
     main_opt, remaining_args = main_parser.parse_known_args()
     main_opt.config_json = os.path.join(main_opt.test_model_dir, "train_config.json")
@@ -119,9 +153,10 @@ if __name__ == "__main__":
     opt.train_metrics_list = main_opt.test_metrics_list
     opt.train_nb_img_max_fid = main_opt.test_nb_img
     opt.test_batch_size = main_opt.test_batch_size
+    opt.alg_palette_generate_per_class = False
 
     random.seed(main_opt.test_seed)
     torch.manual_seed(main_opt.test_seed)
     np.random.seed(main_opt.test_seed)
 
-    launch_testing(opt)
+    launch_testing(opt, main_opt)
