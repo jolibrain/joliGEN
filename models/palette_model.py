@@ -228,6 +228,14 @@ class PaletteModel(BaseDiffusionModel):
             help="whether to generate samples of each images",
         )
 
+        parser.add_argument(
+            "--alg_palette_ref_embed_net",
+            type=str,
+            default="clip",
+            choices=["clip", "imagebind"],
+            help="embedding network to use for ref conditioning",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
