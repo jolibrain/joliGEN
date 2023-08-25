@@ -3,9 +3,9 @@ from torch import nn
 from torchvision import transforms
 from einops import rearrange
 
-
 from .image_bind import imagebind_model
 from .image_bind.imagebind_model import ModalityType
+import clip
 
 
 class LabelEmbedder(nn.Module):
@@ -30,12 +30,13 @@ class LabelEmbedder(nn.Module):
 
 
 class PaletteDenoiseFn(nn.Module):
-    def __init__(self, model, cond_embed_dim, conditioning, nclasses):
+    def __init__(self, model, cond_embed_dim, ref_embed_net, conditioning, nclasses):
         super().__init__()
 
         self.model = model
         self.conditioning = conditioning
         self.cond_embed_dim = cond_embed_dim
+        self.ref_embed_net = ref_embed_net
 
         # Label embedding
         if "class" in conditioning:
@@ -59,9 +60,6 @@ class PaletteDenoiseFn(nn.Module):
         if "ref" in conditioning:
             cond_embed_class = cond_embed_dim // 2
 
-            """self.freezenetImageBin = imagebind_model.imagebind_huge(pretrained=True)
-            self.freezenetImageBin.eval()"""
-
             self.ref_transform = transforms.Compose(
                 [
                     transforms.Resize(
@@ -71,15 +69,22 @@ class PaletteDenoiseFn(nn.Module):
                 ]
             )
 
-            import clip
+            if ref_embed_net == "clip":
+                model_name = "ViT-B/16"
+                self.freezenetClip, _ = clip.load(model_name)
+                self.freezenetClip = self.freezenetClip.visual.float()
+                ref_embed_dim = 512
 
-            model_name = "ViT-B/16"
-            self.freezenetClip, _ = clip.load(model_name)
+            elif ref_embed_net == "imagebind":
+                self.freezenetImageBin = imagebind_model.imagebind_huge(pretrained=True)
+                self.freezenetImageBin.eval()
+                ref_embed_dim = 1024
 
-            self.freezenetClip = self.freezenetClip.visual.float()
+            else:
+                raise NotImplementedError(ref_embed_net)
 
             self.emb_layers = nn.Sequential(
-                torch.nn.SiLU(), nn.Linear(512, cond_embed_class)
+                torch.nn.SiLU(), nn.Linear(ref_embed_dim, cond_embed_class)
             )
 
     def forward(self, input, embed_noise_level, cls, mask, ref):
@@ -115,12 +120,18 @@ class PaletteDenoiseFn(nn.Module):
             mask_embed = None
 
         if "ref" in self.conditioning:
-            """ref = self.bin_transform(ref)
-            input_ref = {ModalityType.VISION: ref}
-            ref_embed = self.freezenetImageBin(input_ref)["vision"]"""
+            ref = self.ref_transform(ref)
 
-            ref_input = self.ref_transform(ref)
-            ref_embed = self.freezenetClip(ref_input)
+            if self.ref_embed_net == "clip":
+                ref_embed = self.freezenetClip(ref)
+
+            elif self.ref_embed_net == "imagebind":
+                input_ref = {ModalityType.VISION: ref}
+                ref_embed = self.freezenetImageBin(input_ref)["vision"]
+
+            else:
+                raise NotImplementedError(ref_embed_net)
+
             ref_embed = self.emb_layers(ref_embed)
 
         else:
