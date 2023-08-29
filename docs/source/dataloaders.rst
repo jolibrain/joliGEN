@@ -44,15 +44,20 @@ List of dataloaders
 - unaligned_labeled_mask: unaligned with masks
 - unaligned_labeled_mask_online: unaligned with masks with online
   croping around masks
+- unaligned_labeled_mask_cls: unaligned with masks and classes
 - unaligned_labeled_mask_cls_online: unaligned with masks and classes
   with online croping around masks
+- unaligned_labeled_mask_ref: unaligned with masks and reference image
+- unaligned_labeled_mask_ref_online: unaligned with masks and reference image with online croping around masks
 
-- self_supervised_labeled_cls: with class labels
 - self_supervised_labeled_mask: with mask labels
 - self_supervised_labeled_mask_online: with mask labels and online
   croping around masks
+- self_supervised_labeled_mask_cls: with class and mask labels
 - self_supervised_labeled_mask_cls_online: with class and mask labels,
   and online croping around masks
+- self_supervised_labeled_mask_ref: with a reference image and mask labels
+- self_supervised_labeled_mask_online_ref: with a reference image and mask labels, and online croping around masks
 
 - temporal: basic temporal (sequential) loader
 - self_supervised_temporal: self-supervised version of the temporal
