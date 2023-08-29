@@ -620,7 +620,7 @@ def launch_predict_diffusion(args, process_name):
         with open(str(out_file.with_suffix(".generated_bbox.json")), "w") as out:
             out.write(json.dumps(generated_bbox))
 
-    logging.info(f"[8/%i] Successfully generated image" % PROGRESS_NUM_STEPS)
+    logging.info(f"[8/%i] successfully generated image" % PROGRESS_NUM_STEPS)
 
 
 if __name__ == "__main__":
