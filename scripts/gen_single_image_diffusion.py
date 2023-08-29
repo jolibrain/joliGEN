@@ -592,20 +592,22 @@ def launch_predict_diffusion(args, process_name):
         f"[7/%i] writing files with basename: {args.img_out}" % PROGRESS_NUM_STEPS
     )
     out_file = Path(args.img_out)
-    cv2.imwrite(str(out_file.with_suffix(".orig.png")), img_orig)
-    cv2.imwrite(str(out_file.with_suffix(".cond.png")), cond_img)
-    cv2.imwrite(str(out_file.with_suffix(".generated.png")), out_img_real_size)
-    cv2.imwrite(str(out_file.with_suffix(".y_t.png")), to_np(y_t))
+    out_suffix = f"{out_file.suffix}"
+    cv2.imwrite(str(out_file.with_suffix(out_suffix)), out_img_real_size)
+    cv2.imwrite(str(out_file.with_suffix(f".orig{out_suffix}")), img_orig)
+    cv2.imwrite(str(out_file.with_suffix(f".cond{out_suffix}")), cond_img)
+    cv2.imwrite(str(out_file.with_suffix(f".generated{out_suffix}")), out_img_real_size)
+    cv2.imwrite(str(out_file.with_suffix(f".y_t{out_suffix}")), to_np(y_t))
     if mask is not None:
-        cv2.imwrite(str(out_file.with_suffix(".y_0.png")), to_np(img_tensor))
-        cv2.imwrite(str(out_file.with_suffix(".generated_crop.png")), out_img)
-        cv2.imwrite(str(out_file.with_suffix(".mask.png")), to_np(mask))
+        cv2.imwrite(str(out_file.with_suffix(f".y_0{out_suffix}")), to_np(img_tensor))
+        cv2.imwrite(str(out_file.with_suffix(f".generated_crop{out_suffix}")), out_img)
+        cv2.imwrite(str(out_file.with_suffix(f".mask{out_suffix}")), to_np(mask))
     if args.cond_in:
         # crop before cond image
         orig_crop = img_orig[
             bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
         ]
-        cv2.imwrite(str(out_file.with_suffix(".orig_crop.png")), orig_crop)
+        cv2.imwrite(str(out_file.with_suffix(f".orig_crop{out_suffix}")), orig_crop)
     if args.bbox_in:
         with open(str(out_file.with_suffix(".orig_bbox.json")), "w") as out:
             out.write(json.dumps(bbox))
