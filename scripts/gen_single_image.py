@@ -65,9 +65,14 @@ def launch_predict_single_image(args, process_name):
     print("modelpath=", modelpath)
     logging.debug("modelpath=%s" % modelpath)
 
-    model, opt, device = load_model(
-        modelpath, os.path.basename(args.model_in_file), args.cpu, args.gpu_ids
-    )
+    try:
+        model, opt, device = load_model(
+            modelpath, os.path.basename(args.model_in_file), args.cpu, args.gpu_ids
+        )
+    except Exception as e:
+        logging.info("error loading model: %s" % str(e))
+        return
+
     logging.info(f"[2/%i] model loaded" % PROGRESS_NUM_STEPS)
 
     # reading image
@@ -101,7 +106,11 @@ def launch_predict_single_image(args, process_name):
     logging.info(f"[4/%i] preprocessing finished" % PROGRESS_NUM_STEPS)
 
     # run through model
-    out_tensor = model(img_tensor)[0].detach()
+    try:
+        out_tensor = model(img_tensor)[0].detach()
+    except Exception as e:
+        logging.info("error running model: %s" % str(e))
+        return
     logging.info(f"[5/%i] out tensor available" % PROGRESS_NUM_STEPS)
 
     # post-processing
