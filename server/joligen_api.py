@@ -151,9 +151,15 @@ async def websocket_endpoint_log(job_name: str, websocket: WebSocket):
             await asyncio.sleep(1)
             logs = await log_reader_last_line(job_name)
 
-            # close ws if last log line contains success message
             if "success" in logs:
+                # close ws if last log line contains success message
                 print("success in logs, closing websocket")
+                await websocket.send_text(logs)
+                await websocket.close()
+                break
+            if "error" in logs:
+                # close ws if last log line contains error message
+                print("error in logs, closing websocket")
                 await websocket.send_text(logs)
                 await websocket.close()
                 break
