@@ -171,14 +171,19 @@ def launch_predict_diffusion(args, process_name):
         device = torch.device("cuda:" + ",".join(str(n) for n in args.gpu_ids))
     else:
         device = torch.device("cpu")
-    model, opt = load_model(
-        modelpath,
-        os.path.basename(args.model_in_file),
-        device,
-        args.sampling_steps,
-        args.sampling_method,
-        args.model_prior_321_backwardcompatibility,
-    )
+
+    try:
+        model, opt = load_model(
+            modelpath,
+            os.path.basename(args.model_in_file),
+            device,
+            args.sampling_steps,
+            args.sampling_method,
+            args.model_prior_321_backwardcompatibility,
+        )
+    except Exception as e:
+        logging.info(f"error loading model: {e}")
+        return
 
     if args.alg_palette_cond_image_creation is not None:
         opt.alg_palette_cond_image_creation = args.alg_palette_cond_image_creation
