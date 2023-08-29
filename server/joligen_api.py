@@ -183,6 +183,30 @@ def is_alive(process):
     return process.is_alive()
 
 
+def script_target_from_train_config(model_in_file):
+
+    # Read tain_config.json to know which inference script to launch
+    target = None
+    predict_method = "gen_single_image"
+
+    model_path = model_in_file.replace(os.path.basename(model_in_file), "")
+    train_json_path = Path(model_path).joinpath("train_config.json")
+
+    DIFFUSION_MODEL_TYPES = ["palette"]
+
+    with open(train_json_path, "r") as jsonf:
+        train_json = json.load(jsonf)
+        if train_json["model_type"] in DIFFUSION_MODEL_TYPES:
+            predict_method = "gen_single_image_diffusion"
+
+    if predict_method == "gen_single_image":
+        target = launch_predict_single_image
+    elif predict_method == "gen_single_image_diffusion":
+        target = launch_predict_diffusion
+
+    return target
+
+
 @app.post(
     "/predict",
     status_code=201,
@@ -194,21 +218,10 @@ async def predict(request: Request):
 
     parser = PredictOptions()
     try:
-        predict_method = predict_body["predict_options"]["predict-method"]
         opt = parser.parse_json(predict_body["predict_options"], save_config=False)
-
-        # Parse the remaining options
-        del predict_body["predict_options"]
-        predict_body = PredictBody.parse_obj(predict_body)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=400, detail="{0}".format(e))
-
-    target = None
-    if predict_method == "gen_single_image":
-        target = launch_predict_single_image
-    elif predict_method == "gen_single_image_diffusion":
-        target = launch_predict_diffusion
 
     name = "predict_{}".format(int(time.time()))
 
@@ -217,10 +230,18 @@ async def predict(request: Request):
     )
     Path(f"{LOG_PATH}/{name}.log").touch()
 
+    target = script_target_from_train_config(opt.model_in_file)
+    if target is None:
+        return {
+            "predict_name": name,
+            "message": "error finding script target",
+            "status": "error",
+        }
+
     ctx[name] = Process(target=target, args=(opt, name))
     ctx[name].start()
 
-    if predict_body.server.sync:
+    if hasattr(opt, "server") and hasattr(opt.server, "sync"):
         try:
             # XXX could be awaited
             ctx[name].join()
