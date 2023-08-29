@@ -22,7 +22,7 @@ def get_z_random(batch_size=1, nz=8, random_type="gauss"):
     return z.detach()
 
 
-def load_model(modelpath, model_in_file, cpu, gpuid):
+def load_model(modelpath, model_in_file, cpu, gpu_ids):
     train_json_path = modelpath + "/train_config.json"
     with open(train_json_path, "r") as jsonf:
         train_json = json.load(jsonf)
@@ -31,8 +31,8 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
         opt.model_input_nc += opt.train_mm_nz
     opt.jg_dir = "../"
 
-    if not cpu:
-        device = torch.device("cuda:" + str(gpuid))
+    if not cpu and torch.cuda.is_available() and len(gpu_ids) > 0:
+        device = torch.device("cuda:" + ",".join(str(n) for n in gpu_ids))
     else:
         device = torch.device("cpu")
 
@@ -66,7 +66,7 @@ def launch_predict_single_image(args, process_name):
     logging.debug("modelpath=%s" % modelpath)
 
     model, opt, device = load_model(
-        modelpath, os.path.basename(args.model_in_file), args.cpu, args.gpuid
+        modelpath, os.path.basename(args.model_in_file), args.cpu, args.gpu_ids
     )
     logging.info(f"[2/%i] model loaded" % PROGRESS_NUM_STEPS)
 
@@ -127,7 +127,13 @@ if __name__ == "__main__":
     parser.add_argument("--img-in", help="image to transform", required=True)
     parser.add_argument("--img-out", help="transformed image", required=True)
     parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
-    parser.add_argument("--gpuid", type=int, default=0, help="which GPU to use")
+    parser.add_argument(
+        "--gpu-ids",
+        default=[0],
+        nargs="*",
+        type=int,
+        help="gpu ids: e.g. '0'  '0 1 2' '0 2'. use -1 for CPU",
+    )
     args = parser.parse_args()
 
     launch_predict_single_image(args)
