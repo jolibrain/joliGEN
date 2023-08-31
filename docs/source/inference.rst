@@ -37,11 +37,11 @@ Download a pretrained model:
 
 .. code:: bash
 
-   wget https://joligen.com/models/glasses2noglasses.zip
-   unzip glasses2noglasses.zip
+   wget https://joligen.com/models/joligen_model_gan_glasses2noglasses.zip
+   unzip joligen_model_gan_glasses2noglasses.zip
    mkdir checkpoints
    mv glasses2noglasses/ ./checkpoints/
-   rm glasses2noglasses.zip
+   rm joligen_model_gan_glasses2noglasses.zip
 
 Run the inference script
 ========================
@@ -57,6 +57,7 @@ The output file is the ``target.jpg`` image in the current directory:
    :class: borderless
 
    -  -  .. image:: _static/gan_glasses2noglasses_orig_image.jpg
+           :width: 128
       -  .. image:: _static/gan_glasses2noglasses_output.jpg
 
    -  -  original image given as input to the model
@@ -89,11 +90,11 @@ Download a pretrained model:
 
 .. code:: bash
 
-   wget https://joligen.com/models/noglasses2glasses.zip
-   unzip noglasses2glasses.zip
+   wget https://joligen.com/models/joligen_model_ddpm_noglasses2glasses.zip
+   unzip joligen_model_ddpm_noglasses2glasses.zip
    mkdir checkpoints
    mv noglasses2glasses/ ./checkpoints/
-   rm noglasses2glasses.zip
+   rm joligen_model_ddpm_noglasses2glasses.zip
 
 Run the inference script
 ========================
@@ -102,7 +103,7 @@ Run the inference script
 
    mkdir noglasses2glasses_inference_output
    cd scripts/
-   python3 gen_single_image_diffusion.py --model-in-file ../checkpoints/noglasses2glasses/latest_net_G_A.pth --img-in ../datasets/noglasses2glasses_ffhq/trainA/img/00001.jpg --mask-in ../datasets/noglasses2glasses_ffhq/trainA/bbox/00001.jpg --dir-out ../noglasses2glasses_inference_output --img-width 128 --img-height 128
+   python3 gen_single_image_diffusion.py --model-in-file ../checkpoints/noglasses2glasses/latest_net_G_A.pth --img-in ../datasets/noglasses2glasses_ffhq/trainA/img/00002.jpg --mask-in ../datasets/noglasses2glasses_ffhq/trainA/bbox/00002.jpg --dir-out ../noglasses2glasses_inference_output --img-width 128 --img-height 128
 
 The output files will be in the ``noglasses2glasses_inference_output``
 folder, with:

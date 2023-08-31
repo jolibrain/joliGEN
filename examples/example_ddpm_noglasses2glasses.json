@@ -278,7 +278,7 @@
     "checkpoints_dir": "./checkpoints/",
     "dataroot": "noglasses2glasses_ffhq",
     "ddp_port": "12355",
-    "gpu_ids": "1",
+    "gpu_ids": "0",
     "model_type": "palette",
     "name": "noglasses2glasses",
     "phase": "train",

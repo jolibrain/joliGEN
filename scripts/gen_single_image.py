@@ -52,6 +52,12 @@ parser.add_argument(
 
 parser.add_argument("--img-in", help="image to transform", required=True)
 parser.add_argument("--img-out", help="transformed image", required=True)
+parser.add_argument(
+    "--img-width", type=int, help="image width, defaults to model crop size"
+)
+parser.add_argument(
+    "--img-height", type=int, help="image height, defaults to model crop size"
+)
 parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
 parser.add_argument("--gpuid", type=int, default=0, help="which GPU to use")
 args = parser.parse_args()
@@ -65,8 +71,11 @@ model, opt, device = load_model(
 )
 
 # reading image
+img_width = args.img_width if args.img_width is not None else opt.data_crop_size
+img_height = args.img_height if args.img_height is not None else opt.data_crop_size
 img = cv2.imread(args.img_in)
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+img = cv2.resize(img, (img_width, img_height), interpolation=cv2.INTER_CUBIC)
 
 # preprocessing
 tranlist = [
