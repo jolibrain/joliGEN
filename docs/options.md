@@ -125,8 +125,8 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --alg_palette_computed_sketch_list | array | ['canny', 'hed'] | what to use for random sketch |
 | --alg_palette_cond_embed_dim | int | 32 | nb of examples processed for inference |
-| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/> **Values:** y_t, previous_frame, computed_sketch, low_res |
-| --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/> **Values:** , mask, class, mask_and_class |
+| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/> **Values:** y_t, previous_frame, computed_sketch, low_res, ref |
+| --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/> **Values:** , mask, class, mask_and_class, ref |
 | --alg_palette_ddim_eta | float | 0.5 | eta for ddim sampling variance |
 | --alg_palette_ddim_num_steps | int | 10 | number of steps for ddim sampling |
 | --alg_palette_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
@@ -135,6 +135,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
 | --alg_palette_loss | string | MSE | loss for denoising model<br/><br/> **Values:** L1, MSE, multiscale |
 | --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
+| --alg_palette_ref_embed_net | string | clip | embedding network to use for ref conditioning<br/><br/> **Values:** clip, imagebind |
 | --alg_palette_sam_crop_delta | flag |  | extend crop's width and height by 2\*crop_delta before computing masks |
 | --alg_palette_sam_final_canny | flag |  | whether to perform a Canny edge detection on sam sketch to soften the edges |
 | --alg_palette_sam_max_mask_area | float | 0.99 | maximum area in proportion of image size for a mask to be kept |
@@ -156,7 +157,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_temporal, single |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_temporal, single, unaligned_labeled_mask_ref, self_supervised_labeled_mask_ref, unaligned_labeled_mask_online_ref, self_supervised_labeled_mask_online_ref |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/> **Values:** AtoB, BtoA |
 | --data_inverted_mask | flag |  | whether to invert the mask, i.e. around the bbox |
 | --data_load_size | int | 286 | scale images to this size |
