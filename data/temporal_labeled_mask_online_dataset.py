@@ -142,7 +142,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                         fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     )
 
-                cur_A_img, cur_A_label, ref_A_bbox = crop_image(
+                cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_image(
                     cur_A_img_path,
                     cur_A_label_path,
                     mask_delta=mask_delta_A,
@@ -222,7 +222,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                             get_crop_coordinates=True,
                         )
 
-                    cur_B_img, cur_B_label, ref_B_bbox = crop_image(
+                    cur_B_img, cur_B_label, ref_B_bbox, B_ref_bbox_id = crop_image(
                         cur_B_img_path,
                         cur_B_label_path,
                         mask_delta=mask_delta_B,
