@@ -129,7 +129,11 @@ class BaseModel(ABC):
 
         if "segformer" in self.opt.G_netG:
             self.onnx_opset_version = 11
-        elif "ittr" in self.opt.G_netG or "unet_mha" in self.opt.G_netG:
+        elif (
+            "ittr" in self.opt.G_netG
+            or "unet_mha" in self.opt.G_netG
+            or "uvit" in self.opt.G_netG
+        ):
             self.onnx_opset_version = 12
         else:
             self.onnx_opset_version = 9
@@ -743,7 +747,7 @@ class BaseModel(ABC):
                         )
 
                     # jit
-                    if self.opt.train_export_jit:
+                    if self.opt.train_export_jit and not ("uvit" in self.opt.G_netG):
                         export_path_jit = save_path.replace(".pth", ".pt")
 
                         export(

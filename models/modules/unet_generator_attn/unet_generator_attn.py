@@ -972,8 +972,8 @@ class UViT(nn.Module):
             hs.append(h)
 
         B, C, H, W = h.shape
-        h = h.reshape(B, H * W, C)
-        hpos = self.sinu_pos_emb(h)
+        h = h.reshape(B, H * W, C).to(input.device)
+        hpos = self.sinu_pos_emb(h).to(input.device)
         h += hpos  # adding positional encoding
         for module in self.middle_blocks:
             h = module(h, emb)
