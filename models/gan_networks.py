@@ -42,7 +42,10 @@ from .modules.segformer.segformer_generator import (
 )
 from .modules.ittr.ittr_generator import ITTRGenerator
 from .modules.multimodal_encoder import E_ResNet, E_NLayers
-from .modules.unet_generator_attn.unet_generator_attn import UNet as UNet_mha
+from .modules.unet_generator_attn.unet_generator_attn import (
+    UNet as UNet_mha,
+    UViT as UViT,
+)
 
 
 def define_G(
@@ -69,6 +72,8 @@ def define_G(
     G_unet_mha_channel_mults,
     G_unet_mha_norm_layer,
     G_unet_mha_group_norm_size,
+    G_uvit_num_transformer_blocks,
+    G_unet_mha_vit_efficient,
     train_feat_wavelet,
     **unused_options
 ):
@@ -234,6 +239,26 @@ def define_G(
             n_timestep_test=0,  # unused
             norm=G_unet_mha_norm_layer,
             group_norm_size=G_unet_mha_group_norm_size,
+        )
+        return net
+    elif G_netG == "uvit":
+        net = UViT(
+            image_size=data_crop_size,
+            in_channel=model_input_nc,
+            inner_channel=G_ngf,
+            cond_embed_dim=G_ngf * 4,
+            out_channel=model_output_nc,
+            res_blocks=G_unet_mha_res_blocks,
+            attn_res=[16],
+            channel_mults=G_unet_mha_channel_mults,  # e.g. (1, 2, 4, 8)
+            num_head_channels=G_unet_mha_num_head_channels,
+            tanh=True,
+            n_timestep_train=0,  # unused
+            n_timestep_test=0,  # unused
+            norm=G_unet_mha_norm_layer,
+            group_norm_size=G_unet_mha_group_norm_size,
+            num_transformer_blocks=G_uvit_num_transformer_blocks,
+            efficient=G_unet_mha_vit_efficient,
         )
         return net
     else:
