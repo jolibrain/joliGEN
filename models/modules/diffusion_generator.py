@@ -64,7 +64,7 @@ class DiffusionGenerator(nn.Module):
         else:
             self.cond_embed_dim = cond_embed_dim
 
-            if "class" in self.denoise_fn.conditioning:
+            if any(cond in self.denoise_fn.conditioning for cond in ["class", "ref"]):
                 self.cond_embed_gammas = self.cond_embed_dim // 2
             else:
                 self.cond_embed_gammas = self.cond_embed_dim
@@ -86,6 +86,7 @@ class DiffusionGenerator(nn.Module):
         mask=None,
         sample_num=8,
         cls=None,
+        ref=None,
         guidance_scale=0.0,
         ddim_num_steps=10,
         ddim_eta=0.5,
@@ -99,6 +100,7 @@ class DiffusionGenerator(nn.Module):
                 sample_num=sample_num,
                 cls=cls,
                 guidance_scale=guidance_scale,
+                ref=ref,
             )
         elif self.sampling_method == "ddim":
             return self.restoration_ddim(
@@ -117,12 +119,13 @@ class DiffusionGenerator(nn.Module):
     def restoration_ddpm(
         self,
         y_cond,
-        y_t=None,
-        y_0=None,
-        mask=None,
-        sample_num=8,
-        cls=None,
-        guidance_scale=0.0,
+        y_t,
+        y_0,
+        mask,
+        sample_num,
+        cls,
+        guidance_scale,
+        ref,
     ):
         phase = "test"
 
@@ -149,6 +152,7 @@ class DiffusionGenerator(nn.Module):
                 phase=phase,
                 cls=cls,
                 mask=mask,
+                ref=ref,
                 guidance_scale=guidance_scale,
             )
 
@@ -180,6 +184,7 @@ class DiffusionGenerator(nn.Module):
         clip_denoised: bool,
         cls,
         mask,
+        ref,
         y_cond=None,
         guidance_scale=0.0,
     ):
@@ -197,7 +202,11 @@ class DiffusionGenerator(nn.Module):
                 y_t,
                 t=t,
                 noise=self.denoise_fn(
-                    input, torch.zeros_like(embed_noise_level), cls=None, mask=None
+                    input,
+                    torch.zeros_like(embed_noise_level),
+                    cls=None,
+                    mask=None,
+                    ref=ref,
                 ),
                 phase=phase,
             )
@@ -206,7 +215,9 @@ class DiffusionGenerator(nn.Module):
             self.denoise_fn.model,
             y_t,
             t=t,
-            noise=self.denoise_fn(input, embed_noise_level, cls=cls, mask=mask),
+            noise=self.denoise_fn(
+                input, embed_noise_level, cls=cls, mask=mask, ref=ref
+            ),
             phase=phase,
         )
 
@@ -232,6 +243,7 @@ class DiffusionGenerator(nn.Module):
         phase,
         cls,
         mask,
+        ref,
         clip_denoised=True,
         y_cond=None,
         guidance_scale=0.0,
@@ -245,6 +257,7 @@ class DiffusionGenerator(nn.Module):
             phase=phase,
             cls=cls,
             mask=mask,
+            ref=ref,
             guidance_scale=guidance_scale,
         )
 
@@ -378,12 +391,12 @@ class DiffusionGenerator(nn.Module):
             y_0_hat.clamp_(-1.0, 1.0)
 
         gamma_t = self.extract(
-            getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
+            getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1, 1, 1)
         ).to(y_t.device)
         gamma_prevt = self.extract(
             getattr(self.denoise_fn.model, "gammas_prev_" + phase),
             prevt + 1,
-            x_shape=(1, 1),
+            x_shape=(1, 1, 1, 1),
         ).to(y_t.device)
 
         ## denoising formula for model_mean witih DDIM
@@ -409,7 +422,7 @@ class DiffusionGenerator(nn.Module):
 
         return model_mean, posterior_log_variance
 
-    def forward(self, y_0, y_cond, mask, noise, cls, dropout_prob=0.0):
+    def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):
 
         b, *_ = y_0.shape
         t = torch.randint(
@@ -438,7 +451,9 @@ class DiffusionGenerator(nn.Module):
 
         input = torch.cat([y_cond, y_noisy], dim=1)
 
-        noise_hat = self.denoise_fn(input, embed_sample_gammas, cls=cls, mask=mask)
+        noise_hat = self.denoise_fn(
+            input, embed_sample_gammas, cls=cls, mask=mask, ref=ref
+        )
 
         return noise, noise_hat
 

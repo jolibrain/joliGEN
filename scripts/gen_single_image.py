@@ -135,6 +135,12 @@ if __name__ == "__main__":
 
     parser.add_argument("--img-in", help="image to transform", required=True)
     parser.add_argument("--img-out", help="transformed image", required=True)
+    parser.add_argument(
+        "--img-width", type=int, help="image width, defaults to model crop size"
+    )
+    parser.add_argument(
+        "--img-height", type=int, help="image height, defaults to model crop size"
+    )
     parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
     parser.add_argument(
         "--gpu-ids",

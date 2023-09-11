@@ -36,6 +36,7 @@ respectively.
 Subdirectories ``testA`` and ``testB`` can be added for test data.
 
 Example: horse to zebra from two sets of images
+
 Dataset: https://joligen.com/datasets/horse2zebra.zip
 
 .. code-block:: bash
@@ -59,6 +60,7 @@ Dataset with class label has ``trainA`` and ``trainB`` directories. In
 images for this class.
 
 Example: font number conversion
+
 Dataset: https://joligen.com/datasets/mnist2USPS.zip
 
 .. code-block:: bash
@@ -223,3 +225,101 @@ https://joligen.com/datasets/daytime2dawn_dusk_lite.zip
 
 in this order: ``source image path``, ``image class``, ``image mask``,
 where ``image class`` in this dataset represents the weather class.
+
+*****************************************************
+ Datasets with mask and reference image conditioning
+*****************************************************
+
+Example: inpaint a garment from a catalog image onto a person
+
+Dataset:
+https://www.joligen.com/datasets/viton_mask_ref_mini.zip
+
+.. code::
+
+   viton_mask_ref_mini
+   viton_mask_ref_mini/trainA
+   viton_mask_ref_mini/trainA/imgs
+   viton_mask_ref_mini/trainA/imgs/00000_00.jpg # source image, e.g. person with original garment
+   ...
+   viton_mask_ref_mini/trainA/mask
+   viton_mask_ref_mini/trainA/mask/00000_00.png # mask for inpainting zone, e.g. original garment to remove
+   ...
+   viton_mask_ref_mini/trainA/ref
+   viton_mask_ref_mini/trainA/ref/00000_00.jpg # reference image to inpaint, e.g. catalog image
+   ...
+   viton_mask_ref_mini/trainA/paths.txt # list of associated source / mask image
+   viton_mask_ref_mini/trainA/conditions.txt # list of associated source / reference image
+
+``paths.txt`` format:
+
+.. code::
+
+   cat trainA/paths.txt
+   trainA/imgs/00000_00.jpg trainA/mask/00000_00.png
+
+in this order: ``source image path``, ``image mask``.
+
+``conditions.txt`` format:
+
+.. code::
+
+   cat trainA/conditions.txt
+   trainA/imgs/00000_00.jpg trainA/ref/00000_00.jpg
+
+in this order: ``source image path`` (same as ``paths.txt``), ``reference image``.
+
+*****************************************************
+ Datasets with bbox and reference image conditioning
+*****************************************************
+
+Example: inpaint garments from a catalog image onto a person
+
+Dataset:
+https://www.joligen.com/datasets/viton_bbox_ref_mini.zip
+
+.. code::
+
+   viton_bbox_ref_mini
+   viton_bbox_ref_mini/trainA
+   viton_bbox_ref_mini/trainA/imgs
+   viton_bbox_ref_mini/trainA/imgs/00000_00.jpg # source image, e.g. person with original garments
+   ...
+   viton_bbox_ref_mini/trainA/bbox
+   viton_bbox_ref_mini/trainA/bbox/00000_00.txt # list of bboxes for inpainting zone, e.g. original garments to remove
+   ...
+   viton_bbox_ref_mini/trainA/cond
+   viton_bbox_ref_mini/trainA/cond/00000_00.txt # list of reference images to inpaint for each bbox
+   ...
+   viton_bbox_ref_mini/trainA/ref
+   viton_bbox_ref_mini/trainA/ref/00000_00.jpg # reference image to inpaint, e.g. catalog image
+   ...
+   viton_bbox_ref_mini/trainA/paths.txt # list of associated source / bboxes
+   viton_bbox_ref_mini/trainA/conditions.txt # list of associated source / reference images
+
+``paths.txt`` format:
+
+.. code::
+
+   cat trainA/paths.txt
+   trainA/imgs/00000_00.jpg trainA/bbox/00000_00.txt
+
+in this order: ``source image path``, ``bboxes file``.
+
+Bounding box format is the :ref:`same as above<datasets-bbox>`.
+
+``conditions.txt`` format:
+
+.. code::
+
+   cat trainA/conditions.txt
+   trainA/imgs/00000_00.jpg trainA/cond/00000_00.txt
+
+in this order: ``source image path`` (same as ``paths.txt``), ``file containing list of reference images``.
+
+List of reference images file format:
+
+.. code::
+
+   cat trainA/cond/00000_00.txt
+   trainA/ref/00000_00.jpg # path to reference image (same number of lines and order as corresponding bbox file)

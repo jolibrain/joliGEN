@@ -77,7 +77,9 @@ def load_model(
     model.eval()
 
     # handle old models
-    weights = torch.load(modelpath + "/" + model_in_file)
+    weights = torch.load(
+        modelpath + "/" + model_in_file, map_location=torch.device(device)
+    )
     if opt.model_prior_321_backwardcompatibility:
         weights = {
             k.replace("denoise_fn.cond_embed", "cond_embed"): v
@@ -271,7 +273,7 @@ def launch_predict_diffusion(args, process_name):
             min_crop_bbox_ratio=args.min_crop_bbox_ratio,
         )
 
-        img, mask, ref_bbox = crop_image(
+        img, mask, ref_bbox, bbox_ref_id = crop_image(
             img_path=args.img_in,
             bbox_path=args.bbox_in,
             mask_delta=args.mask_delta,  # opt.data_online_creation_mask_delta_A,

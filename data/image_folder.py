@@ -89,17 +89,23 @@ def make_labeled_path_dataset(dir, paths, max_dataset_size=float("inf")):
     for line in paths_list:
         line_split = line.split(" ")
 
-        if len(line_split) == 2:
-            images.append(line_split[0])
-            labels.append(line_split[1])
-        if len(line_split) == 3:
-            images.append(line_split[0])
-            labels.append(line_split[1] + " " + line_split[2])
-
-        elif (
+        if (
             len(line_split) == 1 and len(line_split[0]) > 0
         ):  # we allow B not having a label
             images.append(line_split[0])
+
+        elif len(line_split) == 2:
+            images.append(line_split[0])
+            labels.append(line_split[1])
+
+        elif len(line_split) > 2:
+            images.append(line_split[0])
+
+            label_line = line_split[1]
+            for i in range(2, len(line_split)):
+                label_line += " " + line_split[i]
+
+            labels.append(label_line)
 
     return (
         images[: min(max_dataset_size, len(images))],
@@ -121,6 +127,49 @@ def make_dataset_path(dir, paths, max_dataset_size=float("inf")):
     if max_dataset_size == "inf":
         max_dataset_size = len(images)
     return images[: min(max_dataset_size, len(images))]
+
+
+def make_ref_path(dir, paths, max_dataset_size=float("inf")):
+    ref = {}
+    assert os.path.isdir(dir), "%s is not a valid directory" % dir
+
+    with open(dir + paths, "r") as f:
+        paths_list = f.read().split("\n")
+
+    for line in paths_list:
+        line_split = line.split(" ")
+
+        if len(line_split) == 2:
+            ref[line_split[0]] = line_split[1]
+
+    return ref
+
+
+def make_ref_path_list(dir, paths, max_dataset_size=float("inf")):
+    ref = {}
+    assert os.path.isdir(dir), "%s is not a valid directory" % dir
+
+    with open(dir + paths, "r") as f:
+        paths_list = f.read().split("\n")
+
+    root = "/".join(dir.split("/")[:-1])
+
+    for line in paths_list:
+        line_split = line.split(" ")
+
+        if len(line_split) == 2:
+            path_to_ref = line_split[1]
+
+            path = os.path.join(root, path_to_ref)
+
+            with open(path, "r") as f:
+                paths_ref_list = f.read().split("\n")
+
+            paths_ref_list.remove("")
+
+            ref[line_split[0]] = paths_ref_list
+
+    return ref
 
 
 def default_loader(path):

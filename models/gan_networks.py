@@ -25,11 +25,6 @@ from .modules.classifiers import (
     TORCH_MODEL_CLASSES,
 )
 
-from .modules.stylegan_networks import (
-    StyleGAN2Discriminator,
-    StyleGAN2Generator,
-    TileStyleGAN2Discriminator,
-)
 from .modules.cut_networks import PatchSampleF, PatchSampleF_QSAttn
 from .modules.projected_d.discriminator import (
     ProjectedDiscriminator,
@@ -62,7 +57,6 @@ def define_G(
     G_attn_nb_mask_input,
     jg_dir,
     G_config_segformer,
-    G_stylegan2_num_downsampling,
     G_backward_compatibility_twice_resnet_blocks,
     G_unet_mha_num_head_channels,
     G_unet_mha_res_blocks,
@@ -165,27 +159,6 @@ def define_G(
             twice_resnet_blocks=G_backward_compatibility_twice_resnet_blocks,
             freq_space=train_feat_wavelet,
         )
-    elif G_netG == "stylegan2":
-        net = StyleGAN2Generator(
-            model_input_nc,
-            model_output_nc,
-            G_ngf,
-            use_dropout=G_dropout,
-            stylegan2_num_downsampling=G_stylegan2_num_downsampling,
-            img_size=data_crop_size,
-        )
-        return net
-    elif G_netG == "smallstylegan2":
-        net = StyleGAN2Generator(
-            model_input_nc,
-            model_output_nc,
-            G_ngf,
-            use_dropout=G_dropout,
-            n_blocks=2,
-            stylegan2_num_downsampling=G_stylegan2_num_downsampling,
-            img_size=data_crop_size,
-        )
-        return net
     elif G_netG == "segformer_attn_conv":
         net = SegformerGenerator_attn(
             jg_dir,
@@ -338,16 +311,6 @@ def define_D(
         elif netD == "pixel":  # classify if each pixel is real or fake
             net = PixelDiscriminator(model_input_nc, D_ndf, norm_layer=norm_layer)
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
-
-        elif "stylegan2" in netD:  # global D from sty2 repo
-            net = StyleGAN2Discriminator(
-                model_input_nc,
-                D_ndf,
-                D_n_layers,
-                no_antialias=D_no_antialias,
-                img_size=data_crop_size + margin,
-                netD=netD,
-            )
 
         elif netD in TORCH_MODEL_CLASSES:  # load torchvision model
             nclasses = 1

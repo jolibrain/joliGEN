@@ -213,8 +213,6 @@ class BaseOptions:
                 "mobile_resnet_attn",
                 "unet_256",
                 "unet_128",
-                "stylegan2",
-                "smallstylegan2",
                 "segformer_attn_conv",
                 "segformer_conv",
                 "ittr",
@@ -250,12 +248,6 @@ class BaseOptions:
             default="instance",
             choices=["instance", "batch", "none"],
             help="instance normalization or batch normalization for G",
-        )
-        parser.add_argument(
-            "--G_stylegan2_num_downsampling",
-            default=1,
-            type=int,
-            help="Number of downsampling layers used by StyleGAN2Generator",
         )
         parser.add_argument(
             "--G_config_segformer",
@@ -395,9 +387,6 @@ class BaseOptions:
                 "basic",
                 "n_layers",
                 "pixel",
-                "stylegan2",
-                "patchstylegan2",
-                "smallpatchstylegan2",
                 "projected_d",
                 "temporal",
                 "vision_aided",
@@ -624,6 +613,10 @@ class BaseOptions:
                 "temporal_labeled_mask_online",
                 "self_supervised_temporal",
                 "single",
+                "unaligned_labeled_mask_ref",
+                "self_supervised_labeled_mask_ref",
+                "unaligned_labeled_mask_online_ref",
+                "self_supervised_labeled_mask_online_ref",
             ],
             help="chooses how datasets are loaded.",
         )

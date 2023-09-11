@@ -72,6 +72,7 @@ class PaletteModel(BaseDiffusionModel):
                 "previous_frame",
                 "computed_sketch",
                 "low_res",
+                "ref",
             ],
             help="how cond_image is created",
         )
@@ -210,7 +211,7 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_conditioning",
             type=str,
             default="",
-            choices=["", "mask", "class", "mask_and_class"],
+            choices=["", "mask", "class", "mask_and_class", "ref"],
             help="whether to use conditioning or not",
         )
 
@@ -225,6 +226,14 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_generate_per_class",
             action="store_true",
             help="whether to generate samples of each images",
+        )
+
+        parser.add_argument(
+            "--alg_palette_ref_embed_net",
+            type=str,
+            default="clip",
+            choices=["clip", "imagebind"],
+            help="embedding network to use for ref conditioning",
         )
 
         return parser
@@ -286,6 +295,15 @@ class PaletteModel(BaseDiffusionModel):
 
             for i in range(self.nb_classes_inference):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
+
+        elif (
+            self.opt.alg_palette_cond_image_creation == "ref"
+            or "ref" in self.opt.alg_palette_conditioning
+        ):
+            for i in range(self.inference_num):
+                self.gen_visual_names.append("cond_ref_" + str(i + 1) + "_")
+                self.gen_visual_names.append("output_" + str(i + 1) + "_")
+
         else:
             self.gen_visual_names.append("output_")
 
@@ -448,6 +466,12 @@ class PaletteModel(BaseDiffusionModel):
         else:
             self.cls = None
 
+        if (
+            "ref" in self.opt.alg_palette_conditioning
+            or self.opt.alg_palette_cond_image_creation == "ref"
+        ):
+            self.ref_A = data["ref_A"].to(self.device)
+
         if self.opt.alg_palette_cond_image_creation == "y_t":
             self.cond_image = self.y_t
         elif self.opt.alg_palette_cond_image_creation == "previous_frame":
@@ -528,6 +552,9 @@ class PaletteModel(BaseDiffusionModel):
             self.cond_image = self.transform_lr(self.gt_image)  # bilinear interpolation
             self.cond_image = self.transform_hr(self.cond_image)  # let's get it back
 
+        elif self.opt.alg_palette_cond_image_creation == "ref":
+            self.cond_image = self.ref_A
+
         self.batch_size = self.cond_image.shape[0]
 
         self.real_A = self.cond_image
@@ -561,8 +588,16 @@ class PaletteModel(BaseDiffusionModel):
                 # the highest class is the unconditionned one.
                 cls = torch.where(drop_ids, self.num_classes - 1, cls)
 
+        if (
+            self.opt.alg_palette_cond_image_creation == "ref"
+            or "ref" in self.opt.alg_palette_conditioning
+        ):
+            ref = self.ref_A
+        else:
+            ref = None
+
         noise, noise_hat = self.netG_A(
-            y_0=y_0, y_cond=y_cond, noise=noise, mask=mask, cls=cls
+            y_0=y_0, y_cond=y_cond, noise=noise, mask=mask, cls=cls, ref=ref
         )
 
         if mask is not None:
@@ -621,7 +656,56 @@ class PaletteModel(BaseDiffusionModel):
                         cls=cur_class,
                         ddim_num_steps=self.ddim_num_steps,
                         ddim_eta=self.ddim_eta,
+                        ref=self.ref_A if hasattr(self, "ref_A") else None,
                     )
+
+                    name = "output_" + str(i + 1)
+                    setattr(self, name, output)
+
+                    name = "visuals_" + str(i + 1)
+                    setattr(self, name, visuals)
+
+                self.fake_B = self.output_1
+                self.visuals = self.visuals_1
+
+            elif (
+                self.opt.alg_palette_cond_image_creation == "ref"
+                or self.opt.alg_palette_conditioning == "ref"
+            ):
+                for i in range(self.inference_num):
+                    if self.cls is not None:
+                        cls = self.cls[: self.inference_num]
+                    else:
+                        cls = self.cls
+
+                    if self.mask is not None:
+                        mask = self.mask[: self.inference_num]
+                    else:
+                        mask = self.mask
+
+                    cur_ref = self.cond_image[i : i + 1].expand(
+                        self.inference_num, -1, -1, -1
+                    )
+
+                    if self.opt.alg_palette_cond_image_creation == "ref":
+
+                        y_cond = cur_ref
+
+                    else:
+                        y_cond = self.cond_image[: self.inference_num]
+
+                    output, visuals = netG.restoration(
+                        y_cond=y_cond,
+                        y_t=self.y_t[: self.inference_num],
+                        y_0=self.gt_image[: self.inference_num],
+                        mask=mask,
+                        sample_num=self.sample_num,
+                        cls=cls,
+                        ref=cur_ref,
+                    )
+
+                    name = "cond_ref_" + str(i + 1)
+                    setattr(self, name, y_cond)
 
                     name = "output_" + str(i + 1)
                     setattr(self, name, output)
@@ -651,6 +735,8 @@ class PaletteModel(BaseDiffusionModel):
                     mask=mask,
                     sample_num=self.sample_num,
                     cls=cls,
+                    ddim_num_steps=self.ddim_num_steps,
+                    ddim_eta=self.ddim_eta,
                 )
                 self.fake_B = self.output
 
@@ -719,12 +805,17 @@ class PaletteModel(BaseDiffusionModel):
         else:
             dummy_cls = None
 
+        dummy_ref = torch.ones(
+            1, input_nc, self.opt.data_crop_size, self.opt.data_crop_size, device=device
+        )
+
         dummy_input = (
             dummy_y_0,
             dummy_y_cond,
             dummy_mask,
             dummy_noise,
             dummy_cls,
+            dummy_ref,
         )
 
         return dummy_input

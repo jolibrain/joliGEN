@@ -36,6 +36,7 @@ def define_G(
     alg_palette_sampling_method,
     alg_palette_conditioning,
     alg_palette_cond_embed_dim,
+    alg_palette_ref_embed_net,
     model_prior_321_backwardcompatibility,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
@@ -157,6 +158,7 @@ def define_G(
     denoise_fn = PaletteDenoiseFn(
         model=model,
         cond_embed_dim=cond_embed_dim,
+        ref_embed_net=alg_palette_ref_embed_net,
         conditioning=alg_palette_conditioning,
         nclasses=f_s_semantic_nclasses,
     )
