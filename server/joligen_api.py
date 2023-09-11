@@ -228,11 +228,15 @@ async def predict(request: Request):
     LOG_PATH = os.environ.get(
         "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
     )
+    if not os.path.isdir(LOG_PATH):
+        os.mkdir(LOG_PATH)
     Path(f"{LOG_PATH}/{name}.log").touch()
 
     JSON_PATH = os.environ.get(
         "JSON_PATH", os.path.join(os.path.dirname(__file__), "../predict_json")
     )
+    if not os.path.isdir(JSON_PATH):
+        os.mkdir(JSON_PATH)
     Path(f"{JSON_PATH}/{name}.json").touch()
     with open(f"{JSON_PATH}/{name}.json", "w") as f:
         json.dump(opt.__dict__, f)
