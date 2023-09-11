@@ -230,6 +230,13 @@ async def predict(request: Request):
     )
     Path(f"{LOG_PATH}/{name}.log").touch()
 
+    JSON_PATH = os.environ.get(
+        "JSON_PATH", os.path.join(os.path.dirname(__file__), "../predict_json")
+    )
+    Path(f"{JSON_PATH}/{name}.json").touch()
+    with open(f"{JSON_PATH}/{name}.json", "w") as f:
+        json.dump(opt.__dict__, f)
+
     target = script_target_from_train_config(opt.model_in_file)
     if target is None:
         return {
