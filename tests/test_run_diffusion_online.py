@@ -13,7 +13,7 @@ json_like_dict = {
     "name": "joligen_utest",
     "output_display_env": "joligen_utest",
     "output_display_id": 0,
-    "gpu_ids": "0",
+    "gpu_ids": [0],
     "data_load_size": 128,
     "data_crop_size": 128,
     "data_online_creation_crop_size_A": 420,

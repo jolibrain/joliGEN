@@ -13,7 +13,7 @@ json_like_dict = {
     "G_netG": "mobile_resnet_attn",
     "output_display_env": "joligen_utest",
     "output_display_id": 0,
-    "gpu_ids": "0",
+    "gpu_ids": [0],
     "data_dataset_mode": "unaligned_labeled_cls",
     "data_load_size": 180,
     "data_crop_size": 180,
