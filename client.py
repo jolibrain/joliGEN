@@ -35,6 +35,7 @@ python client.py --method training_status --host jg_server_host --port jg_server
 
 import requests
 from options.train_options import TrainOptions
+from options.predict_options import PredictOptions
 import sys
 import argparse
 import json
@@ -51,6 +52,18 @@ def train(host: str, port: int, name: str, train_options: dict):
     x = requests.post(url=url, json=json_opt)
 
     print("Training %s started." % x.json()["name"])
+
+
+def predict(host: str, port: int, predict_options: dict):
+    json_opt = {}
+    json_opt["sync"] = False
+    json_opt["predict_options"] = predict_options
+
+    url = "http://%s:%d" % (host, port) + "/predict"
+
+    x = requests.post(url=url, json=json_opt)
+
+    print("Inference started.")
 
 
 def delete(host: str, port: int, name: str):
@@ -81,7 +94,7 @@ def main_client(args: list):
         "--method",
         type=str,
         default="launch_training",
-        choices=["launch_training", "stop_training", "training_status"],
+        choices=["launch_training", "stop_training", "training_status", "predict"],
     )
 
     main_parser.add_argument(
@@ -120,6 +133,16 @@ def main_client(args: list):
             train_options = TrainOptions().parse_to_json(args)
 
         train(host, port, name, train_options)
+
+    elif method == "predict":
+        if main_opt.config_json != "":
+            with open(main_opt.config_json, "r") as jsonf:
+                predict_options = json.load(jsonf)
+            print("%s config file loaded" % main_opt.config_json)
+        else:
+            predict_options = PredictOptions().parse_to_json(args)
+
+        predict(host, port, predict_options)
 
     elif method == "stop_training":
         delete(host, port, name)
