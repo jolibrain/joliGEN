@@ -42,3 +42,4 @@ test/data/legacy_serialized.pt
 .idea
 logs/
 venv/
+predict_json/
