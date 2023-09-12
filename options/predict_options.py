@@ -19,12 +19,6 @@ class PredictOptions(BaseOptions):
         )
 
         parser.add_argument(
-            "--predict-method",
-            type=str,
-            help="Python script filename to load from $JOLIGEN/scripts/ folder",
-        )
-
-        parser.add_argument(
             "--seed", type=int, help="Torch seed, desactivated by default", default=0
         )
 
