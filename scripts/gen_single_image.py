@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import logging
+import datetime
 
 sys.path.append("../")
 from models import gan_networks
@@ -46,7 +47,7 @@ def load_model(modelpath, model_in_file, cpu, gpu_ids):
     return model, opt, device
 
 
-def launch_predict_single_image(args, process_name):
+def launch_predict_single_image(args):
 
     PROGRESS_NUM_STEPS = 6
 
@@ -55,14 +56,16 @@ def launch_predict_single_image(args, process_name):
     )
     if not os.path.exists(LOG_PATH):
         os.makedirs(LOG_PATH)
-    log_file = f"{LOG_PATH}/{process_name}.log"
+    log_file = f"{LOG_PATH}/{args.name}.log"
 
-    logging.basicConfig(filename=log_file, filemode="w", level=logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        handlers=[logging.FileHandler(log_file, mode="w"), logging.StreamHandler()],
+    )
     logging.info(f"[1/%i] launch process" % PROGRESS_NUM_STEPS)
 
     # loading model
     modelpath = args.model_in_file.replace(os.path.basename(args.model_in_file), "")
-    print("modelpath=", modelpath)
     logging.debug("modelpath=%s" % modelpath)
 
     try:
@@ -115,18 +118,23 @@ def launch_predict_single_image(args, process_name):
 
     # post-processing
     out_img = out_tensor.data.cpu().float().numpy()
-    print(out_img.shape)
     logging.debug("out_img.shape=%s" % str(out_img.shape))
+
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
-    # print(out_img)
     out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
     cv2.imwrite(args.img_out, out_img)
-    print("Successfully generated image ", args.img_out)
     logging.info(f"[6/%i] success - %s" % (PROGRESS_NUM_STEPS, args.img_out))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--name",
+        help="name of the process, used for logging and saving. Default: predict + timestamp",
+        default="predict" + str(datetime.datetime.now().strftime("%s")),
+    )
+
     parser.add_argument(
         "--model-in-file",
         help="file path to generator model (.pth file)",

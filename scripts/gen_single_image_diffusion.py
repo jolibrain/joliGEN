@@ -147,7 +147,7 @@ def cond_augment(cond, rotation, persp_horizontal, persp_vertical):
     return np.array(cond)
 
 
-def launch_predict_diffusion(args, process_name):
+def launch_predict_diffusion(args):
 
     PROGRESS_NUM_STEPS = 8
     LOG_PATH = os.environ.get(
@@ -155,9 +155,12 @@ def launch_predict_diffusion(args, process_name):
     )
     if not os.path.exists(LOG_PATH):
         os.makedirs(LOG_PATH)
-    log_file = f"{LOG_PATH}/{process_name}.log"
+    log_file = f"{LOG_PATH}/{args.name}.log"
 
-    logging.basicConfig(filename=log_file, filemode="w", level=logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        handlers=[logging.FileHandler(log_file, mode="w"), logging.StreamHandler()],
+    )
     logging.info(f"[1/%i] launch process" % PROGRESS_NUM_STEPS)
 
     # seed
@@ -584,8 +587,8 @@ def launch_predict_diffusion(args, process_name):
             )
 
             out_img_real_size = img_orig.copy()
-    else:
-        out_img_real_size = out_img
+        else:
+            out_img_real_size = out_img
 
     # fill out crop into original image
     if args.bbox_in:
@@ -595,12 +598,22 @@ def launch_predict_diffusion(args, process_name):
 
     cond_img = to_np(cond_image)
 
-    logging.info(
-        f"[7/%i] writing files with basename: {args.img_out}" % PROGRESS_NUM_STEPS
-    )
-    out_file = Path(args.img_out)
-    out_suffix = f"{out_file.suffix}"
-    cv2.imwrite(str(out_file.with_suffix(out_suffix)), out_img_real_size)
+    if hasattr(args, "img_out") and args.img_out is not None:
+        logging.info(
+            f"[7/%i] writing files with basename: {args.img_out}" % PROGRESS_NUM_STEPS
+        )
+        out_file = Path(args.img_out)
+        out_suffix = f"{out_file.suffix}"
+    elif hasattr(args, "dir_out") and args.dir_out is not None:
+        logging.info(
+            f"[7/%i] writing files with to folder: {args.dir_out}" % PROGRESS_NUM_STEPS
+        )
+        out_file = Path(args.dir_out, f"{Path(args.img_in).stem}")
+        out_suffix = f"{Path(args.img_in).suffix}"
+    else:
+        logging.info("Missing --img-out or --dir-out option")
+        return
+
     cv2.imwrite(str(out_file.with_suffix(f".orig{out_suffix}")), img_orig)
     cv2.imwrite(str(out_file.with_suffix(f".cond{out_suffix}")), cond_img)
     cv2.imwrite(str(out_file.with_suffix(f".generated{out_suffix}")), out_img_real_size)
@@ -786,6 +799,14 @@ if __name__ == "__main__":
         help="whether to load models from previous version of JG.",
     )
 
+    options.parser.add_argument(
+        "--gpu-ids",
+        default=[0],
+        nargs="*",
+        type=int,
+        help="gpu ids: e.g. '0'  '0 1 2' '0 2'. use -1 for CPU",
+    )
+
     args = options.parse()
 
     if len(args.mask_delta_ratio[0]) == 1 and args.mask_delta_ratio[0][0] == 0.0:
@@ -800,4 +821,4 @@ if __name__ == "__main__":
 
     for i in tqdm(range(args.nb_samples)):
         args.name = real_name + "_" + str(i).zfill(len(str(args.nb_samples)))
-        launch_predict_diffusion(**vars(args))
+        launch_predict_diffusion(args)
