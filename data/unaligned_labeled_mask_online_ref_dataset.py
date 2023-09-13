@@ -60,8 +60,7 @@ class UnalignedLabeledMaskOnlineRefDataset(UnalignedLabeledMaskOnlineDataset):
             print(e)
             return None
 
-        ref_A = self.transform_ref(ref_A)
-
-        result.update({"ref_A": ref_A})
+        ref_A_norm = self.transform_ref(ref_A)
+        result.update({"ref_A": ref_A_norm})
 
         return result

@@ -275,6 +275,12 @@ class PaletteModel(BaseDiffusionModel):
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
         )
 
+        self.use_ref = (
+            self.opt.alg_palette_cond_image_creation == "ref"
+            or "ref" in self.opt.alg_palette_conditioning
+            or "ref" in self.opt.G_netG
+        )
+
         # Visuals
         visual_outputs = []
         self.gen_visual_names = [
@@ -288,6 +294,7 @@ class PaletteModel(BaseDiffusionModel):
         if (
             self.opt.alg_palette_conditioning != ""
             and self.opt.alg_palette_generate_per_class
+            and not self.use_ref
         ):
             self.nb_classes_inference = (
                 max(self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses) - 1
@@ -296,12 +303,9 @@ class PaletteModel(BaseDiffusionModel):
             for i in range(self.nb_classes_inference):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
 
-        elif (
-            self.opt.alg_palette_cond_image_creation == "ref"
-            or "ref" in self.opt.alg_palette_conditioning
-        ):
+        elif self.use_ref:
             for i in range(self.inference_num):
-                self.gen_visual_names.append("cond_ref_" + str(i + 1) + "_")
+                self.gen_visual_names.append("ref_" + str(i + 1) + "_")
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
 
         else:
@@ -466,10 +470,7 @@ class PaletteModel(BaseDiffusionModel):
         else:
             self.cls = None
 
-        if (
-            "ref" in self.opt.alg_palette_conditioning
-            or self.opt.alg_palette_cond_image_creation == "ref"
-        ):
+        if self.use_ref:
             self.ref_A = data["ref_A"].to(self.device)
 
         if self.opt.alg_palette_cond_image_creation == "y_t":
@@ -588,10 +589,7 @@ class PaletteModel(BaseDiffusionModel):
                 # the highest class is the unconditionned one.
                 cls = torch.where(drop_ids, self.num_classes - 1, cls)
 
-        if (
-            self.opt.alg_palette_cond_image_creation == "ref"
-            or "ref" in self.opt.alg_palette_conditioning
-        ):
+        if self.use_ref:
             ref = self.ref_A
         else:
             ref = None
@@ -631,6 +629,7 @@ class PaletteModel(BaseDiffusionModel):
             if (
                 self.opt.alg_palette_conditioning != ""
                 and self.opt.alg_palette_generate_per_class
+                and not self.use_ref
             ):
                 for i in range(self.nb_classes_inference):
                     if "class" in self.opt.alg_palette_conditioning:
@@ -670,10 +669,7 @@ class PaletteModel(BaseDiffusionModel):
                 self.fake_B = self.output_1
                 self.visuals = self.visuals_1
 
-            elif (
-                self.opt.alg_palette_cond_image_creation == "ref"
-                or self.opt.alg_palette_conditioning == "ref"
-            ):
+            elif self.use_ref:
                 for i in range(self.inference_num):
                     if self.cls is not None:
                         cls = self.cls[: self.inference_num]
@@ -685,12 +681,11 @@ class PaletteModel(BaseDiffusionModel):
                     else:
                         mask = self.mask
 
-                    cur_ref = self.cond_image[i : i + 1].expand(
+                    cur_ref = self.ref_A[i : i + 1].expand(
                         self.inference_num, -1, -1, -1
                     )
 
                     if self.opt.alg_palette_cond_image_creation == "ref":
-
                         y_cond = cur_ref
 
                     else:
@@ -706,8 +701,8 @@ class PaletteModel(BaseDiffusionModel):
                         ref=cur_ref,
                     )
 
-                    name = "cond_ref_" + str(i + 1)
-                    setattr(self, name, y_cond)
+                    name = "ref_" + str(i + 1)
+                    setattr(self, name, cur_ref)
 
                     name = "output_" + str(i + 1)
                     setattr(self, name, output)
