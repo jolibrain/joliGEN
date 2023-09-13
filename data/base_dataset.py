@@ -442,15 +442,7 @@ def get_transform_ref(
 
     if convert:
         transform_list += [transforms.ToTensor()]
-        """if grayscale:
-            transform_list += [transforms.Normalize((0.5,), (0.5,))]
-        else:
-            transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]"""
 
-        transforms.Normalize(
-            mean=(0.48145466, 0.4578275, 0.40821073),
-            std=(0.26862954, 0.26130258, 0.27577711),
-        )
     return transforms.Compose(transform_list)
 
 

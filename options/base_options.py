@@ -217,6 +217,7 @@ class BaseOptions:
                 "ittr",
                 "unet_mha",
                 "uvit",
+                "unet_mha_ref_attn",
             ],
             help="specify generator architecture",
         )

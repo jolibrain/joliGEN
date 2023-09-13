@@ -123,3 +123,20 @@ Trains a diffusion model to generate traffic signs conditioned by a Canny sketch
 Open http://localhost:8097/env/mapillary (or alternatively http://<your-server-address>:8097 to have a look at your training logs: loss curves, model output and inputs, and the options used to train.
 
 .. image:: _static/mapillary_visdom.png
+
+
+*********************************************
+ DDPM training with UnetRef conditioning
+*********************************************
+
+Dataset: https://joligen.com/datasets/viton_bbox_ref_mini.zip
+
+Trains a diffusion model to generate tried on clothing items conditioned by a reference image.
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/data/viton_bbox_ref_mini --checkpoints_dir /path/to/checkpoints --name viton --config_json examples/example_ddpm_unetref_viton.json
+
+Open http://localhost:8097/env/viton (or alternatively http://<your-server-address>:8097 to have a look at your training logs: loss curves, model output and inputs, and the options used to train.
+
+.. image:: _static/viton_visdom.png

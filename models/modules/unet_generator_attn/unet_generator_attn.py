@@ -673,7 +673,6 @@ class UNet(nn.Module):
             h = self.dwt(h)
 
         for module in self.input_blocks:
-
             h = module(h, emb)
             hs.append(h)
         h = self.middle_block(h, emb)
@@ -1012,17 +1011,635 @@ class UViT(nn.Module):
         return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
 
-if __name__ == "__main__":
-    b, c, h, w = 3, 6, 64, 64
-    timsteps = 100
-    model = UNet(
-        image_size=h,
-        in_channel=c,
-        inner_channel=64,
-        out_channel=3,
-        res_blocks=[2, 2, 2, 2],
-        attn_res=[8],
-    )
-    x = torch.randn((b, c, h, w))
-    emb = torch.ones((b,))
-    out = model(x, emb)
+### REF
+
+
+class EmbedSequentialRef(nn.Sequential, EmbedBlock):
+    """
+    A sequential module that passes embeddings to the children that
+    support it as an extra input.
+    """
+
+    def forward(self, x, emb, qkv_ref=None):
+        qkv = []
+        for layer in self:
+            if isinstance(layer, EmbedBlock):
+                x = layer(x, emb)
+            elif isinstance(layer, AttentionBlockRef):
+                if qkv_ref is None or type(qkv_ref) != list:
+                    cur_qkv_ref = qkv_ref
+                else:
+                    cur_qkv_ref = qkv_ref.pop(0)
+
+                x, qkv_out = layer(x, qkv_ref=cur_qkv_ref)
+                qkv.append(qkv_out)
+            else:
+                x = layer(x)
+        return x, qkv
+
+
+class AttentionBlockRef(nn.Module):
+    """
+    An attention block that allows spatial positions to attend to each other.
+    Originally ported from here, but adapted to the N-d case.
+    https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/models/unet.py#L66.
+    """
+
+    def __init__(
+        self,
+        channels,
+        num_heads=1,
+        num_head_channels=-1,
+        use_checkpoint=False,
+        use_new_attention_order=False,
+        use_transformer=False,
+        use_ref=False,
+        terminal=False,
+    ):
+        super().__init__()
+        self.channels = channels
+        if num_head_channels == -1:
+            self.num_heads = num_heads
+        else:
+            assert (
+                channels % num_head_channels == 0
+            ), f"q,k,v channels {channels} is not divisible by num_head_channels {num_head_channels}"
+            self.num_heads = channels // num_head_channels
+        self.use_checkpoint = use_checkpoint
+        self.use_transformer = use_transformer
+        self.norm = normalization1d(channels)
+        self.use_ref = use_ref
+        self.terminal = terminal
+
+        # if self.use_ref:
+        #    self.qkv = nn.Conv1d(channels, channels * 4, 1)
+        # else:
+        self.qkv = nn.Conv1d(channels, channels * 3, 1)
+
+        # self.qkv_ref = nn.Conv1d(channels, channels * 2, 1)
+        if use_new_attention_order:
+            # split qkv before split heads
+            self.attention = QKVAttention(self.num_heads)
+        else:
+            # split heads before split qkv
+            self.attention = QKVAttentionLegacy(self.num_heads)
+
+        if not self.terminal:
+            if self.use_ref:
+                self.proj_out = zero_module(nn.Conv1d(channels * 2, channels, 1))
+            else:
+                self.proj_out = zero_module(nn.Conv1d(channels, channels, 1))
+
+    def forward(self, x, qkv_ref=None):
+        return checkpoint(
+            self._forward, (x, qkv_ref), self.parameters(), self.use_checkpoint
+        )
+
+    def _forward(self, x, qkv_ref):
+        b, c, *spatial = x.shape
+        if self.use_transformer:
+            x = x.reshape(b, -1, c)
+        else:
+            x = x.reshape(b, c, -1)
+
+        qkv = self.qkv(self.norm(x))
+
+        if not self.terminal:
+            if self.use_ref:
+                assert qkv_ref is not None
+
+                # q, k, v, q_ref = qkv.chunk(4, dim=1)
+                q, k, v = qkv.chunk(3, dim=1)
+
+                _, k_ref, v_ref = qkv_ref.chunk(3, dim=1)
+
+                qkv = torch.cat([q, k, v], dim=1)
+
+                qkv_ref = torch.cat([q, k_ref, v_ref], dim=1)
+
+                h_ref = self.attention(qkv_ref)
+
+            h = self.attention(qkv)
+
+            if self.use_ref:
+                h = torch.cat([h, h_ref], dim=1)
+
+            h = self.proj_out(h)
+            return (x + h).reshape(b, c, *spatial), qkv
+        else:
+            return None, qkv
+
+
+##### unet ref
+
+
+class UNetGeneratorRefAttn(nn.Module):
+    """
+    The full UNet model with attention and embedding.
+    :param in_channel: channels in the input Tensor, for image colorization : Y_channels + X_channels .
+    :param inner_channel: base channel count for the model.
+    :param out_channel: channels in the output Tensor.
+    :param res_blocks: number of residual blocks per downsample.
+    :param attn_res: a collection of downsample rates at which
+        attention will take place. May be a set, list, or tuple.
+        For example, if this contains 4, then at 4x downsampling, attention
+        will be used.
+    :param dropout: the dropout probability.
+    :param channel_mults: channel multiplier for each level of the UNet.
+    :param conv_resample: if True, use learned convolutions for upsampling and
+        downsampling.
+    :param use_checkpoint: use gradient checkpointing to reduce memory usage.
+    :param num_heads: the number of attention heads in each attention layer.
+    :param num_heads_channels: if specified, ignore num_heads and instead use
+                               a fixed channel width per attention head.
+    :param num_heads_upsample: works with num_heads to set a different number
+                               of heads for upsampling. Deprecated.
+    :param use_scale_shift_norm: use a FiLM-like conditioning mechanism.
+    :param resblock_updown: use residual blocks for up/downsampling.
+    :param use_new_attention_order: use a different attention pattern for potentially
+                                    increased efficiency.
+    """
+
+    def __init__(
+        self,
+        image_size,
+        in_channel,
+        inner_channel,
+        out_channel,
+        res_blocks,
+        attn_res,
+        tanh,
+        n_timestep_train,
+        n_timestep_test,
+        norm,
+        group_norm_size,
+        cond_embed_dim,
+        dropout=0,
+        channel_mults=(1, 2, 4, 8),
+        conv_resample=True,
+        use_checkpoint=False,
+        use_fp16=False,
+        num_heads=1,
+        num_head_channels=-1,
+        num_heads_upsample=-1,
+        use_scale_shift_norm=True,
+        resblock_updown=True,
+        use_new_attention_order=False,
+        efficient=False,
+        freq_space=False,
+    ):
+        super().__init__()
+
+        if num_heads_upsample == -1:
+            num_heads_upsample = num_heads
+
+        self.image_size = image_size
+        self.in_channel = in_channel
+        self.inner_channel = inner_channel
+        self.out_channel = out_channel
+        self.res_blocks = res_blocks
+        self.attn_res = attn_res
+        self.dropout = dropout
+        self.channel_mults = channel_mults
+        self.conv_resample = conv_resample
+        self.use_checkpoint = use_checkpoint
+        self.dtype = torch.float16 if use_fp16 else torch.float32
+        self.num_heads = num_heads
+        self.num_head_channels = num_head_channels
+        self.num_heads_upsample = num_heads_upsample
+        self.freq_space = freq_space
+
+        num_ref_blocks = 0
+
+        if self.freq_space:
+            from ..freq_utils import InverseHaarTransform, HaarTransform
+
+            self.iwt = InverseHaarTransform(3)
+            self.dwt = HaarTransform(3)
+            in_channel *= 4
+            out_channel *= 4
+
+        if norm == "groupnorm":
+            norm = norm + str(group_norm_size)
+
+        self.cond_embed_dim = cond_embed_dim
+
+        ch = input_ch = int(channel_mults[0] * self.inner_channel)
+        self.input_blocks = nn.ModuleList(
+            [EmbedSequentialRef(nn.Conv2d(in_channel, ch, 3, padding=1))]
+        )
+        self._feature_size = ch
+        input_block_chans = [ch]
+        ds = 1
+        for level, mult in enumerate(channel_mults):
+            for _ in range(res_blocks[level]):
+                layers = [
+                    ResBlock(
+                        ch,
+                        self.cond_embed_dim,
+                        dropout,
+                        out_channel=int(mult * self.inner_channel),
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        norm=norm,
+                        efficient=efficient,
+                        freq_space=self.freq_space,
+                    )
+                ]
+                ch = int(mult * self.inner_channel)
+                if ds in attn_res:
+                    num_ref_blocks += 1
+                    layers.append(
+                        AttentionBlockRef(
+                            ch,
+                            use_checkpoint=use_checkpoint,
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            use_new_attention_order=use_new_attention_order,
+                            use_ref=True,
+                        )
+                    )
+                self.input_blocks.append(EmbedSequentialRef(*layers))
+                self._feature_size += ch
+                input_block_chans.append(ch)
+            if level != len(channel_mults) - 1:
+                out_ch = ch
+                self.input_blocks.append(
+                    EmbedSequentialRef(
+                        ResBlock(
+                            ch,
+                            self.cond_embed_dim,
+                            dropout,
+                            out_channel=out_ch,
+                            use_checkpoint=use_checkpoint,
+                            use_scale_shift_norm=use_scale_shift_norm,
+                            down=True,
+                            norm=norm,
+                            efficient=efficient,
+                            freq_space=self.freq_space,
+                        )
+                        if resblock_updown
+                        else Downsample(
+                            ch,
+                            conv_resample,
+                            out_channel=out_ch,
+                            freq_space=self.freq_space,
+                        )
+                    )
+                )
+                ch = out_ch
+                input_block_chans.append(ch)
+                ds *= 2
+                self._feature_size += ch
+
+        num_ref_blocks += 1
+        self.middle_block = EmbedSequentialRef(
+            ResBlock(
+                ch,
+                self.cond_embed_dim,
+                dropout,
+                use_checkpoint=use_checkpoint,
+                use_scale_shift_norm=use_scale_shift_norm,
+                norm=norm,
+                efficient=efficient,
+                freq_space=self.freq_space,
+            ),
+            AttentionBlockRef(
+                ch,
+                use_checkpoint=use_checkpoint,
+                num_heads=num_heads,
+                num_head_channels=num_head_channels,
+                use_new_attention_order=use_new_attention_order,
+                use_ref=True,
+            ),
+            ResBlock(
+                ch,
+                self.cond_embed_dim,
+                dropout,
+                use_checkpoint=use_checkpoint,
+                use_scale_shift_norm=use_scale_shift_norm,
+                norm=norm,
+                efficient=efficient,
+                freq_space=self.freq_space,
+            ),
+        )
+        self._feature_size += ch
+
+        ### cross attention
+
+        self.input_blocks_ref = nn.ModuleList(
+            [EmbedSequentialRef(nn.Conv2d(in_channel, ch, 3, padding=1))]
+        )
+
+        ds = 1
+        for level, mult in enumerate(channel_mults):
+            for _ in range(res_blocks[level]):
+                layers = [
+                    ResBlock(
+                        ch,
+                        self.cond_embed_dim,
+                        dropout,
+                        out_channel=int(mult * self.inner_channel),
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        norm=norm,
+                        efficient=efficient,
+                    )
+                ]
+                ch = int(mult * self.inner_channel)
+                if ds in attn_res:
+                    layers.append(
+                        AttentionBlockRef(
+                            ch,
+                            use_checkpoint=use_checkpoint,
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            use_new_attention_order=use_new_attention_order,
+                        )
+                    )
+                self.input_blocks_ref.append(EmbedSequentialRef(*layers))
+
+            if level != len(channel_mults) - 1:
+                out_ch = ch
+                self.input_blocks_ref.append(
+                    EmbedSequentialRef(
+                        ResBlock(
+                            ch,
+                            self.cond_embed_dim,
+                            dropout,
+                            out_channel=out_ch,
+                            use_checkpoint=use_checkpoint,
+                            use_scale_shift_norm=use_scale_shift_norm,
+                            down=True,
+                            norm=norm,
+                            efficient=efficient,
+                        )
+                        if resblock_updown
+                        else Downsample(ch, conv_resample, out_channel=out_ch)
+                    )
+                )
+                ch = out_ch
+                ds *= 2
+
+        self.middle_block_ref = EmbedSequentialRef(
+            ResBlock(
+                ch,
+                self.cond_embed_dim,
+                dropout,
+                use_checkpoint=use_checkpoint,
+                use_scale_shift_norm=use_scale_shift_norm,
+                norm=norm,
+                efficient=efficient,
+            ),
+            AttentionBlockRef(
+                ch,
+                use_checkpoint=use_checkpoint,
+                num_heads=num_heads,
+                num_head_channels=num_head_channels,
+                use_new_attention_order=use_new_attention_order,
+                terminal=False,
+            ),
+            ResBlock(
+                ch,
+                self.cond_embed_dim,
+                dropout,
+                use_checkpoint=use_checkpoint,
+                use_scale_shift_norm=use_scale_shift_norm,
+                norm=norm,
+                efficient=efficient,
+            ),
+        )
+
+        ch_ref = ch
+        ds_ref = ds
+        input_block_chans_ref = input_block_chans.copy()
+        self.output_blocks_ref = nn.ModuleList([])
+        for level, mult in list(enumerate(channel_mults))[::-1]:
+            for i in range(res_blocks[level] + 1):
+                is_terminal = i == res_blocks[level] and ds_ref / 2 not in attn_res
+                ich = input_block_chans_ref.pop()
+                layers = [
+                    ResBlock(
+                        ch_ref + ich,
+                        self.cond_embed_dim,
+                        dropout,
+                        out_channel=int(self.inner_channel * mult),
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        norm=norm,
+                        efficient=efficient,
+                        freq_space=self.freq_space,
+                    )
+                ]
+                ch_ref = int(self.inner_channel * mult)
+                if ds_ref in attn_res:
+                    layers.append(
+                        AttentionBlockRef(
+                            ch_ref,
+                            use_checkpoint=use_checkpoint,
+                            num_heads=num_heads_upsample,
+                            num_head_channels=num_head_channels,
+                            use_new_attention_order=use_new_attention_order,
+                            terminal=is_terminal,
+                        )
+                    )
+
+                if level and i == res_blocks[level]:
+                    out_ch = ch_ref
+                    if not is_terminal:
+                        layers.append(
+                            ResBlock(
+                                ch_ref,
+                                self.cond_embed_dim,
+                                dropout,
+                                out_channel=out_ch,
+                                use_checkpoint=use_checkpoint,
+                                use_scale_shift_norm=use_scale_shift_norm,
+                                up=True,
+                                norm=norm,
+                                efficient=efficient,
+                                freq_space=self.freq_space,
+                            )
+                            if resblock_updown
+                            else Upsample(
+                                ch_ref,
+                                conv_resample,
+                                out_channel=out_ch,
+                                freq_space=self.freq_space,
+                            )
+                        )
+                    ds_ref //= 2
+                self.output_blocks_ref.append(EmbedSequentialRef(*layers))
+            if is_terminal:
+                break
+
+        ###
+
+        self.output_blocks = nn.ModuleList([])
+        for level, mult in list(enumerate(channel_mults))[::-1]:
+            for i in range(res_blocks[level] + 1):
+                ich = input_block_chans.pop()
+                layers = [
+                    ResBlock(
+                        ch + ich,
+                        self.cond_embed_dim,
+                        dropout,
+                        out_channel=int(self.inner_channel * mult),
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        norm=norm,
+                        efficient=efficient,
+                        freq_space=self.freq_space,
+                    )
+                ]
+                ch = int(self.inner_channel * mult)
+                if ds in attn_res:
+                    num_ref_blocks += 1
+                    layers.append(
+                        AttentionBlockRef(
+                            ch,
+                            use_checkpoint=use_checkpoint,
+                            num_heads=num_heads_upsample,
+                            num_head_channels=num_head_channels,
+                            use_new_attention_order=use_new_attention_order,
+                            use_ref=True,
+                        )
+                    )
+                if level and i == res_blocks[level]:
+                    out_ch = ch
+                    layers.append(
+                        ResBlock(
+                            ch,
+                            self.cond_embed_dim,
+                            dropout,
+                            out_channel=out_ch,
+                            use_checkpoint=use_checkpoint,
+                            use_scale_shift_norm=use_scale_shift_norm,
+                            up=True,
+                            norm=norm,
+                            efficient=efficient,
+                            freq_space=self.freq_space,
+                        )
+                        if resblock_updown
+                        else Upsample(
+                            ch,
+                            conv_resample,
+                            out_channel=out_ch,
+                            freq_space=self.freq_space,
+                        )
+                    )
+                    ds //= 2
+                self.output_blocks.append(EmbedSequentialRef(*layers))
+                self._feature_size += ch
+
+        if tanh:
+            self.out = nn.Sequential(
+                normalization(ch, norm),
+                zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
+                nn.Tanh(),
+            )
+        else:
+            self.out = nn.Sequential(
+                normalization(ch, norm),
+                torch.nn.SiLU(),
+                zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
+            )
+
+        self.beta_schedule = {
+            "train": {
+                "schedule": "linear",
+                "n_timestep": n_timestep_train,
+                "linear_start": 1e-6,
+                "linear_end": 0.01,
+            },
+            "test": {
+                "schedule": "linear",
+                "n_timestep": n_timestep_test,
+                "linear_start": 1e-4,
+                "linear_end": 0.09,
+            },
+        }
+
+        print("Dual U-Net: number of ref blocks: ", num_ref_blocks)
+
+    def compute_feats(self, input, embed_gammas, ref=None):
+        if embed_gammas is None:
+            # Only for GAN
+            b = (input.shape[0], self.cond_embed_dim)
+            embed_gammas = torch.ones(b).to(input.device)
+
+        emb = embed_gammas
+
+        hs_ref = []
+        if ref is not None:
+            ref = torch.cat([ref, ref], dim=1)
+
+            qkv_list = []
+            h = ref.type(torch.float32)
+            for module in self.input_blocks_ref:
+                h, qkv_ref = module(h, emb, qkv_ref=None)
+                qkv_list.append(qkv_ref)
+                hs_ref.append(h)
+
+            h_ref, qkv_ref = self.middle_block_ref(h, emb, qkv_ref=None)
+            qkv_list.append(qkv_ref)
+
+        hs = []
+
+        h = input.type(torch.float32)
+
+        if self.freq_space:
+            h = self.dwt(h)
+
+        for module in self.input_blocks:
+            h, _ = module(h, emb, qkv_ref=qkv_list.pop(0))
+            hs.append(h)
+
+        qkv_ref = qkv_list.pop(0)
+        h, _ = self.middle_block(h, emb, qkv_ref=qkv_ref)  # qkv_list.pop(0))
+
+        outs, feats = h, hs
+        return outs, feats, emb, h_ref, hs_ref
+
+    def forward(self, input, embed_gammas=None, ref=None):
+        h, hs, emb, h_ref, hs_ref = self.compute_feats(
+            input, embed_gammas=embed_gammas, ref=ref
+        )
+
+        if ref is not None:
+            qkv_list = []
+            for module in self.output_blocks_ref:
+                hp = hs_ref.pop()
+                h_ref = torch.cat([h_ref, hp], dim=1)
+                h_ref, qkv_ref = module(h_ref, emb, qkv_ref=None)
+                qkv_list.append(qkv_ref)
+
+        for i, module in enumerate(self.output_blocks):
+            h = torch.cat([h, hs.pop()], dim=1)
+            if qkv_list:
+                qkv_ref = qkv_list.pop(0)
+            else:
+                qkv_ref = ref
+            h, _ = module(h, emb, qkv_ref)
+        h = h.type(input.dtype)
+        outh = self.out(h)
+
+        if self.freq_space:
+            outh = self.iwt(outh)
+
+        return outh
+
+    def get_feats(self, input, extract_layer_ids):
+        _, hs, _, _, _ = self.compute_feats(input, embed_gammas=None)
+        feats = []
+
+        for i, feat in enumerate(hs):
+            if i in extract_layer_ids:
+                feats.append(feat)
+
+        return feats
+
+    def extract(self, a, t, x_shape=(1, 1, 1, 1)):
+        b, *_ = t.shape
+        out = a.gather(-1, t)
+        return out.reshape(b, *((1,) * (len(x_shape) - 1)))
