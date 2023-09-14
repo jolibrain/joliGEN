@@ -171,7 +171,6 @@ class BaseDataset(data.Dataset, ABC):
             )  # create a path '/path/to/data/trainA'
 
             if self.use_domain_B:
-
                 self.dir_B = os.path.join(
                     self.opt.dataroot, self.phase + "B"
                 )  # create a path '/path/to/data/trainB'
@@ -360,7 +359,6 @@ def get_transform(
     convert=True,
     crop=True,
 ):
-
     margin = opt.data_online_context_pixels * 2
 
     transform_list = []
@@ -434,7 +432,6 @@ def get_transform_ref(
     convert=True,
     crop=True,
 ):
-
     transform_list = []
 
     if grayscale:
@@ -891,7 +888,6 @@ class RandomAffineMask(transforms.RandomAffine):
         self.shear = shear
 
     def __call__(self, img, mask, bbox):
-
         if random.random() > 1.0 - self.p:
             affine_params = self.get_params(
                 (0, 0),
@@ -1012,7 +1008,6 @@ class RandomImgAug:
 def get_transform_list(
     opt, params=None, grayscale=False, method=InterpolationMode.BICUBIC
 ):
-
     margin = opt.data_online_context_pixels * 2
 
     transform_list = []
@@ -1393,7 +1388,6 @@ class RandomAffineMaskList(transforms.RandomAffine):
         self.shear = shear
 
     def __call__(self, imgs, masks):
-
         if random.random() > 1.0 - self.p:
             affine_params = self.get_params(
                 (0, 0),

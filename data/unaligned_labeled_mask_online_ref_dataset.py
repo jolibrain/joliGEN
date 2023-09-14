@@ -2,6 +2,7 @@ import os
 from PIL import Image
 
 from data.base_dataset import get_transform_ref
+from data.utils import load_image
 from data.unaligned_labeled_mask_online_dataset import UnalignedLabeledMaskOnlineDataset
 from data.image_folder import make_ref_path_list
 
@@ -49,7 +50,7 @@ class UnalignedLabeledMaskOnlineRefDataset(UnalignedLabeledMaskOnlineDataset):
             ref_A_path = os.path.join(self.root, ref_A_path)
 
         try:
-            ref_A = Image.open(ref_A_path).convert("RGB")
+            ref_A = load_image(ref_A_path)
 
         except Exception as e:
             print(

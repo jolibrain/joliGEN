@@ -1,5 +1,6 @@
 import os.path
 from data.base_dataset import BaseDataset, get_transform, get_transform_list
+from data.utils import load_image
 from data.image_folder import (
     make_dataset,
     make_labeled_mask_dataset,
@@ -89,7 +90,7 @@ class NupletUnalignedLabeledMaskDataset(BaseDataset):
 
         for cur_A_img_path, cur_A_label_path in zip(A_paths_list, A_label_paths_list):
             try:
-                A_img = Image.open(cur_A_img_path).convert("RGB")
+                A_img = load_image(cur_A_img_path)
                 A_label = Image.open(cur_A_label_path)
             except Exception as e:
                 print(
@@ -133,7 +134,7 @@ class NupletUnalignedLabeledMaskDataset(BaseDataset):
                 B_paths_list, B_label_paths_list
             ):
                 try:
-                    B_img = Image.open(cur_B_img_path).convert("RGB")
+                    B_img = load_image(cur_B_img_path)
                     if cur_B_label_path is not None:  # B label is optional
                         B_label = Image.open(cur_B_label_path)
                     else:

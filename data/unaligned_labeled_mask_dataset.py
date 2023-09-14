@@ -1,5 +1,6 @@
 import os.path
 from data.base_dataset import BaseDataset, get_transform, get_transform_seg
+from data.utils import load_image
 from data.image_folder import make_dataset, make_labeled_path_dataset, make_dataset_path
 from PIL import Image
 import random
@@ -76,10 +77,9 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         index=None,
         clamp_semantics=True,
     ):
-
         # Domain A
         try:
-            A_img = Image.open(A_img_path).convert("RGB")
+            A_img = load_image(A_img_path)
             A_label_mask = Image.open(A_label_mask_path)
         except Exception as e:
             print(
@@ -119,7 +119,7 @@ class UnalignedLabeledMaskDataset(BaseDataset):
         # Domain B
         if B_img_path is not None:
             try:
-                B_img = Image.open(B_img_path).convert("RGB")
+                B_img = load_image(B_img_path)
             except:
                 print(
                     "failed to read B domain image ",
@@ -141,7 +141,6 @@ class UnalignedLabeledMaskDataset(BaseDataset):
                 if clamp_semantics and torch.any(
                     B_label_mask > self.semantic_nclasses - 1
                 ):
-
                     warnings.warn(
                         f"A label is above number of semantic classes for img {B_img_path} and label {B_label_mask_path}, label is clamped to have only {self.semantic_nclasses} classes."
                     )
