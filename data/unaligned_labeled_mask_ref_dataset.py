@@ -4,6 +4,7 @@ from torchvision.transforms.functional import resize
 from PIL import Image
 
 from data.base_dataset import get_transform_ref
+from data.utils import load_image
 from data.unaligned_labeled_mask_dataset import UnalignedLabeledMaskDataset
 from data.image_folder import make_ref_path
 
@@ -27,7 +28,6 @@ class UnalignedLabeledMaskRefDataset(UnalignedLabeledMaskDataset):
         index=None,
         clamp_semantics=True,
     ):
-
         result = super().get_img(
             A_img_path,
             A_label_mask_path,
@@ -50,7 +50,7 @@ class UnalignedLabeledMaskRefDataset(UnalignedLabeledMaskDataset):
             ref_A_path = os.path.join(self.root, ref_A_path)
 
         try:
-            ref_A = Image.open(ref_A_path).convert("RGB")
+            ref_A = load_image(ref_A_path)
 
         except Exception as e:
             print(
