@@ -223,22 +223,22 @@ async def predict(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=400, detail="{0}".format(e))
 
-    name = "predict_{}".format(int(time.time()))
+    opt.name = "predict_{}".format(int(time.time()))
 
     LOG_PATH = os.environ.get(
         "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
     )
     if not os.path.isdir(LOG_PATH):
         os.mkdir(LOG_PATH)
-    Path(f"{LOG_PATH}/{name}.log").touch()
+    Path(f"{LOG_PATH}/{opt.name}.log").touch()
 
     JSON_PATH = os.environ.get(
         "JSON_PATH", os.path.join(os.path.dirname(__file__), "../predict_json")
     )
     if not os.path.isdir(JSON_PATH):
         os.mkdir(JSON_PATH)
-    Path(f"{JSON_PATH}/{name}.json").touch()
-    with open(f"{JSON_PATH}/{name}.json", "w") as f:
+    Path(f"{JSON_PATH}/{opt.name}.json").touch()
+    with open(f"{JSON_PATH}/{opt.name}.json", "w") as f:
         json.dump(opt.__dict__, f)
 
     target = script_target_from_train_config(opt.model_in_file)
@@ -249,19 +249,19 @@ async def predict(request: Request):
             "status": "error",
         }
 
-    ctx[name] = Process(target=target, args=(opt, name))
-    ctx[name].start()
+    ctx[opt.name] = Process(target=target, args=(opt,))
+    ctx[opt.name].start()
 
     if hasattr(opt, "server") and hasattr(opt.server, "sync"):
         try:
             # XXX could be awaited
             ctx[name].join()
         except Exception as e:
-            return {"predict_name": name, "message": str(e), "status": "error"}
-        del ctx[name]
-        return {"message": "ok", "predict_name": name, "status": "stopped"}
+            return {"predict_name": opt.name, "message": str(e), "status": "error"}
+        del ctx[opt.name]
+        return {"message": "ok", "predict_name": opt.name, "status": "stopped"}
 
-    return {"message": "ok", "predict_name": name, "status": "running"}
+    return {"message": "ok", "predict_name": opt.name, "status": "running"}
 
 
 @app.post(
