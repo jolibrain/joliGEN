@@ -293,6 +293,11 @@ projector_models = {
         "create_model_function": create_clip_model,
         "make_function": _make_vit_clip,
     },
+    "vitclip14": {
+        "model_name": "ViT-L/14@336px",
+        "create_model_function": create_clip_model,
+        "make_function": _make_vit_clip,
+    },
     "depth": {
         "model_name": "",
         "create_model_function": create_depth_model,
