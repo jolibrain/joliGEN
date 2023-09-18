@@ -148,6 +148,8 @@ def cond_augment(cond, rotation, persp_horizontal, persp_vertical):
 def generate(
     seed,
     model_in_file,
+    lmodel,
+    lopt,
     cpu,
     gpuid,
     sampling_steps,
@@ -179,27 +181,33 @@ def generate(
     min_crop_bbox_ratio,
     ddim_num_steps,
     ddim_eta,
+    model_prior_321_backwardcompatibility,
     **unused_options,
 ):
     # seed
     if seed >= 0:
         torch.manual_seed(seed)
 
-    # loading model
-    modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
-
     if not cpu:
         device = torch.device("cuda:" + str(gpuid))
     else:
         device = torch.device("cpu")
-    model, opt = load_model(
-        modelpath,
-        os.path.basename(model_in_file),
-        device,
-        sampling_steps,
-        sampling_method,
-        args.model_prior_321_backwardcompatibility,
-    )
+
+    # loading model
+    if lmodel is None:
+        modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
+
+        model, opt = load_model(
+            modelpath,
+            os.path.basename(model_in_file),
+            device,
+            sampling_steps,
+            sampling_method,
+            model_prior_321_backwardcompatibility,
+        )
+    else:
+        model = lmodel
+        opt = lopt
 
     if alg_palette_cond_image_creation is not None:
         opt.alg_palette_cond_image_creation = alg_palette_cond_image_creation
@@ -572,21 +580,18 @@ def generate(
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
     out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)"""
 
-    if img_width > 0 or img_height > 0 or crop_width > 0 or crop_height > 0:
-        # img_orig = cv2.cvtColor(img_orig, cv2.COLOR_RGB2BGR)
+    if bbox_in:
+        out_img_resized = cv2.resize(
+            out_img,
+            (
+                min(img_orig.shape[1], bbox_select[2] - bbox_select[0]),
+                min(img_orig.shape[0], bbox_select[3] - bbox_select[1]),
+            ),
+        )
 
-        if bbox_in:
-            out_img_resized = cv2.resize(
-                out_img,
-                (
-                    min(img_orig.shape[1], bbox_select[2] - bbox_select[0]),
-                    min(img_orig.shape[0], bbox_select[3] - bbox_select[1]),
-                ),
-            )
-
-            out_img_real_size = img_orig.copy()
-        else:
-            out_img_real_size = out_img
+        out_img_real_size = img_orig.copy()
+    else:
+        out_img_real_size = out_img
 
     # fill out crop into original image
     if bbox_in:
@@ -620,7 +625,7 @@ def generate(
 
         print("Successfully generated image ", name)
 
-    return out_img_real_size
+    return out_img_real_size, model, opt
 
 
 if __name__ == "__main__":
@@ -796,6 +801,10 @@ if __name__ == "__main__":
 
     real_name = args.name
 
+    args.lmodel = None
+    args.lopt = None
     for i in tqdm(range(args.nb_samples)):
         args.name = real_name + "_" + str(i).zfill(len(str(args.nb_samples)))
-        generate(**vars(args))
+        frame, lmodel, lopt = generate(**vars(args))
+        args.lmodel = lmodel
+        args.lopt = lopt

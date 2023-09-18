@@ -68,7 +68,7 @@ if __name__ == "__main__":
         args.video_width = args.img_width
 
     if args.video_height == -1:
-        args.video_width = args.img_width
+        args.video_height = args.img_height
 
     with open(args.dataroot, "r") as f:
         paths_list = f.read().split("\n")
@@ -103,6 +103,8 @@ if __name__ == "__main__":
 
     args.previous_frame = None
 
+    lmodel = None
+    lopt = None
     for i, (image, label) in tqdm(enumerate(zip(images, labels)), total=len(images)):
 
         args.img_in = args.data_prefix + image
@@ -125,8 +127,20 @@ if __name__ == "__main__":
             args.write = False"""
 
         args.bbox_ref_id = -1
+        args.cond_in = None
+        args.cond_keep_ratio = True
+        args.alg_palette_guidance_scale = 0.0
+        args.alg_palette_cond_image_creation = None
+        args.alg_palette_sketch_canny_thresholds = None
+        args.alg_palette_super_resolution_downsample = False
+        args.data_refined_mask = False
+        args.min_crop_bbox_ratio = 0.0
+        args.model_prior_321_backwardcompatibility = False
 
-        frame = generate(**vars(args))
+        args.lmodel = lmodel
+        args.lopt = lopt
+
+        frame, lmodel, lopt = generate(**vars(args))
 
         if args.cond == "previous":  # use_real_previous:
             args.previous_frame = args.data_prefix + image
@@ -139,8 +153,6 @@ if __name__ == "__main__":
 
         elif args.cond == "zero":
             args.previous_frame = None
-
-        colored_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
 
         out.write(frame)
 
