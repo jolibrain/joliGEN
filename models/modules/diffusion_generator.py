@@ -113,6 +113,7 @@ class DiffusionGenerator(nn.Module):
                 guidance_scale=guidance_scale,
                 num_steps=ddim_num_steps,
                 eta=ddim_eta,
+                ref=ref,
             )
 
     ## DDPM
@@ -277,6 +278,7 @@ class DiffusionGenerator(nn.Module):
         guidance_scale=0.0,
         num_steps=10,
         eta=0.5,
+        ref=None,
     ):
         phase = "test"
 
@@ -318,6 +320,7 @@ class DiffusionGenerator(nn.Module):
                 phase=phase,
                 cls=cls,
                 mask=mask,
+                ref=ref,
                 guidance_scale=guidance_scale,
             )
 
@@ -336,6 +339,7 @@ class DiffusionGenerator(nn.Module):
         phase,
         cls,
         mask,
+        ref,
         clip_denoised=True,
         y_cond=None,
         guidance_scale=0.0,
@@ -349,6 +353,7 @@ class DiffusionGenerator(nn.Module):
             phase=phase,
             cls=cls,
             mask=mask,
+            ref=ref,
             guidance_scale=guidance_scale,
         )
 
@@ -365,6 +370,7 @@ class DiffusionGenerator(nn.Module):
         clip_denoised: bool,
         cls,
         mask,
+        ref,
         y_cond=None,
         guidance_scale=0.0,
         num_steps=10,
@@ -383,7 +389,7 @@ class DiffusionGenerator(nn.Module):
                 input, embed_noise_level, cls=None, mask=None
             )
 
-        y_0_hat = self.denoise_fn(input, embed_noise_level, cls=cls, mask=mask)
+        y_0_hat = self.denoise_fn(input, embed_noise_level, cls=cls, mask=mask, ref=ref)
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat = (1 + guidance_scale) * y_0_hat - guidance_scale * y_0_hat_uncond
 
