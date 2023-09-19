@@ -36,14 +36,14 @@ For every face in the dataset, there's a corresponding mask location
 ****************
 
 We train a GAN with JoliGEN `cut` model (
-https://github.com/https://arxiv.org/abs/2007.15651), with
+https://arxiv.org/abs/2007.15651), with
 `semantic_mask` constraints. This means that the training algorithm uses
 the available masks (around eyes and glasses) to help the GAN modify
 only the relevant elements from the input portrait. Note that this mask
 is not required at inference, when using the trained model!
 
 Use ``train.py`` along with the `example JoliGEN config file
-<https://github.com/jolibrain/joliGEN/examples/example_gan_glasses2noglasses.json>`_
+<https://raw.githubusercontent.com/jolibrain/joliGEN/master/examples/example_gan_glasses2noglasses.json>`_
 to launch the training:
 
 .. code:: bash
