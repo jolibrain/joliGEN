@@ -148,7 +148,6 @@ def cond_augment(cond, rotation, persp_horizontal, persp_vertical):
 
 
 def launch_predict_diffusion(args):
-
     PROGRESS_NUM_STEPS = 8
     LOG_PATH = os.environ.get(
         "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
@@ -194,21 +193,21 @@ def launch_predict_diffusion(args):
         opt = lopt
 
     try:
-      # loading model
-      if lmodel is None:
-        modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
+        # loading model
+        if lmodel is None:
+            modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
 
-        model, opt = load_model(
-            modelpath,
-            os.path.basename(args.model_in_file),
-            device,
-            args.sampling_steps,
-            args.sampling_method,
-            args.model_prior_321_backwardcompatibility,
-        )
-      else:
-        model = args.lmodel
-        opt = args.lopt
+            model, opt = load_model(
+                modelpath,
+                os.path.basename(args.model_in_file),
+                device,
+                args.sampling_steps,
+                args.sampling_method,
+                args.model_prior_321_backwardcompatibility,
+            )
+        else:
+            model = args.lmodel
+            opt = args.lopt
     except Exception as e:
         logging.info(f"error loading model: {e}")
         return
@@ -590,7 +589,7 @@ def launch_predict_diffusion(args):
     
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
     out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)"""
-    
+
     logging.info(f"[6/%i] post processing" % PROGRESS_NUM_STEPS)
 
     if (
