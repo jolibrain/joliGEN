@@ -9,6 +9,7 @@ import torchvision.transforms.functional as F
 from PIL import Image
 
 from data.base_dataset import BaseDataset, get_transform, get_transform_seg
+from data.utils import load_image
 from data.image_folder import make_dataset, make_dataset_path, make_labeled_path_dataset
 from data.online_creation import crop_image
 
@@ -184,7 +185,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         B_label_mask = (B_label_mask >= 1) * 1
 
                 else:
-                    B_img = Image.open(B_img_path).convert("RGB")
+                    B_img = load_image(B_img_path)
                     B = self.transform_noseg(B_img)
                     B_label_mask = []
 

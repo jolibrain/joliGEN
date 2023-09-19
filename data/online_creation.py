@@ -9,6 +9,7 @@ import torchvision.transforms.functional as F
 from PIL import Image
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
+from data.utils import load_image
 
 
 def crop_image(
@@ -36,7 +37,7 @@ def crop_image(
     margin = context_pixels * 2
 
     try:
-        img = Image.open(img_path).convert("RGB")
+        img = load_image(img_path)
         if load_size != []:
             if len(load_size) == 1:
                 load_size.extend(load_size)
@@ -477,7 +478,7 @@ def sanitize_paths(
 
         failed = False
         try:
-            Image.open(path_img)
+            load_img(path_img)
             if path_bb is not None:
                 try:
                     crop_image(

@@ -99,5 +99,30 @@ Trains a diffusion model to insert glasses onto faces.
 
    python3 train.py --dataroot /path/to/data/noglasses2glasses_ffhq --checkpoints_dir /path/to/checkpoints --name noglasses2glasses --config_json examples/example_ddpm_noglasses2glasses.json
    
+**************************************
+ DDPM training with class conditioning
+**************************************
 
+Dataset: https://joligen.com/datasets/online_mario2sonic_lite.zip
 
+Trains a diffusion model to generate Marios conditioned by pose (standing, walking, jumping, swimming, crouching).
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/data/online_mario2sonic_full --checkpoints_dir /path/to/checkpoints --name mario --config_json examples/example_ddpm_mario.json
+
+*********************************************
+ DDPM training with Canny sketch conditioning
+*********************************************
+
+Dataset: https://joligen.com/datasets/mapillary_full.zip (85 GB)
+
+Trains a diffusion model to generate traffic signs conditioned by a Canny sketch.
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/data/mapillary_full --checkpoints_dir /path/to/checkpoints --name mapillary --config_json examples/example_ddpm_mapillary.json
+
+Open http://localhost:8097/env/mapillary (or alternatively http://<your-server-address>:8097 to have a look at your training logs: loss curves, model output and inputs, and the options used to train.
+
+.. image:: _static/mapillary_visdom.png

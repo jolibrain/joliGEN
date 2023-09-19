@@ -1,5 +1,6 @@
 import os.path
 from data.base_dataset import BaseDataset, get_transform
+from data.utils import load_image
 from data.image_folder import make_dataset
 from PIL import Image
 import random
@@ -50,8 +51,8 @@ class UnalignedDataset(BaseDataset):
         B_label_cls,
         index,
     ):
-        A_img = Image.open(A_img_path).convert("RGB")
-        B_img = Image.open(B_img_path).convert("RGB")
+        A_img = load_image(A_img_path)
+        B_img = load_image(B_img_path)
         # apply image transformation
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)

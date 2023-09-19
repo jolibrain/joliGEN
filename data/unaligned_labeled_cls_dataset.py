@@ -2,6 +2,7 @@ import os.path
 
 # import torchvision.transforms as transforms
 from data.base_dataset import BaseDataset, get_transform
+from data.utils import load_image
 from data.image_folder import (
     make_dataset,
     make_labeled_dataset,
@@ -42,7 +43,6 @@ class UnalignedLabeledClsDataset(BaseDataset):
             self.A_label = np.array(self.A_label)
 
         else:
-
             self.A_img_paths, self.A_label = make_labeled_path_dataset(
                 self.dir_A, "/paths.txt", opt.data_max_dataset_size
             )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
@@ -83,8 +83,8 @@ class UnalignedLabeledClsDataset(BaseDataset):
         B_label_cls,
         index,
     ):
-        A_img = Image.open(A_img_path).convert("RGB")
-        B_img = Image.open(B_img_path).convert("RGB")
+        A_img = load_image(A_img_path)
+        B_img = load_image(B_img_path)
         # apply image transformation
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)

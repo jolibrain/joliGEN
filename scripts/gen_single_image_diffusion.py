@@ -177,7 +177,27 @@ def launch_predict_diffusion(args):
     else:
         device = torch.device("cpu")
 
+    # loading model
+    if lmodel is None:
+        modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
+
+        model, opt = load_model(
+            modelpath,
+            os.path.basename(model_in_file),
+            device,
+            sampling_steps,
+            sampling_method,
+            model_prior_321_backwardcompatibility,
+        )
+    else:
+        model = lmodel
+        opt = lopt
+
     try:
+      # loading model
+      if lmodel is None:
+        modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
+
         model, opt = load_model(
             modelpath,
             os.path.basename(args.model_in_file),
@@ -186,6 +206,9 @@ def launch_predict_diffusion(args):
             args.sampling_method,
             args.model_prior_321_backwardcompatibility,
         )
+      else:
+        model = args.lmodel
+        opt = args.lopt
     except Exception as e:
         logging.info(f"error loading model: {e}")
         return
@@ -567,6 +590,7 @@ def launch_predict_diffusion(args):
     
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
     out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)"""
+    
     logging.info(f"[6/%i] post processing" % PROGRESS_NUM_STEPS)
 
     if (
@@ -586,9 +610,9 @@ def launch_predict_diffusion(args):
                 ),
             )
 
-            out_img_real_size = img_orig.copy()
-        else:
-            out_img_real_size = out_img
+        out_img_real_size = img_orig.copy()
+    else:
+        out_img_real_size = out_img
 
     # fill out crop into original image
     if args.bbox_in:
@@ -636,6 +660,7 @@ def launch_predict_diffusion(args):
             out.write(json.dumps(generated_bbox))
 
     logging.info(f"[8/%i] successfully generated image" % PROGRESS_NUM_STEPS)
+    return out_img_real_size, model, opt
 
 
 if __name__ == "__main__":
@@ -819,6 +844,10 @@ if __name__ == "__main__":
 
     real_name = args.name
 
+    args.lmodel = None
+    args.lopt = None
     for i in tqdm(range(args.nb_samples)):
         args.name = real_name + "_" + str(i).zfill(len(str(args.nb_samples)))
-        launch_predict_diffusion(args)
+        frame, lmodel, lopt = launch_predict_diffusion(args)
+        args.lmodel = lmodel
+        args.lopt = lopt
