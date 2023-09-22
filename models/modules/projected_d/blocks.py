@@ -24,7 +24,7 @@ def linear(*args, **kwargs):
     return spectral_norm(nn.Linear(*args, **kwargs))
 
 
-def NormLayer(c, mode="batch"):
+def NormLayer(c, mode="group"):
     if mode == "group":
         return nn.GroupNorm(c // 2, c)
     elif mode == "batch":
