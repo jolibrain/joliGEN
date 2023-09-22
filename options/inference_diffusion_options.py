@@ -197,7 +197,7 @@ class InferenceDiffusionOptions(BaseOptions):
             "--alg_palette_sam_sobel_threshold",
             type=float,
             default=0.7,
-            help="sobel threshold in %% of gradient magintude",
+            help="sobel threshold in %% of gradient magnitude",
         )
 
         parser.add_argument(

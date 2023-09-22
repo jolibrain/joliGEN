@@ -13,6 +13,7 @@ import data
 import models
 from util import util
 from util.util import MAX_INT, flatten_json, pairs_of_floats, pairs_of_ints
+from .helpers import set_custom_help, FilterArgumentParser
 
 TRAIN_JSON_FILENAME = "train_config.json"
 
@@ -85,7 +86,7 @@ class BaseOptions:
                 formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                 add_help=False,
             )
-            # set_custom_help(parser)
+            set_custom_help(parser)
             parser = self.initialize(parser)
 
         flat_json = None
@@ -463,3 +464,63 @@ class BaseOptions:
                             del field["title"]
 
         return schema
+
+    ### Functions related to CLI help
+
+    def topic_exists(self, topic):
+        """
+        Returns whether given topic exists
+        """
+        if topic is None:
+            return True
+        topic_dict = self.opt_schema["properties"]
+        if topic in topic_dict:
+            return True
+        for key in topic_dict:
+            if "properties" in topic_dict[key]:
+                for subkey in topic_dict[key]["properties"]:
+                    if topic == key + "_" + subkey:
+                        return True
+        return False
+
+    def get_topics(self, topic):
+        """
+        Get help topics, so that the user can choose what options to display.
+        The output is a partial schema.
+
+        Parameters:
+            topic: if not None, this method will return subtopics of the given topic
+        """
+        topic_dict = deepcopy(self.opt_schema["properties"])
+        if topic is not None:
+            if topic in topic_dict and "properties" in topic_dict[topic]:
+                topic_dict = topic_dict[topic]["properties"]
+                return {topic + "_" + k: v for k, v in topic_dict.items()}
+            else:
+                return {}
+        return topic_dict
+
+    def get_topic_parser(self, topic):
+        """
+        Get parser for options included in given topic.
+
+        Parameters:
+            topic: What topic to get options from. Options from subtopics will not
+            be included. If topic is None, only the options outside of every topic
+            will be included
+        """
+        if topic is None:
+            topic_parser = FilterArgumentParser(
+                remove_topics=self.get_topics().keys(),
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                add_help=False,
+            )
+        else:
+            topic_parser = FilterArgumentParser(
+                remove_topics=self.get_topics(topic).keys(),
+                keep_topics=[topic],
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                add_help=False,
+                usage=argparse.SUPPRESS,
+            )
+        return self.initialize(topic_parser)

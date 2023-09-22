@@ -1,7 +1,9 @@
 import os
+import argparse
 from .base_options import BaseOptions
 from util.util import MAX_INT, pairs_of_ints, pairs_of_floats
 from models.modules.classifiers import TORCH_MODEL_CLASSES
+from models import get_models_names, get_option_setter
 import models
 import data
 
@@ -887,3 +889,30 @@ class CommonOptions(BaseOptions):
         opt = model_after_parse(opt)
 
         return opt
+
+    ### Functions related to CLI help
+    # "alg" topic contains model options instead of filtered common options
+
+    def topic_exists(self, topic):
+        if topic is not None and topic.startswith("alg_"):
+            return topic in self.get_topics("alg")
+        else:
+            return super().topic_exists(topic)
+
+    def get_topics(self, topic=None):
+        if topic == "alg":
+            return {
+                "alg_" + name: {"title": ""}
+                for name in get_models_names()
+                if name not in ["test", "template", "segmentation"]
+            }
+        else:
+            return super().get_topics(topic)
+
+    def get_topic_parser(self, topic):
+        if topic is not None and topic.startswith("alg_"):
+            model_name = topic[4:]
+            parser = argparse.ArgumentParser(add_help=False, usage=argparse.SUPPRESS)
+            return get_option_setter(model_name)(parser, True)
+        else:
+            return super().get_topic_parser(topic)

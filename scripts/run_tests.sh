@@ -21,6 +21,43 @@ python3 ${current_dir}/../scripts/generate_doc.py --save_to ""
 OUT=$?
 
 if [ $OUT != 0 ]; then
+   exit 1
+fi
+
+####### CLI help
+echo "CLI help"
+python3 ${current_dir}/../train.py --help
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+python3 ${current_dir}/../train.py --help f_s
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+python3 ${current_dir}/../train.py --help alg
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+python3 ${current_dir}/../train.py --help alg_cut
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+python3 ${current_dir}/../train.py --help alg_palette
+OUT=$?
+
+if [ $OUT != 0 ]; then
     exit 1
 fi
 
