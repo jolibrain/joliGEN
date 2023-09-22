@@ -82,7 +82,7 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-# test new dl
+####### mask cls as bbox semantics test
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
