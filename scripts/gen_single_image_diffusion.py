@@ -469,7 +469,7 @@ def generate(
                 img_tensor.clone().detach(), mask.clone().detach(), {}
             )
     else:
-        y_t = img_tensor.clone().detach()
+        y_t = torch.randn_like(img_tensor)
 
     if opt.alg_palette_cond_image_creation == "previous_frame":
         if previous_frame is not None:

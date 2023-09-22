@@ -457,7 +457,6 @@ class PaletteModel(BaseDiffusionModel):
                 else:
                     self.mask = data["B_label_mask"].to(self.device)
             else:  # e.g. super-resolution
-                self.y_t = data["A"].to(self.device)
                 self.gt_image = data["A"].to(self.device)
                 self.mask = None
 
@@ -746,7 +745,6 @@ class PaletteModel(BaseDiffusionModel):
         elif self.task == "super_resolution":
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[: self.inference_num],
-                y_t=self.cond_image[: self.inference_num],
                 sample_num=self.sample_num,
                 cls=None,
             )
