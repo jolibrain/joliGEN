@@ -339,7 +339,7 @@ class BaseOptions:
         )
 
         parser.add_argument(
-            "-G_unet_mha_attn_res",
+            "--G_unet_mha_attn_res",
             default=[16],
             nargs="*",
             type=int,
