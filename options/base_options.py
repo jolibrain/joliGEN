@@ -392,6 +392,7 @@ class BaseOptions:
                 "depth",
                 "mask",
                 "sam",
+                "unet_128_d",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
             help="specify discriminator architecture, another option, --D_n_layers allows you to specify the layers in the n_layers discriminator. NB: duplicated arguments are ignored. Values: basic, n_layers, pixel, projected_d, temporal, vision_aided, depth, mask, sam",
