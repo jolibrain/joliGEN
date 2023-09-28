@@ -1,4 +1,5 @@
 import os
+import torch
 import torch.nn as nn
 import functools
 from torch.optim import lr_scheduler
@@ -19,6 +20,8 @@ from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.discriminators import NLayerDiscriminator
 from .modules.discriminators import PixelDiscriminator
+from .modules.discriminators import UnetDiscriminator
+
 
 from .modules.classifiers import (
     torch_model,
@@ -244,6 +247,7 @@ def define_G(
 def define_D(
     D_netDs,
     model_input_nc,
+    model_output_nc,
     D_ndf,
     D_n_layers,
     D_norm,
@@ -273,6 +277,7 @@ def define_D(
 
     Parameters:
         model_input_nc (int)     -- the number of channels in input images
+        model_output_nc (int)     -- the number of channels in output images
         D_ndf (int)          -- the number of filters in the first conv layer
         netD (str)         -- the architecture's name: basic | n_layers | pixel
         D_n_layers (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
@@ -431,6 +436,16 @@ def define_D(
                 use_spectral=D_spectral,
             )
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
+
+        elif netD == "unet_128_d":
+            net = UnetDiscriminator(
+                model_input_nc,
+                model_output_nc,
+                7,
+                D_ndf,
+                norm_layer=norm_layer,
+                use_dropout=D_dropout,
+            )
 
         else:
             raise NotImplementedError(
