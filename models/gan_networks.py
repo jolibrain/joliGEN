@@ -1,4 +1,5 @@
 import os
+import torch
 import torch.nn as nn
 import functools
 from torch.optim import lr_scheduler
@@ -40,6 +41,9 @@ from .modules.multimodal_encoder import E_ResNet, E_NLayers
 from .modules.unet_generator_attn.unet_generator_attn import (
     UNet as UNet_mha,
     UViT as UViT,
+)
+from .modules.unet_generator_attn.unet_discriminator_attn import (
+    UNet as UNet_discriminator_mha,
 )
 
 
@@ -244,6 +248,8 @@ def define_G(
 def define_D(
     D_netDs,
     model_input_nc,
+    model_output_nc,
+    D_num_downs,
     D_ndf,
     D_n_layers,
     D_norm,
@@ -266,6 +272,11 @@ def define_D(
     f_s_semantic_nclasses,
     model_depth_network,
     train_feat_wavelet,
+    G_unet_mha_num_head_channels,
+    G_unet_mha_res_blocks,
+    G_unet_mha_channel_mults,
+    G_unet_mha_norm_layer,
+    G_unet_mha_group_norm_size,
     **unused_options
 ):
 
@@ -273,7 +284,9 @@ def define_D(
 
     Parameters:
         model_input_nc (int)     -- the number of channels in input images
+        model_output_nc (int)     -- the number of channels in output images
         D_ndf (int)          -- the number of filters in the first conv layer
+        num_downs(int)  -- the number of downsamplings in UNet. For example, # if |num_downs| == 7, image of size 128x128 will become of size 1x1 at the bottleneck
         netD (str)         -- the architecture's name: basic | n_layers | pixel
         D_n_layers (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
         D_norm (str)         -- the type of normalization layers used in the network.
@@ -431,6 +444,25 @@ def define_D(
                 use_spectral=D_spectral,
             )
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
+
+        elif netD == "unet_discriminator_mha":
+            net = UNet_discriminator_mha(
+                image_size=data_crop_size,
+                in_channel=model_input_nc,
+                inner_channel=D_ndf,
+                cond_embed_dim=D_ndf * 4,
+                out_channel=model_output_nc,
+                res_blocks=G_unet_mha_res_blocks,
+                attn_res=[16],
+                channel_mults=G_unet_mha_channel_mults,  # e.g. (1, 2, 4, 8)
+                num_head_channels=G_unet_mha_num_head_channels,
+                tanh=True,
+                n_timestep_train=0,  # unused
+                n_timestep_test=0,  # unused
+                norm=G_unet_mha_norm_layer,
+                group_norm_size=G_unet_mha_group_norm_size,
+            )
+            return_nets[netD] = net  # init_net(net, model_init_type, model_init_gain)
 
         else:
             raise NotImplementedError(
