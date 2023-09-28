@@ -1,5 +1,5 @@
 import functools
-
+import torch
 import numpy as np
 from torch import nn
 from torch.nn import functional as F
@@ -278,9 +278,9 @@ class UnetSkipConnectionBlock(nn.Module):
         downconv = nn.Conv2d(
             input_nc, inner_nc, kernel_size=4, stride=2, padding=1, bias=use_bias
         )
-        downrelu = nn.LeakyReLU(0.2, False)  # True)
+        downrelu = nn.LeakyReLU(0.2, True)
         downnorm = norm_layer(inner_nc)
-        uprelu = nn.ReLU(False)  # True)
+        uprelu = nn.ReLU(True)
         upnorm = norm_layer(outer_nc)
 
         if outermost:
