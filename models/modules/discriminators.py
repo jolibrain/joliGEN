@@ -160,7 +160,7 @@ class UnetDiscriminator(nn.Module):
         self,
         input_nc,
         output_nc,
-        num_downs,
+        D_num_downs,
         ngf=64,
         norm_layer=nn.BatchNorm2d,
         use_dropout=False,
@@ -169,7 +169,7 @@ class UnetDiscriminator(nn.Module):
         Parameters:
             input_nc (int)  -- the number of channels in input images
             output_nc (int) -- the number of channels in output images
-            num_downs (int) -- the number of downsamplings in UNet. For example, # if |num_downs| == 7,
+            D_num_downs (int) -- the number of downsamplings in UNet. For example, # if |num_downs| == 7,
                                 image of size 128x128 will become of size 1x1 # at the bottleneck
             ngf (int)       -- the number of filters in the last conv layer, here  ngf=64, so inner_nc=64*8=512
             norm_layer      -- normalization layer
