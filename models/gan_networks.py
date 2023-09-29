@@ -248,7 +248,9 @@ def define_D(
     D_netDs,
     model_input_nc,
     model_output_nc,
+    num_downs,
     D_ndf,
+    D_ngf,
     D_n_layers,
     D_norm,
     D_dropout,
@@ -279,6 +281,8 @@ def define_D(
         model_input_nc (int)     -- the number of channels in input images
         model_output_nc (int)     -- the number of channels in output images
         D_ndf (int)          -- the number of filters in the first conv layer
+        D_ngf(int)  -- the number of filters in the last cov layer
+        num_downs(int)  -- the number of downsamplings in UNet. For example, # if |num_downs| == 7, image of size 128x128 will become of size 1x1 at the bottleneck
         netD (str)         -- the architecture's name: basic | n_layers | pixel
         D_n_layers (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
         D_norm (str)         -- the type of normalization layers used in the network.
@@ -441,11 +445,12 @@ def define_D(
             net = UnetDiscriminator(
                 model_input_nc,
                 model_output_nc,
-                7,
-                D_ndf,
+                num_downs=7,
+                D_ngf=64,
                 norm_layer=norm_layer,
                 use_dropout=D_dropout,
             )
+            return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
         else:
             raise NotImplementedError(
