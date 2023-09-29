@@ -31,7 +31,11 @@ models_nosemantic = [
     "cycle_gan",
 ]
 
-D_netDs = [["projected_d", "basic"], ["projected_d", "basic", "depth"]]
+D_netDs = [
+    ["projected_d", "basic"],
+    ["projected_d", "basic", "depth"],
+    ["projected_d", "basic", "unet_128_d"],
+]
 
 train_feat_wavelet = [False, True]
 
