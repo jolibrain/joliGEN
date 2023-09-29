@@ -379,6 +379,20 @@ class BaseOptions:
             help="# of discrim filters in the first conv layer",
         )
         parser.add_argument(
+            "--D_ngf",
+            type=int,
+            default=64,
+            help="#*8 of discrim filters in the last conv layer",
+        )
+
+        parser.add_argument(
+            "--D_num_downs",
+            type=int,
+            default=7,
+            help="# of downsampling",
+        )
+
+        parser.add_argument(
             "--D_netDs",
             type=str,
             default=["projected_d", "basic"],
