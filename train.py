@@ -51,16 +51,18 @@ def setup(rank, world_size, port):
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
-def optim(opt, params, lr, betas):
+def optim(opt, params, lr, betas, weight_decay):
     print("Using ", opt.train_optim, " as optimizer")
     if opt.train_optim == "adam":
-        return torch.optim.Adam(params, lr, betas)
+        return torch.optim.Adam(params, lr, betas, weight_decay=weight_decay)
     elif opt.train_optim == "radam":
-        return torch.optim.RAdam(params, lr, betas)
+        return torch.optim.RAdam(params, lr, betas, weight_decay=weight_decay)
     elif opt.train_optim == "adamw":
-        return torch.optim.AdamW(params, lr, betas)
+        if weight_decay == 0.0:
+            weight_decay = 0.01  # default value
+        return torch.optim.AdamW(params, lr, betas, weight_decay=weight_decay)
     elif opt.train_optim == "lion":
-        return Lion(params, lr, betas)
+        return Lion(params, lr, betas, weight_decay)
 
 
 def signal_handler(sig, frame):
@@ -257,12 +259,12 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     )
 
                     model.save_networks("latest")
-                    model.export_networks("latest")
+                    # model.export_networks("latest")
 
                     if opt.train_save_by_iter:
                         save_suffix = "iter_%d" % total_iters
                         model.save_networks(save_suffix)
-                        model.export_networks(save_suffix)
+                        # model.export_networks(save_suffix)
 
                 if total_iters % opt.train_metrics_every < batch_size and (
                     opt.train_compute_metrics_test
@@ -341,8 +343,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                 model.save_networks("latest")
                 model.save_networks(epoch)
 
-                model.export_networks("latest")
-                model.export_networks(epoch)
+                # model.export_networks("latest")
+                # model.export_networks(epoch)
 
         if rank_0:
             print(

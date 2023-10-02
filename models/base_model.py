@@ -221,6 +221,7 @@ class BaseModel(ABC):
                 self.netCLS.parameters(),
                 lr=opt.train_sem_lr_f_s,
                 betas=(opt.train_beta1, opt.train_beta2),
+                weight_decay=opt.train_optim_weight_decay,
             )
 
             if opt.train_cls_regression:
@@ -322,6 +323,7 @@ class BaseModel(ABC):
                         ),
                         lr=opt.train_sem_lr_f_s,
                         betas=(opt.train_beta1, opt.train_beta2),
+                        weight_decay=opt.train_optim_weight_decay,
                     )
                 else:
                     self.optimizer_f_s = opt.optim(
@@ -329,6 +331,7 @@ class BaseModel(ABC):
                         self.netf_s.parameters(),
                         lr=opt.train_sem_lr_f_s,
                         betas=(opt.train_beta1, opt.train_beta2),
+                        weight_decay=opt.train_optim_weight_decay,
                     )
 
                 self.optimizers.append(self.optimizer_f_s)
