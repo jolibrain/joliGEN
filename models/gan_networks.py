@@ -445,7 +445,7 @@ def define_D(
                 model_input_nc,
                 model_output_nc,
                 D_num_downs,  # the number of downsamplings
-                ngf=D_ngf,  # the final conv has D_ngf*8=512 filter
+                D_ngf,  # the final conv has D_ngf*8=512 filter
                 norm_layer=norm_layer,
                 use_dropout=D_dropout,
             )
