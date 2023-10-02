@@ -174,6 +174,12 @@ class TrainOptions(BaseOptions):
             help="optimizer (adam, radam, adamw, ...)",
         )
         parser.add_argument(
+            "--train_optim_weight_decay",
+            type=float,
+            default=0.0,
+            help="weight decay for optimizer",
+        )
+        parser.add_argument(
             "--train_load_iter",
             type=int,
             default=0,

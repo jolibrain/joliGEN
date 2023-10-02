@@ -267,6 +267,7 @@ class CUTModel(BaseGanModel):
                 self.netG_A.parameters(),
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
+                weight_decay=opt.train_optim_weight_decay,
             )
             if self.opt.model_multimodal:
                 self.criterionZ = torch.nn.L1Loss()
@@ -275,6 +276,7 @@ class CUTModel(BaseGanModel):
                     self.netE.parameters(),
                     lr=opt.train_G_lr,
                     betas=(opt.train_beta1, opt.train_beta2),
+                    weight_decay=opt.train_optim_weight_decay,
                 )
 
             if len(self.discriminators_names) > 0:
@@ -294,6 +296,7 @@ class CUTModel(BaseGanModel):
                 D_parameters,
                 lr=opt.train_D_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
+                weight_decay=opt.train_optim_weight_decay,
             )
 
             self.optimizers.append(self.optimizer_G)
@@ -435,6 +438,7 @@ class CUTModel(BaseGanModel):
                     self.netF.parameters(),
                     lr=self.opt.train_G_lr,
                     betas=(self.opt.train_beta1, self.opt.train_beta2),
+                    weight_decay=self.opt.train_optim_weight_decay,
                 )
                 self.optimizers.append(self.optimizer_F)
 

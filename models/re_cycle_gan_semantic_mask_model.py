@@ -78,6 +78,7 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
             itertools.chain(self.netP_A.parameters(), self.netP_B.parameters()),
             lr=opt.alg_re_P_lr,
             betas=(opt.train_beta1, opt.train_beta2),
+            weight_decay=opt.train_optim_weight_decay,
         )
         self.optimizers.append(self.optimizer_P)
 
