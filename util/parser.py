@@ -31,7 +31,7 @@ def get_opt(main_opt, remaining_args):
         for name in override_options_names:
             train_json[name] = override_options_json[name]
 
-        opt = TrainOptions().parse_json(train_json)
+        opt = TrainOptions().parse_json(train_json, save_config=True)
 
         print("%s config file loaded" % main_opt.config_json)
     else:
