@@ -103,6 +103,7 @@ class Visualizer:
             self.web_dir = os.path.join(opt.checkpoints_dir, opt.name, "web")
             self.img_dir = os.path.join(self.web_dir, "images")
             self.losses_path = os.path.join(self.web_dir, "losses.json")
+            self.metrics_path = os.path.join(self.web_dir, "metrics.json")
             print("create web directory %s..." % self.web_dir)
             util.mkdirs([self.web_dir, self.img_dir])
         # create a logging file to store training losses
@@ -426,6 +427,11 @@ class Visualizer:
         except VisdomExceptionBase:
             self.create_visdom_connections()
 
+        if name == "metric":
+            self.metrics_dict[name] = plot_metrics
+            with open(self.metrics_path, "w") as fp:
+                json.dump(self.metrics_dict[name], fp)
+
     def plot_current_metrics(self, epoch, counter_ratio, metrics):
         """display the current fid values on visdom display: dictionary of fid labels and values
 
@@ -439,8 +445,8 @@ class Visualizer:
             epoch,
             counter_ratio,
             metrics,
-            title="fid over time",
-            ylabel="fid",
+            title="metrics over time",
+            ylabel="value",
             win_id=6,
         )
 
@@ -532,5 +538,9 @@ class Visualizer:
             next_epoch = math.ceil(self.plot_data["X"][-1])
         else:
             next_epoch = self.opt.train_epoch_count
+
+        if os.path.isfile(self.metrics_path):
+            with open(self.metrics_path, "r") as fp:
+                self.metrics_dict = json.load(fp)
 
         return next_epoch
