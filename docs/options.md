@@ -52,7 +52,7 @@ Here are all the available options to call with `train.py`
 | --G_dropout | flag |  | dropout for the generator |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/> **Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512 |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit, unet_mha_ref_attn |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/> **Values:** instance, batch, none |
 | --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/> **Values:** reflect, replicate, zeros |
