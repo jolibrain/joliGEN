@@ -105,7 +105,7 @@ class PaletteDenoiseFn(nn.Module):
         if "mask" in self.conditioning:
             input = torch.cat([input, mask_embed], dim=1)
 
-        if self.model_nargs == 4:  # ref from dataloader with reference image
+        if self.model_nargs == 3:  # ref from dataloader with reference image
             out = self.model(input, embedding, ref)
         else:
             out = self.model(input, embedding)
