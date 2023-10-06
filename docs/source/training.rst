@@ -126,7 +126,7 @@ Open http://localhost:8097/env/mapillary (or alternatively http://<your-server-a
 
 
 *********************************************
- DDPM training with UnetRef conditioning
+ DDPM training with image reference conditioning
 *********************************************
 
 Dataset: https://joligen.com/datasets/viton_bbox_ref_mini.zip
@@ -137,6 +137,6 @@ Trains a diffusion model to generate tried on clothing items conditioned by a re
 
    python3 train.py --dataroot /path/to/data/viton_bbox_ref_mini --checkpoints_dir /path/to/checkpoints --name viton --config_json examples/example_ddpm_unetref_viton.json
 
-Open http://localhost:8097/env/viton (or alternatively http://<your-server-address>:8097 to have a look at your training logs: loss curves, model output and inputs, and the options used to train.
+Open http://localhost:8097/env/viton to have a look at the training output: loss curves, model output and inputs, and the options used to train.
 
-.. image:: _static/viton_visdom.png
+.. image:: _static/viton_ref_visdom.png
