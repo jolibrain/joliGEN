@@ -538,6 +538,12 @@ def generate(
             cond_image = img_tensor.unsqueeze(0).clone().detach()
         transform_hr = T.Resize((opt.data_crop_size, opt.data_crop_size))
         cond_image = transform_hr(cond_image).detach()
+    elif opt.alg_palette_cond_image_creation == "pix2pix":
+        # use same interpolation as get_transform
+        transform_hr = T.Resize(
+            (img_height, img_width), interpolation=T.InterpolationMode.BICUBIC
+        )
+        cond_image = transform_hr(img_tensor.unsqueeze(0)).detach()
 
     # run through model
     if mask is None:
@@ -664,6 +670,7 @@ if __name__ == "__main__":
             "hough",
             "low_res",
             "sam",
+            "pix2pix",
         ],
         help="how cond_image is created",
     )

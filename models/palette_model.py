@@ -31,8 +31,8 @@ class PaletteModel(BaseDiffusionModel):
         parser.add_argument(
             "--alg_palette_task",
             default="inpainting",
-            choices=["inpainting", "super_resolution"],
-            help="Whether to perform inpatining or super resolution",
+            choices=["inpainting", "super_resolution", "pix2pix"],
+            help="Whether to perform inpainting, super resolution or pix2pix",
         )
 
         parser.add_argument(
@@ -289,7 +289,7 @@ class PaletteModel(BaseDiffusionModel):
             "cond_image_",
         ]
 
-        if self.task != "super_resolution":
+        if self.task not in ["super_resolution", "pix2pix"]:
             self.gen_visual_names.extend(["y_t_", "mask_"])
 
         if (
@@ -463,6 +463,10 @@ class PaletteModel(BaseDiffusionModel):
 
                 else:
                     self.mask = data["B_label_mask"].to(self.device)
+            elif self.task == "pix2pix":
+                self.y_t = data["A"].to(self.device)
+                self.gt_image = data["B"].to(self.device)
+                self.mask = None
             else:  # e.g. super-resolution
                 self.gt_image = data["A"].to(self.device)
                 self.mask = None
@@ -739,8 +743,8 @@ class PaletteModel(BaseDiffusionModel):
                 )
                 self.fake_B = self.output
 
-        # task: super resolution
-        elif self.task == "super_resolution":
+        # task: super resolution, pix2pix
+        elif self.task in ["super_resolution", "pix2pix"]:
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[: self.inference_num],
                 sample_num=self.sample_num,
