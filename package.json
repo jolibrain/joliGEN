@@ -1,7 +1,7 @@
 {
     "name": "joliGEN",
     "description": "Generative AI Toolset with GANs and Diffusion for Real-World Applications",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "private": true,
     "devDependencies": {
         "standard-version": "^9.0.0"
