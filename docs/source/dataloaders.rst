@@ -39,6 +39,7 @@ To choose a dataloader please use the flag ``--dataset_mode dataloader_name``.
 List of dataloaders
 ********************
 
+- aligned: basic aligned, for pix2pix tasks (style transfer, super-resolution)
 - unaligned: basic unaligned, e.g. horse2zebra dataset
 - unaligned_labeled_cls: unaligned with classes
 - unaligned_labeled_mask: unaligned with masks

@@ -125,9 +125,9 @@ Open http://localhost:8097/env/mapillary (or alternatively http://<your-server-a
 .. image:: _static/mapillary_visdom.png
 
 
-*********************************************
+************************************************
  DDPM training with image reference conditioning
-*********************************************
+************************************************
 
 Dataset: https://joligen.com/datasets/viton_bbox_ref_mini.zip
 
@@ -140,3 +140,17 @@ Trains a diffusion model to generate tried on clothing items conditioned by a re
 Open http://localhost:8097/env/viton to have a look at the training output: loss curves, model output and inputs, and the options used to train.
 
 .. image:: _static/viton_ref_visdom.png
+
+********************************
+ DDPM training for pix2pix task
+********************************
+
+Can be used for style transfer or paired super-resolution.
+
+Dataset: https://joligen.com/datasets/SEN2VEN_mini.zip
+
+Trains a diffusion model to generate an image conditioned by another image (super-resolution in this example).
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/data/SEN2VEN_mini --checkpoints_dir /path/to/checkpoints --name SEN2VEN --config_json examples/example_ddpm_SEN2VEN.json
