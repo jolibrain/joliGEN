@@ -427,10 +427,8 @@ class Visualizer:
         except VisdomExceptionBase:
             self.create_visdom_connections()
 
-        if name == "metric":
-            self.metrics_dict[name] = plot_metrics
-            with open(self.metrics_path, "w") as fp:
-                json.dump(self.metrics_dict[name], fp)
+        with open(self.metrics_path, "w") as fp:
+            json.dump(self.metrics_dict, fp)
 
     def plot_current_metrics(self, epoch, counter_ratio, metrics):
         """display the current fid values on visdom display: dictionary of fid labels and values
