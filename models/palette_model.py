@@ -344,6 +344,7 @@ class PaletteModel(BaseDiffusionModel):
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
                 weight_decay=opt.train_optim_weight_decay,
+                eps=opt.train_optim_eps,
             )
             self.optimizers.append(self.optimizer_G)
 

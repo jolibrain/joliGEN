@@ -221,6 +221,7 @@ class BaseModel(ABC):
                 lr=opt.train_sem_lr_f_s,
                 betas=(opt.train_beta1, opt.train_beta2),
                 weight_decay=opt.train_optim_weight_decay,
+                eps=opt.train_optim_eps,
             )
 
             if opt.train_cls_regression:
@@ -323,6 +324,7 @@ class BaseModel(ABC):
                         lr=opt.train_sem_lr_f_s,
                         betas=(opt.train_beta1, opt.train_beta2),
                         weight_decay=opt.train_optim_weight_decay,
+                        eps=opt.train_optim_eps,
                     )
                 else:
                     self.optimizer_f_s = opt.optim(
@@ -331,6 +333,7 @@ class BaseModel(ABC):
                         lr=opt.train_sem_lr_f_s,
                         betas=(opt.train_beta1, opt.train_beta2),
                         weight_decay=opt.train_optim_weight_decay,
+                        eps=opt.train_optim_eps,
                     )
 
                 self.optimizers.append(self.optimizer_f_s)
