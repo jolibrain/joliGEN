@@ -320,8 +320,13 @@ class BaseGanModel(BaseModel):
 
     def get_current_APA_prob(self):
         current_APA_prob = OrderedDict()
-        current_APA_prob["APA_p"] = float(self.D_loss.adaptive_pseudo_augmentation_p)
-        current_APA_prob["APA_adjust"] = float(self.D_loss.adjust)
+        current_APA_prob["APA_p"] = 0.0
+        current_APA_prob["APA_adjust"] = 0.0
+        for discriminator_name in self.discriminators_names:
+            loss_calculator_name = "D_" + discriminator_name + "_loss_calculator"
+            D_loss = getattr(self, loss_calculator_name)
+            current_APA_prob["APA_p"] += float(D_loss.adaptive_pseudo_augmentation_p)
+            current_APA_prob["APA_adjust"] += float(D_loss.adjust)
 
         return current_APA_prob
 
