@@ -51,16 +51,16 @@ def setup(rank, world_size, port):
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
-def optim(opt, params, lr, betas, weight_decay):
+def optim(opt, params, lr, betas, weight_decay, eps):
     print("Using ", opt.train_optim, " as optimizer")
     if opt.train_optim == "adam":
-        return torch.optim.Adam(params, lr, betas, weight_decay=weight_decay)
+        return torch.optim.Adam(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "radam":
-        return torch.optim.RAdam(params, lr, betas, weight_decay=weight_decay)
+        return torch.optim.RAdam(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "adamw":
         if weight_decay == 0.0:
             weight_decay = 0.01  # default value
-        return torch.optim.AdamW(params, lr, betas, weight_decay=weight_decay)
+        return torch.optim.AdamW(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "lion":
         return Lion(params, lr, betas, weight_decay)
 
