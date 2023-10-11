@@ -32,6 +32,7 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_task",
             default="inpainting",
             choices=["inpainting", "super_resolution"],
+            help="Whether to perform inpatining or super resolution",
         )
 
         parser.add_argument(
@@ -46,7 +47,7 @@ class PaletteModel(BaseDiffusionModel):
             type=str,
             default="MSE",
             choices=["L1", "MSE", "multiscale"],
-            help="loss for denoising model",
+            help="loss type of the denoising model",
         )
 
         parser.add_argument(
@@ -74,7 +75,7 @@ class PaletteModel(BaseDiffusionModel):
                 "low_res",
                 "ref",
             ],
-            help="how cond_image is created",
+            help="how image conditioning is created: either from y_t (no conditioning), previous frame, from computed sketch (e.g. canny), from low res image or from reference image (i.e. image that is not aligned with the ground truth)",
         )
 
         parser.add_argument(
@@ -82,7 +83,7 @@ class PaletteModel(BaseDiffusionModel):
             nargs="+",
             type=str,
             default=["canny", "hed"],
-            help="what to use for random sketch",
+            help="what primitives to use for random sketch",
             choices=["sketch", "canny", "depth", "hed", "hough", "sam"],
         )
 
@@ -91,7 +92,7 @@ class PaletteModel(BaseDiffusionModel):
             type=int,
             nargs="+",
             default=[0, 255 * 3],
-            help="range for Canny thresholds",
+            help="range of randomized canny sketch thresholds",
         )
 
         parser.add_argument(
@@ -105,7 +106,7 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_sam_use_gaussian_filter",
             action="store_true",
             default=False,
-            help="whether to apply a gaussian blur to each SAM masks",
+            help="whether to apply a Gaussian blur to each SAM masks",
         )
 
         parser.add_argument(
