@@ -15,7 +15,7 @@ import torchvision.transforms as transforms
 
 if torch.__version__[0] == "2":
     torchvision.disable_beta_transforms_warning()
-    from torchvision import datapoints
+    from torchvision import tv_tensors as datapoints
     from torchvision.transforms.v2 import functional as F2
 
 import torchvision.transforms.functional as F
@@ -565,8 +565,8 @@ class ComposeMask(transforms.Compose):
             w, h = img.size
             bbox = np.array([0, 0, w, h])  # sets bbox to full image size
         if torch.__version__[0] == "2":
-            tbbox = datapoints.BoundingBox(
-                bbox, format=datapoints.BoundingBoxFormat.XYXY, spatial_size=img.size
+            tbbox = datapoints.BoundingBoxes(
+                bbox, format=datapoints.BoundingBoxFormat.XYXY, canvas_size=img.size
             )
         else:
             tbbox = bbox  # placeholder
@@ -1063,10 +1063,10 @@ class ComposeMaskList(transforms.Compose):
             w, h = imgs[0].size
             bbox = np.array([0, 0, w, h])  # sets bbox to full image size
         if torch.__version__[0] == "2":
-            tbbox = datapoints.BoundingBox(
+            tbbox = datapoints.BoundingBoxes(
                 bbox,
                 format=datapoints.BoundingBoxFormat.XYXY,
-                spatial_size=imgs[0].size,
+                canvas_size=imgs[0].size,
             )
         else:
             tbbox = bbox  # placeholder

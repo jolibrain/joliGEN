@@ -1,5 +1,5 @@
-torch==2.0.1 -f https://download.pytorch.org/whl/cu117/torch_stable.html
-torchvision==0.15.2
+torch==2.1 -f https://download.pytorch.org/whl/cu117/torch_stable.html
+torchvision==0.16
 numpy==1.23.1
 Pillow
 timm
