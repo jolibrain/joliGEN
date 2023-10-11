@@ -300,6 +300,7 @@ Here are all the available options to call with `train.py`
 | --train_n_epochs_decay | int | 100 | number of epochs to linearly decay learning rate to zero |
 | --train_nb_img_max_fid | int | 1000000000 | Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used. |
 | --train_optim | string | adam | optimizer (adam, radam, adamw, ...)<br/><br/> **Values:** adam, radam, adamw, lion |
+| --train_optim_eps | float | 1e-08 | epsilon for optimizer |
 | --train_optim_weight_decay | float | 0.0 | weight decay for optimizer |
 | --train_pool_size | int | 50 | the size of image buffer that stores previously generated images |
 | --train_save_by_iter | flag |  | whether saves model by iteration |
