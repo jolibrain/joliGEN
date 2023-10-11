@@ -157,7 +157,11 @@ class BaseModel(ABC):
 
         if self.opt.train_compute_metrics_test and self.use_inception:
             dims = 2048
-            self.netFid = base_networks.define_inception(self.gpu_ids[0], dims)
+            if self.use_cuda:
+                test_device = self.gpu_ids[0]
+            else:
+                test_device = self.device  # cpu
+            self.netFid = base_networks.define_inception(test_device, dims)
 
         if self.opt.data_relative_paths:
             self.root = self.opt.dataroot
@@ -174,13 +178,17 @@ class BaseModel(ABC):
                     self.opt.checkpoints_dir, self.opt.name, "fid_mu_sigma_B_test.npz"
                 )
 
+                if self.use_cuda:
+                    test_device = self.gpu_ids[0]
+                else:
+                    test_device = self.device  # cpu
                 self.realactB_test = _compute_statistics_of_dataloader(
                     path_sv=path_sv_B,
                     model=self.netFid,
                     domain="B",
                     batch_size=self.opt.test_batch_size,
                     dims=dims,
-                    device=self.gpu_ids[0],
+                    device=test_device,
                     dataloader=dataloader_test,
                     nb_max_img=self.opt.train_nb_img_max_fid,
                     root=self.root,
@@ -1502,13 +1510,17 @@ class BaseModel(ABC):
             progress.close()
 
         if self.use_inception:
+            if self.use_cuda:
+                test_device = self.gpu_ids[0]
+            else:
+                test_device = self.device  # cpu
             self.fakeactB_test = _compute_statistics_of_dataloader(
                 path_sv=None,
                 model=self.netFid,
                 domain="B",
                 batch_size=1,
                 dims=dims,
-                device=self.gpu_ids[0],
+                device=test_device,
                 dataloader=fake_list,
                 nb_max_img=self.opt.train_nb_img_max_fid,
                 root=self.root,

@@ -96,7 +96,6 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     if rank == 0:
         if opt.train_compute_metrics_test:
-
             temp_opt = copy.deepcopy(opt)
             temp_opt.gpu_ids = temp_opt.gpu_ids[:1]
 
@@ -127,9 +126,6 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         model.data_dependent_initialize(data)
 
     rank_0 = rank == 0
-
-    if rank_0:
-        model.init_metrics(dataloader_test)
 
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
@@ -173,6 +169,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             file.write(command_line)
 
             print(f"Command line was saved at {sv_path}")
+
+    if rank_0:
+        model.init_metrics(dataloader_test)
 
     for epoch in range(
         opt.train_epoch_count, opt.train_n_epochs + opt.train_n_epochs_decay + 1
@@ -269,7 +268,6 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     opt.train_compute_metrics_test
                 ):
                     with torch.no_grad():
-
                         if opt.train_compute_metrics_test:
                             if use_temporal:
                                 dataloaders_test = zip(
