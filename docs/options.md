@@ -122,9 +122,9 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| --alg_palette_computed_sketch_list | array | ['canny', 'hed'] | what to use for random sketch |
+| --alg_palette_computed_sketch_list | array | ['canny', 'hed'] | what primitives to use for random sketch |
 | --alg_palette_cond_embed_dim | int | 32 | nb of examples processed for inference |
-| --alg_palette_cond_image_creation | string | y_t | how cond_image is created<br/><br/> **Values:** y_t, previous_frame, computed_sketch, low_res, ref |
+| --alg_palette_cond_image_creation | string | y_t | how image conditioning is created: either from y_t (no conditioning), previous frame, from computed sketch (e.g. canny), from low res image or from reference image (i.e. image that is not aligned with the ground truth)<br/><br/> **Values:** y_t, previous_frame, computed_sketch, low_res, ref |
 | --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/> **Values:** , mask, class, mask_and_class, ref |
 | --alg_palette_ddim_eta | float | 0.5 | eta for ddim sampling variance |
 | --alg_palette_ddim_num_steps | int | 10 | number of steps for ddim sampling |
@@ -132,7 +132,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_generate_per_class | flag |  | whether to generate samples of each images |
 | --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
 | --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
-| --alg_palette_loss | string | MSE | loss for denoising model<br/><br/> **Values:** L1, MSE, multiscale |
+| --alg_palette_loss | string | MSE | loss type of the denoising model<br/><br/> **Values:** L1, MSE, multiscale |
 | --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
 | --alg_palette_ref_embed_net | string | clip | embedding network to use for ref conditioning<br/><br/> **Values:** clip, imagebind |
 | --alg_palette_sam_crop_delta | flag |  | extend crop's width and height by 2\*crop_delta before computing masks |
@@ -145,11 +145,11 @@ Here are all the available options to call with `train.py`
 | --alg_palette_sam_points_per_side | int | 16 | number of points per side of image to prompt SAM with (\# of prompted points will be points_per_side\*\*2) |
 | --alg_palette_sam_redundancy_threshold | float | 0.62 | redundancy threshold above which redundant masks are not kept |
 | --alg_palette_sam_sobel_threshold | float | 0.7 | sobel threshold in % of gradient magintude |
-| --alg_palette_sam_use_gaussian_filter | flag |  | whether to apply a gaussian blur to each SAM masks |
+| --alg_palette_sam_use_gaussian_filter | flag |  | whether to apply a Gaussian blur to each SAM masks |
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/> **Values:** ddpm, ddim |
-| --alg_palette_sketch_canny_range | array | [0, 765] | range for Canny thresholds |
+| --alg_palette_sketch_canny_range | array | [0, 765] | range of randomized canny sketch thresholds |
 | --alg_palette_super_resolution_scale | float | 2.0 | scale for super resolution |
-| --alg_palette_task | string | inpainting | <br/><br/> **Values:** inpainting, super_resolution |
+| --alg_palette_task | string | inpainting | Whether to perform inpatining or super resolution<br/><br/> **Values:** inpainting, super_resolution |
 
 ## Datasets
 
