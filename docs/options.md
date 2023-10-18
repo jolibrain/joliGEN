@@ -149,7 +149,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/> **Values:** ddpm, ddim |
 | --alg_palette_sketch_canny_range | array | [0, 765] | range of randomized canny sketch thresholds |
 | --alg_palette_super_resolution_scale | float | 2.0 | scale for super resolution |
-| --alg_palette_task | string | inpainting | Whether to perform inpatining or super resolution<br/><br/> **Values:** inpainting, super_resolution |
+| --alg_palette_task | string | inpainting | Whether to perform inpainting, super resolution or pix2pix<br/><br/> **Values:** inpainting, super_resolution, pix2pix |
 
 ## Datasets
 
