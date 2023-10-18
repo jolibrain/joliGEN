@@ -65,6 +65,10 @@ Mario to Sonic while preserving the action (running, jumping, ...)
 Object insertion
 ================
 
+Virtual Try-On with Diffusion
+
+.. image:: https://github.com/jolibrain/joliGEN/assets/3530657/e3fc87a9-66be-4921-8abe-7dae479a2b10
+
 Car insertion (BDD100K) with Diffusion
 
 .. image:: https://user-images.githubusercontent.com/3530657/196428508-3eae3415-8e15-4505-9e97-41c0ba99350e.png
