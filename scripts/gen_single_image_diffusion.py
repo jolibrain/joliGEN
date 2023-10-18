@@ -155,6 +155,7 @@ def generate(
     sampling_steps,
     img_in,
     mask_in,
+    ref_in,
     bbox_in,
     cond_in,
     cond_keep_ratio,
@@ -229,6 +230,12 @@ def generate(
     mask = None
     if mask_in:
         mask = cv2.imread(mask_in, 0)
+
+    # reading reference image
+    if ref_in:
+        ref = cv2.imread(ref_in)
+        ref_orig = ref.copy()
+        ref = cv2.cvtColor(ref, cv2.COLOR_BGR2RGB)
 
     bboxes = []
     if bbox_in:
@@ -361,6 +368,8 @@ def generate(
         img = cv2.resize(img, (img_width, img_height))
         if mask is not None:
             mask = cv2.resize(mask, (img_width, img_height))
+        if ref is not None:
+            ref = cv2.resize(ref, (img_width, img_height))
 
     # insert cond image into original image
     generated_bbox = None
@@ -437,11 +446,15 @@ def generate(
         mask = torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0)
         """if crop_width > 0 and crop_height > 0:
         mask = resize(mask).clone().detach()"""
+    if ref is not None:
+        ref_tensor = tran(ref).clone().detach()
 
     if not cpu:
         img_tensor = img_tensor.to(device).clone().detach()
         if mask is not None:
             mask = mask.to(device).clone().detach()
+        if ref is not None:
+            ref_tensor = ref_tensor.to(device).clone().detach()
 
     if mask is not None:
         if data_refined_mask or opt.data_refined_mask:
@@ -545,12 +558,11 @@ def generate(
         )
         cond_image = transform_hr(img_tensor.unsqueeze(0)).detach()
 
-    # run through model
     if mask is None:
         cl_mask = None
-
     else:
         cl_mask = mask.unsqueeze(0).clone().detach()
+
     y_t, cond_image, img_tensor, mask = (
         y_t.unsqueeze(0).clone().detach(),
         cond_image.clone().detach(),
@@ -564,7 +576,10 @@ def generate(
         cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls
     else:
         cls_tensor = None
+    if ref is not None:
+        ref_tensor = ref_tensor.unsqueeze(0)
 
+    # run through model
     with torch.no_grad():
         out_tensor, visu = model.restoration(
             y_cond=cond_image,
@@ -572,6 +587,7 @@ def generate(
             y_0=img_tensor,
             mask=mask,
             cls=cls_tensor,
+            ref=ref_tensor,
             sample_num=2,
             guidance_scale=alg_palette_guidance_scale,
             ddim_num_steps=ddim_num_steps,
@@ -616,6 +632,8 @@ def generate(
             cv2.imwrite(os.path.join(dir_out, name + "_y_0.png"), to_np(img_tensor))
             cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.png"), out_img)
             cv2.imwrite(os.path.join(dir_out, name + "_mask.png"), to_np(mask))
+        if ref is not None:
+            cv2.imwrite(os.path.join(dir_out, name + "_ref_orig.png"), ref_orig)
         if cond_in:
             # crop before cond image
             orig_crop = img_orig[
@@ -643,6 +661,9 @@ if __name__ == "__main__":
     )
     options.parser.add_argument(
         "--mask-in", help="mask used for image transformation", required=False
+    )
+    options.parser.add_argument(
+        "--ref-in", help="image used as reference", required=False
     )
     options.parser.add_argument("--bbox-in", help="bbox file used for masking")
 
