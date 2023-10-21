@@ -361,7 +361,8 @@ class BaseGanModel(BaseModel):
         else:
             real = getattr(self, real_name)
 
-        loss = loss.compute_loss_D(netD, real, fake, fake_2)
+        with torch.cuda.amp.autocast(enabled=self.with_amp):
+            loss = loss.compute_loss_D(netD, real, fake, fake_2)
         return loss
 
     def compute_D_loss(self):

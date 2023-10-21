@@ -73,6 +73,8 @@ model_type_sam = ["mobile_sam"]
 
 data_online_context_pixels = [0, 10]
 
+with_amp = [False, True]
+
 product_list = product(
     models_semantic_mask,
     G_netG,
@@ -81,6 +83,7 @@ product_list = product(
     f_s_net,
     model_type_sam,
     data_online_context_pixels,
+    with_amp,
 )
 
 
@@ -96,6 +99,7 @@ def test_semantic_mask_online(dataroot):
         f_s_type,
         sam_type,
         data_online_context_pixels,
+        with_amp,
     ) in product_list:
         if model == "cycle_gan":
             if (
@@ -113,6 +117,7 @@ def test_semantic_mask_online(dataroot):
         json_like_dict_c["f_s_net"] = f_s_type
         json_like_dict_c["model_type_sam"] = sam_type
         json_like_dict_c["data_online_context_pixels"] = data_online_context_pixels
+        json_like_dict_c["with_amp"] = with_amp
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
