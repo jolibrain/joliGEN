@@ -151,14 +151,17 @@ class BaseModel(ABC):
             self.lpips_metric = LPIPS().to(self.device)
 
     def init_metrics(self, dataloader_test):
-
         self.use_inception = any(
             metric in self.opt.train_metrics_list for metric in ["KID", "FID", "MSID"]
         )
 
         if self.opt.train_compute_metrics_test and self.use_inception:
             dims = 2048
-            self.netFid = base_networks.define_inception(self.gpu_ids[0], dims)
+            if self.use_cuda:
+                test_device = self.gpu_ids[0]
+            else:
+                test_device = self.device  # cpu
+            self.netFid = base_networks.define_inception(test_device, dims)
 
         if self.opt.data_relative_paths:
             self.root = self.opt.dataroot
@@ -175,13 +178,17 @@ class BaseModel(ABC):
                     self.opt.checkpoints_dir, self.opt.name, "fid_mu_sigma_B_test.npz"
                 )
 
+                if self.use_cuda:
+                    test_device = self.gpu_ids[0]
+                else:
+                    test_device = self.device  # cpu
                 self.realactB_test = _compute_statistics_of_dataloader(
                     path_sv=path_sv_B,
                     model=self.netFid,
                     domain="B",
                     batch_size=self.opt.test_batch_size,
                     dims=dims,
-                    device=self.gpu_ids[0],
+                    device=test_device,
                     dataloader=dataloader_test,
                     nb_max_img=self.opt.train_nb_img_max_fid,
                     root=self.root,
@@ -221,6 +228,8 @@ class BaseModel(ABC):
                 self.netCLS.parameters(),
                 lr=opt.train_sem_lr_f_s,
                 betas=(opt.train_beta1, opt.train_beta2),
+                weight_decay=opt.train_optim_weight_decay,
+                eps=opt.train_optim_eps,
             )
 
             if opt.train_cls_regression:
@@ -322,6 +331,8 @@ class BaseModel(ABC):
                         ),
                         lr=opt.train_sem_lr_f_s,
                         betas=(opt.train_beta1, opt.train_beta2),
+                        weight_decay=opt.train_optim_weight_decay,
+                        eps=opt.train_optim_eps,
                     )
                 else:
                     self.optimizer_f_s = opt.optim(
@@ -329,6 +340,8 @@ class BaseModel(ABC):
                         self.netf_s.parameters(),
                         lr=opt.train_sem_lr_f_s,
                         betas=(opt.train_beta1, opt.train_beta2),
+                        weight_decay=opt.train_optim_weight_decay,
+                        eps=opt.train_optim_eps,
                     )
 
                 self.optimizers.append(self.optimizer_f_s)
@@ -364,7 +377,10 @@ class BaseModel(ABC):
             input (dict): include the data itself and its metadata information.
         The option 'direction' can be used to swap domain A and domain B.
         """
-        self.real_A_with_context = data["A"].to(self.device)
+        if "A_ref" in data:  # accomodates multi-frames dataloader
+            self.real_A_with_context = data["A_ref"].to(self.device)
+        else:
+            self.real_A_with_context = data["A"].to(self.device)
         self.real_A = self.real_A_with_context.clone()
         if self.opt.data_online_context_pixels > 0:
             self.real_A = self.real_A[
@@ -378,7 +394,10 @@ class BaseModel(ABC):
                 self.real_A_with_context, size=self.real_A.shape[2:]
             )
 
-        self.real_B_with_context = data["B"].to(self.device)
+        if "B_ref" in data:
+            self.real_B_with_context = data["B_ref"].to(self.device)
+        else:
+            self.real_B_with_context = data["B"].to(self.device)
 
         self.real_B = self.real_B_with_context.clone()
 
@@ -390,9 +409,9 @@ class BaseModel(ABC):
                 self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
             ]
 
-        self.real_B_with_context_vis = torch.nn.functional.interpolate(
-            self.real_B_with_context, size=self.real_A.shape[2:]
-        )
+            self.real_B_with_context_vis = torch.nn.functional.interpolate(
+                self.real_B_with_context, size=self.real_B.shape[2:]
+            )
 
         self.image_paths = data["A_img_paths"]
 
@@ -408,6 +427,11 @@ class BaseModel(ABC):
         if "A_label_mask" in data:
             self.input_A_label_mask = data["A_label_mask"].to(self.device).squeeze(1)
             self.input_A_ref_bbox = data["A_ref_bbox"]
+            if "A_ref_label_mask" in data:
+                self.input_A_ref_label_mask = (
+                    data["A_ref_label_mask"].to(self.device).squeeze(1)
+                )
+                self.input_A_label_mask = self.input_A_ref_label_mask
 
             if self.opt.data_online_context_pixels > 0:
                 self.input_A_label_mask = self.input_A_label_mask[
@@ -419,6 +443,11 @@ class BaseModel(ABC):
         if "B_label_mask" in data:
             self.input_B_label_mask = data["B_label_mask"].to(self.device).squeeze(1)
             self.input_B_ref_bbox = data.get("B_ref_bbox", None)
+            if "B_ref_label_mask" in data:
+                self.input_B_ref_label_mask = (
+                    data["B_ref_label_mask"].to(self.device).squeeze(1)
+                )
+                self.input_B_label_mask = self.input_B_ref_label_mask
 
             if self.opt.data_online_context_pixels > 0:
                 self.input_B_label_mask = self.input_B_label_mask[
@@ -496,7 +525,8 @@ class BaseModel(ABC):
                     "temporal_real_A_" + str(i) + "_with_context_vis",
                     torch.nn.functional.interpolate(
                         getattr(self, "temporal_real_A_" + str(i) + "_with_context"),
-                        size=self.real_A.shape[2:],
+                        # size=self.temporal_real_A.shape[2:]
+                        size=getattr(self, "temporal_real_A_" + str(i)).shape[2:],
                     ),
                 )
             else:
@@ -535,7 +565,7 @@ class BaseModel(ABC):
                     "temporal_real_B_" + str(i) + "_with_context_vis",
                     torch.nn.functional.interpolate(
                         getattr(self, "temporal_real_B_" + str(i) + "_with_context"),
-                        size=self.real_B.shape[2:],
+                        size=getattr(self, "temporal_real_B_" + str(i)).shape[2:],
                     ),
                 )
             else:
@@ -548,9 +578,75 @@ class BaseModel(ABC):
                     ],
                 )
 
+        self.image_paths = data_temporal["A_img_paths"]
+
+        if self.opt.train_semantic_mask:
+            self.set_input_semantic_mask(data_temporal)
+        if self.opt.train_semantic_cls:
+            self.set_input_semantic_cls(data_temporal)
+
     def forward(self):
         for forward_function in self.forward_functions:
             getattr(self, forward_function)()
+
+    def compute_fake_with_context(self, fake_name, real_name):
+        setattr(
+            self,
+            fake_name + "_with_context",
+            torch.nn.functional.pad(
+                getattr(self, fake_name),
+                (
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                ),
+            ),
+        )
+
+        setattr(
+            self,
+            fake_name + "_with_context",
+            getattr(self, fake_name + "_with_context")
+            + self.mask_context * getattr(self, real_name + "_with_context"),
+        )
+        setattr(
+            self,
+            fake_name + "_with_context_vis",
+            torch.nn.functional.interpolate(
+                getattr(self, fake_name + "_with_context"), size=self.real_A.shape[2:]
+            ),
+        )
+
+    def compute_temporal_fake_with_context(self, fake_name, real_name):
+        setattr(
+            self,
+            fake_name + "_with_context",
+            torch.nn.functional.pad(
+                getattr(self, fake_name),
+                (
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                    self.opt.data_online_context_pixels,
+                ),
+            ),
+        )
+
+        setattr(
+            self,
+            fake_name + "_with_context",
+            getattr(self, fake_name + "_with_context")
+            + self.mask_context * getattr(self, real_name + "_with_context"),
+        )
+        setattr(
+            self,
+            fake_name + "_with_context_vis",
+            torch.nn.functional.interpolate(
+                getattr(self, fake_name + "_with_context"),
+                size=getattr(self, real_name).shape[2:],
+            ),
+        )
 
     def compute_temporal_fake(self, objective_domain):
         origin_domain = "B" if objective_domain == "A" else "A"
@@ -571,7 +667,7 @@ class BaseModel(ABC):
                 temporal_fake[:, i],
             )
             if self.opt.data_online_context_pixels > 0:
-                self.compute_fake_with_context(
+                self.compute_temporal_fake_with_context(
                     fake_name="temporal_fake_" + objective_domain + "_" + str(i),
                     real_name="temporal_real_" + origin_domain + "_" + str(i),
                 )
@@ -845,7 +941,6 @@ class BaseModel(ABC):
                 for key in list(
                     state_dict.keys()
                 ):  # need to copy keys here because we mutate in loop
-
                     self.__patch_instance_norm_state_dict(
                         state_dict, net, key.split(".")
                     )
@@ -976,7 +1071,6 @@ class BaseModel(ABC):
                     True  # automatic fall back to eager mode
                 )
 
-            # print(self.niter,self.opt.train_iter_size,                self.niter % self.opt.train_iter_size,                self.niter % self.opt.train_iter_size != 0,            )
             if len(self.opt.gpu_ids) > 1 and self.niter % self.opt.train_iter_size != 0:
                 for network in self.model_names:
                     stack.enter_context(getattr(self, "net" + network).no_sync())
@@ -1341,7 +1435,6 @@ class BaseModel(ABC):
         return metrics
 
     def compute_metrics_test(self, dataloaders_test, n_epoch, n_iter):
-
         dims = 2048
         batch = 1
 
@@ -1367,18 +1460,13 @@ class BaseModel(ABC):
         ):  # inner loop (minibatch) within one epoch
             data_test = data_test_list[0]
 
-            use_temporal = (
-                "temporal" in self.opt.D_netDs
-            ) or self.opt.train_temporal_criterion
-
-            if use_temporal:
+            if self.use_temporal:
                 temporal_data_test = data_test_list[1]
-
-            self.set_input(
-                data_test
-            )  # unpack data from dataloader and apply preprocessing
-            if use_temporal:
                 self.set_input_temporal(temporal_data_test)
+            else:
+                self.set_input(
+                    data_test
+                )  # unpack data from dataloader and apply preprocessing
 
             self.inference()
 
@@ -1422,13 +1510,17 @@ class BaseModel(ABC):
             progress.close()
 
         if self.use_inception:
+            if self.use_cuda:
+                test_device = self.gpu_ids[0]
+            else:
+                test_device = self.device  # cpu
             self.fakeactB_test = _compute_statistics_of_dataloader(
                 path_sv=None,
                 model=self.netFid,
                 domain="B",
                 batch_size=1,
                 dims=dims,
-                device=self.gpu_ids[0],
+                device=test_device,
                 dataloader=fake_list,
                 nb_max_img=self.opt.train_nb_img_max_fid,
                 root=self.root,
@@ -1450,7 +1542,6 @@ class BaseModel(ABC):
             self.lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
 
     def compute_metrics_generic(self, real_act, fake_act):
-
         # FID
         if "FID" in self.opt.train_metrics_list:
             fid = self.fid_metric(real_act, fake_act)

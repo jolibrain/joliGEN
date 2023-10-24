@@ -92,9 +92,9 @@ fi
 
 ####### mask cls semantics test with online dataloading
 echo "Running mask online semantics training tests"
-URL=https://joligen.com/datasets/online_mario2sonic_lite.zip 
-ZIP_FILE=$DIR/online_mario2sonic_lite.zip 
-TARGET_MASK_SEM_ONLINE_DIR=$DIR/online_mario2sonic_lite
+URL=https://joligen.com/datasets/online_mario2sonic_lite2.zip 
+ZIP_FILE=$DIR/online_mario2sonic_lite2.zip 
+TARGET_MASK_SEM_ONLINE_DIR=$DIR/online_mario2sonic_lite2
 wget -N $URL -O $ZIP_FILE
 mkdir $TARGET_MASK_SEM_ONLINE_DIR
 unzip $ZIP_FILE -d $DIR
@@ -217,6 +217,23 @@ unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_mask_online_ref.py" --dataroot "$TARGET_MASK_ONLINE_REF_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+####### pix2pix test
+echo "Running pix2pix tests"
+URL=https://joligen.com/datasets/SEN2VEN_mini.zip
+ZIP_FILE=$DIR/SEN2VEN_mini.zip
+TARGET_PIX2PIX_DIR=$DIR/SEN2VEN_mini
+wget -N $URL -O $ZIP_FILE
+mkdir $TARGET_PIX2PIX_DIR
+unzip $ZIP_FILE -d $DIR
+rm $ZIP_FILE
+
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_pix2pix_diffusion.py" --dataroot "$TARGET_PIX2PIX_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then

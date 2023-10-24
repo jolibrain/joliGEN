@@ -34,7 +34,6 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
         self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
             self.dir_A, "/paths.txt"
         )  # load images from '/path/to/data/trainA/paths.txt' as well as labels
-
         if self.use_domain_B:
             self.B_img_paths, self.B_label_mask_paths = make_labeled_path_dataset(
                 self.dir_B, "/paths.txt"
@@ -156,6 +155,8 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                     crop_coordinates=crop_coordinates,
                     fixed_mask_size=self.opt.data_online_fixed_mask_size,
                 )
+                if i == 0:
+                    A_ref_bbox = ref_A_bbox[1:]
 
             except Exception as e:
                 print(e, f"{i+1}th frame of domain A in temporal dataloading")
@@ -164,10 +165,10 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
             images_A.append(cur_A_img)
             labels_A.append(cur_A_label)
 
-        images_A, labels_A = self.transform(images_A, labels_A)
-
+        images_A, labels_A, A_ref_bbox = self.transform(images_A, labels_A, A_ref_bbox)
+        A_ref_label = labels_A[0]
+        A_ref_img = images_A[0]
         images_A = torch.stack(images_A)
-
         labels_A = torch.stack(labels_A)
 
         if self.use_domain_B:
@@ -236,6 +237,8 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                         crop_coordinates=crop_coordinates,
                         fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     )
+                    if i == 0:
+                        B_ref_bbox = ref_B_bbox[1:]
 
                 except Exception as e:
                     print(e, f"{i+1}th frame of domain B in temporal dataloading")
@@ -244,29 +247,40 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                 images_B.append(cur_B_img)
                 labels_B.append(cur_B_label)
 
-            images_B, labels_B = self.transform(images_B, labels_B)
-
+            images_B, labels_B, B_ref_bbox = self.transform(
+                images_B, labels_B, B_ref_bbox
+            )
+            B_ref_label = labels_B[0]
+            B_ref_img = images_B[0]
             images_B = torch.stack(images_B)
-
             labels_B = torch.stack(labels_B)
 
         else:
             images_B = None
             labels_B = None
+            B_ref_img = None
             ref_B_img_path = ""
+            B_ref_bbox = ""
+            B_ref_label = ""
 
         result = {
+            "A_ref": A_ref_img,
             "A": images_A,
             "A_img_paths": ref_A_img_path,
-            "B": images_B,
-            "B_img_paths": ref_B_img_path,
+            "A_ref_bbox": A_ref_bbox,
+            "A_label_mask": labels_A,
+            "A_ref_label_mask": A_ref_label,
         }
-
-        result.update(
-            {
-                "A_label_mask": labels_A,
-                "B_label_mask": labels_B,
-            }
-        )
+        if not images_B is None:
+            result.update(
+                {
+                    "B_ref": B_ref_img,
+                    "B": images_B,
+                    "B_img_paths": ref_B_img_path,
+                    "B_ref_bbox": B_ref_bbox,
+                    "B_label_mask": labels_B,
+                    "B_ref_label_mask": B_ref_label,
+                }
+            )
 
         return result

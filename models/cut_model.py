@@ -183,20 +183,6 @@ class CUTModel(BaseGanModel):
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_A_fake_B"])
 
-        if any("temporal" in D_name for D_name in self.opt.D_netDs):
-            visual_names_temporal_real_A = []
-            visual_names_temporal_real_B = []
-            visual_names_temporal_fake_B = []
-            for i in range(self.opt.data_temporal_number_frames):
-                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
-                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
-            for i in range(self.opt.data_temporal_number_frames):
-                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
-
-            self.visual_names.append(visual_names_temporal_real_A)
-            self.visual_names.append(visual_names_temporal_real_B)
-            self.visual_names.append(visual_names_temporal_fake_B)
-
         if any("depth" in D_name for D_name in self.opt.D_netDs):
             self.visual_names.append(["real_depth_B", "fake_depth_B"])
         if any("sam" in D_name for D_name in self.opt.D_netDs):
@@ -267,6 +253,8 @@ class CUTModel(BaseGanModel):
                 self.netG_A.parameters(),
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
+                weight_decay=opt.train_optim_weight_decay,
+                eps=opt.train_optim_eps,
             )
             if self.opt.model_multimodal:
                 self.criterionZ = torch.nn.L1Loss()
@@ -275,6 +263,8 @@ class CUTModel(BaseGanModel):
                     self.netE.parameters(),
                     lr=opt.train_G_lr,
                     betas=(opt.train_beta1, opt.train_beta2),
+                    weight_decay=opt.train_optim_weight_decay,
+                    eps=opt.train_optim_eps,
                 )
 
             if len(self.discriminators_names) > 0:
@@ -294,6 +284,8 @@ class CUTModel(BaseGanModel):
                 D_parameters,
                 lr=opt.train_D_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
+                weight_decay=opt.train_optim_weight_decay,
+                eps=opt.train_optim_eps,
             )
 
             self.optimizers.append(self.optimizer_G)
@@ -423,6 +415,7 @@ class CUTModel(BaseGanModel):
                 real_A_with_z = torch.cat([self.real_A, z_real], 1)
             else:
                 real_A_with_z = self.real_A
+
             feat_temp = self.netG_A.get_feats(real_A_with_z.cpu(), self.nce_layers)
             self.netF.data_dependent_initialize(feat_temp)
 
@@ -435,6 +428,8 @@ class CUTModel(BaseGanModel):
                     self.netF.parameters(),
                     lr=self.opt.train_G_lr,
                     betas=(self.opt.train_beta1, self.opt.train_beta2),
+                    weight_decay=self.opt.train_optim_weight_decay,
+                    eps=self.opt.train_optim_eps,
                 )
                 self.optimizers.append(self.optimizer_F)
 
@@ -532,6 +527,10 @@ class CUTModel(BaseGanModel):
         self.fake_B = self.fake[: self.real_A.size(0)]
 
         if self.opt.data_online_context_pixels > 0:
+            if self.use_temporal:
+                self.compute_temporal_fake_with_context(
+                    fake_name="temporal_fake_B_0", real_name="temporal_real_A_0"
+                )
             self.compute_fake_with_context(fake_name="fake_B", real_name="real_A")
 
         if self.use_depth:
@@ -550,6 +549,9 @@ class CUTModel(BaseGanModel):
             if self.opt.data_online_context_pixels > 0:
                 context = "_with_context"
 
+            # if self.use_temporal:
+            #    names = ["temporal_fake_B_0", "temporal_real_B_0"]
+            # else:
             names = ["fake_B", "real_B"]
             for name in names:
                 setattr(

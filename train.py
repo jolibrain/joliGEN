@@ -51,16 +51,18 @@ def setup(rank, world_size, port):
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
-def optim(opt, params, lr, betas):
+def optim(opt, params, lr, betas, weight_decay, eps):
     print("Using ", opt.train_optim, " as optimizer")
     if opt.train_optim == "adam":
-        return torch.optim.Adam(params, lr, betas)
+        return torch.optim.Adam(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "radam":
-        return torch.optim.RAdam(params, lr, betas)
+        return torch.optim.RAdam(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "adamw":
-        return torch.optim.AdamW(params, lr, betas)
+        if weight_decay == 0.0:
+            weight_decay = 0.01  # default value
+        return torch.optim.AdamW(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "lion":
-        return Lion(params, lr, betas)
+        return Lion(params, lr, betas, weight_decay)
 
 
 def signal_handler(sig, frame):
@@ -94,7 +96,6 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     if rank == 0:
         if opt.train_compute_metrics_test:
-
             temp_opt = copy.deepcopy(opt)
             temp_opt.gpu_ids = temp_opt.gpu_ids[:1]
 
@@ -125,9 +126,6 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         model.data_dependent_initialize(data)
 
     rank_0 = rank == 0
-
-    if rank_0:
-        model.init_metrics(dataloader_test)
 
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
@@ -172,6 +170,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
             print(f"Command line was saved at {sv_path}")
 
+    if rank_0:
+        model.init_metrics(dataloader_test)
+
     for epoch in range(
         opt.train_epoch_count, opt.train_n_epochs + opt.train_n_epochs_decay + 1
     ):  # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
@@ -190,15 +191,14 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             dataloaders
         ):  # inner loop (minibatch) within one epoch
             data = data_list[0]
-            if use_temporal:
-                temporal_data = data_list[1]
 
             iter_start_time = time.time()  # timer for computation per iteration
             t_data_mini_batch = iter_start_time - iter_data_time
 
-            model.set_input(data)  # unpack data from dataloader and apply preprocessing
             if use_temporal:
+                temporal_data = data_list[1]
                 model.set_input_temporal(temporal_data)
+            model.set_input(data)  # unpack data from dataloader and apply preprocessing
 
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
             t_comp = (time.time() - iter_start_time) / opt.train_batch_size
@@ -257,18 +257,17 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     )
 
                     model.save_networks("latest")
-                    model.export_networks("latest")
+                    # model.export_networks("latest")
 
                     if opt.train_save_by_iter:
                         save_suffix = "iter_%d" % total_iters
                         model.save_networks(save_suffix)
-                        model.export_networks(save_suffix)
+                        # model.export_networks(save_suffix)
 
                 if total_iters % opt.train_metrics_every < batch_size and (
                     opt.train_compute_metrics_test
                 ):
                     with torch.no_grad():
-
                         if opt.train_compute_metrics_test:
                             if use_temporal:
                                 dataloaders_test = zip(
@@ -341,8 +340,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                 model.save_networks("latest")
                 model.save_networks(epoch)
 
-                model.export_networks("latest")
-                model.export_networks(epoch)
+                # model.export_networks("latest")
+                # model.export_networks(epoch)
 
         if rank_0:
             print(
@@ -357,18 +356,27 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     ###Let's compute final FID
     if rank_0 and opt.train_compute_metrics_test:
-        cur_fid = model.compute_metrics_test()
+        with torch.no_grad():
+            if use_temporal:
+                dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
+            else:
+                dataloaders_test = zip(dataloader_test)
+            model.compute_metrics_test(
+                dataloaders_test, opt.train_epoch_count - 1, total_iters
+            )
+            cur_metrics = model.get_current_metrics()
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")
-
         if os.path.exists(path_json):
             with open(path_json, "r") as loadfile:
                 data = json.load(loadfile)
 
         with open(path_json, "w+") as outfile:
             data = {}
-            data["fid_%s_img_%s_epochs" % (opt.data_max_dataset_size, epoch)] = float(
-                cur_fid.item()
-            )
+            for key, value in cur_metrics.items():
+                data[
+                    "%s_%s_img_%s"
+                    % (key, opt.data_max_dataset_size, opt.train_epoch_count)
+                ] = float(value)
             json.dump(data, outfile)
 
     if rank_0:

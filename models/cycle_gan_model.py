@@ -89,23 +89,6 @@ class CycleGanModel(BaseGanModel):
         if self.opt.output_display_diff_fake_real:
             self.visual_names.append(["diff_real_B_fake_A", "diff_real_A_fake_B"])
 
-        if any("temporal" in D_name for D_name in self.opt.D_netDs):
-            visual_names_temporal_real_A = []
-            visual_names_temporal_real_B = []
-            visual_names_temporal_fake_B = []
-            visual_names_temporal_fake_A = []
-            for i in range(self.opt.data_temporal_number_frames):
-                visual_names_temporal_real_A.append("temporal_real_A_" + str(i))
-                visual_names_temporal_real_B.append("temporal_real_B_" + str(i))
-            for i in range(self.opt.data_temporal_number_frames):
-                visual_names_temporal_fake_B.append("temporal_fake_B_" + str(i))
-                visual_names_temporal_fake_A.append("temporal_fake_A_" + str(i))
-
-            self.visual_names.append(visual_names_temporal_real_A)
-            self.visual_names.append(visual_names_temporal_real_B)
-            self.visual_names.append(visual_names_temporal_fake_B)
-            self.visual_names.append(visual_names_temporal_fake_A)
-
         # Models names
 
         if self.isTrain:
@@ -152,6 +135,8 @@ class CycleGanModel(BaseGanModel):
                 itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
+                weight_decay=opt.train_optim_weight_decay,
+                eps=opt.train_optim_eps,
             )
 
             D_parameters = itertools.chain(
@@ -166,6 +151,8 @@ class CycleGanModel(BaseGanModel):
                 D_parameters,
                 lr=opt.train_D_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
+                weight_decay=opt.train_optim_weight_decay,
+                eps=opt.train_optim_eps,
             )
 
             self.optimizers.append(self.optimizer_G)
@@ -278,6 +265,10 @@ class CycleGanModel(BaseGanModel):
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
 
         if self.opt.data_online_context_pixels > 0:
+            if self.use_temporal:
+                self.compute_temporal_fake_with_context(
+                    fake_name="temporal_fake_B_0", real_name="temporal_real_A_0"
+                )
             self.compute_fake_with_context(fake_name="fake_B", real_name="real_A")
 
         # Rec A

@@ -208,7 +208,6 @@ class BaseGanModel(BaseModel):
 
         if self.use_temporal:
             self.compute_temporal_fake(objective_domain="B")
-
             if hasattr(self, "netG_B"):
                 self.compute_temporal_fake(objective_domain="A")
 
@@ -321,8 +320,13 @@ class BaseGanModel(BaseModel):
 
     def get_current_APA_prob(self):
         current_APA_prob = OrderedDict()
-        current_APA_prob["APA_p"] = float(self.D_loss.adaptive_pseudo_augmentation_p)
-        current_APA_prob["APA_adjust"] = float(self.D_loss.adjust)
+        current_APA_prob["APA_p"] = 0.0
+        current_APA_prob["APA_adjust"] = 0.0
+        for discriminator_name in self.discriminators_names:
+            loss_calculator_name = "D_" + discriminator_name + "_loss_calculator"
+            D_loss = getattr(self, loss_calculator_name)
+            current_APA_prob["APA_p"] += float(D_loss.adaptive_pseudo_augmentation_p)
+            current_APA_prob["APA_adjust"] += float(D_loss.adjust)
 
         return current_APA_prob
 
@@ -357,7 +361,8 @@ class BaseGanModel(BaseModel):
         else:
             real = getattr(self, real_name)
 
-        loss = loss.compute_loss_D(netD, real, fake, fake_2)
+        with torch.cuda.amp.autocast(enabled=self.with_amp):
+            loss = loss.compute_loss_D(netD, real, fake, fake_2)
         return loss
 
     def compute_D_loss(self):
@@ -478,35 +483,6 @@ class BaseGanModel(BaseModel):
 
         if self.opt.train_temporal_criterion:
             self.compute_temporal_criterion_loss()
-
-    def compute_fake_with_context(self, fake_name, real_name):
-        setattr(
-            self,
-            fake_name + "_with_context",
-            torch.nn.functional.pad(
-                getattr(self, fake_name),
-                (
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                    self.opt.data_online_context_pixels,
-                ),
-            ),
-        )
-
-        setattr(
-            self,
-            fake_name + "_with_context",
-            getattr(self, fake_name + "_with_context")
-            + self.mask_context * getattr(self, real_name + "_with_context"),
-        )
-        setattr(
-            self,
-            fake_name + "_with_context_vis",
-            torch.nn.functional.interpolate(
-                getattr(self, fake_name + "_with_context"), size=self.real_A.shape[2:]
-            ),
-        )
 
     # compute_real_fake_with_depth
     def compute_fake_real_with_depth(self, fake_name, real_name):
@@ -661,6 +637,12 @@ class BaseGanModel(BaseModel):
                         dataaug_D_diffusion_every=dataaug_D_diffusion_every,
                     )
 
+                setattr(
+                    self,
+                    loss_calculator_name,
+                    loss_calculator,
+                )
+
             if "depth" in discriminator_name:
                 fake_name = "fake_depth"
                 real_name = "real_depth"
@@ -670,12 +652,6 @@ class BaseGanModel(BaseModel):
             elif "sam" in discriminator_name:
                 fake_name = "fake_sam"
                 real_name = "real_sam"
-
-            setattr(
-                self,
-                loss_calculator_name,
-                loss_calculator,
-            )
 
             self.objects_to_update.append(getattr(self, loss_calculator_name))
 
