@@ -59,7 +59,6 @@ def crop_image(
             # Bbox file
             f = open(bbox_path, "r")
         else:
-
             # bbox_img = np.array(Image.open(img_path))
             import cv2
 
@@ -95,7 +94,6 @@ def crop_image(
                     print("%s does not describe a bbox" % line)
 
     else:
-
         cat = str(int(np.max(bbox_img)))
 
         # Find the indices of non-zero elements in the image
@@ -169,6 +167,8 @@ def crop_image(
                 else:
                     raise ValueError("mask_delta value is incorrect.")
             else:
+                if len(mask_delta) <= cat - 1:
+                    raise ValueError("too few classes, can't find mask_delta value")
                 mask_delta_cat = mask_delta[cat - 1]
                 if isinstance(mask_delta[0][0], float):
                     if len(mask_delta_cat) == 1:
