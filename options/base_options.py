@@ -443,6 +443,10 @@ class BaseOptions:
                 "vitclip16",
                 "vitclip14",
                 "depth",
+                "dinov2_vits14",
+                "dinov2_vitb14",
+                "dinov2_vitl14",
+                "dinov2_vitg14",
             ],
             help="projected discriminator architecture",
         )

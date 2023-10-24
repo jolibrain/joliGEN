@@ -59,7 +59,7 @@ models_semantic_mask = [
 
 G_netG = ["mobile_resnet_attn", "segformer_attn_conv"]
 
-D_proj_network_type = ["efficientnet", "vitsmall"]
+D_proj_network_type = ["efficientnet", "vitsmall", "dinov2_vits14"]
 
 D_netDs = [
     ["basic", "projected_d"],
