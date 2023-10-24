@@ -241,6 +241,7 @@ def define_G(
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG
         )
+    print("netG is {}".format(net))
     return init_net(net, model_init_type, model_init_gain)
 
 
@@ -440,7 +441,7 @@ def define_D(
             )
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
-        elif netD == "unet_128_d":
+        elif netD == "unet":
             net = UnetDiscriminator(
                 model_input_nc,
                 model_output_nc,
@@ -451,11 +452,12 @@ def define_D(
             )
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
+
         else:
             raise NotImplementedError(
                 "Discriminator model name [%s] is not recognized" % netD
             )
-
+    print("discriminator is {}".format(return_nets))
     return return_nets
 
 

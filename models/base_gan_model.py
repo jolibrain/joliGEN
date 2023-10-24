@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torchviz import make_dot
 
 # for FID
-from data.base_dataset import get_transform
+#from data.base_dataset import get_transform
 from util.diff_aug import DiffAugment
 from util.discriminator import DiscriminatorInfo
 
@@ -396,7 +396,6 @@ class BaseGanModel(BaseModel):
                 loss_name,
                 loss_value,
             )
-
             self.loss_D_tot += loss_value
 
     def compute_G_loss_GAN_generic(
@@ -439,8 +438,9 @@ class BaseGanModel(BaseModel):
                 getattr(self, loss_function)()
 
     def compute_G_loss_GAN(self):
-        """Calculate GAN losses for generator(s)"""
+        """Calculate GAN losses for generator(s)""" 
 
+            
         for discriminator in self.discriminators:
             if "mask" in discriminator.name:
                 continue
@@ -460,7 +460,7 @@ class BaseGanModel(BaseModel):
                     netD,
                     domain,
                     loss,
-                    fake_name=fake_name,
+                    fake_name=fake_name, 
                     real_name=real_name,
                 )
 
@@ -474,7 +474,6 @@ class BaseGanModel(BaseModel):
                 loss_name,
                 loss_value,
             )
-
             self.loss_G_tot += loss_value
 
         if self.opt.train_temporal_criterion:
@@ -586,10 +585,50 @@ class BaseGanModel(BaseModel):
                 real_name = "temporal_real"
                 compute_every = self.opt.D_temporal_every
 
-            else:
+            elif "unet" in discriminator_name:
+                loss_calculator = loss.DualDiscriminatorGANLoss(
+                        netD=getattr(self, "net"+ discriminator_name),
+                        device=self.device,
+                        dataaug_APA_p=self.opt.dataaug_APA_p,
+                        dataaug_APA_target=self.opt.dataaug_APA_target,
+                        train_batch_size=self.opt.train_batch_size,
+                        dataaug_APA_nimg=self.opt.dataaug_APA_nimg,
+                        dataaug_APA_every=self.opt.dataaug_APA_every,
+                        dataaug_D_label_smooth=self.opt.dataaug_D_label_smooth,
+                        train_gan_mode=train_gan_mode,
+                        dataaug_APA=self.opt.dataaug_APA,
+                        dataaug_D_diffusion=dataaug_D_diffusion,
+                        dataaug_D_diffusion_every=dataaug_D_diffusion_every,
+                    )
                 fake_name = None
                 real_name = None
                 compute_every = 1
+
+            
+            elif "unet_discriminator_mha" in discriminator_name:
+                loss_calculator = loss.DualDiscriminatorGANLoss(
+                        netD=getattr(self, "net"+ discriminator_name),
+                        device=self.device,
+                        dataaug_APA_p=self.opt.dataaug_APA_p,
+                        dataaug_APA_target=self.opt.dataaug_APA_target,
+                        train_batch_size=self.opt.train_batch_size,
+                        dataaug_APA_nimg=self.opt.dataaug_APA_nimg,
+                        dataaug_APA_every=self.opt.dataaug_APA_every,
+                        dataaug_D_label_smooth=self.opt.dataaug_D_label_smooth,
+                        train_gan_mode=train_gan_mode,
+                        dataaug_APA=self.opt.dataaug_APA,
+                        dataaug_D_diffusion=dataaug_D_diffusion,
+                        dataaug_D_diffusion_every=dataaug_D_diffusion_every,
+                        )
+                fake_name = None
+                real_name = None
+                compute_every = 1
+            
+            else :
+                fake_name = None
+                real_name = None
+                compute_every = 1
+
 
                 if self.opt.train_use_contrastive_loss_D:
                     loss_calculator = (

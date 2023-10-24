@@ -153,6 +153,7 @@ class PixelDiscriminator(nn.Module):
         return self.net(input)
 
 
+
 class UnetDiscriminator(nn.Module):
     """Create a Unet-based discriminator"""
 
@@ -228,22 +229,17 @@ class UnetDiscriminator(nn.Module):
         )
 
     def compute_feats(self, input, extract_layer_ids=[]):
-        output, feats = self.model(input, feats=[])
+        output, feats, output_encoder_inside = self.model(input, feats=[])
         return_feats = []
         for i, feat in enumerate(feats):
             if i in extract_layer_ids:
                 return_feats.append(feat)
 
-        return output, return_feats
+        return output, return_feats, output_encoder_inside
 
     def forward(self, input):
-        output, _ = self.compute_feats(input)
-        return output
-
-    def get_feats(self, input, extract_layer_ids=[]):
-        _, feats = self.compute_feats(input, extract_layer_ids)
-
-        return feats
+        output, _, output_encoder_inside = self.compute_feats(input)
+        return output, output_encoder_inside
 
 
 class UnetSkipConnectionBlock(nn.Module):
@@ -263,24 +259,27 @@ class UnetSkipConnectionBlock(nn.Module):
         norm_layer=nn.BatchNorm2d,
         use_dropout=False,
     ):
-        """Construct a Unet submodule with skip connections.
-
-        Parameters:
-            outer_nc (int) -- the number of filters in the outer conv layer
-            inner_nc (int) -- the number of filters in the inner conv layer
-            input_nc (int) -- the number of channels in input images/features
-            submodule (UnetSkipConnectionBlock) -- previously defined submodules
-            outermost (bool)    -- if this module is the outermost module
-            innermost (bool)    -- if this module is the innermost module
-            norm_layer          -- normalization layer
-            use_dropout (bool)  -- if use dropout layers.
-        """
         super(UnetSkipConnectionBlock, self).__init__()
         self.outermost = outermost
+        self.innermost = innermost
+
+        # Move the bottleneck conv layers initialization to innermost condition
+        if self.innermost:
+            self.bottleneck_conv_cor2 = nn.Conv2d(
+                inner_nc, outer_nc, kernel_size=2, stride=1, padding=0, bias=True
+            )
+            self.bottleneck_conv_cor1 = nn.Conv2d(
+                inner_nc, outer_nc, kernel_size=1, stride=1, padding=0, bias=True
+            )
+
+        self.flatten = nn.Flatten()
+        self.tanh = nn.Tanh()
+
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
+
         if input_nc is None:
             input_nc = outer_nc
         downconv = nn.Conv2d(
@@ -324,17 +323,31 @@ class UnetSkipConnectionBlock(nn.Module):
 
         self.model = nn.Sequential(*model)
 
-    def forward(self, x, feats):
+
+    def forward(self, x, feats, output_encoder_inside=None):
         output = self.model[0](x)
         return_feats = feats + [output]
 
         for layer in self.model[1:]:
             if isinstance(layer, UnetSkipConnectionBlock):
-                output, return_feats = layer(output, return_feats)
+                output, return_feats, output_encoder_inside = layer(
+                    output, return_feats, output_encoder_inside=output_encoder_inside
+                )
             else:
                 output = layer(output)
+
+            # Only apply the bottleneck convolutions if it's the innermost block
+            if self.innermost and isinstance(layer, nn.ReLU):
+                output_encoder = output
+                if hasattr(self, 'bottleneck_conv_cor2') and output_encoder.shape[2] == 2:
+                    output_encoder_conv = self.bottleneck_conv_cor2(output_encoder)
+                elif hasattr(self, 'bottleneck_conv_cor1'):
+                    output_encoder_conv = self.bottleneck_conv_cor1(output_encoder)
+
+                output_encoder_inside = self.tanh(output_encoder_conv)
 
         if not self.outermost:  # add skip connections
             output = torch.cat([x, output], 1)
 
-        return output, return_feats
+        return output, return_feats, output_encoder_inside
+

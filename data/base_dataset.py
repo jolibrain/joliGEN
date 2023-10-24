@@ -15,7 +15,7 @@ import torchvision.transforms as transforms
 
 if torch.__version__[0] == "2":
     torchvision.disable_beta_transforms_warning()
-    from torchvision import datapoints
+    from torchvision import tv_tensors as datapoints
     from torchvision.transforms.v2 import functional as F2
 
 import torchvision.transforms.functional as F
@@ -442,15 +442,7 @@ def get_transform_ref(
 
     if convert:
         transform_list += [transforms.ToTensor()]
-        """if grayscale:
-            transform_list += [transforms.Normalize((0.5,), (0.5,))]
-        else:
-            transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]"""
 
-        transforms.Normalize(
-            mean=(0.48145466, 0.4578275, 0.40821073),
-            std=(0.26862954, 0.26130258, 0.27577711),
-        )
     return transforms.Compose(transform_list)
 
 
@@ -573,8 +565,8 @@ class ComposeMask(transforms.Compose):
             w, h = img.size
             bbox = np.array([0, 0, w, h])  # sets bbox to full image size
         if torch.__version__[0] == "2":
-            tbbox = datapoints.BoundingBox(
-                bbox, format=datapoints.BoundingBoxFormat.XYXY, spatial_size=img.size
+            tbbox = datapoints.BoundingBoxes(
+                bbox, format=datapoints.BoundingBoxFormat.XYXY, canvas_size=img.size
             )
         else:
             tbbox = bbox  # placeholder
@@ -1066,10 +1058,21 @@ class ComposeMaskList(transforms.Compose):
         >>> ])
     """
 
-    def __call__(self, imgs, masks=None):
+    def __call__(self, imgs, masks=None, bbox=None):
+        if bbox is None:
+            w, h = imgs[0].size
+            bbox = np.array([0, 0, w, h])  # sets bbox to full image size
+        if torch.__version__[0] == "2":
+            tbbox = datapoints.BoundingBoxes(
+                bbox,
+                format=datapoints.BoundingBoxFormat.XYXY,
+                canvas_size=imgs[0].size,
+            )
+        else:
+            tbbox = bbox  # placeholder
         for t in self.transforms:
-            imgs, masks = t(imgs, masks)
-        return imgs, masks
+            imgs, masks, tbbox = t(imgs, masks, tbbox)
+        return imgs, masks, tbbox
 
 
 class GrayscaleMaskList(transforms.Grayscale):
@@ -1088,7 +1091,7 @@ class GrayscaleMaskList(transforms.Grayscale):
     def __init__(self, num_output_channels=1):
         self.num_output_channels = num_output_channels
 
-    def __call__(self, imgs, masks):
+    def __call__(self, imgs, masks, bbox):
         """
         Args:
             img (PIL Image): Image to be converted to grayscale.
@@ -1102,7 +1105,7 @@ class GrayscaleMaskList(transforms.Grayscale):
                 F.to_grayscale(img, num_output_channels=self.num_output_channels)
             )
 
-        return return_imgs, masks
+        return return_imgs, masks, bbox
 
     def __repr__(self):
         return self.__class__.__name__ + "(num_output_channels={0})".format(
@@ -1123,7 +1126,7 @@ class ResizeMaskList(transforms.Resize):
             ``PIL.Image.BILINEAR``
     """
 
-    def __call__(self, imgs, masks):
+    def __call__(self, imgs, masks, bbox):
         """
         Args:
             img (PIL Image): Image to be scaled.
@@ -1131,6 +1134,7 @@ class ResizeMaskList(transforms.Resize):
         Returns:
             PIL Image: Rescaled image.
         """
+
         return_imgs = []
         return_masks = []
 
@@ -1145,7 +1149,7 @@ class ResizeMaskList(transforms.Resize):
                 return_masks.append(
                     F.resize(mask, self.size, interpolation=InterpolationMode.NEAREST)
                 )
-            return return_imgs, return_masks
+            return return_imgs, return_masks, F2.resize(bbox, self.size)
 
 
 class RandomCropMaskList(transforms.RandomCrop):
@@ -1184,7 +1188,7 @@ class RandomCropMaskList(transforms.RandomCrop):
 
     """
 
-    def __call__(self, imgs, masks):
+    def __call__(self, imgs, masks, bbox):
         """
         Args:
             img (PIL Image): Image to be cropped.
@@ -1216,7 +1220,7 @@ class RandomCropMaskList(transforms.RandomCrop):
         else:
             for mask in masks:
                 return_masks.append(F.crop(mask, i, j, h, w))
-        return return_imgs, return_masks
+        return return_imgs, return_masks, F2.crop(bbox, i, j, h, w)
 
 
 class RandomHorizontalFlipMaskList(transforms.RandomHorizontalFlip):
@@ -1226,7 +1230,7 @@ class RandomHorizontalFlipMaskList(transforms.RandomHorizontalFlip):
         p (float): probability of the image being flipped. Default value is 0.5
     """
 
-    def __call__(self, imgs, masks):
+    def __call__(self, imgs, masks, bbox):
         """
         Args:
             img (PIL Image): Image to be flipped.
@@ -1244,9 +1248,9 @@ class RandomHorizontalFlipMaskList(transforms.RandomHorizontalFlip):
             else:
                 return_masks = None
 
-            return return_imgs, return_masks
+            return return_imgs, return_masks, F2.hflip(bbox)
         else:
-            return imgs, masks
+            return imgs, masks, bbox
 
 
 class ToTensorMaskList(transforms.ToTensor):
@@ -1260,7 +1264,7 @@ class ToTensorMaskList(transforms.ToTensor):
     In the other cases, tensors are returned without scaling.
     """
 
-    def __call__(self, imgs, masks):
+    def __call__(self, imgs, masks, bbox):
         """
         Args:
             pic (PIL Image or numpy.ndarray): Image to be converted to tensor.
@@ -1278,7 +1282,7 @@ class ToTensorMaskList(transforms.ToTensor):
                 )
         else:
             return_masks = None
-        return return_imgs, return_masks
+        return return_imgs, return_masks, bbox.data
 
 
 class RandomRotationMaskList(transforms.RandomRotation):
@@ -1316,7 +1320,7 @@ class RandomRotationMaskList(transforms.RandomRotation):
 
         return angle
 
-    def __call__(self, imgs, masks):
+    def __call__(self, imgs, masks, bbox):
         """
         Args:
             img (PIL Image): Image to be rotated.
@@ -1335,7 +1339,7 @@ class RandomRotationMaskList(transforms.RandomRotation):
         else:
             return_masks = None
 
-        return return_imgs, return_masks
+        return return_imgs, return_masks, F2.rotate(bbox, angle)
 
 
 class NormalizeMaskList(transforms.Normalize):
@@ -1354,7 +1358,7 @@ class NormalizeMaskList(transforms.Normalize):
 
     """
 
-    def __call__(self, tensor_imgs, tensor_masks):
+    def __call__(self, tensor_imgs, tensor_masks, tensor_bbox):
         """
         Args:
             tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
@@ -1369,7 +1373,7 @@ class NormalizeMaskList(transforms.Normalize):
                 F.normalize(tensor_img, self.mean, self.std, self.inplace)
             )
 
-        return return_imgs, tensor_masks
+        return return_imgs, tensor_masks, tensor_bbox
 
     def __repr__(self):
         return self.__class__.__name__ + "(mean={0}, std={1})".format(
@@ -1387,7 +1391,7 @@ class RandomAffineMaskList(transforms.RandomAffine):
         self.scale_max = scale_max
         self.shear = shear
 
-    def __call__(self, imgs, masks):
+    def __call__(self, imgs, masks, bbox):
         if random.random() > 1.0 - self.p:
             affine_params = self.get_params(
                 (0, 0),
@@ -1405,6 +1409,6 @@ class RandomAffineMaskList(transforms.RandomAffine):
             else:
                 return_masks = None
 
-            return return_imgs, return_masks
+            return return_imgs, return_masks, F2.affine(bbox, *affine_params)
         else:
-            return imgs, masks
+            return imgs, masks, bbox
