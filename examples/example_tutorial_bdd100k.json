@@ -1,0 +1,299 @@
+{
+    "D": {
+        "dropout": false,
+        "n_layers": 3,
+        "ndf": 64,
+        "netDs": [
+            "projected_d",
+            "basic"
+        ],
+        "no_antialias": false,
+        "no_antialias_up": false,
+        "norm": "instance",
+        "proj_config_segformer": "models/configs/segformer/segformer_config_b0.json",
+        "proj_interp": 532,
+        "proj_network_type": "dinov2_vitb14",
+        "proj_weight_segformer": "models/configs/segformer/pretrain/segformer_mit-b0.pth",
+        "spectral": false,
+        "temporal_every": 4,
+        "vision_aided_backbones": "clip+dino+swin",
+        "weight_sam": ""
+    },
+    "G": {
+        "attn_nb_mask_attn": 10,
+        "attn_nb_mask_input": 1,
+        "backward_compatibility_twice_resnet_blocks": false,
+        "config_segformer": "models/configs/segformer/segformer_config_b0.json",
+        "diff_n_timestep_test": 1000,
+        "diff_n_timestep_train": 2000,
+        "dropout": false,
+        "nblocks": 9,
+        "netE": "resnet_256",
+        "netG": "mobile_resnet_attn",
+        "ngf": 128,
+        "norm": "instance",
+        "padding_type": "reflect",
+        "spectral": false,
+        "unet_mha_attn_res": [
+            16
+        ],
+        "unet_mha_channel_mults": [
+            1,
+            2,
+            4,
+            8
+        ],
+        "unet_mha_group_norm_size": 32,
+        "unet_mha_norm_layer": "groupnorm",
+        "unet_mha_num_head_channels": 32,
+        "unet_mha_num_heads": 1,
+        "unet_mha_res_blocks": [
+            2,
+            2,
+            2,
+            2
+        ],
+        "unet_mha_vit_efficient": false,
+        "uvit_num_transformer_blocks": 6
+    },
+    "alg": {
+        "gan": {
+            "lambda": 1.0
+        },
+        "cut": {
+            "HDCE_gamma": 1.0,
+            "HDCE_gamma_min": 1.0,
+            "MSE_idt": false,
+            "flip_equivariance": false,
+            "lambda_MSE_idt": 1.0,
+            "lambda_NCE": 1.0,
+            "lambda_SRC": 0.0,
+            "nce_T": 0.07,
+            "nce_idt": true,
+            "nce_includes_all_negatives_from_minibatch": false,
+            "nce_layers": "0,4,8,12,16",
+            "nce_loss": "monce",
+            "netF": "mlp_sample",
+            "netF_dropout": false,
+            "netF_nc": 256,
+            "netF_norm": "instance",
+            "num_patches": 256
+        },
+        "cyclegan": {},
+        "re": {
+            "P_lr": 0.0002,
+            "adversarial_loss_p": false,
+            "netP": "unet_128",
+            "no_train_P_fake_images": false,
+            "nuplet_size": 3,
+            "projection_threshold": 1.0
+        },
+        "palette": {}
+    },
+    "data": {
+        "online_creation": {
+            "color_mask_A": false,
+            "crop_delta_A": 64,
+            "crop_delta_B": 64,
+            "crop_size_A": 512,
+            "crop_size_B": 512,
+            "load_size_A": [],
+            "load_size_B": [],
+            "mask_delta_A": [
+                []
+            ],
+            "mask_delta_A_ratio": [
+                []
+            ],
+            "mask_delta_B": [
+                []
+            ],
+            "mask_delta_B_ratio": [
+                []
+            ],
+            "mask_random_offset_A": [
+                0.0
+            ],
+            "mask_random_offset_B": [
+                0.0
+            ],
+            "mask_square_A": false,
+            "mask_square_B": false,
+            "rand_mask_A": false
+        },
+        "crop_size": 512,
+        "dataset_mode": "unaligned_labeled_mask_online",
+        "direction": "AtoB",
+        "inverted_mask": false,
+        "load_size": 512,
+        "max_dataset_size": 1000000000,
+        "num_threads": 4,
+        "online_context_pixels": 0,
+        "online_fixed_mask_size": -1,
+        "online_select_category": -1,
+        "online_single_bbox": false,
+        "preprocess": "resize_and_crop",
+        "refined_mask": false,
+        "relative_paths": true,
+        "sanitize_paths": false,
+        "serial_batches": false,
+        "temporal_frame_step": 30,
+        "temporal_num_common_char": -1,
+        "temporal_number_frames": 5
+    },
+    "f_s": {
+        "all_classes_as_one": false,
+        "class_weights": [],
+        "config_segformer": "models/configs/segformer/segformer_config_b1.json",
+        "dropout": false,
+        "net": "segformer",
+        "nf": 64,
+        "semantic_nclasses": 19,
+        "semantic_threshold": 1.0,
+        "weight_sam": "",
+        "weight_segformer": ""
+    },
+    "cls": {
+        "all_classes_as_one": false,
+        "class_weights": [],
+        "config_segformer": "models/configs/segformer/segformer_config_b0.json",
+        "dropout": false,
+        "net": "vgg",
+        "nf": 64,
+        "semantic_nclasses": 2,
+        "semantic_threshold": 1.0,
+        "weight_segformer": ""
+    },
+    "output": {
+        "display": {
+            "G_attention_masks": false,
+            "aim_port": 53800,
+            "aim_server": "http://localhost",
+            "diff_fake_real": false,
+            "env": "",
+            "freq": 100,
+            "id": 1,
+            "ncols": 0,
+            "networks": false,
+            "type": [
+                "visdom"
+            ],
+            "visdom_autostart": false,
+            "visdom_port": 8097,
+            "visdom_server": "http://localhost",
+            "winsize": 256
+        },
+        "no_html": false,
+        "print_freq": 100,
+        "update_html_freq": 1000,
+        "verbose": false
+    },
+    "model": {
+        "depth_network": "DPT_Large",
+        "init_gain": 0.02,
+        "init_type": "normal",
+        "input_nc": 3,
+        "multimodal": false,
+        "output_nc": 3,
+        "prior_321_backwardcompatibility": false,
+        "type_sam": "mobile_sam"
+    },
+    "train": {
+        "sem": {
+            "cls_B": false,
+            "cls_lambda": 1.0,
+            "cls_pretrained": false,
+            "cls_template": "basic",
+            "idt": true,
+            "lr_cls": 0.0002,
+            "lr_f_s": 0.0002,
+            "mask_lambda": 1.0,
+            "net_output": false,
+            "use_label_B": true
+        },
+        "mask": {
+            "charbonnier_eps": 1e-06,
+            "compute_miou": false,
+            "disjoint_f_s": false,
+            "f_s_B": true,
+            "for_removal": false,
+            "lambda_out_mask": 10.0,
+            "loss_out_mask": "L1",
+            "miou_every": 1000,
+            "no_train_f_s_A": false,
+            "out_mask": false
+        },
+        "D_accuracy_every": 1000,
+        "D_lr": 0.0001,
+        "G_ema": true,
+        "G_ema_beta": 0.999,
+        "G_lr": 0.0002,
+        "batch_size": 1,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "cls_l1_regression": false,
+        "cls_regression": false,
+        "compute_D_accuracy": false,
+        "compute_metrics_test": false,
+        "continue": false,
+        "epoch": "latest",
+        "epoch_count": 1,
+        "export_jit": false,
+        "feat_wavelet": false,
+        "gan_mode": "lsgan",
+        "iter_size": 8,
+        "load_iter": 0,
+        "lr_decay_iters": 50,
+        "lr_policy": "linear",
+        "metrics_every": 1000,
+        "metrics_list": [
+            "FID"
+        ],
+        "mm_lambda_z": 0.5,
+        "mm_nz": 8,
+        "n_epochs": 800,
+        "n_epochs_decay": 100,
+        "nb_img_max_fid": 1000000000,
+        "optim": "adamw",
+        "optim_eps": 1e-08,
+        "optim_weight_decay": 0.0,
+        "pool_size": 50,
+        "save_by_iter": false,
+        "save_epoch_freq": 1,
+        "save_latest_freq": 5000,
+        "semantic_cls": false,
+        "semantic_mask": true,
+        "temporal_criterion": false,
+        "temporal_criterion_lambda": 1.0,
+        "use_contrastive_loss_D": false
+    },
+    "dataaug": {
+        "APA": false,
+        "APA_every": 4,
+        "APA_nimg": 50,
+        "APA_p": 0,
+        "APA_target": 0.6,
+        "D_diffusion": false,
+        "D_diffusion_every": 4,
+        "D_label_smooth": false,
+        "D_noise": 0.0,
+        "affine": 0.0,
+        "affine_scale_max": 1.2,
+        "affine_scale_min": 0.8,
+        "affine_shear": 45,
+        "affine_translate": 0.2,
+        "diff_aug_policy": "",
+        "diff_aug_proba": 0.5,
+        "imgaug": false,
+        "no_flip": false,
+        "no_rotate": true
+    },
+    "ddp_port": "13458",
+    "gpu_ids": "0,1",
+    "model_type": "cut",
+    "name": "bdd100k_clear2snowy_512",
+    "phase": "train",
+    "suffix": "",
+    "test_batch_size": 1,
+    "warning_mode": false,
+}

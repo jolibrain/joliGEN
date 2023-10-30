@@ -217,3 +217,4 @@ Contact: contact@jolibrain.com
    :hidden:
 
    tutorial_viton
+   tutorial_styletransfer_bdd100k
