@@ -447,6 +447,9 @@ def generate(
         """if crop_width > 0 and crop_height > 0:
         mask = resize(mask).clone().detach()"""
     if ref is not None:
+        ref = cv2.resize(
+            ref, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC
+        )
         ref_tensor = tran(ref).clone().detach()
 
     if not cpu:

@@ -42,7 +42,7 @@ def crop_image(
             if len(load_size) == 1:
                 load_size.extend(load_size)
             old_size = img.size
-            img = F.resize(img, load_size)
+            img = F.resize(img, (load_size[1], load_size[0]))
             new_size = img.size
             ratio_x = img.size[0] / old_size[0]
             ratio_y = img.size[1] / old_size[1]
