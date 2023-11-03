@@ -1,16 +1,17 @@
-import sys
-import os
 import json
+import os
+import sys
 
 sys.path.append("../")
+import argparse
+
+import cv2
+import numpy as np
+import torch
 from models import gan_networks
 from options.train_options import TrainOptions
-import cv2
-import torch
 from torchvision import transforms
 from torchvision.utils import save_image
-import numpy as np
-import argparse
 
 
 def get_z_random(batch_size=1, nz=8, random_type="gauss"):
@@ -60,6 +61,11 @@ parser.add_argument(
 )
 parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
 parser.add_argument("--gpuid", type=int, default=0, help="which GPU to use")
+parser.add_argument(
+    "--compare",
+    action="store_true",
+    help="Concatenate the true image and the transformed image",
+)
 args = parser.parse_args()
 
 # loading model
@@ -74,6 +80,7 @@ model, opt, device = load_model(
 img_width = args.img_width if args.img_width is not None else opt.data_crop_size
 img_height = args.img_height if args.img_height is not None else opt.data_crop_size
 img = cv2.imread(args.img_in)
+original_img = img.copy()
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 img = cv2.resize(img, (img_width, img_height), interpolation=cv2.INTER_CUBIC)
 
@@ -110,5 +117,9 @@ print(out_img.shape)
 out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
 # print(out_img)
 out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
+
+if args.compare:
+    out_img = np.concatenate((original_img, out_img), axis=1)
+
 cv2.imwrite(args.img_out, out_img)
 print("Successfully generated image ", args.img_out)
