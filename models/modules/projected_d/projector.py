@@ -64,6 +64,11 @@ def _make_vit_timm(model):
     return model
 
 
+def _make_siglip_timm(model):
+    configure_get_feats_vit_timm(model, has_cls_token=False)
+    return model
+
+
 def _make_vit_clip(model):
     configure_get_feats_vit_clip(model)
     return model
@@ -130,10 +135,11 @@ def configure_get_feats_vit_clip(net):
     net.get_feats = get_feats
 
 
-def configure_get_feats_vit_timm(net):
+def configure_get_feats_vit_timm(net, has_cls_token=True):
     def get_feats(x):
         x = net.patch_embed(x)
-        x = torch.cat((net.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
+        if has_cls_token:
+            x = torch.cat((net.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
         x = net.pos_drop(x + net.pos_embed)
         outs = []
         for i, block in enumerate(net.blocks):
@@ -226,11 +232,36 @@ def calc_channels(pretrained, inp_res=224):
 def create_timm_model(model_name, config_path, weight_path, img_size):
     import timm
 
-    if "vit" in model_name:
+    if "siglip" in model_name:
+        if "so400m" in model_name:
+            avail_sizes = [224, 384]
+        else:
+            avail_sizes = [224, 384, 512]
+
+        if img_size in avail_sizes:
+            img_project = img_size
+        else:
+            takeClosest = lambda num, collection: min(
+                collection, key=lambda x: abs(x - num)
+            )
+            img_project = takeClosest(img_size, avail_sizes)
+            print("Projecting image with SigLIP size to", img_project)
+
+        model_name += "_" + str(img_project)
+        model = timm.create_model(model_name, pretrained=True, num_classes=0)
+    elif "vit" in model_name:
         model = timm.create_model(model_name, img_size=img_size, pretrained=True)
     else:
         model = timm.create_model(model_name, pretrained=True)
     return model
+
+
+def create_openclip_model(model_name):
+    from open_clip import create_model_from_pretrained
+
+    model, preprocess = create_model_from_pretrained(model_name)
+
+    return model, preprocess
 
 
 def create_clip_model(model_name, config_path, weight_path, img_size):
@@ -318,6 +349,21 @@ projector_models = {
         "model_name": "vit_small_r26_s32_224",
         "create_model_function": create_timm_model,
         "make_function": _make_vit_timm,
+    },
+    "siglip_vitb16": {
+        "model_name": "vit_base_patch16_siglip",
+        "create_model_function": create_timm_model,
+        "make_function": _make_siglip_timm,
+    },
+    "siglip_vitl16": {
+        "model_name": "vit_large_patch16_siglip",
+        "create_model_function": create_timm_model,
+        "make_function": _make_siglip_timm,
+    },
+    "siglip_vit_so400m": {
+        "model_name": "vit_so400m_patch14_siglip",
+        "create_model_function": create_timm_model,
+        "make_function": _make_siglip_timm,
     },
     "vitclip16": {
         "model_name": "ViT-B/16",
