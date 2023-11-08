@@ -34,23 +34,30 @@ models_nosemantic = [
 
 D_netDs = [["projected_d", "basic"], ["projected_d", "basic", "depth"]]
 
+D_proj_network_type = ["efficientnet", "siglip_vitb16"]
+
 train_feat_wavelet = [False, True]
 
 dataug_APA = [False, True]
 
-product_list = product(models_nosemantic, D_netDs, train_feat_wavelet, dataug_APA)
+product_list = product(
+    models_nosemantic, D_netDs, D_proj_network_type, train_feat_wavelet, dataug_APA
+)
 
 
 def test_nosemantic(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 
-    for model, Dtype, train_feat_wavelet, apa in product_list:
+    for model, Dtype, D_proj_network_type, train_feat_wavelet, apa in product_list:
         json_like_dict["model_type"] = model
         json_like_dict["D_netDs"] = Dtype
+        json_like_dict["D_proj_network_type"] = D_proj_network_type
         json_like_dict["train_feat_wavelet"] = train_feat_wavelet
         json_like_dict["dataaug_APA"] = apa
         if model == "cycle_gan" and "depth" in Dtype:
+            continue  # skip
+        if model == "cyclegan" and "siglip_vitb16" in D_proj_network_type:
             continue  # skip
 
         opt = TrainOptions().parse_json(json_like_dict.copy())

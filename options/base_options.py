@@ -451,6 +451,9 @@ class BaseOptions:
                 "dinov2_vitb14_reg",
                 "dinov2_vitl14_reg",
                 "dinov2_vitg14_reg",
+                "siglip_vitb16",
+                "siglip_vitl16",
+                "siglip_vit_so400m",
             ],
             help="projected discriminator architecture",
         )
@@ -1023,6 +1026,30 @@ class BaseOptions:
                     "ViT-B/16 (vitclip16) projector only works with input size 224, setting D_proj_interp to 224"
                 )
             opt.D_proj_interp = 224
+
+        elif "siglip" in opt.D_proj_network_type:
+            if "so400m" in opt.D_proj_network_type:
+                avail_sizes = [224, 384]
+            else:
+                avail_sizes = [224, 384, 512]
+
+            takeClosest = lambda num, collection: min(
+                collection, key=lambda x: abs(x - num)
+            )
+
+            if opt.D_proj_interp in avail_sizes:
+                img_project = opt.D_proj_interp
+            else:
+                takeClosest = lambda num, collection: min(
+                    collection, key=lambda x: abs(x - num)
+                )
+                img_project = takeClosest(opt.data_load_size, avail_sizes)
+                opt.D_proj_interp = img_project
+
+                warnings.warn(
+                    "SiGLIP projector only works with some input sizes, setting D_proj_interp to "
+                    + str(img_project)
+                )
 
         # Dsam requires D_weight_sam
         if "sam" in opt.D_netDs:
