@@ -194,6 +194,10 @@ def configure_get_feats_dinov2(net):
         "dinov2_vitb14": [3, 8, 12, 17],
         "dinov2_vitl14": [4, 10, 16, 23],
         "dinov2_vitg14": [6, 16, 26, 39],
+        "dinov2_vits14_reg": [2, 5, 8, 11],
+        "dinov2_vitb14_reg": [3, 8, 12, 17],
+        "dinov2_vitl14_reg": [4, 10, 16, 23],
+        "dinov2_vitg14_reg": [6, 16, 26, 39],
     }
 
     def get_feats(x):
@@ -238,7 +242,9 @@ def create_clip_model(model_name, config_path, weight_path, img_size):
 
 
 def create_dinov2_model(model_name, config_path, weight_path, img_size):
-    dinov2_model = torch.hub.load("facebookresearch/dinov2", model_name)
+    dinov2_model = torch.hub.load(
+        "facebookresearch/dinov2", model_name, force_reload=True
+    )
     return dinov2_model
 
 
@@ -345,6 +351,26 @@ projector_models = {
     },
     "dinov2_vitg14": {
         "model_name": "dinov2_vitg14",
+        "create_model_function": create_dinov2_model,
+        "make_function": _make_dinov2,
+    },
+    "dinov2_vits14_reg": {
+        "model_name": "dinov2_vits14_reg",
+        "create_model_function": create_dinov2_model,
+        "make_function": _make_dinov2,
+    },
+    "dinov2_vitb14_reg": {
+        "model_name": "dinov2_vitb14_reg",
+        "create_model_function": create_dinov2_model,
+        "make_function": _make_dinov2,
+    },
+    "dinov2_vitl14": {
+        "model_name": "dinov2_vitl14_reg",
+        "create_model_function": create_dinov2_model,
+        "make_function": _make_dinov2,
+    },
+    "dinov2_vitg14_reg": {
+        "model_name": "dinov2_vitg14_reg",
         "create_model_function": create_dinov2_model,
         "make_function": _make_dinov2,
     },
