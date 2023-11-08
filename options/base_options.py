@@ -447,6 +447,10 @@ class BaseOptions:
                 "dinov2_vitb14",
                 "dinov2_vitl14",
                 "dinov2_vitg14",
+                "dinov2_vits14_reg",
+                "dinov2_vitb14_reg",
+                "dinov2_vitl14_reg",
+                "dinov2_vitg14_reg",
             ],
             help="projected discriminator architecture",
         )
