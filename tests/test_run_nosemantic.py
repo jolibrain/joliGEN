@@ -32,7 +32,11 @@ models_nosemantic = [
     "cycle_gan",
 ]
 
-D_netDs = [["projected_d", "basic"], ["projected_d", "basic", "depth"]]
+D_netDs = [
+    ["projected_d", "basic"],
+    ["projected_d", "basic", "depth"],
+    ["projected_d", "basic", "unet"],
+]
 
 D_proj_network_type = ["efficientnet", "siglip_vitb16"]
 

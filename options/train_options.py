@@ -302,6 +302,14 @@ class TrainOptions(BaseOptions):
             default=1,
             help="backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size*iter_size",
         )
+
+        parser.add_argument(
+            "--train_use_cutmix",
+            type=bool,
+            default=False,
+            help="add cutmix augmentation",
+        )
+
         parser.add_argument("--train_use_contrastive_loss_D", action="store_true")
 
         # frequency space training

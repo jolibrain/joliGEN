@@ -208,6 +208,7 @@ class BaseGanModel(BaseModel):
 
         if self.use_temporal:
             self.compute_temporal_fake(objective_domain="B")
+
             if hasattr(self, "netG_B"):
                 self.compute_temporal_fake(objective_domain="A")
 
@@ -401,7 +402,6 @@ class BaseGanModel(BaseModel):
                 loss_name,
                 loss_value,
             )
-
             self.loss_D_tot += loss_value
 
     def compute_G_loss_GAN_generic(
@@ -479,7 +479,6 @@ class BaseGanModel(BaseModel):
                 loss_name,
                 loss_value,
             )
-
             self.loss_G_tot += loss_value
 
         if self.opt.train_temporal_criterion:
@@ -531,6 +530,9 @@ class BaseGanModel(BaseModel):
             else:
                 train_gan_mode = self.opt.train_gan_mode
 
+            if "une_discriminator_mha" in discriminator_name:
+                train_use_cutmix = self.opt.train_use_cutmix
+
             if "projected" in discriminator_name:
                 dataaug_D_diffusion = self.opt.dataaug_D_diffusion
                 dataaug_D_diffusion_every = self.opt.dataaug_D_diffusion_every
@@ -561,6 +563,26 @@ class BaseGanModel(BaseModel):
                 fake_name = "temporal_fake"
                 real_name = "temporal_real"
                 compute_every = self.opt.D_temporal_every
+
+            elif "unet_discriminator_mha" in discriminator_name:
+                loss_calculator = loss.DualDiscriminatorGANLoss(
+                    netD=getattr(self, "net" + discriminator_name),
+                    device=self.device,
+                    dataaug_APA_p=self.opt.dataaug_APA_p,
+                    dataaug_APA_target=self.opt.dataaug_APA_target,
+                    train_batch_size=self.opt.train_batch_size,
+                    dataaug_APA_nimg=self.opt.dataaug_APA_nimg,
+                    dataaug_APA_every=self.opt.dataaug_APA_every,
+                    dataaug_D_label_smooth=self.opt.dataaug_D_label_smooth,
+                    train_gan_mode=train_gan_mode,
+                    dataaug_APA=self.opt.dataaug_APA,
+                    dataaug_D_diffusion=dataaug_D_diffusion,
+                    dataaug_D_diffusion_every=dataaug_D_diffusion_every,
+                    train_use_cutmix=self.opt.train_use_cutmix,
+                )
+                fake_name = None
+                real_name = None
+                compute_every = 1
 
             else:
                 fake_name = None
@@ -598,12 +620,6 @@ class BaseGanModel(BaseModel):
                         dataaug_D_diffusion_every=dataaug_D_diffusion_every,
                     )
 
-                setattr(
-                    self,
-                    loss_calculator_name,
-                    loss_calculator,
-                )
-
             if "depth" in discriminator_name:
                 fake_name = "fake_depth"
                 real_name = "real_depth"
@@ -613,6 +629,12 @@ class BaseGanModel(BaseModel):
             elif "sam" in discriminator_name:
                 fake_name = "fake_sam"
                 real_name = "real_sam"
+
+            setattr(
+                self,
+                loss_calculator_name,
+                loss_calculator,
+            )
 
             self.objects_to_update.append(getattr(self, loss_calculator_name))
 
