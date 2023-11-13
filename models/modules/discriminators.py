@@ -1,5 +1,5 @@
 import functools
-
+import torch
 import numpy as np
 from torch import nn
 from torch.nn import functional as F
@@ -151,3 +151,203 @@ class PixelDiscriminator(nn.Module):
     def forward(self, input):
         """Standard forward."""
         return self.net(input)
+
+
+
+class UnetDiscriminator(nn.Module):
+    """Create a Unet-based discriminator"""
+
+    def __init__(
+        self,
+        input_nc,
+        output_nc,
+        D_num_downs,
+        D_ngf=64,
+        norm_layer=nn.BatchNorm2d,
+        use_dropout=False,
+    ):
+        """Construct a Unet discriminator
+        Parameters:
+            input_nc (int)  -- the number of channels in input images
+            output_nc (int) -- the number of channels in output images
+            D_num_downs (int) -- the number of downsamplings in UNet. For example, # if |num_downs| == 7,
+                                image of size 128x128 will become of size 1x1 # at the bottleneck
+            D_ngf (int)       -- the number of filters in the last conv layer, here  ngf=64, so inner_nc=64*8=512
+            norm_layer      -- normalization layer
+
+        We construct the U-Net from the innermost layer to the outermost layer.
+        It is a recursive process.
+        """
+        super(UnetDiscriminator, self).__init__()
+        # construct unet structure
+        # add the innermost layer
+        unet_block = UnetSkipConnectionBlock(
+            D_ngf * 8,
+            D_ngf * 8,
+            input_nc=None,
+            submodule=None,
+            norm_layer=norm_layer,
+            innermost=True,
+        )
+        # add intermediate layers with ngf * 8 filters
+        for i in range(D_num_downs - 5):  # add intermediate layers with ngf * 8 filters
+            unet_block = UnetSkipConnectionBlock(
+                D_ngf * 8,
+                D_ngf * 8,
+                input_nc=None,
+                submodule=unet_block,
+                norm_layer=norm_layer,
+                use_dropout=use_dropout,
+            )
+        # gradually reduce the number of filters from ngf * 8 to ngf
+        unet_block = UnetSkipConnectionBlock(
+            D_ngf * 4,
+            D_ngf * 8,
+            input_nc=None,
+            submodule=unet_block,
+            norm_layer=norm_layer,
+        )
+        unet_block = UnetSkipConnectionBlock(
+            D_ngf * 2,
+            D_ngf * 4,
+            input_nc=None,
+            submodule=unet_block,
+            norm_layer=norm_layer,
+        )
+        unet_block = UnetSkipConnectionBlock(
+            D_ngf, D_ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer
+        )
+
+        # add the outermost layer
+        self.model = UnetSkipConnectionBlock(
+            output_nc,
+            D_ngf,
+            input_nc=input_nc,
+            submodule=unet_block,
+            outermost=True,
+            norm_layer=norm_layer,
+        )
+
+    def compute_feats(self, input, extract_layer_ids=[]):
+        output, feats, output_encoder_inside = self.model(input, feats=[])
+        return_feats = []
+        for i, feat in enumerate(feats):
+            if i in extract_layer_ids:
+                return_feats.append(feat)
+
+        return output, return_feats, output_encoder_inside
+
+    def forward(self, input):
+        output, _, output_encoder_inside = self.compute_feats(input)
+        return output, output_encoder_inside
+
+
+class UnetSkipConnectionBlock(nn.Module):
+    """Defines the Unet submodule with skip connection.
+    X -------------------identity----------------------
+    |-- downsampling -- |submodule| -- upsampling --|
+    """
+
+    def __init__(
+        self,
+        outer_nc,
+        inner_nc,
+        input_nc=None,
+        submodule=None,
+        outermost=False,
+        innermost=False,
+        norm_layer=nn.BatchNorm2d,
+        use_dropout=False,
+    ):
+        super(UnetSkipConnectionBlock, self).__init__()
+        self.outermost = outermost
+        self.innermost = innermost
+
+        # Move the bottleneck conv layers initialization to innermost condition
+        if self.innermost:
+            self.bottleneck_conv_cor2 = nn.Conv2d(
+                inner_nc, outer_nc, kernel_size=2, stride=1, padding=0, bias=True
+            )
+            self.bottleneck_conv_cor1 = nn.Conv2d(
+                inner_nc, outer_nc, kernel_size=1, stride=1, padding=0, bias=True
+            )
+
+        self.flatten = nn.Flatten()
+        self.tanh = nn.Tanh()
+
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        if input_nc is None:
+            input_nc = outer_nc
+        downconv = nn.Conv2d(
+            input_nc, inner_nc, kernel_size=4, stride=2, padding=1, bias=use_bias
+        )
+        downrelu = nn.LeakyReLU(0.2, True)
+        downnorm = norm_layer(inner_nc)
+        uprelu = nn.ReLU(True)
+        upnorm = norm_layer(outer_nc)
+
+        if outermost:
+            upconv = nn.ConvTranspose2d(
+                inner_nc * 2, outer_nc, kernel_size=4, stride=2, padding=1
+            )
+            down = [downconv]
+            up = [uprelu, upconv, nn.Tanh()]
+            model = down + [submodule] + up
+        elif innermost:
+            upconv = nn.ConvTranspose2d(
+                inner_nc, outer_nc, kernel_size=4, stride=2, padding=1, bias=use_bias
+            )
+            down = [downrelu, downconv]
+            up = [uprelu, upconv, upnorm]
+            model = down + up
+        else:
+            upconv = nn.ConvTranspose2d(
+                inner_nc * 2,
+                outer_nc,
+                kernel_size=4,
+                stride=2,
+                padding=1,
+                bias=use_bias,
+            )
+            down = [downrelu, downconv, downnorm]
+            up = [uprelu, upconv, upnorm]
+
+            if use_dropout:
+                model = down + [submodule] + up + [nn.Dropout(0.5)]
+            else:
+                model = down + [submodule] + up
+
+        self.model = nn.Sequential(*model)
+
+
+    def forward(self, x, feats, output_encoder_inside=None):
+        output = self.model[0](x)
+        return_feats = feats + [output]
+
+        for layer in self.model[1:]:
+            if isinstance(layer, UnetSkipConnectionBlock):
+                output, return_feats, output_encoder_inside = layer(
+                    output, return_feats, output_encoder_inside=output_encoder_inside
+                )
+            else:
+                output = layer(output)
+
+            # Only apply the bottleneck convolutions if it's the innermost block
+            if self.innermost and isinstance(layer, nn.ReLU):
+                output_encoder = output
+                if hasattr(self, 'bottleneck_conv_cor2') and output_encoder.shape[2] == 2:
+                    output_encoder_conv = self.bottleneck_conv_cor2(output_encoder)
+                elif hasattr(self, 'bottleneck_conv_cor1'):
+                    output_encoder_conv = self.bottleneck_conv_cor1(output_encoder)
+
+                output_encoder_inside = self.tanh(output_encoder_conv)
+
+        if not self.outermost:  # add skip connections
+            output = torch.cat([x, output], 1)
+
+        return output, return_feats, output_encoder_inside
+

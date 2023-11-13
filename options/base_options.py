@@ -380,6 +380,20 @@ class BaseOptions:
             help="# of discrim filters in the first conv layer",
         )
         parser.add_argument(
+            "--D_ngf",
+            type=int,
+            default=64,
+            help="#*8 of discrim filters in the last conv layer",
+        )
+
+        parser.add_argument(
+            "--D_num_downs",
+            type=int,
+            default=7,
+            help="# of downsampling",
+        )
+
+        parser.add_argument(
             "--D_netDs",
             type=str,
             default=["projected_d", "basic"],
@@ -393,6 +407,7 @@ class BaseOptions:
                 "depth",
                 "mask",
                 "sam",
+                "unet",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
             help="specify discriminator architecture, another option, --D_n_layers allows you to specify the layers in the n_layers discriminator. NB: duplicated arguments are ignored. Values: basic, n_layers, pixel, projected_d, temporal, vision_aided, depth, mask, sam",

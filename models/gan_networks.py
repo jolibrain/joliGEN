@@ -1,4 +1,5 @@
 import os
+import torch
 import torch.nn as nn
 import functools
 from torch.optim import lr_scheduler
@@ -19,6 +20,8 @@ from .modules.unet_architecture.unet_generator import UnetGenerator
 from .modules.resnet_architecture.resnet_generator import ResnetGenerator_attn
 from .modules.discriminators import NLayerDiscriminator
 from .modules.discriminators import PixelDiscriminator
+from .modules.discriminators import UnetDiscriminator
+
 
 from .modules.classifiers import (
     torch_model,
@@ -238,13 +241,17 @@ def define_G(
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG
         )
+    print("netG is {}".format(net))
     return init_net(net, model_init_type, model_init_gain)
 
 
 def define_D(
     D_netDs,
     model_input_nc,
+    model_output_nc,
+    D_num_downs,
     D_ndf,
+    D_ngf,
     D_n_layers,
     D_norm,
     D_dropout,
@@ -273,7 +280,9 @@ def define_D(
 
     Parameters:
         model_input_nc (int)     -- the number of channels in input images
+        model_output_nc (int)     -- the number of channels in output images
         D_ndf (int)          -- the number of filters in the first conv layer
+        num_downs(int)  -- the number of downsamplings in UNet. For example, # if |num_downs| == 7, image of size 128x128 will become of size 1x1 at the bottleneck
         netD (str)         -- the architecture's name: basic | n_layers | pixel
         D_n_layers (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
         D_norm (str)         -- the type of normalization layers used in the network.
@@ -432,11 +441,23 @@ def define_D(
             )
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
+        elif netD == "unet":
+            net = UnetDiscriminator(
+                model_input_nc,
+                model_output_nc,
+                D_num_downs,  # the number of downsamplings
+                D_ngf,  # the final conv has D_ngf*8=512 filter
+                norm_layer=norm_layer,
+                use_dropout=D_dropout,
+            )
+            return_nets[netD] = init_net(net, model_init_type, model_init_gain)
+
+
         else:
             raise NotImplementedError(
                 "Discriminator model name [%s] is not recognized" % netD
             )
-
+    print("discriminator is {}".format(return_nets))
     return return_nets
 
 
