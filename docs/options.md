@@ -32,7 +32,7 @@ Here are all the available options to call with `train.py`
 | --D_norm | string | instance | instance normalization or batch normalization for D<br/><br/> **Values:** instance, batch, none |
 | --D_proj_config_segformer | string | models/configs/segformer/segformer_config_b0.json | path to segformer configuration file |
 | --D_proj_interp | int | -1 | whether to force projected discriminator interpolation to a value \> 224, -1 means no interpolation |
-| --D_proj_network_type | string | efficientnet | projected discriminator architecture<br/><br/> **Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16, vitclip14, depth, dinov2_vits14, dinov2_vitb14, dinov2_vitl14, dinov2_vitg14, dinov2_vits14_reg, dinov2_vitb14_reg, dinov2_vitl14_reg, dinov2_vitg14_reg |
+| --D_proj_network_type | string | efficientnet | projected discriminator architecture<br/><br/> **Values:** efficientnet, segformer, vitbase, vitsmall, vitsmall2, vitclip16, vitclip14, depth, dinov2_vits14, dinov2_vitb14, dinov2_vitl14, dinov2_vitg14, dinov2_vits14_reg, dinov2_vitb14_reg, dinov2_vitl14_reg, dinov2_vitg14_reg, siglip_vitb16, siglip_vitl16, siglip_vit_so400m |
 | --D_proj_weight_segformer | string | models/configs/segformer/pretrain/segformer_mit-b0.pth | path to segformer weight |
 | --D_spectral | flag |  | whether to use spectral norm in the discriminator |
 | --D_temporal_every | int | 4 | apply temporal discriminator every x steps |
