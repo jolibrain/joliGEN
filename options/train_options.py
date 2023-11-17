@@ -305,9 +305,8 @@ class TrainOptions(BaseOptions):
 
         parser.add_argument(
             "--train_use_cutmix",
-            type=bool,
-            default=False,
-            help="add cutmix augmentation",
+            action="store_true",
+            help="add cutmix augmentation or regularization ",
         )
 
         parser.add_argument("--train_use_contrastive_loss_D", action="store_true")

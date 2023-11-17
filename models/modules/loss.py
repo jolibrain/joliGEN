@@ -491,9 +491,10 @@ class DualDiscriminatorGANLoss(DiscriminatorLoss):
                 pred_fake_pixel, 1 - cutmix_pixel_label
             ) + torch.mul(pred_real_pixel, cutmix_pixel_label)
 
-            loss_cutmix_pixel = torch.norm(
-                pred_cutmix_fake_pixel - consistent_pred_pixel, p=2
-            ).pow(2)
+            cutmix_loss = nn.MSELoss()
+            loss_cutmix_pixel = cutmix_loss(
+                pred_cutmix_fake_pixel, consistent_pred_pixel
+            )
 
             loss_D_fake_pixel = self.criterionGAN(pred_fake_pixel, False)
             loss_D_fake_bottleneck = self.criterionGAN(pred_fake_bottleneck, False)
