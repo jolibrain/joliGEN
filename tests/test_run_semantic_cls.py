@@ -59,5 +59,5 @@ def test_semantic_cls(dataroot):
         json_like_dict_c["D_proj_network_type"] = Dtype
         json_like_dict_c["f_s_net"] = f_s_type
 
-        opt = TrainOptions().parse_json(json_like_dict_c)
+        opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)

@@ -8,6 +8,7 @@ import re
 import sys
 import tempfile
 import warnings
+import logging
 
 import cv2
 import numpy as np
@@ -189,8 +190,13 @@ def generate(
     alg_palette_ddim_num_steps,
     alg_palette_ddim_eta,
     model_prior_321_backwardcompatibility,
+    logger,
+    iteration,
+    nb_samples,
     **unused_options,
 ):
+
+    PROGRESS_NUM_STEPS = 4
     # seed
     if seed >= 0:
         torch.manual_seed(seed)
@@ -215,6 +221,12 @@ def generate(
     else:
         model = lmodel
         opt = lopt
+
+    if logger:
+        logger.info(
+            f"[it: %i/%i] - [1/%i] model loaded"
+            % (iteration, nb_samples, PROGRESS_NUM_STEPS)
+        )
 
     if alg_palette_cond_image_creation is not None:
         opt.alg_palette_cond_image_creation = alg_palette_cond_image_creation
@@ -376,6 +388,12 @@ def generate(
             mask = cv2.resize(mask, (img_width, img_height))
         if ref is not None:
             ref = cv2.resize(ref, (img_width, img_height))
+
+    if logger:
+        logger.info(
+            f"[it: %i/%i] - [2/%i] image loaded"
+            % (iteration, nb_samples, PROGRESS_NUM_STEPS)
+        )
 
     # insert cond image into original image
     generated_bbox = None
@@ -608,6 +626,12 @@ def generate(
             out_tensor
         )  # out_img = out_img.detach().data.cpu().float().numpy()[0]
 
+    if logger:
+        logger.info(
+            f"[it: %i/%i] - [3/%i] processing completed"
+            % (iteration, nb_samples, PROGRESS_NUM_STEPS)
+        )
+
     """ post-processing
     
     out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
@@ -661,10 +685,42 @@ def generate(
 
         print("Successfully generated image ", name)
 
+    if logger:
+        logger.info(
+            f"[it: %i/%i] - [4/%i] image written"
+            % (iteration, nb_samples, PROGRESS_NUM_STEPS)
+        )
+
     return out_img_real_size, model, opt
 
 
+def inference_logger(name):
+
+    PROCESS_NAME = "gen_single_image_diffusion"
+    LOG_PATH = os.environ.get(
+        "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
+    )
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        handlers=[
+            logging.FileHandler(f"{LOG_PATH}/{name}.log", mode="w"),
+            logging.StreamHandler(),
+        ],
+    )
+
+    return logging.getLogger(f"inference %s %s" % (PROCESS_NAME, name))
+
+
 def inference(args):
+
+    PROGRESS_NUM_STEPS = 6
+    logger = inference_logger(args.name)
+
+    args.logger = logger
+
     if len(args.mask_delta_ratio[0]) == 1 and args.mask_delta_ratio[0][0] == 0.0:
         mask_delta = args.mask_delta
     else:
@@ -679,10 +735,14 @@ def inference(args):
     args.lopt = None
 
     for i in tqdm(range(args.nb_samples)):
+        args.iteration = i + 1
+        logger.info(f"[it: %i/%i] launch inference" % (args.iteration, args.nb_samples))
         args.name = real_name + "_" + str(i).zfill(len(str(args.nb_samples)))
         frame, lmodel, lopt = generate(**vars(args))
         args.lmodel = lmodel
         args.lopt = lopt
+
+    logger.info(f"success - end of inference")
 
 
 if __name__ == "__main__":

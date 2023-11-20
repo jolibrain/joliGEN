@@ -122,6 +122,7 @@ fi
 ###### test cut
 echo "Running test cut"
 python3 "${current_dir}/../test.py" \
+	--save_config \
 	--test_model_dir $DIR/joligen_utest_cut/ \
 	--test_metrics_list FID KID PSNR LPIPS
 OUT=$?
@@ -144,6 +145,7 @@ fi
 ###### test palette
 echo "Running test palette"
 python3 "${current_dir}/../test.py" \
+	--save_config \
 	--test_model_dir $DIR/joligen_utest_palette/ \
 	--test_metrics_list FID KID PSNR LPIPS
 OUT=$?
@@ -240,9 +242,6 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-echo "Deleting target dir $DIR"
-rm -rf $DIR/*
-
 #### Client server test
 SERVER_HOST="localhost"
 SERVER_PORT=8047
@@ -254,3 +253,40 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
+
+# ####### api server tests
+echo "Running api server tests"
+
+python3 -m pytest \
+    -p no:cacheprovider \
+    -s "${current_dir}/../tests/test_api_predict_common.py"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+python3 -m pytest \
+    -p no:cacheprovider \
+    -s "${current_dir}/../tests/test_api_predict_gan.py" \
+    --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+python3 -m pytest \
+    -p no:cacheprovider \
+    -s "${current_dir}/../tests/test_api_predict_diffusion.py" \
+    --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+# End of tests
+# Clean up
+echo "Deleting target dir $DIR"
+rm -rf $DIR/*

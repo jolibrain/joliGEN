@@ -7,6 +7,8 @@ class InferenceDiffusionOptions(BaseOptions):
         """Define the common options that are used in both training and test."""
         parser = super().initialize(parser)
 
+        parser.add_argument("--name", help="inference process name", default="predict")
+
         parser.add_argument(
             "--model_in_file",
             help="file path to generator model (.pth file)",
@@ -19,7 +21,6 @@ class InferenceDiffusionOptions(BaseOptions):
             help="The directory where to output result images",
             required=True,
         )
-        parser.add_argument("--name", help="generated img name", default="img")
 
         parser.add_argument(
             "--img_width",
