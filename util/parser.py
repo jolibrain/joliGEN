@@ -28,10 +28,16 @@ def get_opt(main_opt, remaining_args):
         with open(main_opt.config_json, "r") as jsonf:
             train_json = flatten_json(json.load(jsonf))
 
+        # Save the config file when --save_config is passed
+        is_config_saved = False
+        if "save_config" in override_options_names:
+            is_config_saved = True
+            override_options_names.remove("save_config")
+
         for name in override_options_names:
             train_json[name] = override_options_json[name]
 
-        opt = TrainOptions().parse_json(train_json)
+        opt = TrainOptions().parse_json(train_json, save_config=is_config_saved)
 
         print("%s config file loaded" % main_opt.config_json)
     else:

@@ -30,7 +30,7 @@ NB: the name given in joligen commandline options will also be the name of the t
 python client.py --method training_status --host jg_server_host --port jg_server_port
 
 # Stop a training
-python client.py --method training_status --host jg_server_host --port jg_server_port --name training_name
+python client.py --method stop_training --host jg_server_host --port jg_server_port --name training_name
 """
 
 import requests
