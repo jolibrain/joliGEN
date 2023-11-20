@@ -148,5 +148,5 @@ def test_semantic_mask_online(dataroot):
             "test_image.jpg",
         )
 
-        opt = InferenceGANOptions().parse_json(infer_options_c, save_config=False)
+        opt = InferenceGANOptions().parse_json(infer_options_c, save_config=True)
         inference(opt)

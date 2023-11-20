@@ -84,5 +84,5 @@ def test_semantic_mask(dataroot):
         json_like_dict_c["alg_diffusion_cond_embed"] = alg_diffusion_cond_embed
         json_like_dict_c["train_feat_wavelet"] = train_feat_wavelet
 
-        opt = TrainOptions().parse_json(json_like_dict_c)
+        opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)

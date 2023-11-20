@@ -50,5 +50,5 @@ def test_diffusion(dataroot):
         json_like_dict_c["G_unet_mha_norm_layer"] = G_norm
         json_like_dict_c["G_unet_mha_vit_efficient"] = G_efficient
 
-        opt = TrainOptions().parse_json(json_like_dict_c)
+        opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
