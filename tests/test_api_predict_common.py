@@ -8,9 +8,11 @@ from starlette.websockets import WebSocketDisconnect
 sys.path.append(sys.path[0] + "/..")
 from server.joligen_api import app
 
+
 @pytest.fixture
 def api():
     return TestClient(app)
+
 
 def test_predict_endpoint_missing_options(api):
     response = api.post("/predict", json={})
@@ -25,18 +27,15 @@ def test_predict_endpoint_missing_options(api):
         "detail": "parameter predict_options.model_in_file is required",
     }
 
-    response = api.post("/predict", json={"predict_options": {"model_in_file": "unknown"}})
+    response = api.post(
+        "/predict", json={"predict_options": {"model_in_file": "unknown"}}
+    )
     assert response.status_code == 400
     assert response.json() == {
         "detail": "parameter predict_options.img_in is required",
     }
 
-    payload = {
-        "predict_options": {
-            "model_in_file": "unknown",
-            "img_in": "unknown"
-        }
-    }
+    payload = {"predict_options": {"model_in_file": "unknown", "img_in": "unknown"}}
     response = api.post("/predict", json=payload)
     assert response.status_code == 400
     assert response.json() == {
@@ -45,7 +44,4 @@ def test_predict_endpoint_missing_options(api):
 
     with api.websocket_connect("/ws/predict/random") as ws:
         data = ws.receive_json()
-        assert data == {
-            "status": "error",
-            "message": "random not in context"
-        }
+        assert data == {"status": "error", "message": "random not in context"}

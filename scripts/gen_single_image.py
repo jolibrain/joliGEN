@@ -62,7 +62,7 @@ def inference_logger(name):
         level=logging.DEBUG,
         handlers=[
             logging.FileHandler(f"{LOG_PATH}/{name}.log", mode="w"),
-            logging.StreamHandler()
+            logging.StreamHandler(),
         ],
     )
 

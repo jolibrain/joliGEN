@@ -223,8 +223,10 @@ def generate(
         opt = lopt
 
     if logger:
-        logger.info(f"[it: %i/%i] - [1/%i] model loaded" %
-                    (iteration, nb_samples, PROGRESS_NUM_STEPS))
+        logger.info(
+            f"[it: %i/%i] - [1/%i] model loaded"
+            % (iteration, nb_samples, PROGRESS_NUM_STEPS)
+        )
 
     if alg_palette_cond_image_creation is not None:
         opt.alg_palette_cond_image_creation = alg_palette_cond_image_creation
@@ -388,8 +390,10 @@ def generate(
             ref = cv2.resize(ref, (img_width, img_height))
 
     if logger:
-        logger.info(f"[it: %i/%i] - [2/%i] image loaded" %
-                    (iteration, nb_samples, PROGRESS_NUM_STEPS))
+        logger.info(
+            f"[it: %i/%i] - [2/%i] image loaded"
+            % (iteration, nb_samples, PROGRESS_NUM_STEPS)
+        )
 
     # insert cond image into original image
     generated_bbox = None
@@ -623,8 +627,10 @@ def generate(
         )  # out_img = out_img.detach().data.cpu().float().numpy()[0]
 
     if logger:
-        logger.info(f"[it: %i/%i] - [3/%i] processing completed" %
-                    (iteration, nb_samples, PROGRESS_NUM_STEPS))
+        logger.info(
+            f"[it: %i/%i] - [3/%i] processing completed"
+            % (iteration, nb_samples, PROGRESS_NUM_STEPS)
+        )
 
     """ post-processing
     
@@ -680,9 +686,10 @@ def generate(
         print("Successfully generated image ", name)
 
     if logger:
-        logger.info(f"[it: %i/%i] - [4/%i] image written" %
-                    (iteration, nb_samples, PROGRESS_NUM_STEPS))
-
+        logger.info(
+            f"[it: %i/%i] - [4/%i] image written"
+            % (iteration, nb_samples, PROGRESS_NUM_STEPS)
+        )
 
     return out_img_real_size, model, opt
 
@@ -700,7 +707,7 @@ def inference_logger(name):
         level=logging.DEBUG,
         handlers=[
             logging.FileHandler(f"{LOG_PATH}/{name}.log", mode="w"),
-            logging.StreamHandler()
+            logging.StreamHandler(),
         ],
     )
 

@@ -8,23 +8,22 @@ from starlette.websockets import WebSocketDisconnect
 sys.path.append(sys.path[0] + "/..")
 from server.joligen_api import app
 
+
 @pytest.fixture
 def api():
     return TestClient(app)
 
+
 @pytest.mark.asyncio
 async def test_predict_endpoint_gan_success(dataroot, api):
-    model_in_file = os.path.abspath(
-        os.path.join(
-            dataroot,
-            "latest_net_G_A.pth"
-        )
-    )
+    model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
-            "img_in": os.path.join(dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"),
-            "img_out": os.path.join(dataroot, "../out_success.jpg")
+            "img_in": os.path.join(
+                dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
+            ),
+            "img_out": os.path.join(dataroot, "../out_success.jpg"),
         }
     }
 
@@ -63,22 +62,18 @@ async def test_predict_endpoint_gan_success(dataroot, api):
             except WebSocketDisconnect:
                 break
 
+
 def test_predict_endpoint_sync_success(dataroot, api):
-    model_in_file = os.path.abspath(
-        os.path.join(
-            dataroot,
-            "latest_net_G_A.pth"
-        )
-    )
+    model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
-            "img_in": os.path.join(dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"),
-            "img_out": os.path.join(dataroot, "../out_success_sync.jpg")
+            "img_in": os.path.join(
+                dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
+            ),
+            "img_out": os.path.join(dataroot, "../out_success_sync.jpg"),
         },
-        "server": {
-            "sync": True
-        }
+        "server": {"sync": True},
     }
 
     response = api.post("/predict", json=payload)

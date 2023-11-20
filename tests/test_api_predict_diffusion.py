@@ -8,6 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 sys.path.append(sys.path[0] + "/..")
 from server.joligen_api import app
 
+
 @pytest.fixture
 def api():
     return TestClient(app)
@@ -15,18 +16,15 @@ def api():
 
 @pytest.mark.asyncio
 async def test_predict_endpoint_diffusion_success(dataroot, api):
-    model_in_file = os.path.abspath(
-        os.path.join(
-            dataroot,
-            "latest_net_G_A.pth"
-        )
-    )
+    model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
     dir_out = os.path.join(dataroot, "../")
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
-            "img_in": os.path.join(dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"),
-            "dir_out": dir_out
+            "img_in": os.path.join(
+                dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
+            ),
+            "dir_out": dir_out,
         }
     }
 
@@ -67,29 +65,21 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
 
     for output in ["cond", "generated", "orig", "y_t"]:
         assert os.path.exists(
-            os.path.join(
-                dir_out,
-                f"%s_0_%s.png" % (predict_name, output)
-            )
+            os.path.join(dir_out, f"%s_0_%s.png" % (predict_name, output))
         )
 
 
 def test_predict_endpoint_sync_success(dataroot, api):
-    model_in_file = os.path.abspath(
-        os.path.join(
-            dataroot,
-            "latest_net_G_A.pth"
-        )
-    )
+    model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
-            "img_in": os.path.join(dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"),
-            "img_out": os.path.join(dataroot, "../out_success_sync.jpg")
+            "img_in": os.path.join(
+                dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
+            ),
+            "img_out": os.path.join(dataroot, "../out_success_sync.jpg"),
         },
-        "server": {
-            "sync": True
-        }
+        "server": {"sync": True},
     }
 
     response = api.post("/predict", json=payload)

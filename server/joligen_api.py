@@ -9,7 +9,8 @@ from pathlib import Path
 import time
 
 import torch.multiprocessing as mp
-mp.set_start_method('spawn')
+
+mp.set_start_method("spawn")
 
 from train import launch_training
 from options.train_options import TrainOptions
@@ -23,6 +24,7 @@ from options.inference_gan_options import InferenceGANOptions
 from options.inference_diffusion_options import InferenceDiffusionOptions
 
 import sys
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../scripts"))
 from gen_single_image import inference as gan_inference
 from gen_single_image_diffusion import inference as diffusion_inference
@@ -170,6 +172,7 @@ async def get_train_processes():
 
     return {"processes": processes}
 
+
 # Inference
 
 LOG_PATH = os.environ.get(
@@ -204,18 +207,16 @@ async def websocket_predict_endpoint(ws: WebSocket, name: str):
             # error handling on name parameter
             if name not in ctx:
 
-                await ws.send_json({
-                    "status": "error",
-                    "message": f"%s not in context" % name
-                })
+                await ws.send_json(
+                    {"status": "error", "message": f"%s not in context" % name}
+                )
                 await ws.close()
                 break
 
             elif not is_alive(ctx[name]):
-                await ws.send_json({
-                    "status": "stopped",
-                    "message": f"%s is stopped" % name
-                })
+                await ws.send_json(
+                    {"status": "stopped", "message": f"%s is stopped" % name}
+                )
                 await ws.close()
                 break
 
@@ -223,23 +224,18 @@ async def websocket_predict_endpoint(ws: WebSocket, name: str):
             try:
                 log_line = await log_reader_last_line(name)
             except Exception as e:
-                await ws.send_json({
-                    "status": "error",
-                    "message": f"log reading error on {name}: {e}"
-                })
+                await ws.send_json(
+                    {"status": "error", "message": f"log reading error on {name}: {e}"}
+                )
                 await ws.close()
                 break
 
             # send last line to client
             if log_line != "":
-                await ws.send_json({
-                    "status": "log",
-                    "message": log_line.strip()
-                })
+                await ws.send_json({"status": "log", "message": log_line.strip()})
 
             # close connection if inference is finished
-            if "success" in log_line or \
-               "error" in log_line:
+            if "success" in log_line or "error" in log_line:
                 await ws.close()
                 break
 
@@ -249,10 +245,9 @@ async def websocket_predict_endpoint(ws: WebSocket, name: str):
     except Exception as e:
         print(f"error on ws log endpoint for {name}: {e}")
         traceback.print_exc()
-        await ws.send_json({
-            "status": "error",
-            "message": f"error on ws log endpoint for {name}: {e}"
-        })
+        await ws.send_json(
+            {"status": "error", "message": f"error on ws log endpoint for {name}: {e}"}
+        )
         await ws.close()
 
 
@@ -266,17 +261,24 @@ async def predict(request: Request):
     predict_body = await request.json()
 
     if "predict_options" not in predict_body:
-        raise HTTPException(status_code=400, detail="parameter predict_options is required")
+        raise HTTPException(
+            status_code=400, detail="parameter predict_options is required"
+        )
 
     if "model_in_file" not in predict_body["predict_options"]:
-        raise HTTPException(status_code=400, detail="parameter predict_options.model_in_file is required")
+        raise HTTPException(
+            status_code=400,
+            detail="parameter predict_options.model_in_file is required",
+        )
 
     if "img_in" not in predict_body["predict_options"]:
-        raise HTTPException(status_code=400, detail="parameter predict_options.img_in is required")
+        raise HTTPException(
+            status_code=400, detail="parameter predict_options.img_in is required"
+        )
 
     train_json_path = Path(
         os.path.dirname(predict_body["predict_options"]["model_in_file"]),
-        "train_config.json"
+        "train_config.json",
     )
 
     if not train_json_path.exists():
@@ -289,8 +291,7 @@ async def predict(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=400, detail="{0}".format(e))
 
-    if "model_type" in train_json and \
-       train_json["model_type"] == "palette":
+    if "model_type" in train_json and train_json["model_type"] == "palette":
         target = diffusion_inference
         parser = InferenceDiffusionOptions()
     else:
@@ -307,11 +308,15 @@ async def predict(request: Request):
 
     ctx[opt.name] = mp.Process(target=target, args=(opt,))
 
-    if "server" in predict_body and \
-       "sync" in predict_body["server"] and \
-       predict_body["server"]["sync"]:
+    if (
+        "server" in predict_body
+        and "sync" in predict_body["server"]
+        and predict_body["server"]["sync"]
+    ):
 
-        raise HTTPException(status_code=400, detail="Inference sync mode not yet implemented")
+        raise HTTPException(
+            status_code=400, detail="Inference sync mode not yet implemented"
+        )
 
         # run in synchronous mode
         # TODO: fix 'can only join a started process' error
