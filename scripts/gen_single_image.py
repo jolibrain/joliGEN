@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import logging
 
 jg_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../")
 sys.path.append(jg_dir)
@@ -48,13 +49,40 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
     return model, opt, device
 
 
+def inference_logger(name):
+
+    PROCESS_NAME = "gen_single_image"
+    LOG_PATH = os.environ.get(
+        "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
+    )
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        handlers=[
+            logging.FileHandler(f"{LOG_PATH}/{name}.log", mode="w"),
+            logging.StreamHandler()
+        ],
+    )
+
+    return logging.getLogger(f"inference %s %s" % (PROCESS_NAME, name))
+
+
 def inference(args):
-    modelpath = args.model_in_file.replace(os.path.basename(args.model_in_file), "")
+
+    PROGRESS_NUM_STEPS = 6
+    logger = inference_logger(args.name)
+    logger.info(f"[1/%i] launch inference" % PROGRESS_NUM_STEPS)
+
+    modelpath = os.path.dirname(args.model_in_file)
     print("modelpath=%s" % modelpath)
 
     model, opt, device = load_model(
         modelpath, os.path.basename(args.model_in_file), args.cpu, args.gpuid
     )
+
+    logger.info(f"[2/%i] model loaded" % PROGRESS_NUM_STEPS)
 
     # reading image
     img_width = args.img_width if args.img_width is not None else opt.data_crop_size
@@ -63,6 +91,8 @@ def inference(args):
     original_img = img.copy()
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = cv2.resize(img, (img_width, img_height), interpolation=cv2.INTER_CUBIC)
+
+    logger.info(f"[3/%i] image loaded" % PROGRESS_NUM_STEPS)
 
     # preprocessing
     tranlist = [
@@ -88,8 +118,12 @@ def inference(args):
     else:
         img_tensor = img_tensor.unsqueeze(0)
 
+    logger.info(f"[4/%i] preprocessing finished" % PROGRESS_NUM_STEPS)
+
     # run through model
     out_tensor = model(img_tensor)[0].detach()
+
+    logger.info(f"[5/%i] out tensor available" % PROGRESS_NUM_STEPS)
 
     # post-processing
     out_img = out_tensor.data.cpu().float().numpy()
@@ -102,6 +136,8 @@ def inference(args):
         out_img = np.concatenate((original_img, out_img), axis=1)
 
     cv2.imwrite(args.img_out, out_img)
+
+    logger.info(f"[6/%i] success - %s" % (PROGRESS_NUM_STEPS, args.img_out))
     print("Successfully generated image ", args.img_out)
 
 

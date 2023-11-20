@@ -1,12 +1,15 @@
-from fastapi import Request, FastAPI, HTTPException
+from fastapi import Request, FastAPI, HTTPException, WebSocket
 import asyncio
 import traceback
 import json
 import subprocess
 import os
 import shutil
+from pathlib import Path
+import time
 
 import torch.multiprocessing as mp
+mp.set_start_method('spawn')
 
 from train import launch_training
 from options.train_options import TrainOptions
@@ -15,6 +18,14 @@ from enum import Enum
 from pydantic import create_model, BaseModel, Field
 
 from multiprocessing import Process
+
+from options.inference_gan_options import InferenceGANOptions
+from options.inference_diffusion_options import InferenceDiffusionOptions
+
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "../scripts"))
+from gen_single_image import inference as gan_inference
+from gen_single_image_diffusion import inference as diffusion_inference
 
 git_hash = (
     subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=os.path.dirname(__file__))
@@ -158,6 +169,166 @@ async def get_train_processes():
         processes.append({"status": status, "name": name})
 
     return {"processes": processes}
+
+# Inference
+
+LOG_PATH = os.environ.get(
+    "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
+)
+if not os.path.exists(LOG_PATH):
+    os.makedirs(LOG_PATH)
+
+
+async def log_reader_last_line(name):
+    global LOG_PATH
+
+    log_file = Path(f"{LOG_PATH}/{name}.log")
+
+    if not log_file.exists() or log_file.stat().st_size == 0:
+        return ""
+
+    with open(log_file, "r") as f:
+        try:
+            return f.readlines()[-1]
+        except Exception as e:
+            raise e
+
+
+@app.websocket("/ws/predict/{name}")
+async def websocket_predict_endpoint(ws: WebSocket, name: str):
+    await ws.accept()
+
+    try:
+        while True:
+
+            # error handling on name parameter
+            if name not in ctx:
+
+                await ws.send_json({
+                    "status": "error",
+                    "message": f"%s not in context" % name
+                })
+                await ws.close()
+                break
+
+            elif not is_alive(ctx[name]):
+                await ws.send_json({
+                    "status": "stopped",
+                    "message": f"%s is stopped" % name
+                })
+                await ws.close()
+                break
+
+            # read last line of named inference log file
+            try:
+                log_line = await log_reader_last_line(name)
+            except Exception as e:
+                await ws.send_json({
+                    "status": "error",
+                    "message": f"log reading error on {name}: {e}"
+                })
+                await ws.close()
+                break
+
+            # send last line to client
+            if log_line != "":
+                await ws.send_json({
+                    "status": "log",
+                    "message": log_line.strip()
+                })
+
+            # close connection if inference is finished
+            if "success" in log_line or \
+               "error" in log_line:
+                await ws.close()
+                break
+
+            # wait 1 second before next iteration
+            await asyncio.sleep(1)
+
+    except Exception as e:
+        print(f"error on ws log endpoint for {name}: {e}")
+        traceback.print_exc()
+        await ws.send_json({
+            "status": "error",
+            "message": f"error on ws log endpoint for {name}: {e}"
+        })
+        await ws.close()
+
+
+@app.post(
+    "/predict",
+    status_code=200,
+    summary="Start a inference process",
+    description="The inference process will be created using the same options as command line",
+)
+async def predict(request: Request):
+    predict_body = await request.json()
+
+    if "predict_options" not in predict_body:
+        raise HTTPException(status_code=400, detail="parameter predict_options is required")
+
+    if "model_in_file" not in predict_body["predict_options"]:
+        raise HTTPException(status_code=400, detail="parameter predict_options.model_in_file is required")
+
+    if "img_in" not in predict_body["predict_options"]:
+        raise HTTPException(status_code=400, detail="parameter predict_options.img_in is required")
+
+    train_json_path = Path(
+        os.path.dirname(predict_body["predict_options"]["model_in_file"]),
+        "train_config.json"
+    )
+
+    if not train_json_path.exists():
+        raise HTTPException(status_code=400, detail="train_config.json not found")
+
+    try:
+        with open(train_json_path, "r") as jsonf:
+            train_json = json.load(jsonf)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail="{0}".format(e))
+
+    if "model_type" in train_json and \
+       train_json["model_type"] == "palette":
+        target = diffusion_inference
+        parser = InferenceDiffusionOptions()
+    else:
+        target = gan_inference
+        parser = InferenceGANOptions()
+
+    try:
+        opt = parser.parse_json(predict_body["predict_options"], save_config=False)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail="{0}".format(e))
+
+    opt.name = "predict_{}".format(int(time.time()))
+
+    ctx[opt.name] = mp.Process(target=target, args=(opt,))
+
+    if "server" in predict_body and \
+       "sync" in predict_body["server"] and \
+       predict_body["server"]["sync"]:
+
+        raise HTTPException(status_code=400, detail="Inference sync mode not yet implemented")
+
+        # run in synchronous mode
+        # TODO: fix 'can only join a started process' error
+        # try:
+        #     ctx[opt.name].join()
+        #     return {"message": "ok", "name": opt.name, "status": "stopped"}
+        # except Exception as e:
+        #     raise HTTPException(status_code=400, detail="{0}".format(e))
+
+    else:
+
+        # run in async
+        try:
+            ctx[opt.name].start()
+            return {"message": "ok", "name": opt.name, "status": "running"}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="{0}".format(e))
 
 
 @app.get("/info", status_code=200, summary="Get the server status")

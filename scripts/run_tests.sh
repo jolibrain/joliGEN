@@ -254,3 +254,30 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
+
+# ####### api server tests
+echo "Running api server tests"
+
+TARGET_API_DIR=$DIR/joligen_utest_cut/
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_api_predict_common.py" --dataroot "$TARGET_API_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+TARGET_API_DIR=$DIR/joligen_utest_cut/
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_api_predict_gan.py" --dataroot "$TARGET_API_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+TARGET_API_DIR=$DIR/joligen_utest_palette/
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_api_predict_diffusion.py" --dataroot "$TARGET_API_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi

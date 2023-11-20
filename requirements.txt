@@ -23,3 +23,6 @@ piq
 git+https://github.com/ChaoningZhang/MobileSAM.git
 Ninja
 lpips
+pytest
+pytest-asyncio
+httpx
