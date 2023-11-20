@@ -10,7 +10,10 @@ import time
 
 import torch.multiprocessing as mp
 
-mp.set_start_method("spawn")
+try:
+    mp.set_start_method("spawn")
+except RuntimeError:
+    pass
 
 from train import launch_training
 from options.train_options import TrainOptions
