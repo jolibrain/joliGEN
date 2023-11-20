@@ -307,6 +307,10 @@ async def predict(request: Request):
     opt.name = "predict_{}".format(int(time.time()))
 
     ctx[opt.name] = mp.Process(target=target, args=(opt,))
+    try:
+        ctx[opt.name].start()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="{0}".format(e))
 
     if (
         "server" in predict_body
@@ -314,26 +318,17 @@ async def predict(request: Request):
         and predict_body["server"]["sync"]
     ):
 
-        raise HTTPException(
-            status_code=400, detail="Inference sync mode not yet implemented"
-        )
-
         # run in synchronous mode
-        # TODO: fix 'can only join a started process' error
-        # try:
-        #     ctx[opt.name].join()
-        #     return {"message": "ok", "name": opt.name, "status": "stopped"}
-        # except Exception as e:
-        #     raise HTTPException(status_code=400, detail="{0}".format(e))
+        try:
+            ctx[opt.name].join()
+            return {"message": "ok", "name": opt.name, "status": "stopped"}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="{0}".format(e))
 
     else:
 
         # run in async
-        try:
-            ctx[opt.name].start()
-            return {"message": "ok", "name": opt.name, "status": "running"}
-        except Exception as e:
-            raise HTTPException(status_code=400, detail="{0}".format(e))
+        return {"message": "ok", "name": opt.name, "status": "running"}
 
 
 @app.get("/info", status_code=200, summary="Get the server status")
