@@ -274,7 +274,7 @@ def create_clip_model(model_name, config_path, weight_path, img_size):
 
 def create_dinov2_model(model_name, config_path, weight_path, img_size):
     dinov2_model = torch.hub.load(
-        "facebookresearch/dinov2", model_name, force_reload=True
+        "facebookresearch/dinov2", model_name, force_reload=False
     )
     return dinov2_model
 

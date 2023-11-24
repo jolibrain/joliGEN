@@ -68,7 +68,7 @@ def parse_bboxes(sample: dict) -> list[tuple[str, tuple[int, int, int, int]]]:
         ymin = int(box2d["y1"])
         ymax = int(box2d["y2"])
 
-        bboxes.append((label["category"], (xmin, xmax, ymin, ymax)))
+        bboxes.append((label["category"], (xmin, ymin, xmax, ymax)))
 
     return bboxes
 
