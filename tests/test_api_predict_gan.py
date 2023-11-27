@@ -35,11 +35,9 @@ async def test_predict_endpoint_gan_success(dataroot, api):
 
     response = api.post("/predict", json=payload)
     json_response = response.json()
-    
     print(payload)
     print(response)
     print(json_response)
-    
     assert response.status_code == 200
 
     assert "message" in json_response
