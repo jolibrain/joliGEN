@@ -60,5 +60,5 @@ def test_nosemantic(dataroot):
         if model == "cyclegan" and "siglip_vitb16" in D_proj_network_type:
             continue  # skip
 
-        opt = TrainOptions().parse_json(json_like_dict.copy())
+        opt = TrainOptions().parse_json(json_like_dict.copy(), save_config=True)
         train.launch_training(opt)
