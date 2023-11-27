@@ -295,6 +295,20 @@ See :doc:`losses` to read more information about the losses.
  Inference
 ***********
 
+=============================
+Download our trained model
+=============================
+
+You can use your trained model or use our to compare.
+You can download our trained model weights here:
+
+.. code:: bash
+
+   wget https://www.joligen.com/models/clear2snowy_bdd100k.zip
+   unzip clear2snowy_bdd100k.zip -d checkpoints
+   rm clear2snowy_bdd100k.zip
+
+
 =========================
  Single image generation
 =========================
