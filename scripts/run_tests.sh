@@ -122,6 +122,7 @@ fi
 ###### test cut
 echo "Running test cut"
 python3 "${current_dir}/../test.py" \
+	--save_config \
 	--test_model_dir $DIR/joligen_utest_cut/ \
 	--test_metrics_list FID KID PSNR LPIPS
 OUT=$?
@@ -144,6 +145,7 @@ fi
 ###### test palette
 echo "Running test palette"
 python3 "${current_dir}/../test.py" \
+	--save_config \
 	--test_model_dir $DIR/joligen_utest_palette/ \
 	--test_metrics_list FID KID PSNR LPIPS
 OUT=$?
