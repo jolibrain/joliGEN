@@ -279,22 +279,29 @@ async def predict(request: Request):
             status_code=400, detail="parameter predict_options.img_in is required"
         )
 
-    train_json_path = Path(
-        os.path.dirname(predict_body["predict_options"]["model_in_file"]),
-        "train_config.json",
-    )
+    model_type = None
+    if "model_type" in predict_body["predict_options"]:
+        model_type = predict_body["predict_options"]["model_type"]
+    else:
+        train_json_path = Path(
+            os.path.dirname(predict_body["predict_options"]["model_in_file"]),
+            "train_config.json",
+        )
 
-    if not train_json_path.exists():
-        raise HTTPException(status_code=400, detail="train_config.json not found")
+        if not train_json_path.exists():
+            raise HTTPException(status_code=400, detail="train_config.json not found")
 
-    try:
-        with open(train_json_path, "r") as jsonf:
-            train_json = json.load(jsonf)
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=400, detail="{0}".format(e))
+        try:
+            with open(train_json_path, "r") as jsonf:
+                train_json = json.load(jsonf)
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=400, detail="{0}".format(e))
 
-    if "model_type" in train_json and train_json["model_type"] == "palette":
+        if "model_type" in train_json:
+            model_type = train_json["model_type"]
+
+    if model_type == "palette":
         target = diffusion_inference
         parser = InferenceDiffusionOptions()
     else:

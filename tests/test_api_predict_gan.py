@@ -18,7 +18,7 @@ def api():
 async def test_predict_endpoint_gan_success(dataroot, api):
 
     model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
-    img_out = os.path.join(dataroot, "../out_success.jpg")
+    img_out = os.path.join(dataroot, "out_success.jpg")
 
     if os.path.exists(img_out):
         os.remove(img_out)
@@ -26,6 +26,7 @@ async def test_predict_endpoint_gan_success(dataroot, api):
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
+            "model_type": "gan",
             "img_in": os.path.join(
                 dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
             ),
@@ -79,7 +80,7 @@ async def test_predict_endpoint_gan_success(dataroot, api):
 def test_predict_endpoint_sync_success(dataroot, api):
 
     model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
-    img_out = os.path.join(dataroot, "../out_success_sync.jpg")
+    img_out = os.path.join(dataroot, "out_success_sync.jpg")
 
     if os.path.exists(img_out):
         os.remove(img_out)
@@ -87,6 +88,7 @@ def test_predict_endpoint_sync_success(dataroot, api):
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
+            "model_type": "gan",
             "img_in": os.path.join(
                 dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
             ),
