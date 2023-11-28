@@ -17,14 +17,14 @@ def api():
 @pytest.mark.asyncio
 async def test_predict_endpoint_diffusion_success(dataroot, api):
     model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
-    dir_out = os.path.join(dataroot, "../")
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
+            "model_type": "palette",
             "img_in": os.path.join(
                 dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
             ),
-            "dir_out": dir_out,
+            "dir_out": dataroot,
         }
     }
 
@@ -65,7 +65,7 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
                 break
 
     for output in ["cond", "generated", "orig", "y_t"]:
-        img_out = os.path.join(dir_out, f"%s_0_%s.png" % (predict_name, output))
+        img_out = os.path.abspath(os.path.join(dataroot, f"%s_0_%s.png" % (predict_name, output)))
         assert os.path.exists(img_out)
         if os.path.exists(img_out):
             os.remove(img_out)
@@ -79,10 +79,11 @@ def test_predict_endpoint_sync_success(dataroot, api):
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
+            "model_type": "palette",
             "img_in": os.path.join(
                 dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
             ),
-            "dir_out": dir_out,
+            "dir_out": dataroot,
         },
         "server": {"sync": True},
     }
@@ -102,7 +103,7 @@ def test_predict_endpoint_sync_success(dataroot, api):
     assert len(json_response["name"]) > 0
 
     for output in ["cond", "generated", "orig", "y_t"]:
-        img_out = os.path.join(dir_out, f"%s_0_%s.png" % (predict_name, output))
+        img_out = os.path.abspath(os.path.join(dataroot, f"%s_0_%s.png" % (predict_name, output)))
         assert os.path.exists(img_out)
         if os.path.exists(img_out):
             os.remove(img_out)
