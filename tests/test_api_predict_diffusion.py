@@ -65,7 +65,9 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
                 break
 
     for output in ["cond", "generated", "orig", "y_t"]:
-        img_out = os.path.abspath(os.path.join(dataroot, f"%s_0_%s.png" % (predict_name, output)))
+        img_out = os.path.abspath(
+            os.path.join(dataroot, f"%s_0_%s.png" % (predict_name, output))
+        )
         assert os.path.exists(img_out)
         if os.path.exists(img_out):
             os.remove(img_out)
@@ -103,7 +105,9 @@ def test_predict_endpoint_sync_success(dataroot, api):
     assert len(json_response["name"]) > 0
 
     for output in ["cond", "generated", "orig", "y_t"]:
-        img_out = os.path.abspath(os.path.join(dataroot, f"%s_0_%s.png" % (predict_name, output)))
+        img_out = os.path.abspath(
+            os.path.join(dataroot, f"%s_0_%s.png" % (predict_name, output))
+        )
         assert os.path.exists(img_out)
         if os.path.exists(img_out):
             os.remove(img_out)
