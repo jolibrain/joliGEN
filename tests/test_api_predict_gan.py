@@ -2,11 +2,14 @@ import asyncio
 import pytest
 import sys
 import os
+import shutil
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 sys.path.append(sys.path[0] + "/..")
 from server.joligen_api import app
+import train
+from options.train_options import TrainOptions
 
 
 @pytest.fixture
@@ -14,11 +17,65 @@ def api():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def run_before_and_after_tests(dataroot):
+
+    name = "joligen_utest_api_cut"
+
+    json_like_dict = {
+        "name": name,
+        "output_display_env": name,
+        "dataroot": dataroot,
+        "checkpoints_dir": os.path.join(dataroot, ".."),
+        "model_type": "cut",
+        "G_netG": "mobile_resnet_attn",
+        "output_print_freq": 1,
+        "gpu_ids": "0",
+        "G_lr": 0.0002,
+        "D_lr": 0.0001,
+        "data_crop_size": 64,
+        "data_load_size": 64,
+        "train_n_epochs": 1,
+        "train_n_epochs_decay": 0,
+        "data_dataset_mode": "unaligned_labeled_mask",
+        "data_max_dataset_size": 10,
+        "train_n_epochs": 1,
+        "model_input_nc": 3,
+        "model_output_nc": 3,
+        "data_relative_paths": True,
+    }
+    opt = TrainOptions().parse_json(json_like_dict, save_config=True)
+    train.launch_training(opt)
+
+    yield
+
+    try:
+        model_dir = os.path.join(dataroot, "..", name)
+        shutil.rmtree(model_dir)
+    except OSError as e:
+        print("Error: %s - %s." % (e.filename, e.strerror))
+
+
 @pytest.mark.asyncio
 async def test_predict_endpoint_gan_success(dataroot, api):
 
-    model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
-    img_out = os.path.abspath(os.path.join(dataroot, "out_success.jpg"))
+    name = "joligen_utest_api_cut"
+    dir_model = os.path.join(dataroot, "..", name)
+
+    if not os.path.exists(dir_model):
+        pytest.fail("Model does not exist")
+
+    model_in_file = os.path.abspath(os.path.join(dir_model, "latest_net_G_A.pth"))
+
+    if not os.path.exists(model_in_file):
+        pytest.fail(f"Model file does not exist: %s" % model_in_file)
+
+    img_in = os.path.join(dataroot, "trainA", "img", "00000.png")
+
+    if not os.path.exists(img_in):
+        pytest.fail(f"Image input file does not exist: %s" % img_in)
+
+    img_out = os.path.abspath(os.path.join(dir_model, "out_success_sync.jpg"))
 
     if os.path.exists(img_out):
         os.remove(img_out)
@@ -27,9 +84,7 @@ async def test_predict_endpoint_gan_success(dataroot, api):
         "predict_options": {
             "model_in_file": model_in_file,
             "model_type": "gan",
-            "img_in": os.path.join(
-                dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
-            ),
+            "img_in": img_in,
             "img_out": img_out,
         }
     }
@@ -79,8 +134,23 @@ async def test_predict_endpoint_gan_success(dataroot, api):
 
 def test_predict_endpoint_sync_success(dataroot, api):
 
-    model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
-    img_out = os.path.abspath(os.path.join(dataroot, "out_success_sync.jpg"))
+    name = "joligen_utest_api_cut"
+    dir_model = os.path.join(dataroot, "..", name)
+
+    if not os.path.exists(dir_model):
+        pytest.fail("Model does not exist")
+
+    model_in_file = os.path.abspath(os.path.join(dir_model, "latest_net_G_A.pth"))
+
+    if not os.path.exists(model_in_file):
+        pytest.fail(f"Model file does not exist: %s" % model_in_file)
+
+    img_in = os.path.join(dataroot, "trainA", "img", "00000.png")
+
+    if not os.path.exists(img_in):
+        pytest.fail(f"Image input file does not exist: %s" % img_in)
+
+    img_out = os.path.abspath(os.path.join(dir_model, "out_success_sync.jpg"))
 
     if os.path.exists(img_out):
         os.remove(img_out)
@@ -89,9 +159,7 @@ def test_predict_endpoint_sync_success(dataroot, api):
         "predict_options": {
             "model_in_file": model_in_file,
             "model_type": "gan",
-            "img_in": os.path.join(
-                dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
-            ),
+            "img_in": img_in,
             "img_out": img_out,
         },
         "server": {"sync": True},

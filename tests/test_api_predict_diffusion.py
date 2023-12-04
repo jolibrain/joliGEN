@@ -2,11 +2,14 @@ import asyncio
 import pytest
 import sys
 import os
+import shutil
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 sys.path.append(sys.path[0] + "/..")
 from server.joligen_api import app
+import train
+from options.train_options import TrainOptions
 
 
 @pytest.fixture
@@ -14,17 +17,75 @@ def api():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def run_before_and_after_tests(dataroot):
+
+    name = "joligen_utest_api_palette"
+
+    json_like_dict = {
+        "name": name,
+        "output_display_env": name,
+        "dataroot": dataroot,
+        "checkpoints_dir": os.path.join(dataroot, ".."),
+        "model_type": "palette",
+        "output_display_id": 0,
+        "gpu_ids": "1",
+        "data_dataset_mode": "self_supervised_labeled_mask",
+        "data_load_size": 128,
+        "data_crop_size": 128,
+        "train_n_epochs": 1,
+        "train_n_epochs_decay": 0,
+        "data_max_dataset_size": 10,
+        "data_relative_paths": True,
+        "train_G_ema": True,
+        "dataaug_no_rotate": True,
+        "G_unet_mha_inner_channel": 32,
+        "G_unet_mha_num_head_channels": 16,
+        "G_unet_mha_channel_mults": [1, 2],
+        "G_nblocks": 1,
+        "G_padding_type": "reflect",
+        "G_netG": "unet_mha",
+        "G_unet_mha_norm_layer": "groupnorm",
+        "G_unet_mha_vit_efficient": True,
+    }
+    opt = TrainOptions().parse_json(json_like_dict, save_config=True)
+    train.launch_training(opt)
+
+    yield
+
+    try:
+        model_dir = os.path.join(dataroot, "..", name)
+        shutil.rmtree(model_dir)
+    except OSError as e:
+        print("Error: %s - %s." % (e.filename, e.strerror))
+
+
 @pytest.mark.asyncio
 async def test_predict_endpoint_diffusion_success(dataroot, api):
-    model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
+
+    name = "joligen_utest_api_palette"
+    dir_model = os.path.join(dataroot, "..", name)
+
+    if not os.path.exists(dir_model):
+        pytest.fail("Model does not exist")
+
+    model_in_file = os.path.abspath(os.path.join(dir_model, "latest_net_G_A.pth"))
+
+    if not os.path.exists(model_in_file):
+        pytest.fail(f"Model file does not exist: %s" % model_in_file)
+
+    img_in = os.path.join(dataroot, "trainA", "img", "00000.png")
+
+    if not os.path.exists(img_in):
+        pytest.fail(f"Image input file does not exist: %s" % img_in)
+
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
             "model_type": "palette",
-            "img_in": os.path.join(
-                dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
-            ),
-            "dir_out": dataroot,
+            "img_in": img_in,
+            "dir_out": dir_model,
+            "gpuid": 1,
         }
     }
 
@@ -66,7 +127,7 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
 
     for output in ["cond", "generated", "orig", "y_t"]:
         img_out = os.path.abspath(
-            os.path.join(dataroot, f"%s_0_%s.png" % (predict_name, output))
+            os.path.join(dir_model, f"%s_0_%s.png" % (predict_name, output))
         )
         assert os.path.exists(img_out)
         if os.path.exists(img_out):
@@ -75,17 +136,29 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
 
 def test_predict_endpoint_sync_success(dataroot, api):
 
-    model_in_file = os.path.abspath(os.path.join(dataroot, "latest_net_G_A.pth"))
-    dir_out = os.path.join(dataroot, "../")
+    name = "joligen_utest_api_palette"
+    dir_model = os.path.join(dataroot, "..", name)
+
+    if not os.path.exists(dir_model):
+        pytest.fail("Model does not exist")
+
+    model_in_file = os.path.abspath(os.path.join(dir_model, "latest_net_G_A.pth"))
+
+    if not os.path.exists(model_in_file):
+        pytest.fail(f"Model file does not exist: %s" % model_in_file)
+
+    img_in = os.path.join(dataroot, "trainA", "img", "00000.png")
+
+    if not os.path.exists(img_in):
+        pytest.fail(f"Image input file does not exist: %s" % img_in)
 
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
             "model_type": "palette",
-            "img_in": os.path.join(
-                dataroot, "../horse2zebra/trainA/n02381460_1001.jpg"
-            ),
-            "dir_out": dataroot,
+            "img_in": img_in,
+            "dir_out": dir_model,
+            "gpuid": 1,
         },
         "server": {"sync": True},
     }
@@ -106,7 +179,7 @@ def test_predict_endpoint_sync_success(dataroot, api):
 
     for output in ["cond", "generated", "orig", "y_t"]:
         img_out = os.path.abspath(
-            os.path.join(dataroot, f"%s_0_%s.png" % (predict_name, output))
+            os.path.join(dir_model, f"%s_0_%s.png" % (predict_name, output))
         )
         assert os.path.exists(img_out)
         if os.path.exists(img_out):
