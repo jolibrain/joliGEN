@@ -85,7 +85,6 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
             "model_type": "palette",
             "img_in": img_in,
             "dir_out": dir_model,
-            "gpuid": 1,
         }
     }
 
@@ -158,7 +157,6 @@ def test_predict_endpoint_sync_success(dataroot, api):
             "model_type": "palette",
             "img_in": img_in,
             "dir_out": dir_model,
-            "gpuid": 1,
         },
         "server": {"sync": True},
     }
