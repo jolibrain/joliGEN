@@ -26,7 +26,7 @@ def run_before_and_after_tests(dataroot):
         "name": name,
         "output_display_env": name,
         "dataroot": dataroot,
-        "checkpoints_dir": os.path.join(dataroot, ".."),
+        "checkpoints_dir": "/".join(dataroot.split("/")[:-1]),
         "model_type": "cut",
         "G_netG": "mobile_resnet_attn",
         "output_print_freq": 1,
@@ -60,7 +60,7 @@ def run_before_and_after_tests(dataroot):
 async def test_predict_endpoint_gan_success(dataroot, api):
 
     name = "joligen_utest_api_cut"
-    dir_model = os.path.join(dataroot, "..", name)
+    dir_model = "/".join(dataroot.split("/")[:-1])
 
     if not os.path.exists(dir_model):
         pytest.fail("Model does not exist")
@@ -135,7 +135,7 @@ async def test_predict_endpoint_gan_success(dataroot, api):
 def test_predict_endpoint_sync_success(dataroot, api):
 
     name = "joligen_utest_api_cut"
-    dir_model = os.path.join(dataroot, "..", name)
+    dir_model = "/".join(dataroot.split("/")[:-1])
 
     if not os.path.exists(dir_model):
         pytest.fail("Model does not exist")

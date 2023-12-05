@@ -26,7 +26,7 @@ def run_before_and_after_tests(dataroot):
     json_like_dict = {
         "name": name,
         "dataroot": dataroot,
-        "checkpoints_dir": os.path.join(dataroot, ".."),
+        "checkpoints_dir": "/".join(dataroot.split("/")[:-1]),
         "model_type": "palette",
         "output_display_env": name,
         "output_display_id": 0,
@@ -64,7 +64,7 @@ def run_before_and_after_tests(dataroot):
 async def test_predict_endpoint_diffusion_success(dataroot, api):
 
     name = "joligen_utest_api_palette"
-    dir_model = os.path.join(dataroot, "..", name)
+    dir_model = "/".join(dataroot.split("/")[:-1])
 
     if not os.path.exists(dir_model):
         pytest.fail("Model does not exist")
@@ -137,11 +137,13 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
         if os.path.exists(img_out):
             os.remove(img_out)
 
+    os.remove(img_resized)
+
 
 def test_predict_endpoint_sync_success(dataroot, api):
 
     name = "joligen_utest_api_palette"
-    dir_model = os.path.join(dataroot, "..", name)
+    dir_model = "/".join(dataroot.split("/")[:-1])
 
     if not os.path.exists(dir_model):
         pytest.fail("Model does not exist")
@@ -192,3 +194,5 @@ def test_predict_endpoint_sync_success(dataroot, api):
         assert os.path.exists(img_out)
         if os.path.exists(img_out):
             os.remove(img_out)
+
+    os.remove(img_resized)
