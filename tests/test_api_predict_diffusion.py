@@ -5,6 +5,7 @@ import os
 import shutil
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+from PIL import Image
 
 sys.path.append(sys.path[0] + "/..")
 from server.joligen_api import app
@@ -24,12 +25,12 @@ def run_before_and_after_tests(dataroot):
 
     json_like_dict = {
         "name": name,
-        "output_display_env": name,
         "dataroot": dataroot,
         "checkpoints_dir": os.path.join(dataroot, ".."),
         "model_type": "palette",
+        "output_display_env": name,
         "output_display_id": 0,
-        "gpu_ids": "1",
+        "gpu_ids": "0",
         "data_dataset_mode": "self_supervised_labeled_mask",
         "data_load_size": 128,
         "data_crop_size": 128,
@@ -39,13 +40,12 @@ def run_before_and_after_tests(dataroot):
         "data_relative_paths": True,
         "train_G_ema": True,
         "dataaug_no_rotate": True,
-        "G_unet_mha_inner_channel": 32,
         "G_unet_mha_num_head_channels": 16,
         "G_unet_mha_channel_mults": [1, 2],
         "G_nblocks": 1,
         "G_padding_type": "reflect",
-        "G_netG": "unet_mha",
-        "G_unet_mha_norm_layer": "groupnorm",
+        "G_netG": "uvit",
+        "G_unet_mha_norm_layer": "batchnorm",
         "G_unet_mha_vit_efficient": True,
     }
     opt = TrainOptions().parse_json(json_like_dict, save_config=True)
@@ -79,11 +79,16 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
     if not os.path.exists(img_in):
         pytest.fail(f"Image input file does not exist: %s" % img_in)
 
+    img_resized = os.path.join(dataroot, "img_resized.jpg")
+    img_to_resize = Image.open(img_in)
+    img_to_resize.thumbnail((128, 128), Image.Resampling.LANCZOS)
+    img_to_resize.save(img_resized, "JPEG")
+
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
             "model_type": "palette",
-            "img_in": img_in,
+            "img_in": img_resized,
             "dir_out": dir_model,
         }
     }
@@ -151,11 +156,16 @@ def test_predict_endpoint_sync_success(dataroot, api):
     if not os.path.exists(img_in):
         pytest.fail(f"Image input file does not exist: %s" % img_in)
 
+    img_resized = os.path.join(dataroot, "img_resized.jpg")
+    img_to_resize = Image.open(img_in)
+    img_to_resize.thumbnail((128, 128), Image.Resampling.LANCZOS)
+    img_to_resize.save(img_resized, "JPEG")
+
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
             "model_type": "palette",
-            "img_in": img_in,
+            "img_in": img_resized,
             "dir_out": dir_model,
         },
         "server": {"sync": True},
