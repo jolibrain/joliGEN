@@ -269,22 +269,20 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-API_DATAROOT=$DIR/noglasses2glasses_ffhq_mini
 python3 -m pytest \
     -p no:cacheprovider \
     -s "${current_dir}/../tests/test_api_predict_gan.py" \
-    --dataroot "$API_DATAROOT"
+    --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
     exit 1
 fi
 
-API_DATAROOT=$DIR/noglasses2glasses_ffhq_mini
 python3 -m pytest \
     -p no:cacheprovider \
     -s "${current_dir}/../tests/test_api_predict_diffusion.py" \
-    --dataroot "$API_DATAROOT"
+    --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
