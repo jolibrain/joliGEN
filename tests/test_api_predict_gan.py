@@ -21,6 +21,7 @@ def api():
 def run_before_and_after_tests(dataroot):
 
     name = "joligen_utest_api_cut"
+    print(dataroot)
 
     json_like_dict = {
         "name": name,
