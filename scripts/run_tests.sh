@@ -242,9 +242,6 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-echo "Deleting target dir $DIR"
-rm -rf $DIR/*
-
 #### Client server test
 SERVER_HOST="localhost"
 SERVER_PORT=8047
@@ -269,9 +266,6 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-echo $TARGET_MASK_SEM_DIR
-echo "$(ls $TARGET_MASK_SEM_DIR)"
-
 python3 -m pytest \
     -p no:cacheprovider \
     -s "${current_dir}/../tests/test_api_predict_gan.py" \
@@ -291,3 +285,8 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
+
+# End of tests
+# Clean up
+echo "Deleting target dir $DIR"
+rm -rf $DIR/*
