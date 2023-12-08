@@ -69,7 +69,7 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
     if not os.path.exists(dir_model):
         pytest.fail("Model does not exist")
 
-    model_in_file = os.path.abspath(os.path.join(dir_model, "latest_net_G_A.pth"))
+    model_in_file = os.path.abspath(os.path.join(dir_model, name, "latest_net_G_A.pth"))
 
     if not os.path.exists(model_in_file):
         pytest.fail(f"Model file does not exist: %s" % model_in_file)
@@ -148,7 +148,7 @@ def test_predict_endpoint_sync_success(dataroot, api):
     if not os.path.exists(dir_model):
         pytest.fail("Model does not exist")
 
-    model_in_file = os.path.abspath(os.path.join(dir_model, "latest_net_G_A.pth"))
+    model_in_file = os.path.abspath(os.path.join(dir_model, name, "latest_net_G_A.pth"))
 
     if not os.path.exists(model_in_file):
         pytest.fail(f"Model file does not exist: %s" % model_in_file)
