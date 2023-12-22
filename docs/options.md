@@ -144,7 +144,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_sam_no_sobel_filter | flag |  | whether to not use a Sobel filter on each SAM masks |
 | --alg_palette_sam_points_per_side | int | 16 | number of points per side of image to prompt SAM with (\# of prompted points will be points_per_side\*\*2) |
 | --alg_palette_sam_redundancy_threshold | float | 0.62 | redundancy threshold above which redundant masks are not kept |
-| --alg_palette_sam_sobel_threshold | float | 0.7 | sobel threshold in % of gradient magnitude |
+| --alg_palette_sam_sobel_threshold | float | 0.7 | sobel threshold in %% of gradient magnitude |
 | --alg_palette_sam_use_gaussian_filter | flag |  | whether to apply a Gaussian blur to each SAM masks |
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/> **Values:** ddpm, ddim |
 | --alg_palette_sketch_canny_range | array | [0, 765] | range of randomized canny sketch thresholds |
