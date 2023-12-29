@@ -164,7 +164,7 @@ class TrainOptions(CommonOptions):
         )
 
         parser.add_argument(
-            "--test_batch_size", type=int, default=1, help="input batch size"
+            "--test_batch_size", type=int, help="input batch size", required=False
         )
 
         parser.add_argument(
@@ -652,6 +652,13 @@ class TrainOptions(CommonOptions):
 
     def _after_parse(self, opt, set_device=True):
         opt = super()._after_parse(opt=opt, set_device=set_device)
+
+        if opt.test_batch_size is None:
+            opt.test_batch_size = opt.train_batch_size
+        else:
+            assert (
+                opt.test_batch_size >= opt.train_batch_size
+            ), "Test batch size must be at least equal to train batch size otherwise, otherwise test metrics will crash"
 
         # process opt.suffix
         if opt.suffix:

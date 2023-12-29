@@ -13,7 +13,7 @@ Here are all the available options to call with `train.py`
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
-| --test_batch_size | int | 1 | input batch size |
+| --test_batch_size | int |  | input batch size, default to train batch size, must be at least equal to train batch size |
 | --warning_mode | flag |  | whether to display warning |
 | --with_amp | flag |  | whether to activate torch amp on forward passes |
 | --with_tf32 | flag |  | whether to activate tf32 for faster computations (Ampere GPU and beyond only) |
