@@ -761,7 +761,7 @@ class BaseModel(ABC):
             for name in group:
                 if phase == "test":
                     name = name + "_test"
-                if isinstance(name, str):
+                if isinstance(name, str) and hasattr(self, name):
                     cur_visual[name] = getattr(self, name)
 
             visual_ret.append(cur_visual)
