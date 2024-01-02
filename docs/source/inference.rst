@@ -214,7 +214,7 @@ The ``--cls`` parameter controls the pose for Mario (1 = standing, 2 = walking, 
 
    mkdir mario_inference_output
    cd scripts/
-   python3 gen_single_image_diffusion.py --model-in-file ../checkpoints/mario/latest_net_G_A.pth --img-in ../datasets/online_mario2sonic_lite/mario/imgs/mario_frame_19538.jpg --bbox-in ../datasets/online_mario2sonic_lite/mario/bbox/r_mario_frame_19538.jpg.txt --dir-out ../mario_inference_output --img-width 128 --img-height 128 --mask_delta 10 --cls 3
+   python3 gen_single_image_diffusion.py --model_in_file ../checkpoints/mario/latest_net_G_A.pth --img_in ../datasets/online_mario2sonic_lite/mario/imgs/mario_frame_19538.jpg --bbox_in ../datasets/online_mario2sonic_lite/mario/bbox/r_mario_frame_19538.jpg.txt --dir_out ../mario_inference_output --img_width 128 --img_height 128 --mask_delta 10 --cls 3
 
 The output files will be in the ``mario_inference_output`` folder, with:
 
@@ -282,7 +282,7 @@ The ``--cond-in`` parameter specifies the conditioning image to use.
 
    mkdir mapillary_inference_output
    cd scripts/
-   python3 gen_single_image_diffusion.py --model-in-file ../checkpoints/mapillary/latest_net_G_A.pth --img-in ../datasets/mapillary_lite/trainA/images/UbLxBV0FEP_FfEgGi0YhIA.jpg --bbox-in ../datasets/mapillary_lite/trainA/bbox/UbLxBV0FEP_FfEgGi0YhIA.txt --dir-out ../mapillary_inference_output --img-width 128 --img-height 128 --mask_delta 10 --alg_palette_cond_image_creation canny --alg_palette_sketch_canny_thresholds 100 400 --cond-in /path/to/conditioning_image.png
+   python3 gen_single_image_diffusion.py --model_in_file ../checkpoints/mapillary/latest_net_G_A.pth --img_in ../datasets/mapillary_lite/trainA/images/UbLxBV0FEP_FfEgGi0YhIA.jpg --bbox_in ../datasets/mapillary_lite/trainA/bbox/UbLxBV0FEP_FfEgGi0YhIA.txt --dir_out ../mapillary_inference_output --img_width 128 --img_height 128 --mask_delta 10 --alg_diffusion_cond_image_creation canny --alg_diffusion_sketch_canny_thresholds 100 400 --cond_in /path/to/conditioning_image.png
 
 The output files will be in the ``mapillary_inference_output`` folder, with:
 

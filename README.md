@@ -6,13 +6,13 @@
 [![Docs](https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-doc-options-update.yml/badge.svg)](https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-doc-options-update.yml)
 [![Website](https://img.shields.io/website-up-down-green-red/http/joligen.com/doc.svg)](https://www.joligen.com/doc)
 
-<h1 align="center">Generative AI Image Toolset with GANs and Diffusion for Real-World Applications</h1>
+<h1 align="center">Generative AI Image Toolset with GANs, Diffusion and Consistency Models for Real-World Applications</h1>
 
 **JoliGEN** is an integrated framework for training custom generative AI image-to-image models
 
 Main Features:
 
-- JoliGEN implements both **GAN and Diffusion models** for unpaired and paired image to image translation tasks, including domain and style adaptation with conservation of semantics such as image and object classes, masks, ...
+- JoliGEN implements both **GAN, Diffusion and Consistency models** for unpaired and paired image to image translation tasks, including domain and style adaptation with conservation of semantics such as image and object classes, masks, ...
 
 - JoliGEN generative AI capabilities are targeted at real world applications such as **Controled Image Generation**, **Augmented Reality**, **Dataset Smart Augmentation** and object insertion, **Synthetic to Real** transforms.
 

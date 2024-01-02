@@ -455,6 +455,7 @@ class UNet(nn.Module):
         self.res_blocks = res_blocks
         self.attn_res = attn_res
         self.dropout = dropout
+        self.zero_dropout = 0.0
         self.channel_mults = channel_mults
         self.conv_resample = conv_resample
         self.use_checkpoint = use_checkpoint
@@ -490,7 +491,7 @@ class UNet(nn.Module):
                     ResBlock(
                         ch,
                         self.cond_embed_dim,
-                        dropout,
+                        self.zero_dropout,
                         out_channel=int(mult * self.inner_channel),
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
@@ -520,7 +521,7 @@ class UNet(nn.Module):
                         ResBlock(
                             ch,
                             self.cond_embed_dim,
-                            dropout,
+                            self.zero_dropout,
                             out_channel=out_ch,
                             use_checkpoint=use_checkpoint,
                             use_scale_shift_norm=use_scale_shift_norm,
@@ -582,7 +583,7 @@ class UNet(nn.Module):
                     ResBlock(
                         ch + ich,
                         self.cond_embed_dim,
-                        dropout,
+                        self.zero_dropout,
                         out_channel=int(self.inner_channel * mult),
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
@@ -608,7 +609,7 @@ class UNet(nn.Module):
                         ResBlock(
                             ch,
                             self.cond_embed_dim,
-                            dropout,
+                            self.zero_dropout,
                             out_channel=out_ch,
                             use_checkpoint=use_checkpoint,
                             use_scale_shift_norm=use_scale_shift_norm,

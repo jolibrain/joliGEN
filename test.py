@@ -54,7 +54,8 @@ def launch_testing(opt, main_opt):
         model.netG_A.denoise_fn.model.beta_schedule["test"][
             "n_timestep"
         ] = main_opt.sampling_steps
-        set_new_noise_schedule(model.netG_A.denoise_fn.model, "test")
+        if main.opt.model_type == "palette":
+            set_new_noise_schedule(model.netG_A.denoise_fn.model, "test")
     if main_opt.sampling_method is not None:
         model.netG_A.set_new_sampling_method(main_opt.sampling_method)
     if main_opt.ddim_num_steps is not None:
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     opt.train_metrics_list = main_opt.test_metrics_list
     opt.train_nb_img_max_fid = main_opt.test_nb_img
     opt.test_batch_size = main_opt.test_batch_size
-    opt.alg_palette_generate_per_class = False
+    opt.alg_diffusion_generate_per_class = False
 
     random.seed(main_opt.test_seed)
     torch.manual_seed(main_opt.test_seed)

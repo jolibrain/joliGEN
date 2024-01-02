@@ -84,9 +84,9 @@ Dataset: https://joligen.com/datasets/online_mario2sonic_full.tar
 
 .. _training-object-insertion:
 
-***********************************
- DDPM training for object insertion
-***********************************
+************************************************
+ DDPM training for object insertion / inpainting
+************************************************
 
 Dataset: https://joligen.com/datasets/noglasses2glasses_ffhq.zip
 
@@ -154,3 +154,15 @@ Trains a diffusion model to generate an image conditioned by another image (supe
 .. code:: bash
 
    python3 train.py --dataroot /path/to/data/SEN2VEN_mini --checkpoints_dir /path/to/checkpoints --name SEN2VEN --config_json examples/example_ddpm_SEN2VEN.json
+
+*************************************************************
+ Consistency Model training for object insertion / inpainting
+*************************************************************
+
+Dataset: https://joligen.com/datasets/noglasses2glasses_ffhq.zip
+
+Trains a consistency model to insert glasses onto faces.
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/data/noglasses2glasses_ffhq --checkpoints_dir /path/to/checkpoints --name noglasses2glasses --config_json examples/example_cm_noglasses2glasses.json

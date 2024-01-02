@@ -61,6 +61,13 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+python3 ${current_dir}/../train.py --help alg_cm
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 ####### no sem tests
 echo "Running no semantics training tests"
 URL=https://joligen.com/datasets/horse2zebra.zip
@@ -105,6 +112,14 @@ fi
 
 ###### diffusion process test
 python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+###### consistency model process test
+python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_cm.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then

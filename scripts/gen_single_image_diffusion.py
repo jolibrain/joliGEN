@@ -74,6 +74,9 @@ def load_model(
         opt.data_online_creation_mask_random_offset_A = [0.0]
 
     opt.model_prior_321_backwardcompatibility = model_prior_321_backwardcompatibility
+    if opt.model_type == "cm":
+        opt.alg_palette_sampling_method = sampling_method
+        opt.alg_diffusion_cond_embed_dim = 256
     model = diffusion_networks.define_G(**vars(opt))
     model.eval()
 
@@ -103,7 +106,8 @@ def load_model(
         # model.denoise_fn.model.beta_schedule["test"]["schedule"] = "quad"
         set_new_noise_schedule(model.denoise_fn.model, "test")
 
-    model.set_new_sampling_method(sampling_method)
+    if opt.model_type == "palette":
+        model.set_new_sampling_method(sampling_method)
 
     model = model.to(device)
     return model, opt
@@ -179,11 +183,11 @@ def generate(
     cond_rotation,
     cond_persp_horizontal,
     cond_persp_vertical,
-    alg_palette_cond_image_creation,
-    alg_palette_sketch_canny_thresholds,
+    alg_diffusion_cond_image_creation,
+    alg_diffusion_sketch_canny_thresholds,
     cls_value,
-    alg_palette_super_resolution_downsample,
-    alg_palette_guidance_scale,
+    alg_diffusion_super_resolution_downsample,
+    alg_diffusion_guidance_scale,
     data_refined_mask,
     min_crop_bbox_ratio,
     alg_palette_ddim_num_steps,
@@ -216,10 +220,10 @@ def generate(
         model = lmodel
         opt = lopt
 
-    if alg_palette_cond_image_creation is not None:
-        opt.alg_palette_cond_image_creation = alg_palette_cond_image_creation
+    if alg_diffusion_cond_image_creation is not None:
+        opt.alg_diffusion_cond_image_creation = alg_diffusion_cond_image_creation
 
-    conditioning = opt.alg_palette_conditioning
+    conditioning = opt.alg_diffusion_cond_embed
 
     for i, delta_values in enumerate(mask_delta):
         if len(delta_values) == 1:
@@ -493,7 +497,7 @@ def generate(
     else:
         y_t = torch.randn_like(img_tensor)
 
-    if opt.alg_palette_cond_image_creation == "previous_frame":
+    if opt.alg_diffusion_cond_image_creation == "previous_frame":
         if previous_frame is not None:
             if isinstance(previous_frame, str):
                 # load the previous frame
@@ -512,11 +516,14 @@ def generate(
             cond_image = previous_frame
         else:
             cond_image = -1 * torch.ones_like(y_t.unsqueeze(0), device=y_t.device)
-    elif opt.alg_palette_cond_image_creation == "y_t":
-        cond_image = y_t.unsqueeze(0)
-    elif opt.alg_palette_cond_image_creation == "sketch":
+    elif opt.alg_diffusion_cond_image_creation == "y_t":
+        if opt.model_type == "palette":
+            cond_image = y_t.unsqueeze(0)
+        else:
+            cond_image = None
+    elif opt.alg_diffusion_cond_image_creation == "sketch":
         cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
-    elif opt.alg_palette_cond_image_creation == "canny":
+    elif opt.alg_diffusion_cond_image_creation == "canny":
         clamp = torch.clamp(mask, 0, 1)
         if cond_in:
             # mask the background to avoid canny edges around cond image
@@ -526,15 +533,15 @@ def generate(
         cond_image = fill_img_with_canny(
             img_tensor_canny.unsqueeze(0),
             mask.unsqueeze(0),
-            low_threshold=alg_palette_sketch_canny_thresholds[0],
-            high_threshold=alg_palette_sketch_canny_thresholds[1],
+            low_threshold=alg_diffusion_sketch_canny_thresholds[0],
+            high_threshold=alg_diffusion_sketch_canny_thresholds[1],
             low_threshold_random=-1,
             high_threshold_random=-1,
         )
         if cond_in:
             # restore background
             cond_image = cond_image * clamp + img_tensor * (1 - clamp)
-    elif opt.alg_palette_cond_image_creation == "sam":
+    elif opt.alg_diffusion_cond_image_creation == "sam":
         opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
         if not os.path.exists(opt.f_s_weight_sam):
             download_sam_weight(opt.f_s_weight_sam)
@@ -543,16 +550,16 @@ def generate(
         cond_image = fill_img_with_sam(
             img_tensor.unsqueeze(0), mask.unsqueeze(0), sam, opt
         )
-    elif opt.alg_palette_cond_image_creation == "hed":
+    elif opt.alg_diffusion_cond_image_creation == "hed":
         cond_image = fill_img_with_hed(img_tensor.unsqueeze(0), mask.unsqueeze(0))
-    elif opt.alg_palette_cond_image_creation == "hough":
+    elif opt.alg_diffusion_cond_image_creation == "hough":
         cond_image = fill_img_with_hough(img_tensor.unsqueeze(0), mask.unsqueeze(0))
-    elif opt.alg_palette_cond_image_creation == "depth":
+    elif opt.alg_diffusion_cond_image_creation == "depth":
         cond_image = fill_img_with_depth(img_tensor.unsqueeze(0), mask.unsqueeze(0))
-    elif opt.alg_palette_cond_image_creation == "low_res":
-        if alg_palette_super_resolution_downsample:
+    elif opt.alg_diffusion_cond_image_creation == "low_res":
+        if alg_diffusion_super_resolution_downsample:
             data_crop_size_low_res = int(
-                opt.data_crop_size / opt.alg_palette_super_resolution_scale
+                opt.data_crop_size / opt.alg_diffusion_super_resolution_scale
             )
             transform_lr = T.Resize((data_crop_size_low_res, data_crop_size_low_res))
             cond_image = transform_lr(img_tensor.unsqueeze(0)).detach()
@@ -560,7 +567,7 @@ def generate(
             cond_image = img_tensor.unsqueeze(0).clone().detach()
         transform_hr = T.Resize((opt.data_crop_size, opt.data_crop_size))
         cond_image = transform_hr(cond_image).detach()
-    elif opt.alg_palette_cond_image_creation == "pix2pix":
+    elif opt.alg_diffusion_cond_image_creation == "pix2pix":
         # use same interpolation as get_transform
         transform_hr = T.Resize(
             (img_height, img_width), interpolation=T.InterpolationMode.BICUBIC
@@ -574,17 +581,18 @@ def generate(
 
     y_t, cond_image, img_tensor, mask = (
         y_t.unsqueeze(0).clone().detach(),
-        cond_image.clone().detach(),
+        cond_image.clone().detach() if cond_image is not None else None,
         img_tensor.unsqueeze(0).clone().detach(),
         cl_mask,
     )
     if mask == None:
         img_tensor = None
 
-    if "class" in model.denoise_fn.conditioning:
-        cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls
-    else:
-        cls_tensor = None
+    if opt.model_type == "palette":
+        if "class" in model.denoise_fn.conditioning:
+            cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls
+        else:
+            cls_tensor = None
     if ref is not None:
         ref_tensor = ref_tensor.unsqueeze(0)
     else:
@@ -592,18 +600,22 @@ def generate(
 
     # run through model
     with torch.no_grad():
-        out_tensor, visu = model.restoration(
-            y_cond=cond_image,
-            y_t=y_t,
-            y_0=img_tensor,
-            mask=mask,
-            cls=cls_tensor,
-            ref=ref_tensor,
-            sample_num=2,
-            guidance_scale=alg_palette_guidance_scale,
-            ddim_num_steps=alg_palette_ddim_num_steps,
-            ddim_eta=alg_palette_ddim_eta,
-        )
+        if opt.model_type == "palette":
+            out_tensor, visu = model.restoration(
+                y_cond=cond_image,
+                y_t=y_t,
+                y_0=img_tensor,
+                mask=mask,
+                cls=cls_tensor,
+                ref=ref_tensor,
+                sample_num=2,
+                guidance_scale=alg_diffusion_guidance_scale,
+                ddim_num_steps=alg_palette_ddim_num_steps,
+                ddim_eta=alg_palette_ddim_eta,
+            )
+        elif opt.model_type == "cm":
+            sampling_sigmas = (80.0, 24.4, 5.84, 0.9, 0.661)
+            out_tensor = model.restoration(y_t, cond_image, sampling_sigmas, mask)
         out_img = to_np(
             out_tensor
         )  # out_img = out_img.detach().data.cpu().float().numpy()[0]
@@ -633,11 +645,13 @@ def generate(
             bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
         ] = out_img_resized
 
-    cond_img = to_np(cond_image)
+    if cond_image is not None:
+        cond_img = to_np(cond_image)
 
     if write:
         cv2.imwrite(os.path.join(dir_out, name + "_orig.png"), img_orig)
-        cv2.imwrite(os.path.join(dir_out, name + "_cond.png"), cond_img)
+        if cond_image is not None:
+            cv2.imwrite(os.path.join(dir_out, name + "_cond.png"), cond_img)
         cv2.imwrite(os.path.join(dir_out, name + "_generated.png"), out_img_real_size)
         cv2.imwrite(os.path.join(dir_out, name + "_y_t.png"), to_np(y_t))
         if mask is not None:
