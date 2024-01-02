@@ -9,9 +9,11 @@ from .modules.unet_generator_attn.unet_generator_attn import (
     UNetGeneratorRefAttn,
 )
 from .modules.palette_denoise_fn import PaletteDenoiseFn
+from .modules.cm_generator import CMGenerator
 
 
 def define_G(
+    model_type,
     model_input_nc,
     model_output_nc,
     G_netG,
@@ -38,9 +40,9 @@ def define_G(
     G_uvit_num_transformer_blocks,
     G_unet_mha_vit_efficient,
     alg_palette_sampling_method,
-    alg_palette_conditioning,
-    alg_palette_cond_embed_dim,
-    alg_palette_ref_embed_net,
+    alg_diffusion_cond_embed,
+    alg_diffusion_cond_embed_dim,
+    alg_diffusion_ref_embed_net,
     model_prior_321_backwardcompatibility,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
@@ -78,17 +80,22 @@ def define_G(
     net = None
     norm_layer = get_norm_layer(norm_type=G_norm)
 
-    in_channel = model_input_nc * 2
+    if model_type == "palette":
+        in_channel = model_input_nc * 2
+    else:  # CM
+        in_channel = model_input_nc
+        if alg_diffusion_cond_embed != "" and alg_diffusion_cond_embed != "y_t":
+            in_channel *= 2
 
-    if "mask" in alg_palette_conditioning:
-        in_channel += alg_palette_cond_embed_dim
+    if "mask" in alg_diffusion_cond_embed:
+        in_channel += alg_diffusion_cond_embed_dim
 
     if G_netG == "unet_mha":
 
         if model_prior_321_backwardcompatibility:
             cond_embed_dim = G_ngf * 4
         else:
-            cond_embed_dim = alg_palette_cond_embed_dim
+            cond_embed_dim = alg_diffusion_cond_embed_dim
 
         model = UNet(
             image_size=data_crop_size,
@@ -112,7 +119,7 @@ def define_G(
         )
 
     elif G_netG == "unet_mha_ref_attn":
-        cond_embed_dim = alg_palette_cond_embed_dim
+        cond_embed_dim = alg_diffusion_cond_embed_dim
 
         model = UNetGeneratorRefAttn(
             image_size=data_crop_size,
@@ -154,14 +161,14 @@ def define_G(
             group_norm_size=G_unet_mha_group_norm_size,
             num_transformer_blocks=G_uvit_num_transformer_blocks,
             efficient=G_unet_mha_vit_efficient,
-            cond_embed_dim=alg_palette_cond_embed_dim,
+            cond_embed_dim=alg_diffusion_cond_embed_dim,
             freq_space=train_feat_wavelet,
         )
-        cond_embed_dim = alg_palette_cond_embed_dim
+        cond_embed_dim = alg_diffusion_cond_embed_dim
 
     elif G_netG == "resnet_attn" or G_netG == "mobile_resnet_attn":
         mobile = "mobile" in G_netG
-        G_ngf = alg_palette_cond_embed_dim
+        G_ngf = alg_diffusion_cond_embed_dim
         model = ResnetGenerator_attn_diff(
             input_nc=in_channel,
             output_nc=model_output_nc,
@@ -176,27 +183,37 @@ def define_G(
             mobile=mobile,
             use_scale_shift_norm=True,
         )
-        cond_embed_dim = alg_palette_cond_embed_dim
+        cond_embed_dim = alg_diffusion_cond_embed_dim
 
     else:
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG
         )
 
-    denoise_fn = PaletteDenoiseFn(
-        model=model,
-        cond_embed_dim=cond_embed_dim,
-        ref_embed_net=alg_palette_ref_embed_net,
-        conditioning=alg_palette_conditioning,
-        nclasses=f_s_semantic_nclasses,
-    )
+    if model_type == "palette":
+        denoise_fn = PaletteDenoiseFn(
+            model=model,
+            cond_embed_dim=cond_embed_dim,
+            ref_embed_net=alg_diffusion_ref_embed_net,
+            conditioning=alg_diffusion_cond_embed,
+            nclasses=f_s_semantic_nclasses,
+        )
 
-    net = DiffusionGenerator(
-        denoise_fn=denoise_fn,
-        sampling_method=alg_palette_sampling_method,
-        image_size=data_crop_size,
-        G_ngf=G_ngf,
-        loading_backward_compatibility=model_prior_321_backwardcompatibility,
-    )
+        net = DiffusionGenerator(
+            denoise_fn=denoise_fn,
+            sampling_method=alg_palette_sampling_method,
+            image_size=data_crop_size,
+            G_ngf=G_ngf,
+            loading_backward_compatibility=model_prior_321_backwardcompatibility,
+        )
+    elif model_type == "cm":
+        net = CMGenerator(
+            cm_model=model,
+            sampling_method="",
+            image_size=data_crop_size,
+            G_ngf=G_ngf,
+        )
+    else:
+        raise NotImplementedError(model_type + " not implemented")
 
     return net

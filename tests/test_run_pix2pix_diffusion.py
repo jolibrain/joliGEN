@@ -26,7 +26,7 @@ json_like_dict = {
     "G_unet_mha_channel_mults": [1, 2],
     "G_nblocks": 1,
     "G_padding_type": "reflect",
-    "alg_palette_task": "pix2pix",
+    "alg_diffusion_task": "pix2pix",
 }
 
 

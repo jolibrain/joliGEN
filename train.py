@@ -148,7 +148,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         if opt.train_continue:
             opt.train_epoch_count = visualizer.load_data()
 
-        model.print_flop()
+        # model.print_flop()
 
     total_iters = 0  # the total number of training iterations
 

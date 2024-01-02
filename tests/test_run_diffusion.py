@@ -45,7 +45,7 @@ G_unet_mha_norm_layer = [
     "switchablenorm",
 ]
 
-alg_palette_conditioning = [
+alg_diffusion_cond_embed = [
     "mask"
 ]  # , "class"] class conditioning can't be tested for now because there is no class in the dataset
 
@@ -54,7 +54,7 @@ product_list = product(
     models_diffusion,
     G_netG,
     G_unet_mha_norm_layer,
-    alg_palette_conditioning,
+    alg_diffusion_cond_embed,
     G_efficient,
     train_feat_wavelet,
 )
@@ -68,7 +68,7 @@ def test_semantic_mask(dataroot):
         model,
         Gtype,
         G_norm,
-        alg_palette_conditioning,
+        alg_diffusion_cond_embed,
         G_efficient,
         train_feat_wavelet,
     ) in product_list:
@@ -81,7 +81,7 @@ def test_semantic_mask(dataroot):
         json_like_dict_c["G_unet_mha_norm_layer"] = G_norm
         json_like_dict_c["G_unet_mha_vit_efficient"] = G_efficient
 
-        json_like_dict_c["alg_palette_conditioning"] = alg_palette_conditioning
+        json_like_dict_c["alg_diffusion_cond_embed"] = alg_diffusion_cond_embed
         json_like_dict_c["train_feat_wavelet"] = train_feat_wavelet
 
         opt = TrainOptions().parse_json(json_like_dict_c)

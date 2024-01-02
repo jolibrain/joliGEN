@@ -27,8 +27,8 @@ json_like_dict = {
     "G_unet_mha_channel_mults": [1, 2],
     "G_nblocks": 1,
     "G_padding_type": "reflect",
-    "alg_palette_task": "super_resolution",
-    "alg_palette_super_resolution_scale": 2.0,
+    "alg_diffusion_task": "super_resolution",
+    "alg_diffusion_super_resolution_scale": 2.0,
 }
 
 

@@ -36,6 +36,191 @@ class BaseDiffusionModel(BaseModel):
         -- <modify_commandline_options>:    (optionally) add model-specific options and set default options.
     """
 
+    @staticmethod
+    def modify_commandline_options_train(parser):
+        parser = BaseModel.modify_commandline_options_train(parser)
+
+        parser.add_argument(
+            "--alg_diffusion_task",
+            default="inpainting",
+            choices=["inpainting", "super_resolution", "pix2pix"],
+            help="Whether to perform inpainting, super resolution or pix2pix",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_lambda_G",
+            type=float,
+            default=1.0,
+            help="weight for supervised loss",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_dropout_prob",
+            type=float,
+            default=0.0,
+            help="dropout probability for classifier-free guidance",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_inference_num",
+            type=int,
+            default=-1,
+            help="nb of examples processed for inference",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_image_creation",
+            type=str,
+            default="y_t",
+            choices=[
+                "y_t",
+                "previous_frame",
+                "computed_sketch",
+                "low_res",
+                "ref",
+            ],
+            help="how image conditioning is created: either from y_t (no conditioning), previous frame, from computed sketch (e.g. canny), from low res image or from reference image (i.e. image that is not aligned with the ground truth)",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_computed_sketch_list",
+            nargs="+",
+            type=str,
+            default=["canny", "hed"],
+            help="what primitives to use for random sketch",
+            choices=["sketch", "canny", "depth", "hed", "hough", "sam"],
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sketch_canny_range",
+            type=int,
+            nargs="+",
+            default=[0, 255 * 3],
+            help="range of randomized canny sketch thresholds",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_super_resolution_scale",
+            type=float,
+            default=2.0,
+            help="scale for super resolution",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_use_gaussian_filter",
+            action="store_true",
+            default=False,
+            help="whether to apply a Gaussian blur to each SAM masks",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_no_sobel_filter",
+            action="store_false",
+            default=True,
+            help="whether to not use a Sobel filter on each SAM masks",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_no_output_binary_sam",
+            action="store_false",
+            default=True,
+            help="whether to not output binary sketch before Canny",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_redundancy_threshold",
+            type=float,
+            default=0.62,
+            help="redundancy threshold above which redundant masks are not kept",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_sobel_threshold",
+            type=float,
+            default=0.7,
+            help="sobel threshold in %% of gradient magnitude",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_final_canny",
+            action="store_true",
+            default=False,
+            help="whether to perform a Canny edge detection on sam sketch to soften the edges",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_min_mask_area",
+            type=float,
+            default=0.001,
+            help="minimum area in proportion of image size for a mask to be kept",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_max_mask_area",
+            type=float,
+            default=0.99,
+            help="maximum area in proportion of image size for a mask to be kept",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_points_per_side",
+            type=int,
+            default=16,
+            help="number of points per side of image to prompt SAM with (# of prompted points will be points_per_side**2)",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_no_sample_points_in_ellipse",
+            action="store_false",
+            default=True,
+            help="whether to not sample the points inside an ellipse to avoid the corners of the image",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_sam_crop_delta",
+            type=int,
+            default=True,
+            help="extend crop's width and height by 2*crop_delta before computing masks",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_prob_use_previous_frame",
+            type=float,
+            default=0.5,
+            help="prob to use previous frame as y cond",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_embed",
+            type=str,
+            default="",
+            choices=["", "mask", "class", "mask_and_class", "ref"],
+            help="whether to use conditioning embeddings to the generator layers, and what type",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_cond_embed_dim",
+            type=int,
+            default=32,
+            help="nb of examples processed for inference",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_generate_per_class",
+            action="store_true",
+            help="whether to generate samples of each images",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_ref_embed_net",
+            type=str,
+            default="clip",
+            choices=["clip", "imagebind"],
+            help="embedding network to use for ref conditioning",
+        )
+
+        return parser
+
     def __init__(self, opt, rank):
         """Initialize the BaseModel class.
 
@@ -75,14 +260,14 @@ class BaseDiffusionModel(BaseModel):
             self.use_sam_mask = True
         else:
             self.use_sam_mask = False
-        if "sam" in opt.alg_palette_computed_sketch_list:
-            self.use_sam_edge = True
-        else:
-            self.use_sam_edge = False
-        if opt.data_refined_mask or "sam" in opt.alg_palette_computed_sketch_list:
-            self.freezenet_sam, _ = init_sam_net(
-                opt.model_type_sam, opt.f_s_weight_sam, self.device
-            )
+        # if "sam" in opt.alg_palette_computed_sketch_list:
+        #    self.use_sam_edge = True
+        # else:
+        #    self.use_sam_edge = False
+        # if opt.data_refined_mask or "sam" in opt.alg_palette_computed_sketch_list:
+        #    self.freezenet_sam, _ = init_sam_net(
+        #        opt.model_type_sam, opt.f_s_weight_sam, self.device
+        #    )
 
     def init_semantic_cls(self, opt):
         # specify the training losses you want to print out.
