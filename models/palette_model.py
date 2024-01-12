@@ -128,8 +128,8 @@ class PaletteModel(BaseDiffusionModel):
             and not self.use_ref
         ):
             # Take into account the default "background class" of the semantic classes.
-            self.nb_classes_inference = (
-                max(self.opt.f_s_semantic_nclasses - 1, self.opt.cls_semantic_nclasses)
+            self.nb_classes_inference = max(
+                self.opt.f_s_semantic_nclasses - 1, self.opt.cls_semantic_nclasses
             )
 
             for i in range(self.nb_classes_inference):
@@ -475,12 +475,12 @@ class PaletteModel(BaseDiffusionModel):
                 and not self.use_ref
             ):
                 for i in range(self.nb_classes_inference):
-                    if "class" in self.opt.alg_palette_conditioning:
+                    if "class" in self.opt.alg_diffusion_cond_embed:
                         cur_class = torch.ones_like(self.cls)[: self.inference_num] * i
                     else:
                         cur_class = None
 
-                    if "mask" in self.opt.alg_palette_conditioning:
+                    if "mask" in self.opt.alg_diffusion_cond_embed:
                         # Take into account the default "background class", add the
                         # offset to get the real class id.
                         cur_mask = self.mask[: self.inference_num].clone().clamp(
