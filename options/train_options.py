@@ -704,7 +704,7 @@ class TrainOptions(CommonOptions):
             if "so400m" in opt.D_proj_network_type:
                 avail_sizes = [224, 384]
             else:
-                avail_sizes = [224, 384, 512]
+                avail_sizes = [224, 256, 384, 512]
 
             takeClosest = lambda num, collection: min(
                 collection, key=lambda x: abs(x - num)

@@ -28,6 +28,7 @@ def gamma_embedding_1D(gammas, dim, max_period):
 
 
 def gamma_embedding(gammas, dim, max_period=10000):
+
     return_list = []
     reduced_dim = dim // gammas.shape[1]
 

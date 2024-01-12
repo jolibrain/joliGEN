@@ -69,15 +69,18 @@
             "nuplet_size": 3,
             "projection_threshold": 1.0
         },
-        "palette": {
+	"palette": {
+	    "loss": "MSE",
+	    "sampling_method": "ddpm",
+	},
+        "diffusion": {
             "computed_sketch_list": [
                 "canny",
                 "hed"
             ],
             "cond_embed_dim": 32,
             "cond_image_creation": "y_t",
-            "conditioning": "",
-            "dropout_prob": 0.0,
+            "cond_embed": "",
             "generate_per_class": false,
             "inference_num": -1,
             "lambda_G": 1.0,

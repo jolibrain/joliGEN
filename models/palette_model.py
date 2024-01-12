@@ -6,7 +6,6 @@ import warnings
 
 import torch
 import torchvision.transforms as T
-import tqdm
 from torch import nn
 
 from data.online_creation import fill_mask_with_color, fill_mask_with_random
@@ -53,20 +52,6 @@ class PaletteModel(BaseDiffusionModel):
         parser = BaseDiffusionModel.modify_commandline_options_train(parser)
 
         parser.add_argument(
-            "--alg_palette_task",
-            default="inpainting",
-            choices=["inpainting", "super_resolution", "pix2pix"],
-            help="Whether to perform inpainting, super resolution or pix2pix",
-        )
-
-        parser.add_argument(
-            "--alg_palette_lambda_G",
-            type=float,
-            default=1.0,
-            help="weight for supervised loss",
-        )
-
-        parser.add_argument(
             "--alg_palette_loss",
             type=str,
             default="MSE",
@@ -75,141 +60,6 @@ class PaletteModel(BaseDiffusionModel):
         )
 
         parser.add_argument(
-            "--alg_palette_inference_num",
-            type=int,
-            default=-1,
-            help="nb of examples processed for inference",
-        )
-
-        parser.add_argument(
-            "--alg_palette_dropout_prob",
-            type=float,
-            default=0.0,
-            help="dropout probability for classifier-free guidance",
-        )
-
-        parser.add_argument(
-            "--alg_palette_cond_image_creation",
-            type=str,
-            default="y_t",
-            choices=[
-                "y_t",
-                "previous_frame",
-                "computed_sketch",
-                "low_res",
-                "ref",
-            ],
-            help="how image conditioning is created: either from y_t (no conditioning), previous frame, from computed sketch (e.g. canny), from low res image or from reference image (i.e. image that is not aligned with the ground truth)",
-        )
-
-        parser.add_argument(
-            "--alg_palette_computed_sketch_list",
-            nargs="+",
-            type=str,
-            default=["canny", "hed"],
-            help="what primitives to use for random sketch",
-            choices=["sketch", "canny", "depth", "hed", "hough", "sam"],
-        )
-
-        parser.add_argument(
-            "--alg_palette_sketch_canny_range",
-            type=int,
-            nargs="+",
-            default=[0, 255 * 3],
-            help="range of randomized canny sketch thresholds",
-        )
-
-        parser.add_argument(
-            "--alg_palette_super_resolution_scale",
-            type=float,
-            default=2.0,
-            help="scale for super resolution",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_use_gaussian_filter",
-            action="store_true",
-            default=False,
-            help="whether to apply a Gaussian blur to each SAM masks",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_no_sobel_filter",
-            action="store_false",
-            default=True,
-            help="whether to not use a Sobel filter on each SAM masks",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_no_output_binary_sam",
-            action="store_false",
-            default=True,
-            help="whether to not output binary sketch before Canny",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_redundancy_threshold",
-            type=float,
-            default=0.62,
-            help="redundancy threshold above which redundant masks are not kept",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_sobel_threshold",
-            type=float,
-            default=0.7,
-            help="sobel threshold in %% of gradient magnitude",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_final_canny",
-            action="store_true",
-            default=False,
-            help="whether to perform a Canny edge detection on sam sketch to soften the edges",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_min_mask_area",
-            type=float,
-            default=0.001,
-            help="minimum area in proportion of image size for a mask to be kept",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_max_mask_area",
-            type=float,
-            default=0.99,
-            help="maximum area in proportion of image size for a mask to be kept",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_points_per_side",
-            type=int,
-            default=16,
-            help="number of points per side of image to prompt SAM with (# of prompted points will be points_per_side**2)",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_no_sample_points_in_ellipse",
-            action="store_false",
-            default=True,
-            help="whether to not sample the points inside an ellipse to avoid the corners of the image",
-        )
-
-        parser.add_argument(
-            "--alg_palette_sam_crop_delta",
-            type=int,
-            default=True,
-            help="extend crop's width and height by 2*crop_delta before computing masks",
-        )
-
-        parser.add_argument(
-            "--alg_palette_prob_use_previous_frame",
-            type=float,
-            default=0.5,
-            help="prob to use previous frame as y cond",
-        )
-        parser.add_argument(
             "--alg_palette_sampling_method",
             type=str,
             default="ddpm",
@@ -217,40 +67,11 @@ class PaletteModel(BaseDiffusionModel):
             help="choose the sampling method between ddpm and ddim",
         )
 
-        parser.add_argument(
-            "--alg_palette_conditioning",
-            type=str,
-            default="",
-            choices=["", "mask", "class", "mask_and_class", "ref"],
-            help="whether to use conditioning or not",
-        )
-
-        parser.add_argument(
-            "--alg_palette_cond_embed_dim",
-            type=int,
-            default=32,
-            help="nb of examples processed for inference",
-        )
-
-        parser.add_argument(
-            "--alg_palette_generate_per_class",
-            action="store_true",
-            help="whether to generate samples of each images",
-        )
-
-        parser.add_argument(
-            "--alg_palette_ref_embed_net",
-            type=str,
-            default="clip",
-            choices=["clip", "imagebind"],
-            help="embedding network to use for ref conditioning",
-        )
-
         return parser
 
     @staticmethod
     def after_parse(opt):
-        if opt.isTrain and opt.alg_palette_dropout_prob > 0:
+        if opt.isTrain and opt.alg_diffusion_dropout_prob > 0:
             # we add a class to be the unconditionned one.
             opt.f_s_semantic_nclasses += 1
             opt.cls_semantic_nclasses += 1
@@ -259,11 +80,11 @@ class PaletteModel(BaseDiffusionModel):
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
-        self.task = self.opt.alg_palette_task
+        self.task = self.opt.alg_diffusion_task
         if self.task == "super_resolution":
-            self.opt.alg_palette_cond_image_creation = "low_res"
+            self.opt.alg_diffusion_cond_image_creation = "low_res"
             self.data_crop_size_low_res = int(
-                self.opt.data_crop_size / self.opt.alg_palette_super_resolution_scale
+                self.opt.data_crop_size / self.opt.alg_diffusion_super_resolution_scale
             )
             self.transform_lr = T.Resize(
                 (self.data_crop_size_low_res, self.data_crop_size_low_res)
@@ -276,18 +97,18 @@ class PaletteModel(BaseDiffusionModel):
             batch_size = self.opt.train_batch_size
         else:
             batch_size = self.opt.test_batch_size
-        if self.opt.alg_palette_inference_num == -1:
+        if self.opt.alg_diffusion_inference_num == -1:
             self.inference_num = batch_size
         else:
-            self.inference_num = min(self.opt.alg_palette_inference_num, batch_size)
+            self.inference_num = min(self.opt.alg_diffusion_inference_num, batch_size)
 
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
         )
 
         self.use_ref = (
-            self.opt.alg_palette_cond_image_creation == "ref"
-            or "ref" in self.opt.alg_palette_conditioning
+            self.opt.alg_diffusion_cond_image_creation == "ref"
+            or "ref" in self.opt.alg_diffusion_cond_embed
             or "ref" in self.opt.G_netG
         )
 
@@ -302,8 +123,8 @@ class PaletteModel(BaseDiffusionModel):
             self.gen_visual_names.extend(["y_t_", "mask_"])
 
         if (
-            self.opt.alg_palette_conditioning != ""
-            and self.opt.alg_palette_generate_per_class
+            self.opt.alg_diffusion_cond_embed != ""
+            and self.opt.alg_diffusion_generate_per_class
             and not self.use_ref
         ):
             # Take into account the default "background class" of the semantic classes.
@@ -322,7 +143,7 @@ class PaletteModel(BaseDiffusionModel):
         else:
             self.gen_visual_names.append("output_")
 
-        if self.opt.alg_palette_cond_image_creation == "previous_frame":
+        if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
 
         for k in range(self.inference_num):
@@ -492,16 +313,19 @@ class PaletteModel(BaseDiffusionModel):
         if self.use_ref:
             self.ref_A = data["ref_A"].to(self.device)
 
-        if self.opt.alg_palette_cond_image_creation == "y_t":
+        if self.opt.alg_diffusion_cond_image_creation == "y_t":
             self.cond_image = self.y_t
-        elif self.opt.alg_palette_cond_image_creation == "previous_frame":
+        elif self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             cond_image_list = []
 
             for cur_frame, cur_mask in zip(
                 self.previous_frame.cpu(),
                 self.previous_frame_mask.cpu(),
             ):
-                if random.random() < self.opt.alg_palette_prob_use_previous_frame:
+                if (
+                    random.random()
+                    < self.opt.alg_diffusion_cond_prob_use_previous_frame
+                ):
                     cond_image_list.append(cur_frame.to(self.device))
                 else:
                     cond_image_list.append(
@@ -510,17 +334,17 @@ class PaletteModel(BaseDiffusionModel):
 
                 self.cond_image = torch.stack(cond_image_list)
                 self.cond_image = self.cond_image.to(self.device)
-        elif self.opt.alg_palette_cond_image_creation == "computed_sketch":
-            randomize_batch = False
+        elif self.opt.alg_diffusion_cond_image_creation == "computed_sketch":
+            randomize_batch = False  # XXX: unused (beniz)
             if randomize_batch:
                 cond_images = []
                 for image, mask in zip(self.gt_image, self.mask):
                     fill_img_with_random_sketch = random_edge_mask(
-                        fn_list=self.opt.alg_palette_computed_sketch_list
+                        fn_list=self.opt.alg_diffusion_cond_computed_sketch_list
                     )
                     if "canny" in fill_img_with_random_sketch.__name__:
-                        low = min(self.opt.alg_palette_sketch_canny_range)
-                        high = max(self.opt.alg_palette_sketch_canny_range)
+                        low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
+                        high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
                         batch_cond_image = fill_img_with_random_sketch(
                             image.unsqueeze(0),
                             mask.unsqueeze(0),
@@ -541,13 +365,13 @@ class PaletteModel(BaseDiffusionModel):
                     cond_images.append(batch_cond_image)
                 self.cond_image = torch.stack(cond_images)
                 self.cond_image = self.cond_image.to(self.device)
-            else:
+            else:  # no randomized batch
                 fill_img_with_random_sketch = random_edge_mask(
-                    fn_list=self.opt.alg_palette_computed_sketch_list
+                    fn_list=self.opt.alg_diffusion_cond_computed_sketch_list
                 )
                 if "canny" in fill_img_with_random_sketch.__name__:
-                    low = min(self.opt.alg_palette_sketch_canny_range)
-                    high = max(self.opt.alg_palette_sketch_canny_range)
+                    low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
+                    high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
                     self.cond_image = fill_img_with_random_sketch(
                         self.gt_image,
                         self.mask,
@@ -568,11 +392,11 @@ class PaletteModel(BaseDiffusionModel):
 
                 self.cond_image = self.cond_image.to(self.device)
 
-        elif self.opt.alg_palette_cond_image_creation == "low_res":
+        elif self.opt.alg_diffusion_cond_image_creation == "low_res":
             self.cond_image = self.transform_lr(self.gt_image)  # bilinear interpolation
             self.cond_image = self.transform_hr(self.cond_image)  # let's get it back
 
-        elif self.opt.alg_palette_cond_image_creation == "ref":
+        elif self.opt.alg_diffusion_cond_image_creation == "ref":
             self.cond_image = self.ref_A
 
         self.batch_size = self.cond_image.shape[0]
@@ -587,10 +411,10 @@ class PaletteModel(BaseDiffusionModel):
         noise = None
         cls = self.cls
 
-        if self.opt.alg_palette_dropout_prob > 0.0:
+        if self.opt.alg_diffusion_dropout_prob > 0.0:
             drop_ids = (
                 torch.rand(mask.shape[0], device=mask.device)
-                < self.opt.alg_palette_dropout_prob
+                < self.opt.alg_diffusion_dropout_prob
             )
         else:
             drop_ids = None
@@ -632,7 +456,7 @@ class PaletteModel(BaseDiffusionModel):
 
             loss = loss_tot
 
-        self.loss_G_tot = self.opt.alg_palette_lambda_G * loss
+        self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
 
     def inference(self):
         if hasattr(self.netG_A, "module"):
@@ -646,8 +470,8 @@ class PaletteModel(BaseDiffusionModel):
         # task: inpainting
         if self.task in ["inpainting"]:
             if (
-                self.opt.alg_palette_conditioning != ""
-                and self.opt.alg_palette_generate_per_class
+                self.opt.alg_diffusion_cond_embed != ""
+                and self.opt.alg_diffusion_generate_per_class
                 and not self.use_ref
             ):
                 for i in range(self.nb_classes_inference):
@@ -704,7 +528,7 @@ class PaletteModel(BaseDiffusionModel):
                         self.inference_num, -1, -1, -1
                     )
 
-                    if self.opt.alg_palette_cond_image_creation == "ref":
+                    if self.opt.alg_diffusion_cond_image_creation == "ref":
                         y_cond = cur_ref
 
                     else:
@@ -815,7 +639,7 @@ class PaletteModel(BaseDiffusionModel):
 
         dummy_noise = None
 
-        if "class" in self.opt.alg_palette_conditioning:
+        if "class" in self.opt.alg_diffusion_cond_embed:
             dummy_cls = torch.ones(1, device=device, dtype=torch.int64)
         else:
             dummy_cls = None

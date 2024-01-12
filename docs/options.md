@@ -9,7 +9,7 @@ Here are all the available options to call with `train.py`
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
-| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette |
+| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette, cm |
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
@@ -69,6 +69,33 @@ Here are all the available options to call with `train.py`
 
 ## Algorithm-specific
 
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| --alg_cm_num_steps | int | 1000000 | number of steps before reaching the fully discretized consistency model sampling schedule |
+| --alg_diffusion_cond_computed_sketch_list | array | ['canny', 'hed'] | what primitives to use for random sketch |
+| --alg_diffusion_cond_embed | string |  | whether to use conditioning embeddings to the generator layers, and what type<br/><br/> **Values:** , mask, class, mask_and_class, ref |
+| --alg_diffusion_cond_embed_dim | int | 32 | nb of examples processed for inference |
+| --alg_diffusion_cond_image_creation | string | y_t | how image conditioning is created: either from y_t (no conditioning), previous frame, from computed sketch (e.g. canny), from low res image or from reference image (i.e. image that is not aligned with the ground truth)<br/><br/> **Values:** y_t, previous_frame, computed_sketch, low_res, ref |
+| --alg_diffusion_cond_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
+| --alg_diffusion_cond_sam_crop_delta | flag |  | extend crop's width and height by 2\*crop_delta before computing masks |
+| --alg_diffusion_cond_sam_final_canny | flag |  | whether to perform a Canny edge detection on sam sketch to soften the edges |
+| --alg_diffusion_cond_sam_max_mask_area | float | 0.99 | maximum area in proportion of image size for a mask to be kept |
+| --alg_diffusion_cond_sam_min_mask_area | float | 0.001 | minimum area in proportion of image size for a mask to be kept |
+| --alg_diffusion_cond_sam_no_output_binary_sam | flag |  | whether to not output binary sketch before Canny |
+| --alg_diffusion_cond_sam_no_sample_points_in_ellipse | flag |  | whether to not sample the points inside an ellipse to avoid the corners of the image |
+| --alg_diffusion_cond_sam_no_sobel_filter | flag |  | whether to not use a Sobel filter on each SAM masks |
+| --alg_diffusion_cond_sam_points_per_side | int | 16 | number of points per side of image to prompt SAM with (\# of prompted points will be points_per_side\*\*2) |
+| --alg_diffusion_cond_sam_redundancy_threshold | float | 0.62 | redundancy threshold above which redundant masks are not kept |
+| --alg_diffusion_cond_sam_sobel_threshold | float | 0.7 | sobel threshold in %% of gradient magnitude |
+| --alg_diffusion_cond_sam_use_gaussian_filter | flag |  | whether to apply a Gaussian blur to each SAM masks |
+| --alg_diffusion_cond_sketch_canny_range | array | [0, 765] | range of randomized canny sketch thresholds |
+| --alg_diffusion_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
+| --alg_diffusion_generate_per_class | flag |  | whether to generate samples of each images |
+| --alg_diffusion_inference_num | int | -1 | nb of examples processed for inference |
+| --alg_diffusion_lambda_G | float | 1.0 | weight for supervised loss |
+| --alg_diffusion_ref_embed_net | string | clip | embedding network to use for ref conditioning<br/><br/> **Values:** clip, imagebind |
+| --alg_diffusion_super_resolution_scale | float | 2.0 | scale for super resolution |
+| --alg_diffusion_task | string | inpainting | Whether to perform inpainting, super resolution or pix2pix<br/><br/> **Values:** inpainting, super_resolution, pix2pix |
 
 ### GAN model
 
@@ -122,34 +149,10 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| --alg_palette_computed_sketch_list | array | ['canny', 'hed'] | what primitives to use for random sketch |
-| --alg_palette_cond_embed_dim | int | 32 | nb of examples processed for inference |
-| --alg_palette_cond_image_creation | string | y_t | how image conditioning is created: either from y_t (no conditioning), previous frame, from computed sketch (e.g. canny), from low res image or from reference image (i.e. image that is not aligned with the ground truth)<br/><br/> **Values:** y_t, previous_frame, computed_sketch, low_res, ref |
-| --alg_palette_conditioning | string |  | whether to use conditioning or not<br/><br/> **Values:** , mask, class, mask_and_class, ref |
 | --alg_palette_ddim_eta | float | 0.5 | eta for ddim sampling variance |
 | --alg_palette_ddim_num_steps | int | 10 | number of steps for ddim sampling |
-| --alg_palette_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
-| --alg_palette_generate_per_class | flag |  | whether to generate samples of each images |
-| --alg_palette_inference_num | int | -1 | nb of examples processed for inference |
-| --alg_palette_lambda_G | float | 1.0 | weight for supervised loss |
 | --alg_palette_loss | string | MSE | loss type of the denoising model<br/><br/> **Values:** L1, MSE, multiscale |
-| --alg_palette_prob_use_previous_frame | float | 0.5 | prob to use previous frame as y cond |
-| --alg_palette_ref_embed_net | string | clip | embedding network to use for ref conditioning<br/><br/> **Values:** clip, imagebind |
-| --alg_palette_sam_crop_delta | flag |  | extend crop's width and height by 2\*crop_delta before computing masks |
-| --alg_palette_sam_final_canny | flag |  | whether to perform a Canny edge detection on sam sketch to soften the edges |
-| --alg_palette_sam_max_mask_area | float | 0.99 | maximum area in proportion of image size for a mask to be kept |
-| --alg_palette_sam_min_mask_area | float | 0.001 | minimum area in proportion of image size for a mask to be kept |
-| --alg_palette_sam_no_output_binary_sam | flag |  | whether to not output binary sketch before Canny |
-| --alg_palette_sam_no_sample_points_in_ellipse | flag |  | whether to not sample the points inside an ellipse to avoid the corners of the image |
-| --alg_palette_sam_no_sobel_filter | flag |  | whether to not use a Sobel filter on each SAM masks |
-| --alg_palette_sam_points_per_side | int | 16 | number of points per side of image to prompt SAM with (\# of prompted points will be points_per_side\*\*2) |
-| --alg_palette_sam_redundancy_threshold | float | 0.62 | redundancy threshold above which redundant masks are not kept |
-| --alg_palette_sam_sobel_threshold | float | 0.7 | sobel threshold in %% of gradient magnitude |
-| --alg_palette_sam_use_gaussian_filter | flag |  | whether to apply a Gaussian blur to each SAM masks |
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/> **Values:** ddpm, ddim |
-| --alg_palette_sketch_canny_range | array | [0, 765] | range of randomized canny sketch thresholds |
-| --alg_palette_super_resolution_scale | float | 2.0 | scale for super resolution |
-| --alg_palette_task | string | inpainting | Whether to perform inpainting, super resolution or pix2pix<br/><br/> **Values:** inpainting, super_resolution, pix2pix |
 
 ## Datasets
 

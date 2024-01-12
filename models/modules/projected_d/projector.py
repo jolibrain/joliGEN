@@ -236,7 +236,7 @@ def create_timm_model(model_name, config_path, weight_path, img_size):
         if "so400m" in model_name:
             avail_sizes = [224, 384]
         else:
-            avail_sizes = [224, 384, 512]
+            avail_sizes = [224, 256, 384, 512]
 
         if img_size in avail_sizes:
             img_project = img_size

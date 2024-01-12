@@ -16,6 +16,9 @@
         "proj_weight_segformer": "models/configs/segformer/pretrain/segformer_mit-b0.pth",
         "spectral": false,
         "temporal_every": 4,
+        "temporal_frame_step": 30,
+        "temporal_num_common_char": -1,
+        "temporal_number_frames": 5,
         "vision_aided_backbones": "clip+dino+swin",
         "weight_sam": ""
     },
@@ -27,7 +30,7 @@
         "diff_n_timestep_test": 1000,
         "diff_n_timestep_train": 2000,
         "dropout": false,
-        "nblocks": 9,
+        "nblocks": 2,
         "netE": "resnet_256",
         "netG": "unet_mha",
         "ngf": 64,
@@ -69,25 +72,21 @@
             "nuplet_size": 3,
             "projection_threshold": 1.0
         },
-	"palette": {
-	    "loss": "MSE",
-	    "sampling_method": "ddpm"
+	"cm": {
+	    "num_steps": 1000000
 	},
         "diffusion": {
             "computed_sketch_list": [
-                "canny"
+                "canny",
+                "hed"
             ],
-            "cond_embed_dim": 32,
-            "cond_image_creation": "computed_sketch",
+            "cond_embed_dim": 256,
+            "cond_image_creation": "y_t",
             "cond_embed": "",
-            "ddim_eta": 0.5,
-            "ddim_num_steps": 10,
-            "dropout_prob": 0.0,
             "generate_per_class": false,
             "inference_num": -1,
             "lambda_G": 1.0,
             "prob_use_previous_frame": 0.5,
-            "ref_embed_net": "clip",
             "sam_crop_delta": true,
             "sam_final_canny": false,
             "sam_max_mask_area": 0.99,
@@ -100,8 +99,8 @@
             "sam_sobel_threshold": 0.7,
             "sam_use_gaussian_filter": false,
             "sketch_canny_range": [
-                100,
-                400
+                0,
+                765
             ],
             "super_resolution_scale": 2.0,
             "task": "inpainting"
@@ -110,26 +109,20 @@
     "data": {
         "online_creation": {
             "color_mask_A": false,
-            "crop_delta_A": 30,
+            "crop_delta_A": 50,
             "crop_delta_B": 50,
             "crop_size_A": 128,
-            "crop_size_B": 512,
+            "crop_size_B": 128,
             "load_size_A": [],
             "load_size_B": [],
             "mask_delta_A": [
                 []
             ],
-            "mask_delta_A_ratio": [
-                []
-            ],
             "mask_delta_B": [
                 []
             ],
-            "mask_delta_B_ratio": [
-                []
-            ],
             "mask_random_offset_A": [
-                0.2
+                0.0
             ],
             "mask_random_offset_B": [
                 0.0
@@ -139,24 +132,21 @@
             "rand_mask_A": true
         },
         "crop_size": 128,
-        "dataset_mode": "self_supervised_labeled_mask_online",
-        "direction": "AtoB",
+        "dataset_mode": "self_supervised_labeled_mask",
+        "direction": "BtoA",
         "inverted_mask": false,
         "load_size": 128,
         "max_dataset_size": 1000000000,
-        "num_threads": 16,
+        "num_threads": 4,
         "online_context_pixels": 0,
         "online_fixed_mask_size": -1,
         "online_select_category": -1,
-        "online_single_bbox": true,
+        "online_single_bbox": false,
         "preprocess": "resize_and_crop",
         "refined_mask": false,
         "relative_paths": true,
         "sanitize_paths": false,
-        "serial_batches": false,
-        "temporal_frame_step": 30,
-        "temporal_num_common_char": -1,
-        "temporal_number_frames": 5
+        "serial_batches": false
     },
     "f_s": {
         "all_classes_as_one": false,
@@ -170,38 +160,26 @@
         "weight_sam": "",
         "weight_segformer": ""
     },
-    "cls": {
-        "all_classes_as_one": false,
-        "class_weights": [],
-        "config_segformer": "models/configs/segformer/segformer_config_b0.json",
-        "dropout": false,
-        "net": "vgg",
-        "nf": 64,
-        "semantic_nclasses": 2,
-        "semantic_threshold": 1.0,
-        "weight_segformer": ""
-    },
     "output": {
         "display": {
             "G_attention_masks": false,
             "aim_port": 53800,
             "aim_server": "http://localhost",
             "diff_fake_real": false,
-            "env": "",
-            "freq": 100000,
+            "env": "noglasses2glasses",
+            "freq": 1000,
             "id": 1,
             "ncols": 0,
             "networks": false,
             "type": [
                 "visdom"
             ],
-            "visdom_autostart": true,
             "visdom_port": 8097,
             "visdom_server": "http://localhost",
             "winsize": 256
         },
         "no_html": false,
-        "print_freq": 500,
+        "print_freq": 128,
         "update_html_freq": 1000,
         "verbose": false
     },
@@ -211,9 +189,7 @@
         "init_type": "normal",
         "input_nc": 3,
         "multimodal": false,
-        "output_nc": 3,
-        "prior_321_backwardcompatibility": false,
-        "type_sam": "mobile_sam"
+        "output_nc": 3
     },
     "train": {
         "sem": {
@@ -241,34 +217,32 @@
             "out_mask": false
         },
         "D_accuracy_every": 1000,
-        "D_lr": 0.0001,
+        "D_lr": 0.0002,
         "G_ema": true,
         "G_ema_beta": 0.999,
         "G_lr": 0.0001,
-        "batch_size": 32,
+        "batch_size": 4,
+	"iter_size": 16,
         "beta1": 0.9,
         "beta2": 0.999,
         "cls_l1_regression": false,
         "cls_regression": false,
         "compute_D_accuracy": false,
+        "compute_metrics": false,
         "compute_metrics_test": false,
         "continue": false,
         "epoch": "latest",
         "epoch_count": 1,
         "export_jit": false,
-        "feat_wavelet": false,
         "gan_mode": "lsgan",
-        "iter_size": 1,
+        "iter_size": 16,
         "load_iter": 0,
         "lr_decay_iters": 50,
         "lr_policy": "linear",
         "metrics_every": 1000,
-        "metrics_list": [
-            "FID"
-        ],
         "mm_lambda_z": 0.5,
         "mm_nz": 8,
-        "n_epochs": 100,
+        "n_epochs": 400,
         "n_epochs_decay": 100,
         "nb_img_max_fid": 1000000000,
         "optim": "adamw",
@@ -303,12 +277,12 @@
         "no_flip": false,
         "no_rotate": true
     },
-    "checkpoints_dir": "checkpoints",
-    "dataroot": "datasets/mapillary_full",
+    "checkpoints_dir": "./checkpoints/",
+    "dataroot": "noglasses2glasses_ffhq",
     "ddp_port": "12355",
     "gpu_ids": "0",
-    "model_type": "palette",
-    "name": "mapillary",
+    "model_type": "cm",
+    "name": "noglasses2glasses",
     "phase": "train",
     "suffix": "",
     "test_batch_size": 1,

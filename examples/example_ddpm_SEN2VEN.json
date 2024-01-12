@@ -68,21 +68,24 @@
             "nuplet_size": 3,
             "projection_threshold": 1.0
         },
-        "palette": {
+	"palette": {
+	    "loss": "MSE",
+	    "sampling_method": "ddpm"
+	},
+        "diffusion": {
             "computed_sketch_list": [
                 "canny",
                 "hed"
             ],
             "cond_embed_dim": 32,
             "cond_image_creation": "y_t",
-            "conditioning": "",
+            "cond_embed": "",
             "ddim_eta": 0.5,
             "ddim_num_steps": 10,
             "dropout_prob": 0.0,
             "generate_per_class": false,
             "inference_num": -1,
             "lambda_G": 1.0,
-            "loss": "MSE",
             "prob_use_previous_frame": 0.5,
             "ref_embed_net": "clip",
             "sam_crop_delta": true,
@@ -96,7 +99,6 @@
             "sam_redundancy_threshold": 0.62,
             "sam_sobel_threshold": 0.7,
             "sam_use_gaussian_filter": false,
-            "sampling_method": "ddpm",
             "sketch_canny_range": [
                 0,
                 765

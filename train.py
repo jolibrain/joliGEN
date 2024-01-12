@@ -148,7 +148,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         if opt.train_continue:
             opt.train_epoch_count = visualizer.load_data()
 
-        model.print_flop()
+        # model.print_flop()
 
     total_iters = 0  # the total number of training iterations
 
@@ -258,12 +258,12 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     )
 
                     model.save_networks("latest")
-                    # model.export_networks("latest")
+                    model.export_networks("latest")
 
                     if opt.train_save_by_iter:
                         save_suffix = "iter_%d" % total_iters
                         model.save_networks(save_suffix)
-                        # model.export_networks(save_suffix)
+                        model.export_networks(save_suffix)
 
                 if total_iters % opt.train_metrics_every < batch_size and (
                     opt.train_compute_metrics_test
@@ -342,8 +342,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                 model.save_networks("latest")
                 model.save_networks(epoch)
 
-                # model.export_networks("latest")
-                # model.export_networks(epoch)
+                model.export_networks("latest")
+                model.export_networks(epoch)
 
         if rank_0:
             print(

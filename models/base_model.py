@@ -815,10 +815,10 @@ class BaseModel(ABC):
 
                 # onnx
 
-                if (
-                    not "palette"
-                    in self.opt.model_type  # Note: export is for generators from GANs only at the moment
-                ):
+                if not self.opt.model_type in [
+                    "palette",
+                    "cm",
+                ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
 

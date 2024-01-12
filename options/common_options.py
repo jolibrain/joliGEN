@@ -81,7 +81,7 @@ class CommonOptions(BaseOptions):
             "--model_type",
             type=str,
             default="cut",
-            choices=["cut", "cycle_gan", "palette"],
+            choices=["cut", "cycle_gan", "palette", "cm"],
             help="chooses which model to use.",
         )
         parser.add_argument(

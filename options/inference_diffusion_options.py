@@ -131,7 +131,7 @@ class InferenceDiffusionOptions(BaseOptions):
 
         # XXX: options that are also in palette_model
         parser.add_argument(
-            "--alg_palette_cond_image_creation",
+            "--alg_diffusion_cond_image_creation",
             type=str,
             choices=[
                 "y_t",
@@ -148,95 +148,95 @@ class InferenceDiffusionOptions(BaseOptions):
             help="how cond_image is created",
         )
         parser.add_argument(
-            "--alg_palette_guidance_scale",
+            "--alg_diffusion_guidance_scale",
             type=float,
             default=0.0,  # literature value: 0.2
             help="scale for classifier-free guidance, default is conditional DDPM only",
         )
         parser.add_argument(
-            "--alg_palette_sketch_canny_thresholds",
+            "--alg_diffusion_sketch_canny_thresholds",
             type=int,
             nargs="+",
             default=[0, 255 * 3],
             help="Canny thresholds",
         )
         parser.add_argument(
-            "--alg_palette_super_resolution_downsample",
+            "--alg_diffusion_super_resolution_downsample",
             action="store_true",
             help="whether to downsample the image for super resolution",
         )
         parser.add_argument(
-            "--alg_palette_sam_use_gaussian_filter",
+            "--alg_diffusion_sam_use_gaussian_filter",
             action="store_true",
             default=False,
             help="whether to apply a gaussian blur to each SAM masks",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_no_sobel_filter",
+            "--alg_diffusion_sam_no_sobel_filter",
             action="store_false",
             default=True,
             help="whether to not use a Sobel filter on each SAM masks",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_no_output_binary_sam",
+            "--alg_diffusion_sam_no_output_binary_sam",
             action="store_false",
             default=True,
             help="whether to not output binary sketch before Canny",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_redundancy_threshold",
+            "--alg_diffusion_sam_redundancy_threshold",
             type=float,
             default=0.62,
             help="redundancy threshold above which redundant masks are not kept",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_sobel_threshold",
+            "--alg_diffusion_sam_sobel_threshold",
             type=float,
             default=0.7,
             help="sobel threshold in %% of gradient magnitude",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_final_canny",
+            "--alg_diffusion_sam_final_canny",
             action="store_true",
             default=False,
             help="whether to perform a Canny edge detection on sam sketch to soften the edges",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_min_mask_area",
+            "--alg_diffusion_sam_min_mask_area",
             type=float,
             default=0.001,
             help="minimum area in proportion of image size for a mask to be kept",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_max_mask_area",
+            "--alg_diffusion_sam_max_mask_area",
             type=float,
             default=0.99,
             help="maximum area in proportion of image size for a mask to be kept",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_points_per_side",
+            "--alg_diffusion_sam_points_per_side",
             type=int,
             default=16,
             help="number of points per side of image to prompt SAM with (# of prompted points will be points_per_side**2)",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_no_sample_points_in_ellipse",
+            "--alg_diffusion_sam_no_sample_points_in_ellipse",
             action="store_false",
             default=True,
             help="whether to not sample the points inside an ellipse to avoid the corners of the image",
         )
 
         parser.add_argument(
-            "--alg_palette_sam_crop_delta",
+            "--alg_diffusion_sam_crop_delta",
             type=int,
             default=True,
             help="extend crop's width and height by 2*crop_delta before computing masks",
