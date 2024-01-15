@@ -109,7 +109,7 @@ class InferenceDiffusionOptions(BaseOptions):
         parser.add_argument(
             "--mask_in", help="mask used for image transformation", required=False
         )
-        parser.add_argument("--ref-in", help="image used as reference", required=False)
+        parser.add_argument("--ref_in", help="image used as reference", required=False)
         parser.add_argument("--bbox_in", help="bbox file used for masking")
 
         parser.add_argument(
