@@ -1,4 +1,5 @@
 import argparse
+from typing import TypeVar, Generic
 from models import get_models_names, get_option_setter
 
 
@@ -58,6 +59,25 @@ class FilterArgumentParser(argparse.ArgumentParser):
 
 
 class CustomHelpAction(argparse.Action):
+    def get_class(options_class):
+        class Tailored(CustomHelpAction):
+            def __init__(
+                self,
+                option_strings,
+                dest=argparse.SUPPRESS,
+                default=argparse.SUPPRESS,
+                help=None,
+            ):
+                super(Tailored, self).__init__(
+                    option_strings=option_strings,
+                    dest=dest,
+                    default=default,
+                    help=help,
+                )
+                self.options_class = options_class
+
+        return Tailored
+
     def __init__(
         self,
         option_strings,
@@ -74,9 +94,7 @@ class CustomHelpAction(argparse.Action):
         )
 
     def __call__(self, parser, namespace, value, option_string=None):
-        from options import TrainOptions
-
-        options = TrainOptions()
+        options = self.options_class()
         topic = value
         if not options.topic_exists(topic):
             print("Unknown topic: %s\n" % topic)
@@ -100,11 +118,11 @@ class CustomHelpAction(argparse.Action):
         parser.exit()
 
 
-def set_custom_help(parser):
+def set_custom_help(parser, options_class):
     """
     Change --help into this app's custom help
     """
-    parser.register("action", "help", CustomHelpAction)
+    parser.register("action", "help", CustomHelpAction.get_class(options_class))
     parser.add_argument(
         "-h",
         "--help",

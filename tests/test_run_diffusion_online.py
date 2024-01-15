@@ -94,5 +94,5 @@ def test_diffusion_online(dataroot):
             json_like_dict_c["checkpoints_dir"], json_like_dict_c["name"]
         )
 
-        opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=True)
+        opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=False)
         inference(opt)
