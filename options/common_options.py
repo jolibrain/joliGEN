@@ -1,5 +1,8 @@
 import os
 import argparse
+
+import torch
+
 from .base_options import BaseOptions
 from util.util import MAX_INT, pairs_of_ints, pairs_of_floats
 from models.modules.classifiers import TORCH_MODEL_CLASSES
@@ -54,6 +57,8 @@ class CommonOptions(BaseOptions):
         self.general_options = ["model_type"]
 
     def initialize(self, parser):
+        super().initialize(parser)
+
         # basic parameters
         parser.add_argument(
             "--dataroot",
@@ -73,8 +78,40 @@ class CommonOptions(BaseOptions):
             type=str,
             help="customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}",
         )
-
-        super().initialize(parser)
+        parser.add_argument(
+            "--gpu_ids",
+            type=str,
+            default="0",
+            help="gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU",
+        )
+        parser.add_argument(
+            "--with_amp",
+            action="store_true",
+            help="whether to activate torch amp on forward passes",
+        )
+        parser.add_argument(
+            "--with_tf32",
+            action="store_true",
+            help="whether to activate tf32 for faster computations (Ampere GPU and beyond only)",
+        )
+        parser.add_argument(
+            "--with_torch_compile",
+            action="store_true",
+            help="whether to activate torch.compile for some forward and backward functions (experimental)",
+        )
+        parser.add_argument(
+            "--checkpoints_dir",
+            type=str,
+            default="./checkpoints",
+            help="models are saved here",
+        )
+        parser.add_argument(
+            "--phase", type=str, default="train", help="train, val, test, etc"
+        )
+        parser.add_argument("--ddp_port", type=str, default="12355")
+        parser.add_argument(
+            "--warning_mode", action="store_true", help="whether to display warning"
+        )
 
         # model parameters
         parser.add_argument(
@@ -840,6 +877,16 @@ class CommonOptions(BaseOptions):
 
     def _after_parse(self, opt, set_device=True):
         super()._after_parse(opt, set_device)
+
+        # set gpu ids
+        str_ids = opt.gpu_ids.split(",")
+        opt.gpu_ids = []
+        for str_id in str_ids:
+            id = int(str_id)
+            if id >= 0:
+                opt.gpu_ids.append(id)
+        if set_device and len(opt.gpu_ids) > 0 and torch.cuda.is_available():
+            torch.cuda.set_device(opt.gpu_ids[0])
 
         # multimodal check
         if opt.model_multimodal:
