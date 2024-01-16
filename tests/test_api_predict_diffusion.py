@@ -217,10 +217,15 @@ def test_predict_endpoint_sync_base64(dataroot, api):
     if not os.path.exists(img_in):
         pytest.fail(f"Image input file does not exist: %s" % img_in)
 
+    img_resized = os.path.join(dataroot, "img_resized.jpg")
+    img_to_resize = Image.open(img_in)
+    img_to_resize.thumbnail((128, 128), Image.Resampling.LANCZOS)
+    img_to_resize.save(img_resized, "JPEG")
+
     payload = {
         "predict_options": {
             "model_in_file": model_in_file,
-            "img_in": img_in,
+            "img_in": img_resized,
             "dir_out": dir_model,
         },
         "server": {"sync": True, "base64": True},
@@ -252,3 +257,5 @@ def test_predict_endpoint_sync_base64(dataroot, api):
 
         if os.path.exists(img_out):
             os.remove(img_out)
+
+    os.remove(img_resized)
