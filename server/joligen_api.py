@@ -7,6 +7,7 @@ import os
 import shutil
 from pathlib import Path
 import time
+import base64
 
 import torch.multiprocessing as mp
 
@@ -331,7 +332,32 @@ async def predict(request: Request):
         # run in synchronous mode
         try:
             ctx[opt.name].join()
-            return {"message": "ok", "name": opt.name, "status": "stopped"}
+            message = {"message": "ok", "name": opt.name, "status": "stopped"}
+
+            if (
+                "base64" in predict_body["server"]
+                and predict_body["server"]["base64"] == True
+            ):
+
+                if hasattr(opt, "img_out") and opt.img_out is not None:
+
+                    with open(opt.img_out, "rb") as f:
+                        message["base64"] = [base64.b64encode(f.read())]
+
+                elif hasattr(opt, "dir_out") and opt.dir_out is not None:
+
+                    message["base64"] = []
+                    for sample_index in range(opt.nb_samples):
+                        for output in ["cond", "generated", "orig", "y_t"]:
+                            img_out = os.path.join(
+                                opt.dir_out,
+                                f"%s_%i_%s.png" % (opt.name, sample_index, output),
+                            )
+                            with open(img_out, "rb") as f:
+                                message["base64"].append(base64.b64encode(f.read()))
+
+            return message
+
         except Exception as e:
             raise HTTPException(status_code=400, detail="{0}".format(e))
 

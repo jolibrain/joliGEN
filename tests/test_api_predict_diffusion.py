@@ -6,6 +6,7 @@ import shutil
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 from PIL import Image
+import base64
 
 sys.path.append(sys.path[0] + "/..")
 from server.joligen_api import app
@@ -196,3 +197,58 @@ def test_predict_endpoint_sync_success(dataroot, api):
             os.remove(img_out)
 
     os.remove(img_resized)
+
+
+def test_predict_endpoint_sync_base64(dataroot, api):
+
+    name = "joligen_utest_api_palette"
+    dir_model = "/".join(dataroot.split("/")[:-1])
+
+    if not os.path.exists(dir_model):
+        pytest.fail("Model does not exist")
+
+    model_in_file = os.path.abspath(os.path.join(dir_model, name, "latest_net_G_A.pth"))
+
+    if not os.path.exists(model_in_file):
+        pytest.fail(f"Model file does not exist: %s" % model_in_file)
+
+    img_in = os.path.join(dataroot, "trainA", "img", "00000.png")
+
+    if not os.path.exists(img_in):
+        pytest.fail(f"Image input file does not exist: %s" % img_in)
+
+    payload = {
+        "predict_options": {
+            "model_in_file": model_in_file,
+            "img_in": img_in,
+            "dir_out": dir_model,
+        },
+        "server": {"sync": True, "base64": True},
+    }
+
+    response = api.post("/predict", json=payload)
+    assert response.status_code == 200
+
+    json_response = response.json()
+    predict_name = json_response["name"]
+
+    assert "message" in json_response
+    assert "status" in json_response
+    assert "name" in json_response
+    assert json_response["message"] == "ok"
+    assert json_response["status"] == "stopped"
+    assert json_response["name"].startswith("predict_")
+    assert len(json_response["name"]) > 0
+
+    assert len(json_response["base64"]) == 4
+    for index, output in enumerate(["cond", "generated", "orig", "y_t"]):
+
+        img_out = os.path.join(dir_model, f"%s_0_%s.png" % (predict_name, output))
+        assert os.path.exists(img_out)
+
+        with open(img_out, "rb") as f:
+            base64_out = base64.b64encode(f.read()).decode("utf-8")
+            assert base64_out == json_response["base64"][index]
+
+        if os.path.exists(img_out):
+            os.remove(img_out)
