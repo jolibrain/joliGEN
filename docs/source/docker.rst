@@ -21,7 +21,7 @@ To run joliGEN server with docker:
 
 .. code:: bash
 
-   nvidia-docker run -p 8000:8000 docker.jolibrain.com/myjoligen
+   nvidia-docker run -p 8000:8000 docker.jolibrain.com/joligen_server
 			      
 **************
 Docker builds
