@@ -27,7 +27,7 @@ json_like_dict = {
     "train_sem_use_label_B": True,
     "data_relative_paths": True,
     "D_netDs": ["basic", "projected_d"],
-    "train_gan_mode": "projected",
+    "train_gan_mode": "lsgan",
     "D_proj_interp": 256,
     "train_G_ema": True,
     "dataaug_no_rotate": True,
@@ -52,14 +52,18 @@ D_proj_network_type = ["efficientnet", "vitsmall", "depth"]
 
 f_s_net = ["unet", "segformer"]
 
-product_list = product(models_semantic_mask, G_netG, D_proj_network_type, f_s_net)
+gan_mode_proj = ["projected", "projected_ra"]
+
+product_list = product(
+    models_semantic_mask, G_netG, D_proj_network_type, f_s_net, gan_mode_proj
+)
 
 
 def test_semantic_mask(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 
-    for model, Gtype, Dtype, f_s_type in product_list:
+    for model, Gtype, Dtype, f_s_type, gan_mode_proj in product_list:
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         if model == "cut":
@@ -67,6 +71,7 @@ def test_semantic_mask(dataroot):
         json_like_dict_c["G_netG"] = Gtype
         json_like_dict_c["D_proj_network_type"] = Dtype
         json_like_dict_c["f_s_net"] = f_s_type
+        json_like_dict_c["train_gan_mode_proj"] = gan_mode_proj
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
