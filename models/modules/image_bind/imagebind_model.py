@@ -498,7 +498,6 @@ def imagebind_huge(pretrained=False):
     )
 
     if pretrained:
-
         path = ".models/configs/bind/pretrain"
 
         file_name = "imagebind_huge.pth"

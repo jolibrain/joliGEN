@@ -9,6 +9,7 @@ import torchvision.transforms as T
 from torch import nn
 
 from data.online_creation import fill_mask_with_color, fill_mask_with_random
+from data.sound_folder import wav2D_to_wav
 from models.modules.sam.sam_inference import compute_mask_with_sam
 from util.iter_calculator import IterCalculator
 from util.mask_generation import random_edge_mask
@@ -102,9 +103,11 @@ class PaletteModel(BaseDiffusionModel):
         else:
             self.inference_num = min(self.opt.alg_diffusion_inference_num, batch_size)
 
-        self.num_classes = max(
-            self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
-        )
+        # self.num_classes = max(
+        #    self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
+        # )
+        # TODO decide if we keep cls_semantic_nclasses (not used atm)
+        self.num_classes = self.opt.f_s_semantic_nclasses
 
         self.use_ref = (
             self.opt.alg_diffusion_cond_image_creation == "ref"
@@ -155,6 +158,15 @@ class PaletteModel(BaseDiffusionModel):
                 f"G_nblocks default value {opt.G_nblocks} is too high for palette model, 2 will be used instead."
             )
             opt.G_nblocks = 2
+
+        # Sounds
+        # TODO if data input is sound
+        self.sound_names.extend(
+            ["gt_sound_" + str(i) for i in range(self.inference_num)]
+        )
+        self.sound_names.extend(
+            ["output_sound_" + str(i) for i in range(self.inference_num)]
+        )
 
         # Define networks
         self.netG_A = diffusion_networks.define_G(**vars(opt))
@@ -581,10 +593,18 @@ class PaletteModel(BaseDiffusionModel):
 
         # task: super resolution, pix2pix
         elif self.task in ["super_resolution", "pix2pix"]:
+            cls = None
+
+            if "class" in self.opt.alg_palette_conditioning:
+                cls = []
+                for i in self.num_classes:
+                    cls.append(torch.randint_like(self.cls[:, 0], 0, i))
+                cls = torch.stack(cls, dim=1)
+
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[: self.inference_num],
                 sample_num=self.sample_num,
-                cls=None,
+                cls=cls,
             )
             self.fake_B = self.output
 
@@ -615,6 +635,25 @@ class PaletteModel(BaseDiffusionModel):
         super().compute_visuals()
         with torch.no_grad():
             self.inference()
+
+    def compute_sounds(self):
+        super().compute_sounds()
+        # print("Visuals: " , self.visual_names)
+        # TODO only when sound input data
+        # print("Computing sounds")
+        # print("inference num =", self.inference_num)
+        # print("n images =", self.gt_image.shape)
+        for i in range(self.inference_num):
+            name = "output_" + str(i)
+            # print("has %s: %s" % (name, hasattr(self, name)))
+            if hasattr(self, name):
+                img = getattr(self, name)
+                sound = wav2D_to_wav(img[0], 256)
+                name = "output_sound_" + str(i)
+                setattr(self, name, sound)
+
+            gt_sound = wav2D_to_wav(self.gt_image[i], 256)
+            setattr(self, "gt_sound_" + str(i), gt_sound)
 
     def get_dummy_input(self, device=None):
         if device is None:

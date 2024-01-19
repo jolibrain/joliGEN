@@ -44,7 +44,6 @@ class SelfSupervisedLabeledMaskOnlineRefDataset(UnalignedLabeledMaskOnlineRefDat
         )
 
         try:
-
             if self.opt.data_online_creation_rand_mask_A:
                 A_img = fill_mask_with_random(result["A"], result["A_label_mask"], -1)
             elif self.opt.data_online_creation_color_mask_A:

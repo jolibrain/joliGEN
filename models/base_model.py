@@ -98,6 +98,7 @@ class BaseModel(ABC):
         self.loss_names = []
         self.model_names = []
         self.visual_names = []
+        self.sound_names = []
         self.display_param = []
         self.set_display_param()
         self.optimizers = []
@@ -737,6 +738,10 @@ class BaseModel(ABC):
         """Calculate additional output images for visdom and HTML visualization"""
         pass
 
+    def compute_sounds(self):
+        """Calculate sounds to listen to on the visualizer"""
+        pass
+
     def get_image_paths(self):
         """Return image paths that are used to load current data"""
         return self.image_paths
@@ -766,6 +771,14 @@ class BaseModel(ABC):
 
             visual_ret.append(cur_visual)
         return visual_ret
+
+    def get_current_sounds(self):
+        # TODO phase? do same as visuals? create "types" of visuals?
+        sound_ret = {}
+        for i, name in enumerate(self.sound_names):
+            sound_ret[name] = getattr(self, name)
+
+        return sound_ret
 
     def get_display_param(self):
         param = OrderedDict()
@@ -932,6 +945,11 @@ class BaseModel(ABC):
                             new_key = key.replace("denoise_fn", "denoise_fn.model")
                             state_dict[new_key] = state_dict[key].clone()
                             del state_dict[key]
+
+                # TODO auto detect when necessary
+                for key in list(state_dict.keys()):
+                    if key.startswith("denoise_fn") and key.endswith("_test"):
+                        state_dict[key] = net.state_dict()[key]
 
                 state1 = list(state_dict.keys())
                 state2 = list(net.state_dict().keys())

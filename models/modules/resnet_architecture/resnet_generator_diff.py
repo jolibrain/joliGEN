@@ -427,7 +427,6 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
             normal_init(self._modules[m], mean, std)
 
     def compute_feats(self, input, embed_gammas, extract_layer_ids=[]):
-
         if embed_gammas is None:
             # Only for GAN
             b = (input.shape[0], self.cond_embed_dim)
@@ -458,7 +457,6 @@ class ResnetGenerator_attn_diff(BaseGenerator_attn):
         return feat, feats, emb
 
     def compute_attention_content(self, feat, emb):
-
         x_content = feat
 
         for layer_id, layer in enumerate(self.decoder_content):

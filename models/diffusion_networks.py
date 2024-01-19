@@ -91,7 +91,6 @@ def define_G(
         in_channel += alg_diffusion_cond_embed_dim
 
     if G_netG == "unet_mha":
-
         if model_prior_321_backwardcompatibility:
             cond_embed_dim = G_ngf * 4
         else:

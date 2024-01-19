@@ -255,7 +255,6 @@ class ResnetEncoder(nn.Module):
         feat = input
         feats = []
         for layer_id, layer in enumerate(self.model):
-
             feat = layer(feat)
             if layer_id in extract_layer_ids:
                 feats.append(feat)

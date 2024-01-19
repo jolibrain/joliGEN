@@ -41,7 +41,6 @@ class DiffusionGenerator(nn.Module):
 
         if loading_backward_compatibility:
             if type(self.denoise_fn.model).__name__ == "ResnetGenerator_attn_diff":
-
                 inner_channel = G_ngf
                 self.cond_embed = nn.Sequential(
                     nn.Linear(inner_channel, cond_embed_dim),
@@ -50,7 +49,6 @@ class DiffusionGenerator(nn.Module):
                 )
 
             elif type(self.denoise_fn.model).__name__ == "UNet":
-
                 inner_channel = G_ngf
                 cond_embed_dim = inner_channel * 4
 
@@ -63,11 +61,7 @@ class DiffusionGenerator(nn.Module):
             self.cond_embed_gammas_in = inner_channel
         else:
             self.cond_embed_dim = cond_embed_dim
-
-            if any(cond in self.denoise_fn.conditioning for cond in ["class", "ref"]):
-                self.cond_embed_gammas = self.cond_embed_dim // 2
-            else:
-                self.cond_embed_gammas = self.cond_embed_dim
+            self.cond_embed_gammas = self.denoise_fn.cond_embed_gammas
 
             self.cond_embed = nn.Sequential(
                 nn.Linear(self.cond_embed_gammas, self.cond_embed_gammas),
@@ -249,7 +243,6 @@ class DiffusionGenerator(nn.Module):
         y_cond=None,
         guidance_scale=0.0,
     ):
-
         model_mean, model_log_variance = self.p_mean_variance(
             y_t=y_t,
             t=t,
@@ -429,7 +422,6 @@ class DiffusionGenerator(nn.Module):
         return model_mean, posterior_log_variance
 
     def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):
-
         b, *_ = y_0.shape
         t = torch.randint(
             1, self.denoise_fn.model.num_timesteps_train, (b,), device=y_0.device

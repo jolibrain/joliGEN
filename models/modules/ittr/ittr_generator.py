@@ -288,7 +288,6 @@ class ITTRGenerator(nn.Module):
     """
 
     def __init__(self, input_nc, output_nc, img_size, n_blocks=9, ngf=64):
-
         assert n_blocks >= 0
         super(ITTRGenerator, self).__init__()
 

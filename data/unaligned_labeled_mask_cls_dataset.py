@@ -35,7 +35,6 @@ class UnalignedLabeledMaskClsDataset(UnalignedLabeledMaskDataset):
         B_label_cls=None,
         index=None,
     ):
-
         return_dict = super().get_img(
             A_img_path,
             A_label_mask_path,
