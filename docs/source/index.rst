@@ -183,6 +183,7 @@ Contact: contact@jolibrain.com
    export
    inference
    metrics
+   UI
    
 .. toctree::
    :maxdepth: 2
