@@ -47,17 +47,39 @@ class AlignedDataset(BaseDataset):
         # read a pair of images given a random integer index
         A_path = self.A_paths[index]
         B_path = self.B_paths[index]
-        A = Image.open(A_path).convert("RGB")
-        B = Image.open(B_path).convert("RGB")
+
+        A = Image.open(A_path)
+        B = Image.open(B_path)
+        if self.opt.data_image_bits == 8:
+            A = A.convert("RGB")
+            B = B.convert("RGB")
+            grayscale = self.input_nc == 1
+        else:  # for > 8 bit, no explicit conversion
+            grayscale = False
 
         # apply the same transform to both A and B
         transform_params = get_params(self.opt, A.size)
-        A_transform = get_transform(
-            self.opt, transform_params, grayscale=(self.input_nc == 1)
-        )
-        B_transform = get_transform(
-            self.opt, transform_params, grayscale=(self.output_nc == 1)
-        )
+        A_transform = get_transform(self.opt, transform_params, grayscale=grayscale)
+        ##TODO: modify crop params with super res scale so that crop is the same for both resolutions
+        # print('self.opt.alg_diffusion_task=', self.opt.alg_diffusion_task)
+        # if self.opt.alg_diffusion_task == "pix2pix":
+        #     transform_params_lr = transform_params.copy()
+        #     transform_params_lr['crop_pos'] = tuple(int(transform_params['crop_pos'][i] / self.opt.alg_diffusion_super_resolution_scale) for i in range(2))
+
+        #     opt_lr = copy.deepcopy(self.opt)
+        #     opt_lr.data_crop_size = int(self.opt.data_crop_size / self.opt.alg_diffusion_super_resolution_scale)
+        #     print("opt.data_crop_size=", self.opt.data_crop_size, " / opt_lr.data_crop_size=", opt_lr.data_crop_size)
+        #     print("transform_params crop_pos=", transform_params['crop_pos'], " / transform_params_lr crop_pos", transform_params_lr['crop_pos'])
+        #     B_transform = get_transform(
+        #         opt_lr, transform_params_lr, grayscale=(self.output_nc == 1)
+        #     )
+        # else:
+        B_transform = get_transform(self.opt, transform_params, grayscale=grayscale)
+
+        if self.opt.alg_diffusion_task == "pix2pix":  ##TODO: super-res
+            # resize B to A's size with PIL
+            B = B.resize(A.size, Image.NEAREST)
+
         A = A_transform(A)
         B = B_transform(B)
 

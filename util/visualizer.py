@@ -126,17 +126,24 @@ class Visualizer:
         Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
 
     def display_current_results(
-        self, visuals, epoch, save_result, params=[], first=False, phase="train"
+        self,
+        visuals,
+        epoch,
+        save_result,
+        params=[],
+        first=False,
+        phase="train",
+        image_bits=8,
     ):
         if "visdom" in self.display_type:
             self.display_current_results_visdom(
-                visuals, epoch, save_result, params, phase=phase
+                visuals, epoch, save_result, params, phase=phase, image_bits=image_bits
             )
         if "aim" in self.display_type:
             self.display_current_results_aim(visuals, epoch, save_result, params, first)
 
     def display_current_results_visdom(
-        self, visuals, epoch, save_result, params, phase
+        self, visuals, epoch, save_result, params, phase, image_bits=8
     ):
         """Display current results on visdom; save current results to an HTML file.
 
@@ -183,7 +190,11 @@ class Visualizer:
                 for visual_group in visuals:
                     label_html_row = ""
                     for label, image in visual_group.items():
-                        image_numpy = util.tensor2im(image)
+                        if image_bits == 8:
+                            imtype = np.uint8
+                        else:
+                            imtype = np.float32
+                        image_numpy = util.tensor2im(image, imtype=imtype)
                         label_html_row += "<td>%s</td>" % label
                         images.append(image_numpy.transpose([2, 0, 1]))
                         idx += 1
@@ -203,13 +214,33 @@ class Visualizer:
                     elif phase == "test":
                         win_id = 2
 
-                    self.vis.images(
-                        images,
-                        nrow=ncols,
-                        win=self.display_id + win_id,
-                        padding=2,
-                        opts=dict(title=title + " " + phase + " images"),
-                    )
+                    if image_bits > 8:  # visdom + matplotlib for gray map
+                        import matplotlib.pyplot as plt
+
+                        # fig = plt.figure(figsize=(11, 24))
+                        fig = plt.figure(figsize=(17, 36))
+                        columns = ncols
+                        rows = int(math.ceil(len(images) / columns))
+                        c = 0
+                        for im in images:
+                            fig.add_subplot(rows, columns, c + 1)
+                            plt.axis("off")
+                            plt.imshow(np.squeeze(im), cmap="gray")
+                            c += 1
+
+                        self.vis.matplot(
+                            plt,
+                            win=self.display_id + win_id,
+                            opts=dict(title=title + " " + phase + " images"),
+                        )
+                    else:
+                        self.vis.images(
+                            images,
+                            nrow=ncols,
+                            win=self.display_id + win_id,
+                            padding=2,
+                            opts=dict(title=title + " " + phase + " images"),
+                        )
                     label_html = "<table>%s</table>" % label_html
                     param_html = "<table>%s</table>" % param_html
                     self.vis.text(
@@ -259,7 +290,7 @@ class Visualizer:
                     img_path = os.path.join(
                         self.img_dir, "epoch%.3d_%s.png" % (epoch, label)
                     )
-                    util.save_image(image_numpy, img_path)
+                    # util.save_image(image_numpy, img_path)
 
             # update website
             webpage = html_util.HTML(
@@ -285,7 +316,7 @@ class Visualizer:
             for label, image in visual_group.items():
                 image_numpy = util.tensor2im(image)
                 img_path = os.path.join(self.img_dir, "latest_%s.png" % label)
-                util.save_image(image_numpy, img_path)
+                # util.save_image(image_numpy, img_path)
 
     def plot_current_losses(self, epoch, counter_ratio, losses):
         if "visdom" in self.display_type:

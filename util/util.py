@@ -1,4 +1,5 @@
 """This module contains simple helper functions """
+
 from __future__ import print_function
 
 import os
@@ -168,13 +169,14 @@ def tensor2im(input_image, imtype=np.uint8):
         image_numpy = (
             image_tensor[0].cpu().float().numpy()
         )  # convert it into a numpy array nb : the first image of the batch is displayed
-        if image_numpy.shape[0] == 1:  # grayscale to RGB
+        if imtype == np.uint8 and image_numpy.shape[0] == 1:  # grayscale to RGB
             image_numpy = np.tile(image_numpy, (3, 1, 1))
         if len(image_numpy.shape) != 2:  # it is an image
-            image_numpy.clip(-1, 1)
             image_numpy = (
-                (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
-            )  # post-processing: transpose and scaling
+                np.transpose(image_numpy, (1, 2, 0)) + 1
+            ) / 2.0  # post-processing: transpose
+            if imtype == np.uint8:
+                image_numpy = image_numpy * 255.0  # scaling
         else:  # it is  a mask
             image_numpy = image_numpy.astype(np.uint8)
             image_numpy = display_mask(image_numpy)

@@ -2,6 +2,7 @@
 
 It also includes common transformation functions (e.g., get_transform, __scale_width), which can be later used in subclasses.
 """
+
 import random
 import os.path
 import numpy as np
@@ -351,8 +352,9 @@ def get_params(opt, size):
     y = random.randint(0, np.maximum(0, new_h - opt.data_crop_size))
 
     flip = random.random() > 0.5
+    angle = random.randint(0, 3) * 90  # 0, 90, 180, 270
 
-    return {"crop_pos": (x, y), "flip": flip}
+    return {"crop_pos": (x, y), "flip": flip, "angle": angle}
 
 
 def get_transform(
@@ -404,7 +406,12 @@ def get_transform(
             )
 
     if not opt.dataaug_no_rotate:
-        transform_list.append(transforms.RandomRotation([-90, 180]))
+        if params is None or not "angle" in params:
+            transform_list.append(transforms.RandomRotation([-90, 180]))
+        elif params["angle"]:
+            transform_list.append(
+                transforms.Lambda(lambda img: __rotate(img, params["angle"]))
+            )
 
     if opt.dataaug_affine:
         transform_list.append(
@@ -420,11 +427,23 @@ def get_transform(
         transform_list.append(RandomImgAug(with_mask=False))
 
     if convert:
-        transform_list += [transforms.ToTensor()]
-        if grayscale:
-            transform_list += [transforms.Normalize((0.5,), (0.5,))]
+        transform_list += [transforms.ToTensor()]  # if not uint8, no scaling
+        if opt.data_image_bits > 8:
+            transform_list += [torchvision.transforms.v2.ToDtype(torch.float32)]
+            bit_scaling = 2**opt.data_image_bits - 1
+            transform_list += [
+                transforms.Lambda(lambda img: img * (1 / float(bit_scaling)))
+            ]
+            transform_list += [
+                transforms.Normalize((0.5,), (0.5,))
+            ]  # XXX: > 8bit, mono canal only for now
         else:
-            transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+            if grayscale:
+                transform_list += [transforms.Normalize((0.5,), (0.5,))]
+            else:
+                transform_list += [
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                ]
     return transforms.Compose(transform_list)
 
 
@@ -482,6 +501,12 @@ def __crop(img, pos, size):
 def __flip(img, flip):
     if flip:
         return img.transpose(Image.FLIP_LEFT_RIGHT)
+    return img
+
+
+def __rotate(img, angle):
+    if angle != 0:
+        return img.rotate(angle)
     return img
 
 

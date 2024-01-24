@@ -97,10 +97,10 @@ class PaletteModel(BaseDiffusionModel):
             batch_size = self.opt.train_batch_size
         else:
             batch_size = self.opt.test_batch_size
-        if self.opt.alg_diffusion_inference_num == -1:
-            self.inference_num = batch_size
-        else:
-            self.inference_num = min(self.opt.alg_diffusion_inference_num, batch_size)
+        #if self.opt.alg_diffusion_inference_num == -1:
+        #    self.inference_num = self.opt.test_batch_size
+        #else:
+        #    self.inference_num = min(self.opt.alg_diffusion_inference_num, self.opt.test_batch_size)
 
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
@@ -135,7 +135,7 @@ class PaletteModel(BaseDiffusionModel):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
 
         elif self.use_ref:
-            for i in range(self.inference_num):
+            for i in range(self.opt.train_batch_size):
                 self.gen_visual_names.append("ref_" + str(i + 1) + "_")
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
 
@@ -145,7 +145,7 @@ class PaletteModel(BaseDiffusionModel):
         if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
 
-        for k in range(self.inference_num):
+        for k in range(self.opt.train_batch_size):
             self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
 
         self.visual_names.append(visual_outputs)
@@ -457,7 +457,7 @@ class PaletteModel(BaseDiffusionModel):
 
         self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
 
-    def inference(self):
+    def inference(self, nb_imgs):
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
         else:
@@ -475,29 +475,29 @@ class PaletteModel(BaseDiffusionModel):
             ):
                 for i in range(self.nb_classes_inference):
                     if "class" in self.opt.alg_diffusion_cond_embed:
-                        cur_class = torch.ones_like(self.cls)[: self.inference_num] * (
+                        cur_class = torch.ones_like(self.cls)[: nb_imgs] * (
                             i + 1
                         )
                     else:
                         cur_class = None
 
                     if "mask" in self.opt.alg_diffusion_cond_embed:
-                        cur_mask = self.mask[: self.inference_num].clone().clamp(
+                        cur_mask = self.mask[: nb_imgs].clone().clamp(
                             min=0, max=1
                         ) * (i + 1)
                     else:
-                        cur_mask = self.mask[: self.inference_num]
+                        cur_mask = self.mask[: nb_imgs]
 
                     output, visuals = netG.restoration(
-                        y_cond=self.cond_image[: self.inference_num],
-                        y_t=self.y_t[: self.inference_num],
-                        y_0=self.gt_image[: self.inference_num],
+                        y_cond=self.cond_image[: nb_imgs],
+                        y_t=self.y_t[: nb_imgs],
+                        y_0=self.gt_image[: nb_imgs],
                         mask=cur_mask,
                         sample_num=self.sample_num,
                         cls=cur_class,
                         ddim_num_steps=self.ddim_num_steps,
                         ddim_eta=self.ddim_eta,
-                        ref=self.ref_A[: self.inference_num]
+                        ref=self.ref_A[: nb_imgs]
                         if hasattr(self, "ref_A")
                         else None,
                     )
@@ -512,31 +512,31 @@ class PaletteModel(BaseDiffusionModel):
                 self.visuals = self.visuals_1
 
             elif self.use_ref:
-                for i in range(self.inference_num):
+                for i in range(nb_imgs):
                     if self.cls is not None:
-                        cls = self.cls[: self.inference_num]
+                        cls = self.cls[: nb_imgs]
                     else:
                         cls = self.cls
 
                     if self.mask is not None:
-                        mask = self.mask[: self.inference_num]
+                        mask = self.mask[: nb_imgs]
                     else:
                         mask = self.mask
 
                     cur_ref = self.ref_A[i : i + 1].expand(
-                        self.inference_num, -1, -1, -1
+                        nb_imgs, -1, -1, -1
                     )
 
                     if self.opt.alg_diffusion_cond_image_creation == "ref":
                         y_cond = cur_ref
 
                     else:
-                        y_cond = self.cond_image[: self.inference_num]
+                        y_cond = self.cond_image[: nb_imgs]
 
                     output, visuals = netG.restoration(
                         y_cond=y_cond,
-                        y_t=self.y_t[: self.inference_num],
-                        y_0=self.gt_image[: self.inference_num],
+                        y_t=self.y_t[: nb_imgs],
+                        y_0=self.gt_image[: nb_imgs],
                         mask=mask,
                         sample_num=self.sample_num,
                         cls=cls,
@@ -558,19 +558,19 @@ class PaletteModel(BaseDiffusionModel):
             # no class conditioning
             else:
                 if self.cls is not None:
-                    cls = self.cls[: self.inference_num]
+                    cls = self.cls[: nb_imgs]
                 else:
                     cls = self.cls
 
                 if self.mask is not None:
-                    mask = self.mask[: self.inference_num]
+                    mask = self.mask[: nb_imgs]
                 else:
                     mask = self.mask
 
                 self.output, self.visuals = netG.restoration(
-                    y_cond=self.cond_image[: self.inference_num],
-                    y_t=self.y_t[: self.inference_num],
-                    y_0=self.gt_image[: self.inference_num],
+                    y_cond=self.cond_image[: nb_imgs],
+                    y_t=self.y_t[: nb_imgs],
+                    y_0=self.gt_image[: nb_imgs],
                     mask=mask,
                     sample_num=self.sample_num,
                     cls=cls,
@@ -582,7 +582,7 @@ class PaletteModel(BaseDiffusionModel):
         # task: super resolution, pix2pix
         elif self.task in ["super_resolution", "pix2pix"]:
             self.output, self.visuals = netG.restoration(
-                y_cond=self.cond_image[: self.inference_num],
+                y_cond=self.cond_image[: nb_imgs],
                 sample_num=self.sample_num,
                 cls=None,
             )
@@ -591,12 +591,12 @@ class PaletteModel(BaseDiffusionModel):
         # other tasks
         else:
             self.output, self.visuals = netG.restoration(
-                y_cond=self.cond_image[: self.inference_num], sample_num=self.sample_num
+                y_cond=self.cond_image[: nb_imgs], sample_num=self.sample_num
             )
 
         for name in self.gen_visual_names:
             whole_tensor = getattr(self, name[:-1])
-            for k in range(min(self.inference_num, self.get_current_batch_size())):
+            for k in range(min(nb_imgs, self.get_current_batch_size())):
                 cur_name = name + str(k)
                 cur_tensor = whole_tensor[k : k + 1]
 
@@ -605,16 +605,16 @@ class PaletteModel(BaseDiffusionModel):
 
                 setattr(self, cur_name, cur_tensor)
 
-        for k in range(min(self.inference_num, self.get_current_batch_size())):
+        for k in range(min(nb_imgs, self.get_current_batch_size())):
             self.fake_B_pool.query(self.visuals[k : k + 1])
 
         if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = torch.nn.SyncBatchNorm.convert_sync_batchnorm(netG)
 
-    def compute_visuals(self):
-        super().compute_visuals()
+    def compute_visuals(self, nb_imgs):
+        super().compute_visuals(nb_imgs)
         with torch.no_grad():
-            self.inference()
+            self.inference(nb_imgs)
 
     def get_dummy_input(self, device=None):
         if device is None:
