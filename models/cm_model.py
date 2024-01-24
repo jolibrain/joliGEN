@@ -72,7 +72,6 @@ class CMModel(BaseDiffusionModel):
             batch_size = self.opt.train_batch_size
         else:
             batch_size = self.opt.test_batch_size
-        self.inference_num = batch_size
 
         self.total_t = self.opt.alg_cm_num_steps
 
@@ -91,7 +90,7 @@ class CMModel(BaseDiffusionModel):
         if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
 
-        for k in range(self.inference_num):
+        for k in range(self.opt.train_batch_size):
             self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
         self.visual_names.append(visual_outputs)
 
@@ -223,7 +222,7 @@ class CMModel(BaseDiffusionModel):
 
         self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
 
-    def inference(self):
+    def inference(self, nb_imgs):
 
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
@@ -236,18 +235,18 @@ class CMModel(BaseDiffusionModel):
         # XXX: inpainting only for now
 
         if self.mask is not None:
-            mask = self.mask[: self.inference_num]
+            mask = self.mask[: nb_imgs]
         else:
             mask = self.mask
 
         # restoration call
         sampling_sigmas = (80.0, 24.4, 5.84, 0.9, 0.661)
         if not self.cond_image is None:
-            y_cond = self.cond_image[: self.inference_num]
+            y_cond = self.cond_image[: nb_imgs]
         else:
             y_cond = None
         self.output = netG.restoration(
-            self.y_t[: self.inference_num], y_cond, sampling_sigmas, mask
+            self.y_t[: nb_imgs], y_cond, sampling_sigmas, mask
         )
         self.fake_B = self.output
         self.visuals = self.output
@@ -255,7 +254,7 @@ class CMModel(BaseDiffusionModel):
         # set visual names
         for name in self.gen_visual_names:
             whole_tensor = getattr(self, name[:-1])
-            for k in range(min(self.inference_num, self.get_current_batch_size())):
+            for k in range(min(nb_imgs, self.get_current_batch_size())):
                 cur_name = name + str(k)
                 cur_tensor = whole_tensor[k : k + 1]
                 if "mask" in name:

@@ -630,6 +630,12 @@ class CommonOptions(BaseOptions):
             help="AtoB or BtoA",
         )
         parser.add_argument(
+            "--data_image_bits",
+            type=int,
+            default=8,
+            help="number of bits of the image (e.g. 8, 12 or 16)",
+        )
+        parser.add_argument(
             "--data_serial_batches",
             action="store_true",
             help="if true, takes images in order to make batches, otherwise takes them randomly",

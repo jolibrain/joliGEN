@@ -20,7 +20,7 @@ from data.base_dataset import get_transform
 from util.metrics import _compute_statistics_of_dataloader
 
 from tqdm import tqdm
-from piq import MSID, KID, FID, psnr
+from piq import MSID, KID, FID, psnr, ssim
 from lpips import LPIPS
 
 from util.util import save_image, tensor2im, delete_flop_param
@@ -731,9 +731,9 @@ class BaseModel(ABC):
         """
         with torch.no_grad():
             self.forward()
-            self.compute_visuals()
+            self.compute_visuals(self.opt.test_batch_size)
 
-    def compute_visuals(self):
+    def compute_visuals(self, nb_imgs):
         """Calculate additional output images for visdom and HTML visualization"""
         pass
 
@@ -1425,6 +1425,11 @@ class BaseModel(ABC):
                     "psnr_test",
                 ]
 
+            if "SSIM" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "ssim_test",
+                ]
+                
             if "LPIPS" in self.opt.train_metrics_list:
                 metrics_names += [
                     "lpips_test",
@@ -1462,8 +1467,9 @@ class BaseModel(ABC):
         for i, data_test_list in enumerate(
             dataloaders_test
         ):  # inner loop (minibatch) within one epoch
+            
             data_test = data_test_list[0]
-
+            
             if self.use_temporal:
                 temporal_data_test = data_test_list[1]
                 self.set_input_temporal(temporal_data_test)
@@ -1472,7 +1478,7 @@ class BaseModel(ABC):
                     data_test
                 )  # unpack data from dataloader and apply preprocessing
 
-            self.inference()
+            self.inference(self.opt.test_batch_size)
 
             pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (n_epoch, n_iter)
             if not os.path.exists(pathB):
@@ -1536,10 +1542,11 @@ class BaseModel(ABC):
                 self.kidB_test,
             ) = self.compute_metrics_generic(self.realactB_test, self.fakeactB_test)
 
-        real_tensor = (torch.cat(real_list) + 1) / 2
-        fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1, max=1) + 1) / 2
+        real_tensor = (torch.cat(real_list) + 1.0) / 2.0
+        fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
         self.psnr_test = psnr(real_tensor, fake_tensor)
-
+        self.ssim_test = ssim(real_tensor, fake_tensor)
+        
         if "LPIPS" in self.opt.train_metrics_list:
             real_tensor = torch.cat(real_list)
             fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)

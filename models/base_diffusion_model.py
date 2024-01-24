@@ -62,13 +62,6 @@ class BaseDiffusionModel(BaseModel):
         )
 
         parser.add_argument(
-            "--alg_diffusion_inference_num",
-            type=int,
-            default=-1,
-            help="nb of examples processed for inference",
-        )
-
-        parser.add_argument(
             "--alg_diffusion_cond_image_creation",
             type=str,
             default="y_t",

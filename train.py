@@ -18,6 +18,7 @@ See options/base_options.py and options/train_options.py for more training optio
 See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
 See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
 """
+
 import argparse
 import json
 import os
@@ -239,7 +240,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     total_iters % opt.output_display_freq < batch_size
                 ):  # display images on visdom and save images to a HTML file
                     save_result = total_iters % opt.output_update_html_freq == 0
-                    model.compute_visuals()
+                    model.compute_visuals(opt.train_batch_size)
                     if not "none" in opt.output_display_type:
                         visualizer.display_current_results(
                             model.get_current_visuals(),
@@ -247,6 +248,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                             save_result,
                             params=model.get_display_param(),
                             first=(total_iters == batch_size),
+                            phase="train",
+                            image_bits=opt.data_image_bits,
                         )
 
                 if (
@@ -288,6 +291,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                                 params=model.get_display_param(),
                                 first=(total_iters == batch_size),
                                 phase="test",
+                                image_bits=opt.data_image_bits,
                             )
 
                     if opt.output_display_id > 0:
