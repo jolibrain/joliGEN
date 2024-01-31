@@ -41,6 +41,7 @@ from .modules.unet_generator_attn.unet_generator_attn import (
     UNet as UNet_mha,
     UViT as UViT,
 )
+from .modules.dit.dit import DiT
 
 
 def define_G(
@@ -232,6 +233,19 @@ def define_G(
             group_norm_size=G_unet_mha_group_norm_size,
             num_transformer_blocks=G_uvit_num_transformer_blocks,
             efficient=G_unet_mha_vit_efficient,
+        )
+        return net
+    elif G_netG == "dit":
+        net = DiT(
+            input_size=data_crop_size,
+            patch_size=16,
+            in_channels=model_input_nc,
+            out_channels=model_output_nc,
+            hidden_size=768,
+            depth=12,
+            num_heads=16,
+            mlp_ratio=4.0,
+            tanh=True,
         )
         return net
     else:

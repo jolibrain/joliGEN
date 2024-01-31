@@ -203,7 +203,6 @@ def define_G(
         )
         cond_embed_dim = hdit_config.mapping.width
         model.cond_embed_dim = cond_embed_dim
-
     else:
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG
