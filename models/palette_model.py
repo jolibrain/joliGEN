@@ -497,7 +497,11 @@ class PaletteModel(BaseDiffusionModel):
                         cls=cur_class,
                         ddim_num_steps=self.ddim_num_steps,
                         ddim_eta=self.ddim_eta,
-                        ref=self.ref_A[:nb_imgs] if hasattr(self, "ref_A") else None,
+                        ref=(
+                            self.ref_A[: self.inference_num]
+                            if hasattr(self, "ref_A")
+                            else None
+                        ),
                     )
 
                     name = "output_" + str(i + 1)

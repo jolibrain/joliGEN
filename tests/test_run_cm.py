@@ -41,7 +41,7 @@ infer_options = {
 }
 
 models_diffusion = ["cm"]
-G_netG = ["unet_mha"]
+G_netG = ["unet_mha", "hdit"]
 
 alg_diffusion_cond_embed = ["y_t"]
 

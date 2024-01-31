@@ -268,7 +268,6 @@ def define_D(
     train_feat_wavelet,
     **unused_options
 ):
-
     """Create a discriminator
 
     Parameters:
@@ -309,7 +308,6 @@ def define_D(
     img_size = data_crop_size
 
     for netD in D_netDs:
-
         if netD == "basic":  # default PatchGAN classifier
             net = NLayerDiscriminator(
                 model_input_nc,
@@ -360,7 +358,6 @@ def define_D(
                     download_segformer_weight(weight_path)
 
             elif D_proj_network_type == "depth":
-
                 weight_path = model_depth_network
 
             else:

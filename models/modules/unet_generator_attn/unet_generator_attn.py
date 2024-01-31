@@ -705,10 +705,10 @@ class UNet(nn.Module):
 
         return feats
 
-    def extract(self, a, t, x_shape=(1, 1, 1, 1)):
-        b, *_ = t.shape
-        out = a.gather(-1, t)
-        return out.reshape(b, *((1,) * (len(x_shape) - 1)))
+    # def extract(self, a, t, x_shape=(1, 1, 1, 1)):
+    #    b, *_ = t.shape
+    #    out = a.gather(-1, t)
+    #    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
 
 # Transformer blocks
@@ -1006,10 +1006,10 @@ class UViT(nn.Module):
 
         return feats
 
-    def extract(self, a, t, x_shape=(1, 1, 1, 1)):
-        b, *_ = t.shape
-        out = a.gather(-1, t)
-        return out.reshape(b, *((1,) * (len(x_shape) - 1)))
+    # def extract(self, a, t, x_shape=(1, 1, 1, 1)):
+    #    b, *_ = t.shape
+    #    out = a.gather(-1, t)
+    #    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
 
 ### REF

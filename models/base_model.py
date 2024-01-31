@@ -133,6 +133,7 @@ class BaseModel(ABC):
             "ittr" in self.opt.G_netG
             or "unet_mha" in self.opt.G_netG
             or "uvit" in self.opt.G_netG
+            or "dit" in self.opt.G_netG
         ):
             self.onnx_opset_version = 12
         else:
