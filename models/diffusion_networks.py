@@ -1,6 +1,5 @@
+import sys
 from .modules.utils import get_norm_layer
-
-
 from .modules.diffusion_generator import DiffusionGenerator
 from .modules.resnet_architecture.resnet_generator_diff import ResnetGenerator_attn_diff
 from .modules.unet_generator_attn.unet_generator_attn import (
@@ -8,6 +7,8 @@ from .modules.unet_generator_attn.unet_generator_attn import (
     UViT,
     UNetGeneratorRefAttn,
 )
+from .modules.hdit.hdit import HDiT, HDiTConfig
+
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
 
@@ -29,6 +30,8 @@ def define_G(
     G_unet_mha_res_blocks,
     G_unet_mha_channel_mults,
     G_unet_mha_attn_res,
+    G_hdit_depths,
+    G_hdit_widths,
     G_attn_nb_mask_attn,
     G_attn_nb_mask_input,
     G_spectral,
@@ -91,7 +94,6 @@ def define_G(
         in_channel += alg_diffusion_cond_embed_dim
 
     if G_netG == "unet_mha":
-
         if model_prior_321_backwardcompatibility:
             cond_embed_dim = G_ngf * 4
         else:
@@ -184,6 +186,23 @@ def define_G(
             use_scale_shift_norm=True,
         )
         cond_embed_dim = alg_diffusion_cond_embed_dim
+    elif G_netG == "hdit":
+        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths)
+        print("HDiT levels=", hdit_config.levels)
+        print("HDiT mapping=", hdit_config.mapping)
+        model = HDiT(
+            levels=hdit_config.levels,
+            mapping=hdit_config.mapping,
+            in_channels=in_channel,
+            out_channels=model_output_nc,
+            patch_size=hdit_config.patch_size,
+            num_classes=0,
+            mapping_cond_dim=0,
+            n_timestep_train=G_diff_n_timestep_train,
+            n_timestep_test=G_diff_n_timestep_test,
+        )
+        cond_embed_dim = hdit_config.mapping.width
+        model.cond_embed_dim = cond_embed_dim
 
     else:
         raise NotImplementedError(

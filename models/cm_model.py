@@ -222,7 +222,7 @@ class CMModel(BaseDiffusionModel):
 
         self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
 
-    def inference(self, nb_imgs, offset):
+    def inference(self, nb_imgs, offset=0):
 
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
@@ -261,7 +261,7 @@ class CMModel(BaseDiffusionModel):
                     cur_tensor = cur_tensor.squeeze(0)
                 setattr(self, cur_name, cur_tensor)
 
-    def compute_visuals(self):
-        super().compute_visuals()
+    def compute_visuals(self, nb_imgs):
+        super().compute_visuals(nb_imgs)
         with torch.no_grad():
-            self.inference()
+            self.inference(nb_imgs)

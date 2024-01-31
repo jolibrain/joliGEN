@@ -207,6 +207,8 @@ class CommonOptions(BaseOptions):
                 "unet_mha",
                 "uvit",
                 "unet_mha_ref_attn",
+                "dit",
+                "hdit",
             ],
             help="specify generator architecture",
         )
@@ -359,6 +361,22 @@ class CommonOptions(BaseOptions):
             "--G_unet_mha_vit_efficient",
             action="store_true",
             help="if true, use efficient attention in UNet and UViT",
+        )
+
+        parser.add_argument(
+            "--G_hdit_depths",
+            default=[2, 2, 4],
+            nargs="*",
+            type=int,
+            help="distribution of depth blocks across the HDiT stages, should have same size as --G_hdit_widths",
+        )
+
+        parser.add_argument(
+            "--G_hdit_widths",
+            default=[192, 384, 768],
+            nargs="*",
+            type=int,
+            help="width multiplier for each level of the HDiT",
         )
 
         # discriminator
