@@ -55,6 +55,19 @@ Development env will allow you to modify ``joligen_ui`` code and validate these 
 
 3. open `<http://server_host:18100>`_
 
+Some informations about running processes and associated ports:
+
+- ``joligen`` server must bind its host with ``docker.host.internal``, the server can be started from ``joliGEN`` project root folder with the following command:
+
+::
+
+   cd code/joliGEN/
+   export DOCKER_HOST_INTERNAL=172.28.0.1
+   server/run.sh --host $DOCKER_HOST_INTERNAL --port 8000
+
+- ``joligen`` server will be available behind ``joligen_ui`` nginx reverse-proxy at the following url: `<http://server_host:18110/joligen/>`_
+
+
 ************
 Visdom Proxy
 ************
