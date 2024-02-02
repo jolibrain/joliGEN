@@ -20,8 +20,6 @@ from tqdm import tqdm
 
 jg_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../")
 sys.path.append(jg_dir)
-from segment_anything import SamPredictor
-
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
 from models import diffusion_networks
 from models.modules.diffusion_utils import set_new_noise_schedule
@@ -34,6 +32,7 @@ from models.modules.sam.sam_inference import (
 from models.modules.utils import download_sam_weight
 from options.inference_diffusion_options import InferenceDiffusionOptions
 from options.train_options import TrainOptions
+from segment_anything import SamPredictor
 from util.mask_generation import (
     fill_img_with_canny,
     fill_img_with_depth,
@@ -230,6 +229,8 @@ def generate(
             mask_delta[i].append(delta_values[0])
 
     # Load image
+    if "class" in conditioning:
+        cls = cls_value
 
     # reading image
     img = cv2.imread(img_in)
@@ -524,6 +525,11 @@ def generate(
     elif opt.alg_diffusion_cond_image_creation == "sketch":
         cond_image = fill_img_with_sketch(img_tensor.unsqueeze(0), mask.unsqueeze(0))
     elif opt.alg_diffusion_cond_image_creation == "canny":
+        mask_is_none = mask is None
+        if mask_is_none:
+            # `fill_img_with_canny` needs a mask.
+            mask = torch.ones_like(img_tensor, device=img_tensor.device)
+
         clamp = torch.clamp(mask, 0, 1)
         if cond_in:
             # mask the background to avoid canny edges around cond image
@@ -538,9 +544,25 @@ def generate(
             low_threshold_random=-1,
             high_threshold_random=-1,
         )
+
+        # Override the generated canny.
+        canny_image = "./modified-canny/0298709e-771de5a8-canny-modifie.png"
+
+        cond_image = cv2.imread(canny_image, cv2.IMREAD_GRAYSCALE)
+        cond_image = cv2.resize(cond_image, (img_tensor.shape[-1], img_tensor.shape[-2]))
+        cond_image = torch.Tensor(cond_image).to(img_tensor.device)
+        cond_image = (cond_image / 255) * 2 - 1
+        # Add the RGB channels.
+        cond_image = torch.stack([cond_image] * 3)
+        cond_image = cond_image.unsqueeze(0)
+
         if cond_in:
             # restore background
             cond_image = cond_image * clamp + img_tensor * (1 - clamp)
+
+        if mask_is_none:
+            # Revert to "None".
+            mask = None
     elif opt.alg_diffusion_cond_image_creation == "sam":
         opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
         if not os.path.exists(opt.f_s_weight_sam):
@@ -638,6 +660,12 @@ def generate(
     else:
         out_img_resized = out_img
         out_img_real_size = img_orig.copy()
+        img_orig = cv2.resize(
+            img_orig, (img_orig.shape[1] // 4, img_orig.shape[0] // 4), cv2.INTER_CUBIC
+        )
+        out_img_real_size = cv2.resize(
+            out_img, (img_orig.shape[1], img_orig.shape[0]), cv2.INTER_CUBIC
+        )
 
     # fill out crop into original image
     if bbox_in:
@@ -648,11 +676,16 @@ def generate(
     if cond_image is not None:
         cond_img = to_np(cond_image)
 
+    cond_img = cv2.resize(
+        cond_img, (img_orig.shape[1], img_orig.shape[0]), cv2.INTER_CUBIC
+    )
+
     if write:
         cv2.imwrite(os.path.join(dir_out, name + "_orig.png"), img_orig)
         if cond_image is not None:
             cv2.imwrite(os.path.join(dir_out, name + "_cond.png"), cond_img)
         cv2.imwrite(os.path.join(dir_out, name + "_generated.png"), out_img_real_size)
+        cv2.imwrite(os.path.join(dir_out, name + "_generated_crop.png"), out_img)
         cv2.imwrite(os.path.join(dir_out, name + "_y_t.png"), to_np(y_t))
         if mask is not None:
             cv2.imwrite(os.path.join(dir_out, name + "_y_0.png"), to_np(img_tensor))
