@@ -1,25 +1,22 @@
 # joliGEN: Generative AI Toolset (Changelog)
 
-## [2.0.0](https://github.com/jolibrain/joliGEN/compare/v1.0.0...v2.0.0) (2023-11-13)
+## [3.0.0](https://github.com/jolibrain/joliGEN/compare/v2.0.0...v3.0.0) (2024-02-02)
 
 
 ### Features
 
-* **ml:** dinov2 discriminator with registers ([7fcf790](https://github.com/jolibrain/joliGEN/commit/7fcf790661e64d458238c2ac68f440098caa0bae))
-* **ml:** DinoV2 feature-based projected discriminator ([c67ffa8](https://github.com/jolibrain/joliGEN/commit/c67ffa88cbfd7638b82c4e5b5cce6ba66a88d872))
-* **ml:** SigLIP based projected discriminators ([5e10a86](https://github.com/jolibrain/joliGEN/commit/5e10a86b124ee1f9845216ef5372910671f54d86))
-* optimization eps value control ([0556987](https://github.com/jolibrain/joliGEN/commit/0556987cb079a4325b30cdc9dbe55a332f119e01))
-* pix2pix task for palette ([7e47139](https://github.com/jolibrain/joliGEN/commit/7e47139d1f0a5eb47849e6b36f50bf5d8df88b9d))
-* **scripts:** adding a video generation script for gans ([85d1922](https://github.com/jolibrain/joliGEN/commit/85d192273940d253ec2e55fda4527e3c85dcf8ad))
+* api inference for gan and diffusion ([6fd43d8](https://github.com/jolibrain/joliGEN/commit/6fd43d80f7cfe3e08b44a08bdc1fdd97ad580a06))
+* inference server option returns base64 image ([5bc8f44](https://github.com/jolibrain/joliGEN/commit/5bc8f44ae06f90835ff57ed0e4fec225245162bd))
+* **ml:** consistency models as diffusion models for inpainting, with conditioning ([de9d725](https://github.com/jolibrain/joliGEN/commit/de9d725a6a13dd8aa688f3e5d83ad08d1480b62b))
+* **scripts:** canny thresholds grid plots ([6d94ffa](https://github.com/jolibrain/joliGEN/commit/6d94ffa17b304218af5778c5f42703dc98a488bd))
+* specialized helpers for each model ([f361414](https://github.com/jolibrain/joliGEN/commit/f3614146d8675896a43e77f91c9181886e8e72fd))
 
 
 ### Bug Fixes
 
-* amp for discriminators ([811ba3d](https://github.com/jolibrain/joliGEN/commit/811ba3dee80782a1073ee05354e78ebb27c1769f))
-* APA augmentation on multiple discriminators ([becb3eb](https://github.com/jolibrain/joliGEN/commit/becb3eb1b3f2d4a5c1a71332e26b082563480066))
-* docker release script ([f1c56de](https://github.com/jolibrain/joliGEN/commit/f1c56de0e2f8468f0ae49ae75714271e2a28a7fa))
-* end of training metrics computation ([e1f213c](https://github.com/jolibrain/joliGEN/commit/e1f213cb0bb49148b517813690400ea3cc2285c3))
-* init_metrics directory and metrics on CPU ([0b77943](https://github.com/jolibrain/joliGEN/commit/0b7794395271a8af77fedb0a97dbba98207829e8))
-* load size for rectangular images, resize ref image for inference ([965e1bf](https://github.com/jolibrain/joliGEN/commit/965e1bfe3723c03bd589cd5371f9237a847500d0))
-* **ml:** inference for diffusion with reference image ([df8c504](https://github.com/jolibrain/joliGEN/commit/df8c50454a03247999553720e19d2ddb8ee84635))
-* save whole metrics_dict so we can reload it ([5d57c4c](https://github.com/jolibrain/joliGEN/commit/5d57c4cb83883678b392648b7e9b435fda7af429))
+* correct help for image generation scripts ([76ce6b4](https://github.com/jolibrain/joliGEN/commit/76ce6b4987de75a4a8a1aa38dffc71b179388254))
+* enable model export during training ([79525b8](https://github.com/jolibrain/joliGEN/commit/79525b89022698657e4647f341861e85f58691ae))
+* not force reloading dinov2 models ([800967d](https://github.com/jolibrain/joliGEN/commit/800967d3ccd528ad8ac073a023c2b56588dbcacd))
+* ref_in option ([2927574](https://github.com/jolibrain/joliGEN/commit/2927574d254861c95fac0ea38ee448777e941b19))
+* resize image to test base64 api diffusion ([2708a6f](https://github.com/jolibrain/joliGEN/commit/2708a6fd933412877aa03146e108ea892e825ae6))
+* **scripts:** bdd100k bboxes coordinates in the right order ([1e70740](https://github.com/jolibrain/joliGEN/commit/1e70740edefe11f432c701853d92ff73958cb3d0))
