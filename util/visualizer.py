@@ -214,33 +214,27 @@ class Visualizer:
                     elif phase == "test":
                         win_id = 2
 
-                    if image_bits > 8:  # visdom + matplotlib for gray map
-                        import matplotlib.pyplot as plt
+                    if image_bits > 8:  # using matplotlib gray cmap
+                        import matplotlib
 
-                        # fig = plt.figure(figsize=(11, 24))
-                        fig = plt.figure(figsize=(17, 36))
-                        columns = ncols
-                        rows = int(math.ceil(len(images) / columns))
-                        c = 0
+                        gray_cm = matplotlib.cm.get_cmap("gray")
+                        mapped_images = []
                         for im in images:
-                            fig.add_subplot(rows, columns, c + 1)
-                            plt.axis("off")
-                            plt.imshow(np.squeeze(im), cmap="gray")
-                            c += 1
+                            mapped_im = np.squeeze(gray_cm(im, bytes=True))
+                            mapped_im = mapped_im.transpose([2, 0, 1])
+                            # remove the alpha channel
+                            mapped_im = mapped_im[:3, :, :]
+                            mapped_images.append(mapped_im)
 
-                        self.vis.matplot(
-                            plt,
-                            win=self.display_id + win_id,
-                            opts=dict(title=title + " " + phase + " images"),
-                        )
-                    else:
-                        self.vis.images(
-                            images,
-                            nrow=ncols,
-                            win=self.display_id + win_id,
-                            padding=2,
-                            opts=dict(title=title + " " + phase + " images"),
-                        )
+                        images = mapped_images
+
+                    self.vis.images(
+                        images,
+                        nrow=ncols,
+                        win=self.display_id + win_id,
+                        padding=2,
+                        opts=dict(title=title + " " + phase + " images"),
+                    )
                     label_html = "<table>%s</table>" % label_html
                     param_html = "<table>%s</table>" % param_html
                     self.vis.text(

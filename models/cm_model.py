@@ -235,18 +235,18 @@ class CMModel(BaseDiffusionModel):
         # XXX: inpainting only for now
 
         if self.mask is not None:
-            mask = self.mask[: nb_imgs]
+            mask = self.mask[:nb_imgs]
         else:
             mask = self.mask
 
         # restoration call
         sampling_sigmas = (80.0, 24.4, 5.84, 0.9, 0.661)
         if not self.cond_image is None:
-            y_cond = self.cond_image[: nb_imgs]
+            y_cond = self.cond_image[:nb_imgs]
         else:
             y_cond = None
         self.output = netG.restoration(
-            self.y_t[: nb_imgs], y_cond, sampling_sigmas, mask
+            self.y_t[:nb_imgs], y_cond, sampling_sigmas, mask
         )
         self.fake_B = self.output
         self.visuals = self.output

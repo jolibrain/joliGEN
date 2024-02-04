@@ -64,7 +64,6 @@ class CycleGanModel(BaseGanModel):
         return opt
 
     def __init__(self, opt, rank):
-
         super().__init__(opt, rank)
 
         if opt.alg_cyclegan_lambda_identity > 0.0:
@@ -113,7 +112,6 @@ class CycleGanModel(BaseGanModel):
         # Discriminators
 
         if self.isTrain:
-
             self.netD_As = gan_networks.define_D(**vars(opt))
             self.netD_Bs = gan_networks.define_D(**vars(opt))
 
@@ -258,7 +256,8 @@ class CycleGanModel(BaseGanModel):
             visual_names_out_mask_B = ["real_B_out_mask", "fake_A_out_mask"]
             self.visual_names += [visual_names_out_mask_A, visual_names_out_mask_B]
 
-    def inference(self):
+    def inference(self, nb_imgs):
+        del nb_imgs  # unused
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
 
     def forward_cycle_gan(self):

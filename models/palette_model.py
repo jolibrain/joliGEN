@@ -97,9 +97,9 @@ class PaletteModel(BaseDiffusionModel):
             batch_size = self.opt.train_batch_size
         else:
             batch_size = self.opt.test_batch_size
-        #if self.opt.alg_diffusion_inference_num == -1:
+        # if self.opt.alg_diffusion_inference_num == -1:
         #    self.inference_num = self.opt.test_batch_size
-        #else:
+        # else:
         #    self.inference_num = min(self.opt.alg_diffusion_inference_num, self.opt.test_batch_size)
 
         self.num_classes = max(
@@ -475,31 +475,27 @@ class PaletteModel(BaseDiffusionModel):
             ):
                 for i in range(self.nb_classes_inference):
                     if "class" in self.opt.alg_diffusion_cond_embed:
-                        cur_class = torch.ones_like(self.cls)[: nb_imgs] * (
-                            i + 1
-                        )
+                        cur_class = torch.ones_like(self.cls)[:nb_imgs] * (i + 1)
                     else:
                         cur_class = None
 
                     if "mask" in self.opt.alg_diffusion_cond_embed:
-                        cur_mask = self.mask[: nb_imgs].clone().clamp(
-                            min=0, max=1
-                        ) * (i + 1)
+                        cur_mask = self.mask[:nb_imgs].clone().clamp(min=0, max=1) * (
+                            i + 1
+                        )
                     else:
-                        cur_mask = self.mask[: nb_imgs]
+                        cur_mask = self.mask[:nb_imgs]
 
                     output, visuals = netG.restoration(
-                        y_cond=self.cond_image[: nb_imgs],
-                        y_t=self.y_t[: nb_imgs],
-                        y_0=self.gt_image[: nb_imgs],
+                        y_cond=self.cond_image[:nb_imgs],
+                        y_t=self.y_t[:nb_imgs],
+                        y_0=self.gt_image[:nb_imgs],
                         mask=cur_mask,
                         sample_num=self.sample_num,
                         cls=cur_class,
                         ddim_num_steps=self.ddim_num_steps,
                         ddim_eta=self.ddim_eta,
-                        ref=self.ref_A[: nb_imgs]
-                        if hasattr(self, "ref_A")
-                        else None,
+                        ref=self.ref_A[:nb_imgs] if hasattr(self, "ref_A") else None,
                     )
 
                     name = "output_" + str(i + 1)
@@ -514,29 +510,27 @@ class PaletteModel(BaseDiffusionModel):
             elif self.use_ref:
                 for i in range(nb_imgs):
                     if self.cls is not None:
-                        cls = self.cls[: nb_imgs]
+                        cls = self.cls[:nb_imgs]
                     else:
                         cls = self.cls
 
                     if self.mask is not None:
-                        mask = self.mask[: nb_imgs]
+                        mask = self.mask[:nb_imgs]
                     else:
                         mask = self.mask
 
-                    cur_ref = self.ref_A[i : i + 1].expand(
-                        nb_imgs, -1, -1, -1
-                    )
+                    cur_ref = self.ref_A[i : i + 1].expand(nb_imgs, -1, -1, -1)
 
                     if self.opt.alg_diffusion_cond_image_creation == "ref":
                         y_cond = cur_ref
 
                     else:
-                        y_cond = self.cond_image[: nb_imgs]
+                        y_cond = self.cond_image[:nb_imgs]
 
                     output, visuals = netG.restoration(
                         y_cond=y_cond,
-                        y_t=self.y_t[: nb_imgs],
-                        y_0=self.gt_image[: nb_imgs],
+                        y_t=self.y_t[:nb_imgs],
+                        y_0=self.gt_image[:nb_imgs],
                         mask=mask,
                         sample_num=self.sample_num,
                         cls=cls,
@@ -558,19 +552,19 @@ class PaletteModel(BaseDiffusionModel):
             # no class conditioning
             else:
                 if self.cls is not None:
-                    cls = self.cls[: nb_imgs]
+                    cls = self.cls[:nb_imgs]
                 else:
                     cls = self.cls
 
                 if self.mask is not None:
-                    mask = self.mask[: nb_imgs]
+                    mask = self.mask[:nb_imgs]
                 else:
                     mask = self.mask
 
                 self.output, self.visuals = netG.restoration(
-                    y_cond=self.cond_image[: nb_imgs],
-                    y_t=self.y_t[: nb_imgs],
-                    y_0=self.gt_image[: nb_imgs],
+                    y_cond=self.cond_image[:nb_imgs],
+                    y_t=self.y_t[:nb_imgs],
+                    y_0=self.gt_image[:nb_imgs],
                     mask=mask,
                     sample_num=self.sample_num,
                     cls=cls,
@@ -582,7 +576,7 @@ class PaletteModel(BaseDiffusionModel):
         # task: super resolution, pix2pix
         elif self.task in ["super_resolution", "pix2pix"]:
             self.output, self.visuals = netG.restoration(
-                y_cond=self.cond_image[: nb_imgs],
+                y_cond=self.cond_image[:nb_imgs],
                 sample_num=self.sample_num,
                 cls=None,
             )
@@ -591,7 +585,7 @@ class PaletteModel(BaseDiffusionModel):
         # other tasks
         else:
             self.output, self.visuals = netG.restoration(
-                y_cond=self.cond_image[: nb_imgs], sample_num=self.sample_num
+                y_cond=self.cond_image[:nb_imgs], sample_num=self.sample_num
             )
 
         for name in self.gen_visual_names:
