@@ -1429,7 +1429,7 @@ class BaseModel(ABC):
                 metrics_names += [
                     "ssim_test",
                 ]
-                
+
             if "LPIPS" in self.opt.train_metrics_list:
                 metrics_names += [
                     "lpips_test",
@@ -1467,9 +1467,9 @@ class BaseModel(ABC):
         for i, data_test_list in enumerate(
             dataloaders_test
         ):  # inner loop (minibatch) within one epoch
-            
+
             data_test = data_test_list[0]
-            
+
             if self.use_temporal:
                 temporal_data_test = data_test_list[1]
                 self.set_input_temporal(temporal_data_test)
@@ -1546,7 +1546,7 @@ class BaseModel(ABC):
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
         self.psnr_test = psnr(real_tensor, fake_tensor)
         self.ssim_test = ssim(real_tensor, fake_tensor)
-        
+
         if "LPIPS" in self.opt.train_metrics_list:
             real_tensor = torch.cat(real_list)
             fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)

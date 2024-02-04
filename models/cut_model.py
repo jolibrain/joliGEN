@@ -466,7 +466,8 @@ class CUTModel(BaseGanModel):
             visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
             self.visual_names += [visual_names_out_mask_A]
 
-    def inference(self):
+    def inference(self, nb_imgs):
+        del nb_imgs  # unused
         self.real = (
             torch.cat((self.real_A, self.real_B), dim=0)
             if self.opt.alg_cut_nce_idt and self.opt.isTrain
