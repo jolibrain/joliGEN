@@ -164,14 +164,10 @@ class TrainOptions(CommonOptions):
         )
 
         parser.add_argument(
-<<<<<<< HEAD
-            "--test_batch_size", type=int, help="input batch size", required=False
-=======
             "--test_batch_size",
             type=int,
             default=-1,
             help="input batch size, defaults to train batch size",
->>>>>>> styletransfer-diffusion
         )
 
         parser.add_argument(
