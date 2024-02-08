@@ -522,10 +522,13 @@ class TrainOptions(CommonOptions):
 
         # data augmentation
         parser.add_argument(
-            "--dataaug_no_flip",
-            action="store_true",
-            help="if specified, do not flip the images for data augmentation",
+            "--dataaug_flip",
+            type=str,
+            default="horizontal",
+            choices=["none", "horizontal", "vertical", "both"],
+            help="if specified, flip the images for data augmentation, possible values: none, horizontal, vertical, both",
         )
+
         parser.add_argument(
             "--dataaug_no_rotate",
             action="store_true",

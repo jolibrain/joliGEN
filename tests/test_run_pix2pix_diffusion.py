@@ -27,6 +27,7 @@ json_like_dict = {
     "G_nblocks": 1,
     "G_padding_type": "reflect",
     "alg_diffusion_task": "pix2pix",
+    "dataaug_flip": "both",
 }
 
 
