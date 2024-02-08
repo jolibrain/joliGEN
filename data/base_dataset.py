@@ -351,10 +351,11 @@ def get_params(opt, size):
     x = random.randint(0, np.maximum(0, new_w - opt.data_crop_size))
     y = random.randint(0, np.maximum(0, new_h - opt.data_crop_size))
 
-    flip = random.random() > 0.5
+    fliph = random.random() > 0.5
+    flipv = random.random() > 0.5
     angle = random.randint(0, 3) * 90  # 0, 90, 180, 270
 
-    return {"crop_pos": (x, y), "flip": flip, "angle": angle}
+    return {"crop_pos": (x, y), "fliph": fliph, "flipv": flipv, "angle": angle}
 
 
 def get_transform(
@@ -397,13 +398,28 @@ def get_transform(
             transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method))
         )
 
-    if not opt.dataaug_no_flip:
+    if opt.dataaug_flip != "none":
         if params is None:
-            transform_list.append(transforms.RandomHorizontalFlip())
-        elif params["flip"]:
-            transform_list.append(
-                transforms.Lambda(lambda img: __flip(img, params["flip"]))
-            )
+            if opt.dataaug_flip == "horizontal":
+                transform_list.append(transforms.RandomHorizontalFlip())  # default
+            elif opt.dataaug_flip == "vertical":
+                transform_list.append(transforms.RandomVerticalFlip())
+            elif opt.dataaug_flip == "both":
+                transform_list.append(transforms.RandomHorizontalFlip())
+                transform_list.append(transforms.RandomVerticalFlip())
+        else:
+            if params["fliph"]:
+                transform_list.append(
+                    transforms.Lambda(
+                        lambda img: __flip(img, params["fliph"], horizontal=True)
+                    )
+                )
+            if params["flipv"]:
+                transform_list.append(
+                    transforms.Lambda(
+                        lambda img: __flip(img, params["flipv"], horizontal=False)
+                    )
+                )
 
     if not opt.dataaug_no_rotate:
         if params is None or not "angle" in params:
@@ -498,9 +514,12 @@ def __crop(img, pos, size):
     return img
 
 
-def __flip(img, flip):
+def __flip(img, flip, horizontal=True):
     if flip:
-        return img.transpose(Image.FLIP_LEFT_RIGHT)
+        if horizontal:
+            return img.transpose(Image.FLIP_LEFT_RIGHT)
+        else:
+            return img.transpose(Image.FLIP_TOP_BOTTOM)
     return img
 
 
@@ -547,7 +566,14 @@ def get_transform_seg(
         if not grayscale:
             transform_list.append(RandomImgAug())
 
-    if not opt.dataaug_no_flip:
+    if opt.dataaug_flip != "none":
+        if opt.dataaug_flip == "horizontal":
+            transform_list.append(RandomHorizontalFlipMask())
+        elif opt.dataaug_flip == "vertical":
+            transform_list.append(RandomVerticalFlipMask())
+        elif opt.dataaug_flip == "both":
+            transform_list.append(RandomHorizontalFlipMask())
+            transform_list.append(RandomVerticalFlipMask())
         transform_list.append(RandomHorizontalFlipMask())
 
     if not opt.dataaug_no_rotate:
@@ -770,6 +796,29 @@ class RandomHorizontalFlipMask(transforms.RandomHorizontalFlip):
                 return F.hflip(img), F.hflip(mask), F2.hflip(bbox)
             else:
                 return F.hflip(img), F.hflip(mask), []
+        return img, mask, bbox
+
+
+class RandomVerticalFlipMask(transforms.RandomVerticalFlip):
+    """Horizontally flip the given PIL Image randomly with a given probability.
+
+    Args:
+        p (float): probability of the image being flipped. Default value is 0.5
+    """
+
+    def __call__(self, img, mask, bbox):
+        """
+        Args:
+            img (PIL Image): Image to be flipped.
+
+        Returns:
+            PIL Image: Randomly flipped image.
+        """
+        if random.random() < self.p:
+            if torch.__version__[0] == "2":
+                return F.vflip(img), F.vflip(mask), F2.vflip(bbox)
+            else:
+                return F.vflip(img), F.vflip(mask), []
         return img, mask, bbox
 
 
@@ -1047,8 +1096,14 @@ def get_transform_list(
     if "crop" in opt.data_preprocess:
         transform_list.append(RandomCropMaskList(opt.data_crop_size + margin))
 
-    if not opt.dataaug_no_flip:
-        transform_list.append(RandomHorizontalFlipMaskList())
+    if opt.dataaug_flip != "none":
+        if opt.dataaug_flip == "horizontal":
+            transform_list.append(RandomHorizontalFlipMaskList())
+        elif opt.dataaug_flip == "vertical":
+            transform_list.append(RandomVerticalFlipMaskList())
+        elif opt.dataaug_flip == "both":
+            transform_list.append(RandomHorizonalFlipMaskList())
+            transform_list.append(RandomVerticalFlipMaskList())
 
     if not opt.dataaug_no_rotate:
         transform_list.append(RandomRotationMaskList(degrees=0))
@@ -1278,6 +1333,36 @@ class RandomHorizontalFlipMaskList(transforms.RandomHorizontalFlip):
                 return_masks = None
 
             return return_imgs, return_masks, F2.hflip(bbox)
+        else:
+            return imgs, masks, bbox
+
+
+class RandomVerticalFlipMaskList(transforms.RandomVerticalFlip):
+    """Horizontally flip the given PIL Image randomly with a given probability.
+
+    Args:
+        p (float): probability of the image being flipped. Default value is 0.5
+    """
+
+    def __call__(self, imgs, masks, bbox):
+        """
+        Args:
+            img (PIL Image): Image to be flipped.
+
+        Returns:
+            PIL Image: Randomly flipped image.
+        """
+        if random.random() < self.p:
+            return_imgs, return_masks = [], []
+            for img in imgs:
+                return_imgs.append(F.vflip(img))
+            if masks is not None:
+                for mask in masks:
+                    return_masks.append(F.vflip(mask))
+            else:
+                return_masks = None
+
+            return return_imgs, return_masks, F2.vflip(bbox)
         else:
             return imgs, masks, bbox
 
