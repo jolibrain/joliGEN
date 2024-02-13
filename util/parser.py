@@ -19,14 +19,16 @@ def get_opt(main_opt, remaining_args):
     if main_opt.config_json != "":
         override_options_names = get_override_options_names(remaining_args)
 
+        with open(main_opt.config_json, "r") as jsonf:
+            train_json = flatten_json(json.load(jsonf))
+
         if not "--dataroot" in remaining_args:
             remaining_args += ["--dataroot", "unused"]
+        # model_type is mandatory to load the correct options
+        remaining_args += ["--model_type", train_json["model_type"]]
         override_options_json = flatten_json(
             TrainOptions().parse_to_json(remaining_args)
         )
-
-        with open(main_opt.config_json, "r") as jsonf:
-            train_json = flatten_json(json.load(jsonf))
 
         # Save the config file when --save_config is passed
         is_config_saved = False
