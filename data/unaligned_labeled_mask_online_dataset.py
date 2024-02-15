@@ -111,6 +111,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 fixed_mask_size=self.opt.data_online_fixed_mask_size,
                 inverted_mask=self.opt.data_inverted_mask,
                 single_bbox=self.opt.data_online_single_bbox,
+                random_bbox=self.opt.data_online_random_bbox,
             )
 
             self.cat_A_ref_bbox = torch.tensor(A_ref_bbox[0])
@@ -162,6 +163,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         fixed_mask_size=self.opt.data_online_fixed_mask_size,
                         inverted_mask=self.opt.data_inverted_mask,
                         single_bbox=self.opt.data_online_single_bbox,
+                        random_bbox=self.opt.data_online_random_bbox,
                     )
 
                     self.cat_B_ref_bbox = torch.tensor(B_ref_bbox[0])
