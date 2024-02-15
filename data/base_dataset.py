@@ -102,7 +102,7 @@ class BaseDataset(data.Dataset, ABC):
         A_img_path = self.A_img_paths[
             index % self.A_size
         ]  # make sure index is within then range
-        if hasattr(self, "A_label_mask_paths"):
+        if hasattr(self, "A_label_mask_paths") and len(self.A_label_mask_paths) > 0:
             A_label_mask_path = self.A_label_mask_paths[index % self.A_size]
         else:
             A_label_mask_path = None

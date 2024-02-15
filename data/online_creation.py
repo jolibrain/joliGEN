@@ -33,6 +33,7 @@ def crop_image(
     single_bbox=False,
     override_class=-1,
     min_crop_bbox_ratio=None,
+    random_bbox=False,
 ):
     margin = context_pixels * 2
 
@@ -47,6 +48,7 @@ def crop_image(
             ratio_x = img.size[0] / old_size[0]
             ratio_y = img.size[1] / old_size[1]
         else:
+            old_size = img.size
             ratio_x = 1
             ratio_y = 1
 
@@ -55,11 +57,12 @@ def crop_image(
         raise ValueError(f"failure with loading image {img_path}") from e
 
     try:
-        if bbox_path.endswith(".txt"):
+        if bbox_path is not None and bbox_path.endswith(".txt"):
             # Bbox file
             f = open(bbox_path, "r")
+        elif random_bbox:
+            bbox_path = ""
         else:
-            # bbox_img = np.array(Image.open(img_path))
             import cv2
 
             bbox_img = cv2.imread(bbox_path)
@@ -92,6 +95,18 @@ def crop_image(
                         bboxes.append(line)
                 elif line != "" or line != " ":
                     print("%s does not describe a bbox" % line)
+
+    elif random_bbox:
+        bboxes = []
+        xmin = np.random.randint(0, old_size[0] - 1)
+        ymin = np.random.randint(0, old_size[1] - 1)
+        xmax = np.random.randint(
+            xmin, min(xmin + crop_dim, old_size[0])
+        )  # min(xmin+crop_dim,img.shape[1]))
+        ymax = np.random.randint(
+            ymin, min(ymin + crop_dim, old_size[1])
+        )  # min(ymin+crop_dim,img.shape[0]))
+        bboxes.append(f"1 {xmin} {ymin} {xmax} {ymax}")
 
     else:
         cat = str(int(np.max(bbox_img)))
@@ -269,7 +284,6 @@ def crop_image(
     width = x_max_ref - x_min_ref
 
     # Let's compute crop size
-
     if crop_coordinates is None:
         # We compute the range within which crop size should be
 
