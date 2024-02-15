@@ -78,7 +78,7 @@ mkdir $TARGET_NOSEM_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_nosemantic.py" --dataroot "$TARGET_NOSEM_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_nosemantic.py" --dataroot "$TARGET_NOSEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -95,7 +95,7 @@ mkdir $TARGET_MASK_SEM_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask.py" --dataroot "$TARGET_MASK_SEM_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -103,7 +103,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### self supervised mask semantics test
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_self_supervised.py" --dataroot "$TARGET_MASK_SEM_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_self_supervised.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -111,7 +111,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### diffusion process test
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -119,7 +119,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### consistency model process test
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_cm.py" --dataroot "$TARGET_MASK_SEM_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_cm.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -127,7 +127,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### diffusion super-resolution process test
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_sr_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR/trainA/img"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_sr_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR/trainA/img"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -135,7 +135,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ####### mask cls as bbox semantics test
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -155,7 +155,7 @@ ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainA $TARGET_MASK_SEM_ONLINE_DIR/testA
 ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainB $TARGET_MASK_SEM_ONLINE_DIR/testB
 
 
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -164,7 +164,7 @@ fi
 
 
 ###### diffusion process test online
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -216,7 +216,7 @@ mkdir $TARGET_MASK_CLS_SEM_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_cls.py" --dataroot "$TARGET_MASK_CLS_SEM_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_cls.py" --dataroot "$TARGET_MASK_CLS_SEM_DIR"
 
 OUT=$?
 
@@ -234,7 +234,7 @@ mkdir $TARGET_CLS_SEM_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_cls.py" --dataroot "$TARGET_CLS_SEM_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_cls.py" --dataroot "$TARGET_CLS_SEM_DIR"
 
 
 OUT=$?
@@ -253,7 +253,7 @@ mkdir $TARGET_MASK_REF_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_mask_ref.py" --dataroot "$TARGET_MASK_REF_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_mask_ref.py" --dataroot "$TARGET_MASK_REF_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -270,7 +270,7 @@ mkdir $TARGET_MASK_ONLINE_REF_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_mask_online_ref.py" --dataroot "$TARGET_MASK_ONLINE_REF_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_mask_online_ref.py" --dataroot "$TARGET_MASK_ONLINE_REF_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -287,7 +287,7 @@ mkdir $TARGET_PIX2PIX_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-python3 -m pytest -p no:cacheprovider -s "${current_dir}/../tests/test_run_pix2pix_diffusion.py" --dataroot "$TARGET_PIX2PIX_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_pix2pix_diffusion.py" --dataroot "$TARGET_PIX2PIX_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -298,7 +298,7 @@ fi
 SERVER_HOST="localhost"
 SERVER_PORT=8047
 
-python3 -m pytest ${current_dir}/../tests/test_client_server.py --host $SERVER_HOST --port $SERVER_PORT
+python3 -m pytest --rootdir ${current_dir} ${current_dir}/../tests/test_client_server.py --host $SERVER_HOST --port $SERVER_PORT
 
 OUT=$?
 
@@ -309,7 +309,7 @@ fi
 # ####### api server tests
 echo "Running api server tests"
 
-python3 -m pytest \
+python3 -m pytest --rootdir ${current_dir} \
     -p no:cacheprovider \
     -s "${current_dir}/../tests/test_api_predict_common.py"
 OUT=$?
@@ -318,7 +318,7 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-python3 -m pytest \
+python3 -m pytest --rootdir ${current_dir} \
     -p no:cacheprovider \
     -s "${current_dir}/../tests/test_api_predict_gan.py" \
     --dataroot "$TARGET_MASK_SEM_DIR"
@@ -328,7 +328,7 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-python3 -m pytest \
+python3 -m pytest --rootdir ${current_dir} \
     -p no:cacheprovider \
     -s "${current_dir}/../tests/test_api_predict_diffusion.py" \
     --dataroot "$TARGET_MASK_SEM_DIR"
