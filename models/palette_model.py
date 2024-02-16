@@ -176,13 +176,6 @@ class PaletteModel(BaseDiffusionModel):
             self.optimizers.append(self.optimizer_G)
 
         # Define loss functions
-        if self.opt.alg_palette_loss == "MSE":
-            self.loss_fn = torch.nn.MSELoss()
-        elif self.opt.alg_palette_loss == "L1":
-            self.loss_fn = torch.nn.L1Loss()
-        elif self.opt.alg_palette_loss == "multiscale":
-            self.loss_fn = MultiScaleDiffusionLoss(img_size=self.opt.data_crop_size)
-
         losses_G = ["G_tot"]
 
         if self.opt.alg_palette_loss == "multiscale":
@@ -191,8 +184,19 @@ class PaletteModel(BaseDiffusionModel):
             min_size = 32
             min_size_log = math.floor(math.log2(min_size))
 
+            scales = []
             for k in range(min_size_log, img_size_log + 1):
+                scales.append(2**k)
                 losses_G.append("G_" + str(2**k))
+
+            self.loss_fn = MultiScaleDiffusionLoss(
+                img_size=self.opt.data_crop_size, scales=scales
+            )
+
+        elif self.opt.alg_palette_loss == "MSE":
+            self.loss_fn = torch.nn.MSELoss()
+        elif self.opt.alg_palette_loss == "L1":
+            self.loss_fn = torch.nn.L1Loss()
 
         self.loss_names_G = losses_G
         self.loss_names = self.loss_names_G
