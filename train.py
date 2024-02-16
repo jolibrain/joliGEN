@@ -102,6 +102,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             temp_opt.gpu_ids = temp_opt.gpu_ids[:1]
 
             testset = create_dataset(temp_opt, phase="test")
+            opt.num_test_images = len(testset)
             print("The number of testing images = %d" % len(testset))
 
             dataloader_test = create_dataloader(
@@ -117,8 +118,11 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             else:
                 dataloader_test_temporal = None
         else:
+            opt.num_test_images = 0
             dataloader_test = None
             dataloader_test_temporal = None
+    else:
+        opt.num_test_images = 0
 
     opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
@@ -243,7 +247,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     model.compute_visuals(opt.train_batch_size)
                     if not "none" in opt.output_display_type:
                         visualizer.display_current_results(
-                            model.get_current_visuals(),
+                            model.get_current_visuals(opt.train_batch_size),
                             epoch,
                             save_result,
                             params=model.get_display_param(),
@@ -285,7 +289,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                             )
 
                             visualizer.display_current_results(
-                                model.get_current_visuals(phase="test"),
+                                model.get_current_visuals(
+                                    opt.num_test_images, phase="test"
+                                ),
                                 epoch,
                                 False,
                                 params=model.get_display_param(),

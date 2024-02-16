@@ -29,6 +29,7 @@ def launch_testing(opt, main_opt):
 
     testset = create_dataset(opt, phase="test")
     print("The number of testing images = %d" % len(testset))
+    opt.num_test_images = len(testset)
     opt.train_nb_img_max_fid = min(opt.train_nb_img_max_fid, len(testset))
 
     dataloader_test = create_dataloader(
