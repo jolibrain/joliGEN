@@ -225,7 +225,6 @@ class Visualizer:
                             # remove the alpha channel
                             mapped_im = mapped_im[:3, :, :]
                             mapped_images.append(mapped_im)
-
                         images = mapped_images
 
                     self.vis.images(

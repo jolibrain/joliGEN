@@ -256,7 +256,7 @@ class CycleGanModel(BaseGanModel):
             visual_names_out_mask_B = ["real_B_out_mask", "fake_A_out_mask"]
             self.visual_names += [visual_names_out_mask_A, visual_names_out_mask_B]
 
-    def inference(self, nb_imgs):
+    def inference(self, nb_imgs, offset=0):
         del nb_imgs  # unused
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
 

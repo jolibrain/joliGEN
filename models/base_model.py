@@ -761,7 +761,7 @@ class BaseModel(ABC):
             for name in group:
                 if phase == "test":
                     name = name + "_test"
-                if isinstance(name, str):
+                if isinstance(name, str) and hasattr(self, name):
                     cur_visual[name] = getattr(self, name)
 
             visual_ret.append(cur_visual)
@@ -1478,7 +1478,8 @@ class BaseModel(ABC):
                     data_test
                 )  # unpack data from dataloader and apply preprocessing
 
-            self.inference(self.opt.test_batch_size)
+            offset = i * self.opt.test_batch_size
+            self.inference(self.opt.test_batch_size, offset=offset)
 
             pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (n_epoch, n_iter)
             if not os.path.exists(pathB):
@@ -1487,7 +1488,7 @@ class BaseModel(ABC):
             for j, cur_fake_B in enumerate(self.fake_B):
                 save_image(
                     tensor2im(cur_fake_B.unsqueeze(0)),
-                    pathB + "/" + str(j) + ".png",
+                    pathB + "/" + str(offset + j) + ".png",
                     aspect_ratio=1.0,
                 )
 
@@ -1501,10 +1502,17 @@ class BaseModel(ABC):
             for i, cur_real in enumerate(batch_real_img):
                 real_list.append(cur_real.unsqueeze(0).clone())
 
+            i = 0
             for sub_list in self.visual_names:
+                if i < offset:
+                    i += 1
+                    continue
                 for name in sub_list:
                     if hasattr(self, name):
                         setattr(self, name + "_test", getattr(self, name))
+                i += 1
+                if i - offset == self.opt.test_batch_size:
+                    break
 
             if progress:
                 progress.n = min(len(fake_list), progress.total)

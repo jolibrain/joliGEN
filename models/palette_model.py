@@ -97,10 +97,6 @@ class PaletteModel(BaseDiffusionModel):
             batch_size = self.opt.train_batch_size
         else:
             batch_size = self.opt.test_batch_size
-        # if self.opt.alg_diffusion_inference_num == -1:
-        #    self.inference_num = self.opt.test_batch_size
-        # else:
-        #    self.inference_num = min(self.opt.alg_diffusion_inference_num, self.opt.test_batch_size)
 
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
@@ -457,7 +453,7 @@ class PaletteModel(BaseDiffusionModel):
 
         self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
 
-    def inference(self, nb_imgs):
+    def inference(self, nb_imgs, offset=0):
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
         else:
@@ -591,12 +587,10 @@ class PaletteModel(BaseDiffusionModel):
         for name in self.gen_visual_names:
             whole_tensor = getattr(self, name[:-1])
             for k in range(min(nb_imgs, self.get_current_batch_size())):
-                cur_name = name + str(k)
+                cur_name = name + str(offset + k)
                 cur_tensor = whole_tensor[k : k + 1]
-
                 if "mask" in name:
                     cur_tensor = cur_tensor.squeeze(0)
-
                 setattr(self, cur_name, cur_tensor)
 
         for k in range(min(nb_imgs, self.get_current_batch_size())):
