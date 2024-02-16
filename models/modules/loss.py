@@ -399,35 +399,30 @@ class MultiScaleDiffusionLoss(nn.Module):
     Multiscale diffusion loss such as in 2301.11093.
     """
 
-    def __init__(self, img_size):
+    def __init__(self, img_size, scales):
         super().__init__()
 
+        self.min_res = 32
+        self.scales = scales
         self.log_size = math.floor(math.log2(img_size))
-
-        self.min_size = 32
-        self.min_log_size = int(math.log2(self.min_size))
-
-        self.nb_downsampling = self.log_size - self.min_log_size + 1
-
-        self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
         self.loss = torch.nn.MSELoss()
 
     def forward(self, noise, noise_hat):
         losses = {}
 
-        cur_noise = noise
-        cur_noise_hat = noise_hat
+        # loss at target scale
+        cur_res = noise.shape[-1]
+        losses[str(cur_res)] = (
+            self.loss(noise, noise_hat) * self.min_res / (2 * cur_res)
+        )
 
-        for k in range(self.nb_downsampling):
-            cur_size = cur_noise.shape[-1]
-
-            # we don't divide by cur_size **2 such as in the paper because it's alreadOBy done within the MSE loss module
-            # we multiply the loss by min_size/2 to match the range of MSE loss (usual loss for diffusion processes)
-            losses[str(cur_size)] = self.loss(cur_noise, cur_noise_hat) * (
-                self.min_size / (2 * cur_size)
+        for res in self.scales:
+            cur_noise = nn.functional.interpolate(noise, size=res, mode="bilinear")
+            cur_noise_hat = nn.functional.interpolate(
+                noise_hat, size=res, mode="bilinear"
             )
-
-            cur_noise = self.pool(cur_noise)
-            cur_noise_hat = self.pool(cur_noise_hat)
+            losses[str(res)] = (
+                self.loss(cur_noise, cur_noise_hat) * self.min_res / (2 * res)
+            )
 
         return losses
