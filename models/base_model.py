@@ -753,7 +753,7 @@ class BaseModel(ABC):
         # lr_D = self.optimizers[1].param_groups[0]['lr']
         # print('learning rate G = %.7f' % lr_G, ' / learning rate D = %.7f' % lr_D)
 
-    def get_current_visuals(self, phase="train"):
+    def get_current_visuals(self, nb_imgs, phase="train"):
         """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""
         visual_ret = []
         for i, group in enumerate(self.visual_names):
@@ -763,8 +763,9 @@ class BaseModel(ABC):
                     name = name + "_test"
                 if isinstance(name, str) and hasattr(self, name):
                     cur_visual[name] = getattr(self, name)
-
             visual_ret.append(cur_visual)
+            if i == nb_imgs - 1:
+                break
         return visual_ret
 
     def get_display_param(self):

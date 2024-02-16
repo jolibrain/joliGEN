@@ -98,6 +98,8 @@ class PaletteModel(BaseDiffusionModel):
         else:
             batch_size = self.opt.test_batch_size
 
+        max_visual_outputs = max(self.opt.train_batch_size, self.opt.num_test_images)
+
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
         )
@@ -131,7 +133,7 @@ class PaletteModel(BaseDiffusionModel):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
 
         elif self.use_ref:
-            for i in range(self.opt.train_batch_size):
+            for i in range(max_visual_outputs):
                 self.gen_visual_names.append("ref_" + str(i + 1) + "_")
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
 
@@ -141,7 +143,7 @@ class PaletteModel(BaseDiffusionModel):
         if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
 
-        for k in range(self.opt.train_batch_size):
+        for k in range(max_visual_outputs):
             self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
 
         self.visual_names.append(visual_outputs)
@@ -589,7 +591,7 @@ class PaletteModel(BaseDiffusionModel):
             )
 
         for name in self.gen_visual_names:
-            whole_tensor = getattr(self, name[:-1])
+            whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
             for k in range(min(nb_imgs, self.get_current_batch_size())):
                 cur_name = name + str(offset + k)
                 cur_tensor = whole_tensor[k : k + 1]
