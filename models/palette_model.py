@@ -156,7 +156,6 @@ class PaletteModel(BaseDiffusionModel):
 
         # Define networks
         self.netG_A = diffusion_networks.define_G(**vars(opt))
-
         self.model_names = ["G_A"]
 
         self.model_names_export = ["G_A"]
