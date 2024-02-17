@@ -167,6 +167,7 @@ Here are all the available options to call with `train.py`
 | --data_num_threads | int | 4 | \# threads for loading data |
 | --data_online_context_pixels | int | 0 | context pixel band around the crop, unused for generation, only for disc  |
 | --data_online_fixed_mask_size | int | -1 | if \>0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing)  |
+| --data_online_random_bbox | flag |  | whether to randomly sample a bbox per online crop |
 | --data_online_select_category | int | -1 | category to select for bounding boxes, -1 means all boxes selected |
 | --data_online_single_bbox | flag |  | whether to only allow a single bbox per online crop |
 | --data_preprocess | string | resize_and_crop | scaling and cropping of images at load time<br/><br/> **Values:** resize_and_crop, crop, scale_width, scale_width_and_crop, none |
