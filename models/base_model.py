@@ -139,9 +139,6 @@ class BaseModel(ABC):
         else:
             self.onnx_opset_version = 9
 
-        if self.opt.output_display_env == "":
-            self.opt.output_display_env = self.opt.name
-
         if "FID" in self.opt.train_metrics_list:
             self.fid_metric = FID()
         if "MSID" in self.opt.train_metrics_list:

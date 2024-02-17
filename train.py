@@ -1,22 +1,8 @@
 """General-purpose training script for image-to-image translation.
 
-This script works for various models (with option '--model': e.g., pix2pix, cyclegan, colorization) and
-different datasets (with option '--dataset_mode': e.g., aligned, unaligned, single, colorization).
-You need to specify the dataset ('--dataroot'), experiment name ('--name'), and model ('--model').
-
 It first creates model, dataset, and visualizer given the option.
 It then does standard network training. During the training, it also visualize/save the images, print/save the loss plot, and save models.
-The script supports continue/resume training. Use '--continue_train' to resume your previous training.
-
-Example:
-    Train a CycleGAN model:
-        python train.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
-    Train a pix2pix model:
-        python train.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
-
-See options/base_options.py and options/train_options.py for more training options.
-See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
-See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
+The script supports continue/resume training. Use '--train_continue' to resume your previous training.
 """
 
 import argparse
@@ -124,14 +110,26 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     else:
         opt.num_test_images = 0
 
+    rank_0 = rank == 0
+    opt.total_iters = 0  # the total number of training iterations
+    if opt.output_display_env == "":
+        opt.output_display_env = opt.name
+
+    if rank_0:
+        visualizer = Visualizer(
+            opt
+        )  # create a visualizer that display/save images and plots
+
+        if opt.train_continue:
+            opt.train_epoch_count = visualizer.load_data()
+            opt.total_iters = opt.train_epoch_count * trainset_size
+
     opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
 
     if hasattr(model, "data_dependent_initialize"):
         data = next(iter(dataloader))
         model.data_dependent_initialize(data)
-
-    rank_0 = rank == 0
 
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
@@ -144,18 +142,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             model.single_gpu()
 
     if rank_0:
-        visualizer = Visualizer(
-            opt
-        )  # create a visualizer that display/save images and plots
-
         visualizer.print_networks(nets=model.get_nets(), verbose=opt.output_verbose)
-
-        if opt.train_continue:
-            opt.train_epoch_count = visualizer.load_data()
-
         # model.print_flop()
-
-    total_iters = 0  # the total number of training iterations
 
     if rank_0 and opt.output_display_networks:
         data = next(iter(dataloader))
@@ -210,11 +198,11 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             t_comp = (time.time() - iter_start_time) / opt.train_batch_size
 
             batch_size = model.get_current_batch_size() * len(opt.gpu_ids)
-            total_iters += batch_size
+            opt.total_iters += batch_size
             epoch_iter += batch_size
 
             if (
-                total_iters % opt.output_print_freq < batch_size
+                opt.total_iters % opt.output_print_freq < batch_size
             ):  # print training losses and save logging information to the disk
                 losses = model.get_current_losses()
 
@@ -241,7 +229,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
             if rank_0:
                 if (
-                    total_iters % opt.output_display_freq < batch_size
+                    opt.total_iters % opt.output_display_freq < batch_size
                 ):  # display images on visdom and save images to a HTML file
                     save_result = total_iters % opt.output_update_html_freq == 0
                     model.compute_visuals(opt.train_batch_size)
@@ -257,22 +245,22 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                         )
 
                 if (
-                    total_iters % opt.train_save_latest_freq < batch_size
+                    opt.total_iters % opt.train_save_latest_freq < batch_size
                 ):  # cache our latest model every <save_latest_freq> iterations
                     print(
-                        "saving the latest model (epoch %d, total_iters %d)"
-                        % (epoch, total_iters)
+                        "saving the latest model (epoch %d, opt.total_iters %d)"
+                        % (epoch, opt.total_iters)
                     )
 
                     model.save_networks("latest")
                     model.export_networks("latest")
 
                     if opt.train_save_by_iter:
-                        save_suffix = "iter_%d" % total_iters
+                        save_suffix = "iter_%d" % opt.total_iters
                         model.save_networks(save_suffix)
                         model.export_networks(save_suffix)
 
-                if total_iters % opt.train_metrics_every < batch_size and (
+                if opt.total_iters % opt.train_metrics_every < batch_size and (
                     opt.train_compute_metrics_test
                 ):
                     with torch.no_grad():
@@ -285,7 +273,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                                 dataloaders_test = zip(dataloader_test)
 
                             model.compute_metrics_test(
-                                dataloaders_test, epoch, total_iters
+                                dataloaders_test, epoch, opt.total_iters
                             )
 
                             visualizer.display_current_results(
@@ -295,7 +283,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                                 epoch,
                                 False,
                                 params=model.get_display_param(),
-                                first=(total_iters == batch_size),
+                                first=(opt.total_iters == batch_size),
                                 phase="test",
                                 image_bits=opt.data_image_bits,
                             )
@@ -307,7 +295,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                         )
 
                 if (
-                    total_iters % opt.train_D_accuracy_every < batch_size
+                    opt.total_iters % opt.train_D_accuracy_every < batch_size
                     and opt.train_compute_D_accuracy
                 ):
                     model.compute_D_accuracy()
@@ -318,7 +306,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                         )
 
                 if (
-                    total_iters % opt.output_display_freq < batch_size
+                    opt.total_iters % opt.output_display_freq < batch_size
                     and opt.dataaug_APA
                 ):
                     if opt.output_display_id > 0:
@@ -328,7 +316,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                         )
 
                 if (
-                    total_iters % opt.train_mask_miou_every < batch_size
+                    opt.total_iters % opt.train_mask_miou_every < batch_size
                     and opt.train_mask_compute_miou
                 ):
                     model.compute_miou()
@@ -346,7 +334,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             if rank_0:
                 print(
                     "saving the model at the end of epoch %d, iters %d"
-                    % (epoch, total_iters)
+                    % (epoch, opt.total_iters)
                 )
                 model.save_networks("latest")
                 model.save_networks(epoch)
@@ -373,7 +361,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             else:
                 dataloaders_test = zip(dataloader_test)
             model.compute_metrics_test(
-                dataloaders_test, opt.train_epoch_count - 1, total_iters
+                dataloaders_test, opt.train_epoch_count - 1, opt.total_iters
             )
             cur_metrics = model.get_current_metrics()
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")

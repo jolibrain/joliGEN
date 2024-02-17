@@ -73,7 +73,9 @@ class CMModel(BaseDiffusionModel):
         else:
             batch_size = self.opt.test_batch_size
 
-        self.total_t = self.opt.alg_cm_num_steps
+        self.total_t = (
+            self.opt.alg_cm_num_steps * self.opt.train_batch_size
+        )  # scaled with bs
 
         # Visuals
         visual_outputs = []
@@ -99,9 +101,10 @@ class CMModel(BaseDiffusionModel):
         opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
         opt.alg_diffusion_cond_embed_dim = 256
         self.netG_A = diffusion_networks.define_G(**vars(opt))
+        self.netG_A.current_t = max(self.netG_A.current_t, opt.total_iters)
+        print("Setting CM current_iter to", self.netG_A.current_t)
 
         self.model_names = ["G_A"]
-
         self.model_names_export = ["G_A"]
 
         G_models = ["G_A"]

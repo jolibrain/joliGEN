@@ -258,7 +258,7 @@ class CMGenerator(nn.Module):
         self.cond_embed_dim = self.cm_model.cond_embed_dim
         self.cm_cond_embed = NoiseLevelEmbedding(self.cond_embed_dim)
 
-        self.current_t = 2
+        self.current_t = 2  # default value, set from cm_model upon resume
 
     def cm_forward(self, x, sigma, sigma_data, sigma_min, x_cond=None):
         c_skip = skip_scaling(sigma, sigma_data, sigma_min)
@@ -331,7 +331,8 @@ class CMGenerator(nn.Module):
 
         loss_weights = pad_dims_like(improved_loss_weighting(sigmas)[timesteps], next_x)
 
-        self.current_t += 1
+        bs = x.size(dim=0)
+        self.current_t += bs
 
         return (
             next_x,
