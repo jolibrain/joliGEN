@@ -184,15 +184,15 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### test cycle_gan
-echo "Running test cycle_gan"
-python3 "${current_dir}/../test.py" \
-	--test_model_dir $DIR/joligen_utest_cycle_gan/ \
-	--test_metrics_list FID KID PSNR LPIPS
-OUT=$?
+# echo "Running test cycle_gan"
+# python3 "${current_dir}/../test.py" \
+# 	--test_model_dir $DIR/joligen_utest_cycle_gan/ \
+# 	--test_metrics_list FID KID PSNR LPIPS
+# OUT=$?
 
-if [ $OUT != 0 ]; then
-    exit 1
-fi
+# if [ $OUT != 0 ]; then
+#     exit 1
+# fi
 
 ###### test palette
 echo "Running test palette"

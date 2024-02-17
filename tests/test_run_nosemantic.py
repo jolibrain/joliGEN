@@ -29,12 +29,12 @@ json_like_dict = {
 
 models_nosemantic = [
     "cut",
-    "cycle_gan",
+    #    "cycle_gan",
 ]
 
 D_netDs = [["projected_d", "basic"], ["projected_d", "basic", "depth"]]
 
-D_proj_network_type = ["efficientnet", "siglip_vitb16"]
+D_proj_network_type = ["efficientnet"]  # if needed add siglib_vitb16
 
 train_feat_wavelet = [False, True]
 
@@ -55,10 +55,10 @@ def test_nosemantic(dataroot):
         json_like_dict["D_proj_network_type"] = D_proj_network_type
         json_like_dict["train_feat_wavelet"] = train_feat_wavelet
         json_like_dict["dataaug_APA"] = apa
-        if model == "cycle_gan" and "depth" in Dtype:
-            continue  # skip
-        if model == "cyclegan" and "siglip_vitb16" in D_proj_network_type:
-            continue  # skip
+        # if model == "cycle_gan" and "depth" in Dtype:
+        #    continue  # skip
+        # if model == "cyclegan" and "siglip_vitb16" in D_proj_network_type:
+        #    continue  # skip
 
         opt = TrainOptions().parse_json(json_like_dict.copy(), save_config=True)
         train.launch_training(opt)

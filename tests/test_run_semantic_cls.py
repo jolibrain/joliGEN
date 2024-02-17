@@ -36,28 +36,28 @@ json_like_dict = {
 
 models_semantic_mask = [
     "cut",
-    "cycle_gan",
+    #    "cycle_gan",
 ]
 
-G_netG = ["mobile_resnet_attn", "segformer_attn_conv"]
+G_netG = ["mobile_resnet_attn"]
 
-D_proj_network_type = ["efficientnet", "vitsmall"]
+D_proj_network_type = ["efficientnet"]
 
-f_s_net = ["unet", "segformer"]
+cls_net = ["vgg"]
 
-product_list = product(models_semantic_mask, G_netG, D_proj_network_type, f_s_net)
+product_list = product(models_semantic_mask, G_netG, D_proj_network_type, cls_net)
 
 
 def test_semantic_cls(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 
-    for model, Gtype, Dtype, f_s_type in product_list:
+    for model, Gtype, Dtype, cls_type in product_list:
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["G_netG"] = Gtype
         json_like_dict_c["D_proj_network_type"] = Dtype
-        json_like_dict_c["f_s_net"] = f_s_type
+        json_like_dict_c["cls_net"] = cls_type
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)

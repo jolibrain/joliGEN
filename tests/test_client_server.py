@@ -49,7 +49,6 @@ class HttpHandler(BaseHTTPRequestHandler):
             path == "/train/test_client"
             and self.parse_json(body)["train_options"] is not None
         ):
-
             self.write_response(
                 200,
                 "application/json",

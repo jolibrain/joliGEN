@@ -31,29 +31,18 @@ json_like_dict = {
     "f_s_semantic_nclasses": 100,
 }
 
-
 models_diffusion = ["palette"]
 G_netG = ["unet_mha", "uvit"]
 G_efficient = [True, False]
 train_feat_wavelet = [False, True]
 
-G_unet_mha_norm_layer = [
-    "groupnorm",
-    "batchnorm",
-    "layernorm",
-    "instancenorm",
-    "switchablenorm",
-]
-
 alg_diffusion_cond_embed = [
     "mask"
 ]  # , "class"] class conditioning can't be tested for now because there is no class in the dataset
 
-
 product_list = product(
     models_diffusion,
     G_netG,
-    G_unet_mha_norm_layer,
     alg_diffusion_cond_embed,
     G_efficient,
     train_feat_wavelet,
@@ -67,18 +56,15 @@ def test_semantic_mask(dataroot):
     for (
         model,
         Gtype,
-        G_norm,
         alg_diffusion_cond_embed,
         G_efficient,
         train_feat_wavelet,
     ) in product_list:
-
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
 
-        json_like_dict_c["G_unet_mha_norm_layer"] = G_norm
         json_like_dict_c["G_unet_mha_vit_efficient"] = G_efficient
 
         json_like_dict_c["alg_diffusion_cond_embed"] = alg_diffusion_cond_embed

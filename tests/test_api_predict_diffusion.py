@@ -21,7 +21,6 @@ def api():
 
 @pytest.fixture(autouse=True)
 def run_before_and_after_tests(dataroot):
-
     name = "joligen_utest_api_palette"
 
     json_like_dict = {
@@ -63,7 +62,6 @@ def run_before_and_after_tests(dataroot):
 
 @pytest.mark.asyncio
 async def test_predict_endpoint_diffusion_success(dataroot, api):
-
     name = "joligen_utest_api_palette"
     dir_model = "/".join(dataroot.split("/")[:-1])
 
@@ -109,11 +107,8 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
     assert len(json_response["name"]) > 0
 
     with api.websocket_connect(f"/ws/predict/%s" % predict_name) as ws:
-
         while True:
-
             try:
-
                 data = ws.receive_json()
 
                 if data["status"] != "log":
@@ -142,7 +137,6 @@ async def test_predict_endpoint_diffusion_success(dataroot, api):
 
 
 def test_predict_endpoint_sync_success(dataroot, api):
-
     name = "joligen_utest_api_palette"
     dir_model = "/".join(dataroot.split("/")[:-1])
 
@@ -200,7 +194,6 @@ def test_predict_endpoint_sync_success(dataroot, api):
 
 
 def test_predict_endpoint_sync_base64(dataroot, api):
-
     name = "joligen_utest_api_palette"
     dir_model = "/".join(dataroot.split("/")[:-1])
 
@@ -247,7 +240,6 @@ def test_predict_endpoint_sync_base64(dataroot, api):
 
     assert len(json_response["base64"]) == 4
     for index, output in enumerate(["cond", "generated", "orig", "y_t"]):
-
         img_out = os.path.join(dir_model, f"%s_0_%s.png" % (predict_name, output))
         assert os.path.exists(img_out)
 
