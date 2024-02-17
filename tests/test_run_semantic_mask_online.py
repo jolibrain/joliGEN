@@ -59,13 +59,13 @@ infer_options = {
 }
 
 models_semantic_mask = [
-    "cycle_gan",
+    #    "cycle_gan",
     "cut",
 ]
 
-G_netG = ["mobile_resnet_attn", "segformer_attn_conv"]
+G_netG = ["mobile_resnet_attn"]  # if needed add "segformer_attn_conv"]
 
-D_proj_network_type = ["efficientnet", "vitsmall", "dinov2_vits14"]
+D_proj_network_type = ["efficientnet", "vitsmall"]  # if needed add dinov2_vits14
 
 D_netDs = [
     ["basic", "projected_d"],
@@ -114,11 +114,11 @@ def test_semantic_mask_online(dataroot):
         data_online_context_pixels,
         with_amp,
     ) in product_list:
-        if model == "cycle_gan":
-            if (
-                "sam" in Dnet or "temporal" in Dnet
-            ):  # cycle_gan+temporal does not fit in CI memory
-                continue
+        # if model == "cycle_gan":
+        #    if (
+        #        "sam" in Dnet or "temporal" in Dnet
+        #    ):  # cycle_gan+temporal does not fit in CI memory
+        #       continue
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model

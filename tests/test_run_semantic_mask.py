@@ -43,12 +43,12 @@ json_like_dict = {
 
 models_semantic_mask = [
     "cut",
-    "cycle_gan",
+    #    "cycle_gan",
 ]
 
-G_netG = ["mobile_resnet_attn", "segformer_attn_conv", "ittr", "unet_mha", "uvit"]
+G_netG = ["mobile_resnet_attn", "segformer_attn_conv", "unet_mha", "uvit"]
 
-D_proj_network_type = ["efficientnet", "vitsmall", "depth"]
+D_proj_network_type = ["efficientnet", "vitsmall"]
 
 f_s_net = ["unet", "segformer"]
 

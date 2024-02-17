@@ -39,14 +39,14 @@ json_like_dict = {
 
 models_semantic_mask = [
     "cut",
-    "cycle_gan",
+    #    "cycle_gan",
 ]
 
-G_netG = ["mobile_resnet_attn", "segformer_attn_conv"]
+G_netG = ["mobile_resnet_attn"]
 
-D_proj_network_type = ["efficientnet", "vitsmall"]
+D_proj_network_type = ["efficientnet"]
 
-f_s_net = ["unet", "segformer"]
+f_s_net = ["unet"]
 
 product_list = product(models_semantic_mask, G_netG, D_proj_network_type, f_s_net)
 

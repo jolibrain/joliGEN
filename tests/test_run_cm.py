@@ -27,7 +27,7 @@ json_like_dict = {
     "train_G_ema": True,
     "dataaug_no_rotate": True,
     "G_unet_mha_num_head_channels": 16,
-    # "G_unet_mha_channel_mults": [1, 2],
+    "G_unet_mha_channel_mults": [1, 2],
     "G_diff_n_timestep_train": 50000,
     "G_nblocks": 1,
     "G_padding_type": "reflect",
@@ -68,7 +68,6 @@ def test_semantic_mask(dataroot):
         Gtype,
         alg_diffusion_cond_embed,
     ) in product_list:
-
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model

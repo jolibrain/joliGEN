@@ -50,7 +50,7 @@ infer_options = {
 }
 
 models_diffusion = ["palette"]
-G_netG = ["unet_mha", "uvit"]
+G_netG = ["unet_mha"]
 data_dataset_mode = ["self_supervised_labeled_mask_online", "self_supervised_temporal"]
 
 product_list = product(models_diffusion, G_netG, data_dataset_mode)

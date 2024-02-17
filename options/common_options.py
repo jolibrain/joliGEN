@@ -538,6 +538,7 @@ class CommonOptions(BaseOptions):
             help="path to sam weight for f_s, e.g. models/configs/sam/pretrain/sam_vit_b_01ec64.pth, or models/configs/sam/pretrain/mobile_sam.pt for MobileSAM",
         )
 
+        # class semantic network : cls
         parser.add_argument(
             "--cls_net",
             type=str,
