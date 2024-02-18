@@ -124,7 +124,6 @@ def get_activations(
         # This happens if you choose a dimensionality not equal 2048.
 
         if len(pred.shape) == 4:
-
             if pred.size(2) != 1 or pred.size(3) != 1:
                 pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
 
@@ -150,7 +149,6 @@ def _compute_statistics_of_dataloader(
     nb_max_img=float("inf"),
     root=None,
 ):
-
     if path_sv is not None and os.path.isfile(path_sv):
         print("Activations loaded for domain %s, from %s." % (domain, path_sv))
         f = torch.load(path_sv)

@@ -284,7 +284,6 @@ class CMGenerator(nn.Module):
         mask=None,
         x_cond=None,
     ):
-
         num_timesteps = improved_timesteps_schedule(
             self.current_t,
             total_training_steps,
@@ -344,7 +343,6 @@ class CMGenerator(nn.Module):
         )
 
     def restoration(self, y, y_cond, sigmas, mask, clip_denoised=True):
-
         if mask is not None:
             mask = torch.clamp(
                 mask, min=0.0, max=1.0
@@ -370,7 +368,6 @@ class CMGenerator(nn.Module):
         x = x * mask + (1 - mask) * y
 
         for sigma in sigmas[1:]:
-
             sigma = torch.full((x.shape[0],), sigma, dtype=x.dtype, device=x.device)
             x = x + pad_dims_like(
                 (sigma**2 - self.sigma_min**2) ** 0.5, x
@@ -393,5 +390,6 @@ class CMGenerator(nn.Module):
         return x
 
     def embed_sigmas(self, sigmas):
-        emb = self.cm_cond_embed(sigmas).squeeze(dim=[2, 3])
+        # squeeze twice to be onnx compatible
+        emb = self.cm_cond_embed(sigmas).squeeze(dim=3).squeeze(dim=2)
         return emb
