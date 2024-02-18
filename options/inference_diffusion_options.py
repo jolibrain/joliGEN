@@ -123,6 +123,9 @@ class InferenceDiffusionOptions(BaseOptions):
         parser.add_argument("--cond_rotation", type=float, default=0)
         parser.add_argument("--cond_persp_horizontal", type=float, default=0)
         parser.add_argument("--cond_persp_vertical", type=float, default=0)
+        parser.add_argument(
+            "--canny_in", type=str, help="canny image to use for conditionning"
+        )
 
         parser.add_argument(
             "--min_crop_bbox_ratio",

@@ -292,9 +292,10 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
                     if opt.output_display_id > 0:
                         metrics = model.get_current_metrics()
-                        visualizer.plot_current_metrics(
-                            epoch, float(epoch_iter) / trainset_size, metrics
-                        )
+                        if len(metrics) != 0:
+                            visualizer.plot_current_metrics(
+                                epoch, float(epoch_iter) / trainset_size, metrics
+                            )
 
                 if (
                     total_iters % opt.train_D_accuracy_every < batch_size
