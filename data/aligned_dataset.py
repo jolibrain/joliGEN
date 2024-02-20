@@ -60,25 +60,12 @@ class AlignedDataset(BaseDataset):
         # apply the same transform to both A and B
         transform_params = get_params(self.opt, A.size)
         A_transform = get_transform(self.opt, transform_params, grayscale=grayscale)
-        ##TODO: modify crop params with super res scale so that crop is the same for both resolutions
-        # print('self.opt.alg_diffusion_task=', self.opt.alg_diffusion_task)
-        # if self.opt.alg_diffusion_task == "pix2pix":
-        #     transform_params_lr = transform_params.copy()
-        #     transform_params_lr['crop_pos'] = tuple(int(transform_params['crop_pos'][i] / self.opt.alg_diffusion_super_resolution_scale) for i in range(2))
-
-        #     opt_lr = copy.deepcopy(self.opt)
-        #     opt_lr.data_crop_size = int(self.opt.data_crop_size / self.opt.alg_diffusion_super_resolution_scale)
-        #     print("opt.data_crop_size=", self.opt.data_crop_size, " / opt_lr.data_crop_size=", opt_lr.data_crop_size)
-        #     print("transform_params crop_pos=", transform_params['crop_pos'], " / transform_params_lr crop_pos", transform_params_lr['crop_pos'])
-        #     B_transform = get_transform(
-        #         opt_lr, transform_params_lr, grayscale=(self.output_nc == 1)
-        #     )
-        # else:
         B_transform = get_transform(self.opt, transform_params, grayscale=grayscale)
 
         if self.opt.alg_diffusion_task == "pix2pix":  ##TODO: super-res
             # resize B to A's size with PIL
-            B = B.resize(A.size, Image.NEAREST)
+            if A.size != B.size:
+                B = B.resize(A.size, Image.NEAREST)
 
         A = A_transform(A)
         B = B_transform(B)
