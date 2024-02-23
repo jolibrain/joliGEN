@@ -595,7 +595,7 @@ class PaletteModel(BaseDiffusionModel):
         elif self.task in ["super_resolution", "pix2pix"]:
             cls = None
 
-            if "class" in self.opt.alg_palette_conditioning:
+            if "class" in self.opt.alg_diffusion_cond_embed:
                 cls = []
                 for i in self.num_classes:
                     cls.append(torch.randint_like(self.cls[:, 0], 0, i))
@@ -638,14 +638,10 @@ class PaletteModel(BaseDiffusionModel):
 
     def compute_sounds(self):
         super().compute_sounds()
-        # print("Visuals: " , self.visual_names)
         # TODO only when sound input data
-        # print("Computing sounds")
-        # print("inference num =", self.inference_num)
-        # print("n images =", self.gt_image.shape)
         for i in range(self.inference_num):
             name = "output_" + str(i)
-            # print("has %s: %s" % (name, hasattr(self, name)))
+
             if hasattr(self, name):
                 img = getattr(self, name)
                 sound = wav2D_to_wav(img[0], 256)

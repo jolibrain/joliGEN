@@ -20,7 +20,6 @@ def api():
 
 @pytest.fixture(autouse=True)
 def run_before_and_after_tests(dataroot):
-
     name = "joligen_utest_api_cut"
     print(dataroot)
 
@@ -60,7 +59,6 @@ def run_before_and_after_tests(dataroot):
 
 @pytest.mark.asyncio
 async def test_predict_endpoint_gan_success(dataroot, api):
-
     name = "joligen_utest_api_cut"
     dir_model = "/".join(dataroot.split("/")[:-1])
 
@@ -108,11 +106,8 @@ async def test_predict_endpoint_gan_success(dataroot, api):
 
     predict_name = json_response["name"]
     with api.websocket_connect(f"/ws/predict/%s" % predict_name) as ws:
-
         while True:
-
             try:
-
                 data = ws.receive_json()
 
                 if data["status"] != "log":
@@ -135,7 +130,6 @@ async def test_predict_endpoint_gan_success(dataroot, api):
 
 
 def test_predict_endpoint_sync_success(dataroot, api):
-
     name = "joligen_utest_api_cut"
     dir_model = "/".join(dataroot.split("/")[:-1])
 
@@ -185,7 +179,6 @@ def test_predict_endpoint_sync_success(dataroot, api):
 
 
 def test_predict_endpoint_sync_base64(dataroot, api):
-
     name = "joligen_utest_api_cut"
     dir_model = "/".join(dataroot.split("/")[:-1])
 

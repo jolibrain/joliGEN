@@ -208,13 +208,13 @@ Download a pretrained model:
 Run the inference script
 ========================
 
-The ``--cls`` parameter controls the pose for Mario (1 = standing, 2 = walking, 3 = jumping, etc).
+The ``--cls_value`` parameter controls the pose for Mario (1 = standing, 2 = walking, 3 = jumping, etc).
 
 .. code:: bash
 
    mkdir mario_inference_output
    cd scripts/
-   python3 gen_single_image_diffusion.py --model_in_file ../checkpoints/mario/latest_net_G_A.pth --img_in ../datasets/online_mario2sonic_lite/mario/imgs/mario_frame_19538.jpg --bbox_in ../datasets/online_mario2sonic_lite/mario/bbox/r_mario_frame_19538.jpg.txt --dir_out ../mario_inference_output --img_width 128 --img_height 128 --mask_delta 10 --cls 3
+   python3 gen_single_image_diffusion.py --model_in_file ../checkpoints/mario/latest_net_G_A.pth --img_in ../datasets/online_mario2sonic_lite/mario/imgs/mario_frame_19538.jpg --bbox_in ../datasets/online_mario2sonic_lite/mario/bbox/r_mario_frame_19538.jpg.txt --dir_out ../mario_inference_output --img_width 128 --img_height 128 --mask_delta 10 --cls_value 3
 
 The output files will be in the ``mario_inference_output`` folder, with:
 
@@ -276,7 +276,7 @@ Download a pretrained model:
 Run the inference script
 ========================
 
-The ``--cond-in`` parameter specifies the conditioning image to use.
+The ``--cond_in`` parameter specifies the conditioning image to use.
 
 .. code:: bash
 

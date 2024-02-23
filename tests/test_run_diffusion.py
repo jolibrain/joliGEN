@@ -72,7 +72,6 @@ def test_semantic_mask(dataroot):
         G_efficient,
         train_feat_wavelet,
     ) in product_list:
-
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model

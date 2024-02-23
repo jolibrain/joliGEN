@@ -25,7 +25,7 @@ def window(t):
 
 
 # TODO write a test to check that `wav2D_to_wav(wav_to_2D(x))` is consistent
-def wav_to_2D(data, chunk_size, norm_factor):
+def wav_to_2D(data, chunk_size, norm_factor=256):
     """
     Transform sound data to image-like data (2D, normalized between -1 & 1)
     """
@@ -48,7 +48,7 @@ def wav_to_2D(data, chunk_size, norm_factor):
     return chunks_fft
 
 
-def wav2D_to_wav(sound2d, norm_factor):
+def wav2D_to_wav(sound2d, norm_factor=256):
     """
     Transform image-like data (2D, normalized between -1 & 1) to waveform. This
     function is the inverse of wav_to_2D

@@ -176,6 +176,7 @@ def generate(
     img_height,
     dir_out,
     write,
+    convert_to_sound,
     previous_frame,
     name,
     mask_delta,
@@ -199,7 +200,6 @@ def generate(
     nb_samples,
     **unused_options,
 ):
-
     PROGRESS_NUM_STEPS = 4
     # seed
     if seed >= 0:
@@ -268,12 +268,10 @@ def generate(
                 elts = line.rstrip().split()
                 bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
                 if conditioning:
-                    if cls_value > 0:
-                        cls = cls_value
-                    else:
-                        cls = int(elts[0])
+                    if cls_value <= 0:
+                        cls_value = int(elts[0])
                 else:
-                    cls = 1
+                    cls_value = 1
 
         if bbox_ref_id == -1:
             # sample a bbox here since we are calling crop_image multiple times
@@ -336,7 +334,7 @@ def generate(
             crop_coordinates=crop_coordinates,
             crop_center=True,
             bbox_ref_id=bbox_idx,
-            override_class=cls,
+            override_class=cls_value,
         )
 
         x_crop, y_crop, crop_size = crop_coordinates
@@ -348,7 +346,7 @@ def generate(
         if len(mask_delta) == 1:
             index_cls = 0
         else:
-            index_cls = int(cls) - 1
+            index_cls = int(cls_value) - 1
 
         if not isinstance(mask_delta[0][0], float):
             bbox_select[0] -= mask_delta[index_cls][0]
@@ -608,7 +606,12 @@ def generate(
 
     if opt.model_type == "palette":
         if "class" in model.denoise_fn.conditioning:
-            cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls
+            if len(cls_value) > 1:
+                cls_tensor = torch.tensor(
+                    cls_value, dtype=torch.int64, device=device
+                ).unsqueeze(0)
+            else:
+                cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls_value
         else:
             cls_tensor = None
     if ref is not None:
@@ -696,6 +699,14 @@ def generate(
         if generated_bbox:
             with open(os.path.join(dir_out, name + "_generated_bbox.json"), "w") as out:
                 out.write(json.dumps(generated_bbox))
+        if convert_to_sound:
+            from data.sound_folder import wav2D_to_wav
+            import torchaudio
+
+            sound = wav2D_to_wav(out_tensor.squeeze(0))
+            torchaudio.save(
+                os.path.join(dir_out, name + "_generated.wav"), sound.to("cpu"), 44100
+            )
 
         print("Successfully generated image ", name)
 
@@ -709,7 +720,6 @@ def generate(
 
 
 def inference_logger(name):
-
     PROCESS_NAME = "gen_single_image_diffusion"
     LOG_PATH = os.environ.get(
         "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
@@ -729,7 +739,6 @@ def inference_logger(name):
 
 
 def inference(args):
-
     PROGRESS_NUM_STEPS = 6
     logger = inference_logger(args.name)
 
@@ -760,5 +769,5 @@ def inference(args):
 
 
 if __name__ == "__main__":
-    args = InferenceDiffusionOptions().parse()
+    args = InferenceDiffusionOptions().parse(save_config=False)
     inference(args)

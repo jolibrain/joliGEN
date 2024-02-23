@@ -68,7 +68,6 @@ def test_semantic_mask(dataroot):
         Gtype,
         alg_diffusion_cond_embed,
     ) in product_list:
-
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model
