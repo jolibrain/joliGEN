@@ -100,8 +100,15 @@ class InferenceDiffusionOptions(BaseOptions):
         parser.add_argument(
             "--cls_value",
             type=int,
-            default=-1,
+            nargs="+",
+            default=[-1],
             help="override input bbox classe for generation",
+        )
+
+        parser.add_argument(
+            "--convert_to_sound",
+            action="store_true",
+            help="Whether the image should be converted to a sound",
         )
 
         # XXX: options that are not in gen_single_video

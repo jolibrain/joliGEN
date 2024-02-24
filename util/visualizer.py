@@ -3,12 +3,16 @@ import os
 import sys
 import ntpath
 import time
+import base64
+import io
 from . import util, html_util
 from subprocess import Popen, PIPE
 from PIL import Image
 import json
 from torchinfo import summary
 import math
+import numpy as np
+import scipy.io.wavfile
 
 if sys.version_info[0] == 2:
     VisdomExceptionBase = Exception
@@ -128,6 +132,9 @@ class Visualizer:
     def display_current_results(
         self, visuals, epoch, save_result, params=[], first=False, phase="train"
     ):
+        """
+        Display visuals for current model in visdom or aim
+        """
         if "visdom" in self.display_type:
             self.display_current_results_visdom(
                 visuals, epoch, save_result, params, phase=phase
@@ -287,6 +294,46 @@ class Visualizer:
                 img_path = os.path.join(self.img_dir, "latest_%s.png" % label)
                 util.save_image(image_numpy, img_path)
 
+    def convert_audio_to_b64(self, tensor):
+        tensor = np.array(tensor)
+        # Normalize only if sound is too loud
+        # XXX: clip instead?
+        tensor = np.int16(tensor / max(np.max(np.abs(tensor)), 1) * 32767)
+        output = io.BytesIO()
+        scipy.io.wavfile.write(output, 44100, tensor)
+        return base64.b64encode(output.getvalue()).decode("utf-8")
+
+    def play_current_sounds(self, sounds, epoch):
+        """
+        Play a sound in visdom
+
+        sounds: a dict with sound name and a 1D tensor representing the sound over time
+        """
+        if "visdom" in self.display_type:
+            opts = {
+                "width": 330,
+                "height": len(sounds) * 50,
+                "title": "Audio",
+            }
+            html_content = ""
+
+            for name in sounds:
+                # video_path = os.path.join(self.img_dir, "latest_%s.mp4" % name)
+                sound = sounds[name].squeeze(0).cpu()
+                b64 = self.convert_audio_to_b64(sound)
+                mimetype = "wav"
+                html_content += """<br/>
+                    <audio controls>
+                        <source type="audio/%s" src="data:audio/%s;base64,%s">
+                        Your browser does not support the audio tag.
+                    </audio>
+                    """ % (
+                    mimetype,
+                    mimetype,
+                    b64,
+                )
+            self.vis.text(text=html_content, win="Audio", env=None, opts=opts)
+
     def plot_current_losses(self, epoch, counter_ratio, losses):
         if "visdom" in self.display_type:
             self.plot_current_losses_visdom(epoch, counter_ratio, losses)
@@ -431,12 +478,12 @@ class Visualizer:
             json.dump(self.metrics_dict, fp)
 
     def plot_current_metrics(self, epoch, counter_ratio, metrics):
-        """display the current fid values on visdom display: dictionary of fid labels and values
+        """display the current metrics values on visdom display
 
         Parameters:
             epoch (int)           -- current epoch
             counter_ratio (float) -- progress (percentage) in the current epoch, between 0 to 1
-            fids (OrderedDict)  -- training fid values stored in the format of (name, float) pairs
+            metrics (OrderedDict)  -- training metrics values stored in the format of (name, float) pairs
         """
         self.plot_metrics_dict(
             "metric",
@@ -449,7 +496,7 @@ class Visualizer:
         )
 
     def plot_current_D_accuracies(self, epoch, counter_ratio, accuracies):
-        """display the current fid values on visdom display: dictionary of fid labels and values
+        """display the current accuracies values on visdom display
 
         Parameters:
             epoch (int)           -- current epoch
@@ -478,7 +525,7 @@ class Visualizer:
         )
 
     def plot_current_miou(self, epoch, counter_ratio, miou):
-        """display the current fid values on visdom display: dictionary of fid labels and values
+        """display the current miou values on visdom display
 
         Parameters:
             epoch (int)           -- current epoch

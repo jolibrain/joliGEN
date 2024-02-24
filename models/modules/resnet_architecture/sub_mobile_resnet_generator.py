@@ -89,7 +89,6 @@ class SubMobileResnetGenerator(BaseNetwork):
 
         n_downsampling = 2
         for i in range(n_downsampling):  # add downsampling layers
-
             mult = 2**i
             ic = config["channels"][i]
             oc = config["channels"][i + 1]

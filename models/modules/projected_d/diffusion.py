@@ -106,7 +106,6 @@ class Diffusion(torch.nn.Module):
         self.noise_std = float(noise_std)  # Standard deviation of additive RGB noise.
 
     def set_diffusion_process(self, t, beta_schedule):
-
         betas = get_beta_schedule(
             beta_schedule=beta_schedule,
             beta_start=self.beta_start,

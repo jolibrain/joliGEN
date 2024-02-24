@@ -64,7 +64,6 @@ class CycleGanModel(BaseGanModel):
         return opt
 
     def __init__(self, opt, rank):
-
         super().__init__(opt, rank)
 
         if opt.alg_cyclegan_lambda_identity > 0.0:
@@ -113,7 +112,6 @@ class CycleGanModel(BaseGanModel):
         # Discriminators
 
         if self.isTrain:
-
             self.netD_As = gan_networks.define_D(**vars(opt))
             self.netD_Bs = gan_networks.define_D(**vars(opt))
 

@@ -96,7 +96,6 @@ if __name__ == "__main__":
     lmodel = None
     lopt = None
     for i, (image, label) in tqdm(enumerate(zip(images, labels)), total=len(images)):
-
         args.img_in = args.data_prefix + image
 
         if label.endswith(".txt"):

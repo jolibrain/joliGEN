@@ -50,7 +50,6 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
 
 
 def inference_logger(name):
-
     PROCESS_NAME = "gen_single_image"
     LOG_PATH = os.environ.get(
         "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
@@ -70,7 +69,6 @@ def inference_logger(name):
 
 
 def inference(args):
-
     PROGRESS_NUM_STEPS = 6
     logger = inference_logger(args.name)
     logger.info(f"[1/%i] launch inference" % PROGRESS_NUM_STEPS)

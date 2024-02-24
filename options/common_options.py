@@ -491,9 +491,10 @@ class CommonOptions(BaseOptions):
         )
         parser.add_argument(
             "--f_s_semantic_nclasses",
-            default=2,
+            default=[2],
+            nargs="+",
             type=int,
-            help="number of classes of the semantic loss classifier",
+            help="number of classes of the semantic loss classifiers",
         )
         parser.add_argument(
             "--f_s_class_weights",
@@ -619,6 +620,7 @@ class CommonOptions(BaseOptions):
                 "self_supervised_labeled_mask_ref",
                 "unaligned_labeled_mask_online_ref",
                 "self_supervised_labeled_mask_online_ref",
+                "self_supervised_labeled_sound",
             ],
             help="chooses how datasets are loaded.",
         )

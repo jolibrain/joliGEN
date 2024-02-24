@@ -148,7 +148,6 @@ class CMModel(BaseDiffusionModel):
         self.iter_calculator_init()
 
     def set_input(self, data):
-
         if (
             len(data["A"].to(self.device).shape) == 5
         ):  # we're using temporal successive frames
@@ -203,7 +202,6 @@ class CMModel(BaseDiffusionModel):
         self.real_B = self.gt_image
 
     def compute_cm_loss(self):
-
         y_0 = self.gt_image  # ground truth
         y_cond = self.cond_image  # conditioning
         mask = self.mask
@@ -224,7 +222,6 @@ class CMModel(BaseDiffusionModel):
         self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
 
     def inference(self):
-
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
         else:

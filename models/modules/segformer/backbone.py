@@ -328,7 +328,6 @@ class EfficientMultiheadAttention(MultiheadAttention):
         return identity + self.dropout_layer(self.proj_drop(out))
 
     def legacy_forward(self, x, hw_shape, identity=None):
-
         x_q = x
         if self.sr_ratio > 1:
             x_kv = nlc_to_nchw(x, hw_shape)
@@ -671,7 +670,6 @@ class AdaptivePadding(nn.Module):
     """
 
     def __init__(self, kernel_size=1, stride=1, dilation=1, padding="corner"):
-
         super(AdaptivePadding, self).__init__()
 
         assert padding in ("same", "corner")
