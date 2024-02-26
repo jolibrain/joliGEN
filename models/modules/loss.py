@@ -399,13 +399,18 @@ class MultiScaleDiffusionLoss(nn.Module):
     Multiscale diffusion loss such as in 2301.11093.
     """
 
-    def __init__(self, img_size, scales):
+    def __init__(self, lossname, img_size, scales):
         super().__init__()
 
         self.min_res = 32
         self.scales = scales
         self.log_size = math.floor(math.log2(img_size))
-        self.loss = torch.nn.MSELoss()
+        if "MSE" in lossname:
+            self.loss = torch.nn.MSELoss()
+        elif "L1" in lossname:
+            self.loss = torch.nn.L1Loss()
+        else:
+            raise NotImplementedError("lossname not implemented")
 
     def forward(self, noise, noise_hat):
         losses = {}
