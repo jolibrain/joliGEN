@@ -91,7 +91,6 @@ Here are all the available options to call with `train.py`
 | --alg_diffusion_cond_sketch_canny_range | array | [0, 765] | range of randomized canny sketch thresholds |
 | --alg_diffusion_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
 | --alg_diffusion_generate_per_class | flag |  | whether to generate samples of each images |
-| --alg_diffusion_inference_num | int | -1 | nb of examples processed for inference |
 | --alg_diffusion_lambda_G | float | 1.0 | weight for supervised loss |
 | --alg_diffusion_ref_embed_net | string | clip | embedding network to use for ref conditioning<br/><br/> **Values:** clip, imagebind |
 | --alg_diffusion_super_resolution_scale | float | 2.0 | scale for super resolution |
@@ -161,6 +160,7 @@ Here are all the available options to call with `train.py`
 | --data_crop_size | int | 256 | then crop to this size |
 | --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_temporal, single, unaligned_labeled_mask_ref, self_supervised_labeled_mask_ref, unaligned_labeled_mask_online_ref, self_supervised_labeled_mask_online_ref |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/> **Values:** AtoB, BtoA |
+| --data_image_bits | int | 8 | number of bits of the image (e.g. 8, 12 or 16) |
 | --data_inverted_mask | flag |  | whether to invert the mask, i.e. around the bbox |
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
@@ -366,7 +366,7 @@ Here are all the available options to call with `train.py`
 | --dataaug_affine_translate | float | 0.2 | if random affine specified, translation range (-value\*img_size,+value\*img_size) value |
 | --dataaug_diff_aug_policy | string |  | choose the augmentation policy : color randaffine randperspective. If you want more than one, please write them separated by a comma with no space (e.g. color,randaffine) |
 | --dataaug_diff_aug_proba | float | 0.5 | proba of using each transformation |
+| --dataaug_flip | string | horizontal | if specified, flip the images for data augmentation, possible values: none, horizontal, vertical, both<br/><br/> **Values:** none, horizontal, vertical, both |
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
-| --dataaug_no_flip | flag |  | if specified, do not flip the images for data augmentation |
 | --dataaug_no_rotate | flag |  | if specified, do not rotate the images for data augmentation |
 
