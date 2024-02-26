@@ -55,7 +55,7 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_loss",
             type=str,
             default="MSE",
-            choices=["L1", "MSE", "multiscale"],
+            choices=["L1", "MSE", "multiscale_L1", "multiscale_MSE"],
             help="loss type of the denoising model",
         )
 
@@ -180,7 +180,7 @@ class PaletteModel(BaseDiffusionModel):
         # Define loss functions
         losses_G = ["G_tot"]
 
-        if self.opt.alg_palette_loss == "multiscale":
+        if "multiscale" in self.opt.alg_palette_loss:
             img_size = self.opt.data_crop_size
             img_size_log = math.floor(math.log2(img_size))
             min_size = 32
@@ -190,9 +190,12 @@ class PaletteModel(BaseDiffusionModel):
             for k in range(min_size_log, img_size_log + 1):
                 scales.append(2**k)
                 losses_G.append("G_" + str(2**k))
+            losses_G.append("G_" + str(img_size))
 
             self.loss_fn = MultiScaleDiffusionLoss(
-                img_size=self.opt.data_crop_size, scales=scales
+                self.opt.alg_palette_loss,
+                img_size=self.opt.data_crop_size,
+                scales=scales,
             )
 
         elif self.opt.alg_palette_loss == "MSE":
