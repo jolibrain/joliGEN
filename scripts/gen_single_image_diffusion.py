@@ -48,14 +48,14 @@ from util.util import flatten_json
 
 
 def load_model(
-    modelpath,
-    model_in_file,
+    model_in_dir,
+    model_in_filename,
     device,
     sampling_steps,
     sampling_method,
     model_prior_321_backwardcompatibility,
 ):
-    train_json_path = modelpath + "/train_config.json"
+    train_json_path = model_in_dir + "/train_config.json"
     with open(train_json_path, "r") as jsonf:
         train_json = json.load(jsonf)
 
@@ -83,7 +83,7 @@ def load_model(
 
     # handle old models
     weights = torch.load(
-        modelpath + "/" + model_in_file, map_location=torch.device(device)
+        os.path.join(model_in_dir, model_in_filename), map_location=torch.device(device)
     )
     if opt.model_prior_321_backwardcompatibility:
         weights = {
@@ -199,7 +199,6 @@ def generate(
     nb_samples,
     **unused_options,
 ):
-
     PROGRESS_NUM_STEPS = 4
     # seed
     if seed >= 0:
@@ -212,10 +211,8 @@ def generate(
 
     # loading model
     if lmodel is None:
-        modelpath = model_in_file.replace(os.path.basename(model_in_file), "")
-
         model, opt = load_model(
-            modelpath,
+            os.path.dirname(model_in_file),
             os.path.basename(model_in_file),
             device,
             sampling_steps,
@@ -709,7 +706,6 @@ def generate(
 
 
 def inference_logger(name):
-
     PROCESS_NAME = "gen_single_image_diffusion"
     LOG_PATH = os.environ.get(
         "LOG_PATH", os.path.join(os.path.dirname(__file__), "../logs")
@@ -729,7 +725,6 @@ def inference_logger(name):
 
 
 def inference(args):
-
     PROGRESS_NUM_STEPS = 6
     logger = inference_logger(args.name)
 
