@@ -152,7 +152,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --alg_palette_ddim_eta | float | 0.5 | eta for ddim sampling variance |
 | --alg_palette_ddim_num_steps | int | 10 | number of steps for ddim sampling |
-| --alg_palette_loss | string | MSE | loss type of the denoising model<br/><br/> **Values:** L1, MSE, multiscale |
+| --alg_palette_loss | string | MSE | loss type of the denoising model<br/><br/> **Values:** L1, MSE, multiscale_L1, multiscale_MSE |
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/> **Values:** ddpm, ddim |
 
 ## Datasets
