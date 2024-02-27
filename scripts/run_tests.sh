@@ -127,7 +127,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### diffusion super-resolution process test
-python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_sr_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR/trainA/img"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_sr_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
