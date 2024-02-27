@@ -5,10 +5,7 @@ from PIL import Image
 
 
 class SingleDataset(BaseDataset):
-    """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
-
-    It can be used for generating CycleGAN results only for one side with the model option '-model test'.
-    """
+    """This dataset class can load a set of images specified by the path --dataroot /path/to/data."""
 
     def __init__(self, opt, phase="train"):
         """Initialize this dataset class.
@@ -17,7 +14,7 @@ class SingleDataset(BaseDataset):
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         BaseDataset.__init__(self, opt, phase)
-        self.A_paths = sorted(make_dataset(opt.dataroot, opt.data_max_dataset_size))
+        self.A_paths = sorted(make_dataset(self.dir_A, opt.data_max_dataset_size))
         self.transform = get_transform(opt, grayscale=(self.input_nc == 1))
 
     def __getitem__(self, index):
