@@ -21,6 +21,11 @@ from util.util import save_image, tensor2im
 from . import gan_networks
 from .base_model import BaseModel
 
+from .modules.projected_d.discriminator import (
+    ProjectedDiscriminator,
+    TemporalProjectedDiscriminator,
+)
+
 # For D loss computing
 from .modules import loss
 from .modules.sam.sam_inference import (
@@ -361,6 +366,12 @@ class BaseGanModel(BaseModel):
         else:
             real = getattr(self, real_name)
 
+        if self.opt.data_image_bits != 8 and type(netD) == ProjectedDiscriminator:
+            fake = fake.expand(-1, 3, -1, -1)
+            real = real.expand(-1, 3, -1, -1)
+            if fake_2 is not None:
+                fake_2 = fake_2.expand(-1, 3, -1, -1)
+
         with torch.cuda.amp.autocast(enabled=self.with_amp):
             loss = loss.compute_loss_D(netD, real, fake, fake_2)
         return loss
@@ -434,6 +445,9 @@ class BaseGanModel(BaseModel):
             else:
                 setattr(self, real_name + "_aug", real)
 
+        if self.opt.data_image_bits != 8 and type(netD) == ProjectedDiscriminator:
+            fake = fake.expand(-1, 3, -1, -1)
+            real = real.expand(-1, 3, -1, -1)
         loss = loss.compute_loss_G(netD, real, fake)
         return loss
 

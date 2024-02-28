@@ -136,6 +136,19 @@ class CUTModel(BaseGanModel):
             default=False,
             help="Enforce flip-equivariance as additional regularization. It's used by FastCUT, but not CUT",
         )
+        parser.add_argument(
+            "--alg_cut_supervised_loss",
+            type=str,
+            default="",
+            choices=["", "MSE", "L1"],
+            help="supervised loss with aligned data",
+        )
+        parser.add_argument(
+            "--alg_cut_lambda_supervised",
+            type=float,
+            default=1.0,
+            help="weight for supervised loss",
+        )
 
         return parser
 
@@ -251,6 +264,11 @@ class CUTModel(BaseGanModel):
             if self.opt.alg_cut_MSE_idt:
                 self.criterionIdt = torch.nn.L1Loss()
 
+            if self.opt.alg_cut_supervised_loss == "MSE":
+                self.criterionSupervised = torch.nn.MSELoss()
+            elif self.opt.alg_cut_supervised_loss == "L1":
+                self.criterionSupervised = torch.nn.L1Loss()
+
             # Optimizers
             self.optimizer_G = opt.optim(
                 opt,
@@ -343,8 +361,9 @@ class CUTModel(BaseGanModel):
             self.set_discriminators_info()
 
         # Losses names
-
         losses_G = ["G_NCE"]
+        if opt.alg_cut_supervised_loss != "":
+            losses_G += ["G_supervised"]
         losses_D = []
         if opt.alg_cut_nce_idt and self.isTrain:
             losses_G += ["G_NCE_Y"]
@@ -625,7 +644,16 @@ class CUTModel(BaseGanModel):
         else:
             self.loss_G_MSE_idt = 0
 
-        self.loss_G_tot += loss_NCE_both + self.loss_G_MSE_idt
+        # supervised loss with aligned data
+        if self.opt.alg_cut_supervised_loss:
+            self.loss_G_supervised = (
+                self.opt.alg_cut_lambda_supervised
+                * self.criterionSupervised(self.real_B, self.fake_B)
+            )
+        else:
+            self.loss_G_supervised = 0
+
+        self.loss_G_tot += loss_NCE_both + self.loss_G_MSE_idt + self.loss_G_supervised
         self.compute_E_loss()
         self.loss_G_tot += self.loss_G_z
 
