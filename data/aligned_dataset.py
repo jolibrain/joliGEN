@@ -59,13 +59,14 @@ class AlignedDataset(BaseDataset):
 
         # apply the same transform to both A and B
         transform_params = get_params(self.opt, A.size)
+
         A_transform = get_transform(self.opt, transform_params, grayscale=grayscale)
         B_transform = get_transform(self.opt, transform_params, grayscale=grayscale)
 
-        if self.opt.alg_diffusion_task == "pix2pix":  ##TODO: super-res
-            # resize B to A's size with PIL
-            if A.size != B.size:
-                B = B.resize(A.size, Image.NEAREST)
+        # if self.opt.alg_diffusion_task == "pix2pix":  ##TODO: super-res
+        # resize B to A's size with PIL
+        if A.size != B.size:
+            B = B.resize(A.size, Image.NEAREST)
 
         A = A_transform(A)
         B = B_transform(B)
