@@ -40,6 +40,13 @@ This is achieved by combining powerful and customized generator architectures, b
 
 ## Example results
 
+### Satellite imagery inpainting
+
+Fill up missing areas with diffusion network
+
+![xview_inpainting_res1](https://github.com/jolibrain/joliGEN/assets/3530657/9dc71c03-eeea-4811-ab1d-edfd3b078b19)
+
+
 ### Image translation while preserving the class
 
 Mario to Sonic while preserving the action (running, jumping, ...)
