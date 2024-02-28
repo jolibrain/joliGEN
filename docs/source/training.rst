@@ -95,6 +95,20 @@ Trains a diffusion model to insert glasses onto faces.
 .. code:: bash
 
    python3 train.py --dataroot /path/to/data/noglasses2glasses_ffhq --checkpoints_dir /path/to/checkpoints --name noglasses2glasses --config_json examples/example_ddpm_noglasses2glasses.json
+
+******************************************
+ DDPM training with random bbox inpainting
+******************************************
+
+Dataset: https://joligen.com/datasets/xview_inpainting_flat256_full.zip (12Gb)
+
+Trains a diffusion model to fill up random boxes from satellite imagery
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/data/xview_inpainting_flat256_full --checkpoints_dir /path/to/checkpoints --name xview_inpaint --config_json examples/example_ddpm_xview.json
+
+.. image:: _static/xview_inpainting_train1.png
    
 **************************************
  DDPM training with class conditioning

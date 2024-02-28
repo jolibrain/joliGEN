@@ -53,6 +53,13 @@ between source and target images.
  Example results
 *****************
 
+Satellite imagery inpainting
+============================
+
+Fill up missing areas with Diffusion
+
+.. image:: https://github.com/jolibrain/joliGEN/assets/3530657/9dc71c03-eeea-4811-ab1d-edfd3b078b19
+
 Image translation while preserving the class
 ============================================
 
