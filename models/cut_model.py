@@ -11,6 +11,7 @@ from .modules.NCE.monce import MoNCELoss
 from .modules.NCE.hDCE import PatchHDCELoss
 from .modules.NCE.SRC import SRC_Loss
 
+from lpips import LPIPS
 
 from util.network_group import NetworkGroup
 import util.util as util
@@ -139,8 +140,9 @@ class CUTModel(BaseGanModel):
         parser.add_argument(
             "--alg_cut_supervised_loss",
             type=str,
-            default="",
-            choices=["", "MSE", "L1"],
+            default=[""],
+            nargs="*",
+            choices=["", "MSE", "L1", "LPIPS"],
             help="supervised loss with aligned data",
         )
         parser.add_argument(
@@ -264,10 +266,12 @@ class CUTModel(BaseGanModel):
             if self.opt.alg_cut_MSE_idt:
                 self.criterionIdt = torch.nn.L1Loss()
 
-            if self.opt.alg_cut_supervised_loss == "MSE":
+            if "MSE" in self.opt.alg_cut_supervised_loss:
                 self.criterionSupervised = torch.nn.MSELoss()
-            elif self.opt.alg_cut_supervised_loss == "L1":
+            elif "L1" in self.opt.alg_cut_supervised_loss:
                 self.criterionSupervised = torch.nn.L1Loss()
+            if "LPIPS" in self.opt.alg_cut_supervised_loss:
+                self.criterionLPIPS = LPIPS(net="vgg").to(self.device)
 
             # Optimizers
             self.optimizer_G = opt.optim(
@@ -645,13 +649,24 @@ class CUTModel(BaseGanModel):
             self.loss_G_MSE_idt = 0
 
         # supervised loss with aligned data
-        if self.opt.alg_cut_supervised_loss:
-            self.loss_G_supervised = (
-                self.opt.alg_cut_lambda_supervised
-                * self.criterionSupervised(self.real_B, self.fake_B)
+        if (
+            "L1" in self.opt.alg_cut_supervised_loss
+            or "MSE" in self.opt.alg_cut_supervised_loss
+        ):
+            self.loss_G_supervised_norm = self.criterionSupervised(
+                self.real_B, self.fake_B
             )
         else:
-            self.loss_G_supervised = 0
+            self.loss_G_supervised_norm = 0
+        if "LPIPS" in self.opt.alg_cut_supervised_loss:
+            self.loss_G_supervised_lpips = torch.mean(
+                self.criterionLPIPS(self.real_B, self.fake_B)
+            )
+        else:
+            self.loss_G_supervised_lpips = 0
+        self.loss_G_supervised = self.opt.alg_cut_lambda_supervised * (
+            self.loss_G_supervised_norm + self.loss_G_supervised_lpips
+        )
 
         self.loss_G_tot += loss_NCE_both + self.loss_G_MSE_idt + self.loss_G_supervised
         self.compute_E_loss()
