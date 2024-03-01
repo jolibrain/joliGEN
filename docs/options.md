@@ -115,6 +115,7 @@ Here are all the available options to call with `train.py`
 | --alg_cut_lambda_MSE_idt | float | 1.0 | weight for MSE identity loss: MSE(G(X), X) |
 | --alg_cut_lambda_NCE | float | 1.0 | weight for NCE loss: NCE(G(X), X) |
 | --alg_cut_lambda_SRC | float | 0.0 | weight for SRC (semantic relation consistency) loss: NCE(G(X), X) |
+| --alg_cut_lambda_supervised | float | 1.0 | weight for supervised loss |
 | --alg_cut_nce_T | float | 0.07 | temperature for NCE loss |
 | --alg_cut_nce_idt | flag |  | use NCE loss for identity mapping: NCE(G(Y), Y)) |
 | --alg_cut_nce_includes_all_negatives_from_minibatch | flag |  | (used for single image translation) If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. Please see models/patchnce.py for more details. |
@@ -125,6 +126,7 @@ Here are all the available options to call with `train.py`
 | --alg_cut_netF_nc | int | 256 |  |
 | --alg_cut_netF_norm | string | instance | instance normalization or batch normalization for F<br/><br/> **Values:** instance, batch, none |
 | --alg_cut_num_patches | int | 256 | number of patches per layer |
+| --alg_cut_supervised_loss | array | [''] | supervised loss with aligned data<br/><br/> **Values:** , MSE, L1, LPIPS |
 
 ### CycleGAN model
 
