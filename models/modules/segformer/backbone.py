@@ -463,6 +463,7 @@ class MixVisionTransformer(nn.Module):
     ):
         super().__init__()
 
+        self.in_channels = in_channels
         self.embed_dims = embed_dims
         self.num_stages = num_stages
         self.num_layers = num_layers
