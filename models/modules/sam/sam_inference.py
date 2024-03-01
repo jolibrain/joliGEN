@@ -699,6 +699,8 @@ def predict_sam(img, sam_predictor, bbox=None):
     img = (img + 1) / 2.0 * 255.0
 
     # - set image to model
+    if img.shape[1] == 1:
+        img = img.repeat(1, 3, 1, 1)
     sam_predictor.set_image(img)
 
     # - generate keypoints/bbox
