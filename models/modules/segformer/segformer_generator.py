@@ -26,6 +26,10 @@ class SegformerBackbone(nn.Module):
         cfg = load_config_file(os.path.join(jg_dir, G_config_segformer))
 
         cfg["decode_head"]["num_classes"] = num_classes
+        cfg["backbone"]["in_channels"] = input_nc
+        cfg["pretrained"] = None
+        cfg["train_cfg"] = None
+        cfg["auxiliary_head"] = cfg["decode_head"].copy()
 
         self.net = JoliSegformer(cfg)
 
@@ -35,7 +39,7 @@ class SegformerBackbone(nn.Module):
 
         if self.use_final_conv:
             self.final_conv = ResnetDecoder(
-                num_classes, 3, ngf=64, padding_type=padding_type
+                num_classes, input_nc, ngf=64, padding_type=padding_type
             )
 
     def compute_feats(self, input, extract_layer_ids=[]):
@@ -102,10 +106,11 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         super(SegformerGenerator_attn, self).__init__(nb_mask_attn, nb_mask_input)
         self.use_final_conv = final_conv
         self.tanh = nn.Tanh()
+        self.input_nc = input_nc
 
         cfg = load_config_file(os.path.join(jg_dir, G_config_segformer))
 
-        cfg["backbone"]["in_channels"] = input_nc
+        cfg["backbone"]["in_channels"] = self.input_nc
         cfg["pretrained"] = None
         cfg["train_cfg"] = None
         cfg["auxiliary_head"] = cfg["decode_head"].copy()
@@ -113,7 +118,7 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         if self.use_final_conv:
             num_cls = 256
         else:
-            num_cls = 3 * (self.nb_mask_attn - self.nb_mask_input)
+            num_cls = self.input_nc * (self.nb_mask_attn - self.nb_mask_input)
 
         cfg["decode_head"]["num_classes"] = num_cls
         cfg["auxiliary_head"]["num_classes"] = self.nb_mask_attn
@@ -128,7 +133,7 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         if self.use_final_conv:
             self.final_conv = ResnetDecoder(
                 num_cls,
-                3 * (self.nb_mask_attn - self.nb_mask_input),
+                self.input_nc * (self.nb_mask_attn - self.nb_mask_input),
                 ngf=64,
                 padding_type=padding_type,
             )
@@ -146,12 +151,14 @@ class SegformerGenerator_attn(BaseGenerator_attn):
         images = []
 
         for i in range(self.nb_mask_attn - self.nb_mask_input):
-            images.append(image[:, 3 * i : 3 * (i + 1), :, :])
+            images.append(image[:, self.input_nc * i : self.input_nc * (i + 1), :, :])
 
         attention = self.softmax_(attention)
         attentions = []
 
         for i in range(self.nb_mask_attn):
-            attentions.append(attention[:, i : i + 1, :, :].repeat(1, 3, 1, 1))
+            attentions.append(
+                attention[:, i : i + 1, :, :].repeat(1, self.input_nc, 1, 1)
+            )
 
         return attentions, images
