@@ -220,6 +220,9 @@ class Visualizer:
                         gray_cm = matplotlib.cm.get_cmap("gray")
                         mapped_images = []
                         for im in images:
+                            if im.shape[0] == 3:
+                                mapped_images.append(im)
+                                continue
                             mapped_im = np.squeeze(gray_cm(im, bytes=True))
                             mapped_im = mapped_im.transpose([2, 0, 1])
                             # remove the alpha channel
