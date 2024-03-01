@@ -214,7 +214,7 @@ class TrainOptions(CommonOptions):
             type=str,
             default=["FID"],
             nargs="*",
-            choices=["FID", "KID", "MSID", "PSNR", "LPIPS"],
+            choices=["FID", "KID", "MSID", "PSNR", "LPIPS", "SSIM"],
             help="metrics on results quality to compute",
         )
 
