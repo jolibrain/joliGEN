@@ -633,7 +633,7 @@ class UNet(nn.Module):
         if tanh:
             self.out = nn.Sequential(
                 normalization(ch, norm),
-                zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
+                nn.Conv2d(input_ch, out_channel, 3, padding=1),
                 nn.Tanh(),
             )
         else:
@@ -927,7 +927,7 @@ class UViT(nn.Module):
         if tanh:
             self.out = nn.Sequential(
                 normalization(ch, norm),
-                zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
+                nn.Conv2d(input_ch, out_channel, 3, padding=1),
                 nn.Tanh(),
             )
         else:
