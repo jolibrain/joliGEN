@@ -1496,7 +1496,10 @@ class BaseModel(ABC):
             if hasattr(self, "gt_image"):
                 batch_real_img = self.gt_image
             else:
-                batch_real_img = self.real_A
+                if self.opt.data_direction == "AtoB":
+                    batch_real_img = self.real_B
+                else:
+                    batch_real_img = self.real_A
 
             for i, cur_real in enumerate(batch_real_img):
                 real_list.append(cur_real.unsqueeze(0).clone())
@@ -1531,10 +1534,13 @@ class BaseModel(ABC):
                 test_device = self.gpu_ids[0]
             else:
                 test_device = self.device  # cpu
+            domain = "B"
+            if self.opt.data_direction == "BtoA":
+                domain = "A"
             self.fakeactB_test = _compute_statistics_of_dataloader(
                 path_sv=None,
                 model=self.netFid,
-                domain="B",
+                domain=domain,
                 batch_size=1,
                 dims=dims,
                 device=test_device,
