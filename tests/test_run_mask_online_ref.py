@@ -36,7 +36,7 @@ models_datasets = [
     ["cut", "unaligned_labeled_mask_online_ref"],
 ]
 conditionings = [
-    "alg_palette_conditioning",
+    "alg_diffusion_cond_embed",
     "alg_palette_cond_image_creation",
 ]
 

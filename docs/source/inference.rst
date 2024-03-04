@@ -276,7 +276,7 @@ Download a pretrained model:
 Run the inference script
 ========================
 
-The ``--cond-in`` parameter specifies the conditioning image to use.
+The ``--cond_in`` parameter specifies the conditioning image to use.
 
 .. code:: bash
 

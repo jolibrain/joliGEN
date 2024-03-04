@@ -458,12 +458,12 @@ class Visualizer:
             json.dump(self.metrics_dict, fp)
 
     def plot_current_metrics(self, epoch, counter_ratio, metrics):
-        """display the current fid values on visdom display: dictionary of fid labels and values
+        """display the current metrics values on visdom display
 
         Parameters:
             epoch (int)           -- current epoch
             counter_ratio (float) -- progress (percentage) in the current epoch, between 0 to 1
-            fids (OrderedDict)  -- training fid values stored in the format of (name, float) pairs
+            metrics (OrderedDict)  -- training metrics values stored in the format of (name, float) pairs
         """
         self.plot_metrics_dict(
             "metric",
@@ -476,7 +476,7 @@ class Visualizer:
         )
 
     def plot_current_D_accuracies(self, epoch, counter_ratio, accuracies):
-        """display the current fid values on visdom display: dictionary of fid labels and values
+        """display the current accuracies values on visdom display
 
         Parameters:
             epoch (int)           -- current epoch
@@ -505,7 +505,7 @@ class Visualizer:
         )
 
     def plot_current_miou(self, epoch, counter_ratio, miou):
-        """display the current fid values on visdom display: dictionary of fid labels and values
+        """display the current miou values on visdom display
 
         Parameters:
             epoch (int)           -- current epoch

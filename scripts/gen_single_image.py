@@ -142,5 +142,5 @@ def inference(args):
 
 
 if __name__ == "__main__":
-    opt = InferenceGANOptions().parse()
+    opt = InferenceGANOptions().parse(save_config=False)
     inference(opt)
