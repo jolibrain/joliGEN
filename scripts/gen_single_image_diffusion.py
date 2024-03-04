@@ -186,7 +186,7 @@ def generate(
     cond_persp_vertical,
     alg_diffusion_cond_image_creation,
     alg_diffusion_sketch_canny_thresholds,
-    cls_value,
+    cls,
     alg_diffusion_super_resolution_downsample,
     alg_diffusion_guidance_scale,
     data_refined_mask,
@@ -268,9 +268,7 @@ def generate(
                 elts = line.rstrip().split()
                 bboxes.append([int(elts[1]), int(elts[2]), int(elts[3]), int(elts[4])])
                 if conditioning:
-                    if cls_value > 0:
-                        cls = cls_value
-                    else:
+                    if cls <= 0:
                         cls = int(elts[0])
                 else:
                     cls = 1
@@ -760,5 +758,5 @@ def inference(args):
 
 
 if __name__ == "__main__":
-    args = InferenceDiffusionOptions().parse()
+    args = InferenceDiffusionOptions().parse(save_config=False)
     inference(args)

@@ -266,10 +266,11 @@ class BaseOptions:
 
         return self.opt
 
-    def parse(self):
+    def parse(self, save_config=True):
         """Parse our options, create checkpoints directory suffix, and set up gpu device."""
         self.opt = self.gather_options()
-        self.save_options()
+        if save_config:
+            self.save_options()
         opt = self._after_parse(self.opt)
         return opt
 

@@ -98,7 +98,7 @@ class InferenceDiffusionOptions(BaseOptions):
         )
 
         parser.add_argument(
-            "--cls_value",
+            "--cls",
             type=int,
             default=-1,
             help="override input bbox classe for generation",
