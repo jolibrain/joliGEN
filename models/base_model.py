@@ -937,6 +937,13 @@ class BaseModel(ABC):
                             state_dict[new_key] = state_dict[key].clone()
                             del state_dict[key]
 
+                # Don't load test gammas from checkpoint, so that we can use
+                # an arbitrary number of sample steps specified in the command
+                # line arguments or config
+                for key in list(state_dict.keys()):
+                    if key.startswith("denoise_fn") and key.endswith("_test"):
+                        state_dict[key] = net.state_dict()[key]
+
                 state1 = list(state_dict.keys())
                 state2 = list(net.state_dict().keys())
                 state1.sort()
