@@ -10,6 +10,7 @@
 Now you can use the dataset class by specifying flag '--dataset_mode dummy'.
 See our template dataset class 'template_dataset.py' for more details.
 """
+
 import importlib
 import torch.utils.data
 from data.base_dataset import BaseDataset

@@ -1,4 +1,5 @@
 """Generates a joliGEN dataset from BDD100K."""
+
 import argparse
 import json
 import sys

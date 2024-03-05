@@ -311,9 +311,11 @@ class ImageBindModel(nn.Module):
                     add_bias_kv=add_bias_kv,
                 ),
                 pre_transformer_layer=nn.Sequential(
-                    nn.LayerNorm(embed_dim, eps=1e-6)
-                    if pre_transformer_ln
-                    else nn.Identity(),
+                    (
+                        nn.LayerNorm(embed_dim, eps=1e-6)
+                        if pre_transformer_ln
+                        else nn.Identity()
+                    ),
                     EinOpsRearrange("b l d -> l b d"),
                 ),
                 post_transformer_layer=EinOpsRearrange("l b d -> b l d"),

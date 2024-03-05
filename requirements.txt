@@ -27,3 +27,4 @@ lpips
 pytest
 pytest-asyncio
 httpx
+black==24.2.0
