@@ -243,6 +243,8 @@ TORCH_MODEL_CLASSES = {
     "mnasnet1_0": models.mnasnet1_0,
     "mnasnet1_3": models.mnasnet1_3,
 }
+
+
 # all models are RGB internally.
 class torch_model(nn.Module):
     def __init__(self, input_nc, ndf, nclasses, img_size, template, pretrained):

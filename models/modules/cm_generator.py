@@ -100,9 +100,7 @@ def karras_schedule(
     rho_inv = 1.0 / rho
     # Clamp steps to 1 so that we don't get nans
     steps = torch.arange(num_timesteps, device=device) / max(num_timesteps - 1, 1)
-    sigmas = sigma_min**rho_inv + steps * (
-        sigma_max**rho_inv - sigma_min**rho_inv
-    )
+    sigmas = sigma_min**rho_inv + steps * (sigma_max**rho_inv - sigma_min**rho_inv)
     sigmas = sigmas**rho
 
     return sigmas

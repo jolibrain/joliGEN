@@ -15,6 +15,7 @@ You need to implement the following functions:
     <forward>: Run forward pass. This will be called by both <optimize_parameters> and <test>.
     <optimize_parameters>: Update network weights; it will be called in every training iteration.
 """
+
 import torch
 from .base_model import BaseModel
 from . import gan_networks
