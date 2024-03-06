@@ -217,6 +217,11 @@ class TrainOptions(CommonOptions):
             choices=["FID", "KID", "MSID", "PSNR", "LPIPS", "SSIM"],
             help="metrics on results quality to compute",
         )
+        parser.add_argument(
+            "--train_metrics_save_images",
+            action="store_true",
+            help="whether to save images that result form metrics computation",
+        )
 
         parser.add_argument(
             "--train_G_ema",

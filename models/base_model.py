@@ -1442,7 +1442,9 @@ class BaseModel(ABC):
 
         return metrics
 
-    def compute_metrics_test(self, dataloaders_test, n_epoch, n_iter):
+    def compute_metrics_test(
+        self, dataloaders_test, n_epoch, n_iter, save_images=False
+    ):
         dims = 2048
         batch = 1
 
@@ -1466,7 +1468,6 @@ class BaseModel(ABC):
         for i, data_test_list in enumerate(
             dataloaders_test
         ):  # inner loop (minibatch) within one epoch
-
             data_test = data_test_list[0]
 
             if self.use_temporal:
@@ -1480,16 +1481,21 @@ class BaseModel(ABC):
             offset = i * self.opt.test_batch_size
             self.inference(self.opt.test_batch_size, offset=offset)
 
-            pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (n_epoch, n_iter)
-            if not os.path.exists(pathB):
-                os.mkdir(pathB)
+            if save_images:
+                pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (
+                    n_epoch,
+                    n_iter,
+                )
+                if not os.path.exists(pathB):
+                    os.mkdir(pathB)
 
             for j, cur_fake_B in enumerate(self.fake_B):
-                save_image(
-                    tensor2im(cur_fake_B.unsqueeze(0)),
-                    pathB + "/" + str(offset + j) + ".png",
-                    aspect_ratio=1.0,
-                )
+                if save_images:
+                    save_image(
+                        tensor2im(cur_fake_B.unsqueeze(0)),
+                        pathB + "/" + str(offset + j) + ".png",
+                        aspect_ratio=1.0,
+                    )
 
                 fake_list.append(cur_fake_B.unsqueeze(0).clone())
 

@@ -273,7 +273,10 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                                 dataloaders_test = zip(dataloader_test)
 
                             model.compute_metrics_test(
-                                dataloaders_test, epoch, opt.total_iters
+                                dataloaders_test,
+                                epoch,
+                                opt.total_iters,
+                                opt.train_metrics_save_images,
                             )
 
                             visualizer.display_current_results(
@@ -361,7 +364,10 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             else:
                 dataloaders_test = zip(dataloader_test)
             model.compute_metrics_test(
-                dataloaders_test, opt.train_epoch_count - 1, opt.total_iters
+                dataloaders_test,
+                opt.train_epoch_count - 1,
+                opt.total_iters,
+                save_images=opt.train_metrics_save_images,
             )
             cur_metrics = model.get_current_metrics()
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")
