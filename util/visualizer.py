@@ -444,7 +444,7 @@ class Visualizer:
                 Y,
                 X,
                 opts={
-                    "title": self.name + " " + title,
+                    "title": title,
                     "legend": plot_metrics["legend"],
                     "xlabel": "epoch",
                     "ylabel": ylabel,
