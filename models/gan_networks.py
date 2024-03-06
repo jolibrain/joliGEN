@@ -42,6 +42,8 @@ from .modules.unet_generator_attn.unet_generator_attn import (
     UViT as UViT,
 )
 
+from .modules.hdit.hdit import HDiT, HDiTConfig
+
 
 def define_G(
     model_input_nc,
@@ -68,6 +70,8 @@ def define_G(
     G_unet_mha_group_norm_size,
     G_uvit_num_transformer_blocks,
     G_unet_mha_vit_efficient,
+    G_hdit_depths,
+    G_hdit_widths,
     train_feat_wavelet,
     **unused_options
 ):
@@ -233,6 +237,23 @@ def define_G(
             num_transformer_blocks=G_uvit_num_transformer_blocks,
             efficient=G_unet_mha_vit_efficient,
         )
+        return net
+    elif G_netG == "hdit":
+        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths)
+        print("HDiT levels=", hdit_config.levels)
+        print("HDiT mapping=", hdit_config.mapping)
+        net = HDiT(
+            levels=hdit_config.levels,
+            mapping=hdit_config.mapping,
+            in_channels=model_input_nc,
+            out_channels=model_output_nc,
+            patch_size=hdit_config.patch_size,
+            last_zero_init=False,
+            num_classes=0,
+            mapping_cond_dim=0,
+        )
+        cond_embed_dim = hdit_config.mapping.width
+        net.cond_embed_dim = cond_embed_dim
         return net
     else:
         raise NotImplementedError(
