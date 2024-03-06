@@ -744,6 +744,7 @@ class HDiT(nn.Module):
         in_channels,
         out_channels,
         patch_size,
+        last_zero_init=True,
         num_classes=0,
         mapping_cond_dim=0,
         n_timestep_train=1000,
@@ -822,7 +823,8 @@ class HDiT(nn.Module):
         self.patch_out = TokenSplitWithoutSkip(
             levels[0].width, out_channels, patch_size
         )
-        nn.init.zeros_(self.patch_out.proj.weight)
+        if last_zero_init:
+            nn.init.zeros_(self.patch_out.proj.weight)
 
         self.beta_schedule = {
             "train": {
@@ -862,11 +864,16 @@ class HDiT(nn.Module):
         ]
         return groups
 
-    def forward(self, x, embed_gammas):
+    def compute_feats(self, x, embed_gammas):
+        if embed_gammas is None:
+            # Only for GAN
+            b = (x.shape[0], self.cond_embed_dim)
+            embed_gammas = torch.ones(b).to(x.device)
+
         # Patching
         x = x.movedim(-3, -1)
         x = self.patch_in(x)
-        # XXX(orig): pixel aspect ratio for nonsquare patches
+
         pos = make_axial_pos(x.shape[-3], x.shape[-2], device=x.device).view(
             x.shape[-3], x.shape[-2], 2
         )
@@ -875,15 +882,28 @@ class HDiT(nn.Module):
         cond = self.mapping(embed_gammas)
 
         # Hourglass transformer
+        hs = []
         skips, poses = [], []
         for down_level, merge in zip(self.down_levels, self.merges):
             x = down_level(x, pos, cond)
             skips.append(x)
             poses.append(pos)
             x = merge(x)
+            hs.append(x)
             pos = downscale_pos(pos)
 
         x = self.mid_level(x, pos, cond)
+
+        outs, feats = x, hs
+        return outs, feats, cond, skips, poses
+
+    def get_feats(self, x, extract_layer_ids=[]):
+        _, hs, _, _, _ = self.compute_feats(x, embed_gammas=None)
+
+        return hs  # XXX: return all
+
+    def forward(self, x, embed_gammas=None):
+        x, _, cond, skips, poses = self.compute_feats(x, embed_gammas)
 
         for up_level, split, skip, pos in reversed(
             list(zip(self.up_levels, self.splits, skips, poses))

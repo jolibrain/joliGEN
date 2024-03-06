@@ -829,6 +829,7 @@ class BaseModel(ABC):
                     if (
                         not self.opt.train_feat_wavelet
                         and not "ittr" in self.opt.G_netG
+                        and not "hdit" in self.opt.G_netG
                         and not (
                             torch.__version__[0] == "2"
                             and "segformer" in self.opt.G_netG
@@ -846,7 +847,11 @@ class BaseModel(ABC):
                         )
 
                     # jit
-                    if self.opt.train_export_jit and not ("uvit" in self.opt.G_netG):
+                    if (
+                        self.opt.train_export_jit
+                        and not ("uvit" in self.opt.G_netG)
+                        and not ("hdit" in self.opt.G_netG)
+                    ):
                         export_path_jit = save_path.replace(".pth", ".pt")
 
                         export(
