@@ -220,7 +220,12 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
                 if rank_0:
                     visualizer.print_current_losses(
-                        epoch, epoch_iter, losses, t_comp, t_data_mini_batch
+                        epoch,
+                        opt.total_iters,
+                        epoch_iter,
+                        losses,
+                        t_comp,
+                        t_data_mini_batch,
                     )
                     if opt.output_display_id > 0:
                         visualizer.plot_current_losses(

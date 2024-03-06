@@ -364,19 +364,22 @@ class Visualizer:
             json.dump(self.plot_data, fp)
 
     # losses: same format as |losses| of plot_current_losses
-    def print_current_losses(self, epoch, iters, losses, t_comp, t_data_mini_batch):
+    def print_current_losses(
+        self, epoch, total_iters, iters, losses, t_comp, t_data_mini_batch
+    ):
         """print current losses on console; also save the losses to the disk
 
         Parameters:
             epoch (int) -- current epoch
+            total_iters (int) -- total number of training iterations across epochs
             iters (int) -- current training iteration during this epoch (reset to 0 at the end of every epoch)
             losses (OrderedDict) -- training losses stored in the format of (name, float) pairs
             t_comp (float) -- computational time per data point (normalized by batch_size)
             t_data (float) -- data loading time per data point (normalized by batch_size)
         """
         message = (
-            "(epoch: %d, iters: %d, time comput per image: %.3f, time data mini batch: %.3f) "
-            % (epoch, iters, t_comp, t_data_mini_batch)
+            "(epoch: %d, total_iters: %d, iters: %d, time per image: %.3f, time data mini batch: %.3f) "
+            % (epoch, total_iters, iters, t_comp, t_data_mini_batch)
         )
         for k, v in losses.items():
             message += "%s: %.6f " % (k, v)
