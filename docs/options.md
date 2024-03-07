@@ -302,6 +302,7 @@ Here are all the available options to call with `train.py`
 | --train_lr_policy | string | linear | learning rate policy.<br/><br/> **Values:** linear, step, plateau, cosine |
 | --train_metrics_every | int | 1000 | compute metrics every N iterations |
 | --train_metrics_list | array | ['FID'] | metrics on results quality to compute<br/><br/> **Values:** FID, KID, MSID, PSNR, LPIPS, SSIM |
+| --train_metrics_save_images | flag |  | whether to save images that result form metrics computation |
 | --train_mm_lambda_z | float | 0.5 | weight for random z loss |
 | --train_mm_nz | int | 8 | number of latent vectors |
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |
