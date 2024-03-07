@@ -305,7 +305,8 @@ class CMGenerator(nn.Module):
             mask = torch.clamp(mask, min=0.0, max=1.0)
 
         next_noisy_x = x + pad_dims_like(next_sigmas, x) * noise
-        next_noisy_x = next_noisy_x * mask + (1 - mask) * x
+        if mask is not None:
+            next_noisy_x = next_noisy_x * mask + (1 - mask) * x
 
         next_x = self.cm_forward(
             next_noisy_x,
@@ -317,7 +318,8 @@ class CMGenerator(nn.Module):
 
         with torch.no_grad():
             current_noisy_x = x + pad_dims_like(current_sigmas, x) * noise
-            current_noisy_x = current_noisy_x * mask + (1 - mask) * x
+            if mask is not None:
+                current_noisy_x = current_noisy_x * mask + (1 - mask) * x
 
             current_x = self.cm_forward(
                 current_noisy_x,
@@ -348,12 +350,13 @@ class CMGenerator(nn.Module):
             mask = torch.clamp(
                 mask, min=0.0, max=1.0
             )  # removes class information from mask
-        y = y * (1 - mask)
+            y = y * (1 - mask)
 
         # Sample at the end of the schedule
         x = y + sigmas[0] * torch.randn_like(y)
 
-        x = x * mask + (1 - mask) * y
+        if mask is not None:
+            x = x * mask + (1 - mask) * y
 
         sigma = torch.full((x.shape[0],), sigmas[0], dtype=x.dtype, device=x.device)
         x = self.cm_forward(
@@ -366,7 +369,8 @@ class CMGenerator(nn.Module):
         if clip_denoised:
             x = x.clamp(min=-1.0, max=1.0)
 
-        x = x * mask + (1 - mask) * y
+        if mask is not None:
+            x = x * mask + (1 - mask) * y
 
         for sigma in sigmas[1:]:
 
@@ -375,7 +379,8 @@ class CMGenerator(nn.Module):
                 (sigma**2 - self.sigma_min**2) ** 0.5, x
             ) * torch.randn_like(x)
 
-            x = x * mask + (1 - mask) * y
+            if mask is not None:
+                x = x * mask + (1 - mask) * y
 
             x = self.cm_forward(
                 x,
@@ -387,7 +392,8 @@ class CMGenerator(nn.Module):
 
             if clip_denoised:
                 x = x.clamp(min=-1.0, max=1.0)
-            x = x * mask + (1 - mask) * y
+            if mask is not None:
+                x = x * mask + (1 - mask) * y
 
         return x
 

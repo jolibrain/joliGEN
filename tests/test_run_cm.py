@@ -9,6 +9,7 @@ import train
 from options.train_options import TrainOptions
 from data import create_dataset
 from itertools import product
+import torch
 
 from scripts.gen_single_image_diffusion import InferenceDiffusionOptions, inference
 
@@ -87,6 +88,10 @@ def test_semantic_mask(dataroot):
         infer_options_c["dir_out"] = os.path.join(
             json_like_dict_c["checkpoints_dir"], json_like_dict_c["name"]
         )
+
+        # cuda is available
+        if not torch.cuda.is_available():
+            infer_options_c["cpu"] = True
 
         opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=False)
         inference(opt)
