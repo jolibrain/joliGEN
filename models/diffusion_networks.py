@@ -43,6 +43,7 @@ def define_G(
     G_uvit_num_transformer_blocks,
     G_unet_mha_vit_efficient,
     alg_palette_sampling_method,
+    alg_diffusion_task,
     alg_diffusion_cond_embed,
     alg_diffusion_cond_embed_dim,
     alg_diffusion_ref_embed_net,
@@ -87,7 +88,9 @@ def define_G(
         in_channel = model_input_nc * 2
     else:  # CM
         in_channel = model_input_nc
-        if alg_diffusion_cond_embed != "" and alg_diffusion_cond_embed != "y_t":
+        if (
+            alg_diffusion_cond_embed != "" and alg_diffusion_cond_embed != "y_t"
+        ) or alg_diffusion_task == "pix2pix":
             in_channel *= 2
 
     if "mask" in alg_diffusion_cond_embed:

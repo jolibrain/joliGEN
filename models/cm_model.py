@@ -68,6 +68,8 @@ class CMModel(BaseDiffusionModel):
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
+        self.task = self.opt.alg_diffusion_task
+
         if opt.isTrain:
             batch_size = self.opt.train_batch_size
         else:
@@ -160,10 +162,15 @@ class CMModel(BaseDiffusionModel):
             self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
             self.mask = data["B_label_mask"].to(self.device)[:, 1]
         else:
-            # inpainting only
-            self.y_t = data["A"].to(self.device)
-            self.gt_image = data["B"].to(self.device)
-            self.mask = data["B_label_mask"].to(self.device)
+            if self.task == "inpainting":
+                # inpainting only
+                self.y_t = data["A"].to(self.device)
+                self.gt_image = data["B"].to(self.device)
+                self.mask = data["B_label_mask"].to(self.device)
+            elif self.task == "pix2pix":
+                self.y_t = data["A"].to(self.device)
+                self.gt_image = data["B"].to(self.device)
+                self.mask = None
 
         if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             cond_image_list = []
@@ -196,8 +203,10 @@ class CMModel(BaseDiffusionModel):
                     low_threshold_random=low,
                     high_threshold_random=high,
                 )
+        elif self.task == "pix2pix":
+            self.cond_image = self.y_t
         else:  # y_t
-            self.cond_image = None  # self.y_t
+            self.cond_image = None
 
         self.batch_size = self.y_t.shape[0]
 
@@ -219,8 +228,12 @@ class CMModel(BaseDiffusionModel):
             self.current_noisy_x,
         ) = self.netG_A(y_0, self.total_t, mask, y_cond)
 
-        mask_pred_x = mask * pred_x
-        mask_target_x = mask * target_x
+        if mask is not None:
+            mask_pred_x = mask * pred_x
+            mask_target_x = mask * target_x
+        else:
+            mask_pred_x = pred_x
+            mask_target_x = target_x
         loss = (pseudo_huber_loss(mask_pred_x, mask_target_x) * loss_weights).mean()
 
         self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
