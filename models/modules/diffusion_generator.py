@@ -13,6 +13,7 @@ from models.modules.diffusion_utils import (
     predict_start_from_noise,
     q_posterior,
     gamma_embedding,
+    extract,
 )
 
 
@@ -41,7 +42,6 @@ class DiffusionGenerator(nn.Module):
 
         if loading_backward_compatibility:
             if type(self.denoise_fn.model).__name__ == "ResnetGenerator_attn_diff":
-
                 inner_channel = G_ngf
                 self.cond_embed = nn.Sequential(
                     nn.Linear(inner_channel, cond_embed_dim),
@@ -50,7 +50,6 @@ class DiffusionGenerator(nn.Module):
                 )
 
             elif type(self.denoise_fn.model).__name__ == "UNet":
-
                 inner_channel = G_ngf
                 cond_embed_dim = inner_channel * 4
 
@@ -249,7 +248,6 @@ class DiffusionGenerator(nn.Module):
         y_cond=None,
         guidance_scale=0.0,
     ):
-
         model_mean, model_log_variance = self.p_mean_variance(
             y_t=y_t,
             t=t,
@@ -429,7 +427,6 @@ class DiffusionGenerator(nn.Module):
         return model_mean, posterior_log_variance
 
     def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):
-
         b, *_ = y_0.shape
         t = torch.randint(
             1, self.denoise_fn.model.num_timesteps_train, (b,), device=y_0.device
@@ -461,7 +458,27 @@ class DiffusionGenerator(nn.Module):
             input, embed_sample_gammas, cls=cls, mask=mask, ref=ref
         )
 
-        return noise, noise_hat
+        # min-SNR loss weight
+        phase = "train"
+        ksnr = 5.0
+        snr1 = extract(
+            getattr(self.denoise_fn.model, "sqrt_recip_gammas_" + phase), t, y_0.shape
+        )
+        snr2 = extract(
+            getattr(self.denoise_fn.model, "sqrt_recipm1_gammas_" + phase), t, y_0.shape
+        )
+
+        snr = torch.pow(snr1 / snr2, 2).squeeze()
+        if len(snr.shape) == 0:  # unsqueeze if batch size is 1
+            snr = snr.unsqueeze(0)
+        min_snr_loss_weight = (
+            torch.stack([snr, ksnr * torch.ones_like(t)], dim=1).min(dim=1)[0] / snr
+        )
+
+        # reshape min_snr_loss_weight to match noise_hat
+        min_snr_loss_weight = min_snr_loss_weight.view(-1, 1, 1, 1)
+
+        return noise, noise_hat, min_snr_loss_weight
 
     def set_new_sampling_method(self, sampling_method):
         self.sampling_method = sampling_method

@@ -42,6 +42,12 @@ class PaletteModel(BaseDiffusionModel):
             help="eta for ddim sampling variance",
         )
 
+        parser.add_argument(
+            "--alg_palette_minsnr",
+            action="store_true",
+            help="use min-SNR weighting",
+        )
+
         if is_train:
             parser = PaletteModel.modify_commandline_options_train(parser)
 
@@ -440,15 +446,22 @@ class PaletteModel(BaseDiffusionModel):
         else:
             ref = None
 
-        noise, noise_hat = self.netG_A(
+        noise, noise_hat, min_snr_loss_weight = self.netG_A(
             y_0=y_0, y_cond=y_cond, noise=noise, mask=mask, cls=cls, ref=ref
         )
+        if not self.opt.alg_palette_minsnr:
+            min_snr_loss_weight = 1.0
 
         if mask is not None:
             mask_binary = torch.clamp(mask, min=0, max=1)
-            loss = self.loss_fn(mask_binary * noise, mask_binary * noise_hat)
+            loss = self.loss_fn(
+                min_snr_loss_weight * mask_binary * noise,
+                min_snr_loss_weight * mask_binary * noise_hat,
+            )
         else:
-            loss = self.loss_fn(noise, noise_hat)
+            loss = self.loss_fn(
+                min_snr_loss_weight * noise, min_snr_loss_weight * noise_hat
+            )
 
         if isinstance(loss, dict):
             loss_tot = torch.zeros(size=(), device=noise.device)

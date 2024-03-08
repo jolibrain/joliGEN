@@ -29,6 +29,7 @@ json_like_dict = {
     "G_padding_type": "reflect",
     "data_online_creation_rand_mask_A": True,
     "f_s_semantic_nclasses": 2,
+    "alg_palette_minsnr": True,
 }
 
 models_diffusion = ["palette"]
