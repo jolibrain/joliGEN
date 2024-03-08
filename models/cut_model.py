@@ -12,6 +12,7 @@ from .modules.NCE.hDCE import PatchHDCELoss
 from .modules.NCE.SRC import SRC_Loss
 
 from lpips import LPIPS
+from DISTS_pytorch import DISTS
 
 from util.network_group import NetworkGroup
 import util.util as util
@@ -142,7 +143,7 @@ class CUTModel(BaseGanModel):
             type=str,
             default=[""],
             nargs="*",
-            choices=["", "MSE", "L1", "LPIPS"],
+            choices=["", "MSE", "L1", "LPIPS", "DISTS"],
             help="supervised loss with aligned data",
         )
         parser.add_argument(
@@ -272,6 +273,8 @@ class CUTModel(BaseGanModel):
                 self.criterionSupervised = torch.nn.L1Loss()
             if "LPIPS" in self.opt.alg_cut_supervised_loss:
                 self.criterionLPIPS = LPIPS(net="vgg").to(self.device)
+            if "DISTS" in self.opt.alg_cut_supervised_loss:
+                self.criterionDISTS = DISTS().to(self.device)
 
             # Optimizers
             self.optimizer_G = opt.optim(
@@ -664,12 +667,24 @@ class CUTModel(BaseGanModel):
             )
         else:
             self.loss_G_supervised_lpips = 0
+        if "DISTS" in self.opt.alg_cut_supervised_loss:
+            self.loss_G_supervised_dists = self.criterionDISTS(
+                self.real_B, self.fake_B, require_grad=True, batch_average=True
+            )
+        else:
+            self.loss_G_supervised_dists = 0
 
         self.loss_G_tot += loss_NCE_both + self.loss_G_MSE_idt
 
-        if self.loss_G_supervised_norm > 0 or self.loss_G_supervised_lpips > 0:
+        if (
+            self.loss_G_supervised_norm > 0
+            or self.loss_G_supervised_lpips > 0
+            or self.loss_G_supervised_dists > 0
+        ):
             self.loss_G_supervised = self.opt.alg_cut_lambda_supervised * (
-                self.loss_G_supervised_norm + self.loss_G_supervised_lpips
+                self.loss_G_supervised_norm
+                + self.loss_G_supervised_lpips
+                + self.loss_G_supervised_dists
             )
             self.loss_G_tot += self.loss_G_supervised
 
