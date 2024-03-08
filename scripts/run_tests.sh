@@ -278,7 +278,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ####### pix2pix test
-echo "Running pix2pix tests"
+echo "Running pix2pix diffusion tests"
 URL=https://joligen.com/datasets/SEN2VEN_mini.zip
 ZIP_FILE=$DIR/SEN2VEN_mini.zip
 TARGET_PIX2PIX_DIR=$DIR/SEN2VEN_mini
@@ -286,6 +286,15 @@ wget -N $URL -O $ZIP_FILE
 mkdir $TARGET_PIX2PIX_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
+
+echo "Running pix2pix GAN tests"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_pix2pix_gan.py" --dataroot "$TARGET_PIX2PIX_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_pix2pix_diffusion.py" --dataroot "$TARGET_PIX2PIX_DIR"
 OUT=$?

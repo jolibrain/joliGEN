@@ -366,7 +366,7 @@ class CUTModel(BaseGanModel):
 
         # Losses names
         losses_G = ["G_NCE"]
-        if opt.alg_cut_supervised_loss != "":
+        if opt.alg_cut_supervised_loss != [""]:
             losses_G += ["G_supervised"]
         losses_D = []
         if opt.alg_cut_nce_idt and self.isTrain:
@@ -664,11 +664,15 @@ class CUTModel(BaseGanModel):
             )
         else:
             self.loss_G_supervised_lpips = 0
-        self.loss_G_supervised = self.opt.alg_cut_lambda_supervised * (
-            self.loss_G_supervised_norm + self.loss_G_supervised_lpips
-        )
 
-        self.loss_G_tot += loss_NCE_both + self.loss_G_MSE_idt + self.loss_G_supervised
+        self.loss_G_tot += loss_NCE_both + self.loss_G_MSE_idt
+
+        if self.loss_G_supervised_norm > 0 or self.loss_G_supervised_lpips > 0:
+            self.loss_G_supervised = self.opt.alg_cut_lambda_supervised * (
+                self.loss_G_supervised_norm + self.loss_G_supervised_lpips
+            )
+            self.loss_G_tot += self.loss_G_supervised
+
         self.compute_E_loss()
         self.loss_G_tot += self.loss_G_z
 
