@@ -12,7 +12,6 @@ from .modules.hdit.hdit import HDiT, HDiTConfig
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
 
-
 def define_G(
     model_type,
     model_input_nc,
@@ -229,7 +228,7 @@ def define_G(
             G_ngf=G_ngf,
             loading_backward_compatibility=model_prior_321_backwardcompatibility,
         )
-    elif model_type == "cm":
+    elif model_type == "cm" or model_type == "cm_gan":
         net = CMGenerator(
             cm_model=model,
             sampling_method="",
