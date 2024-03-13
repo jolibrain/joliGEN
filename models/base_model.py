@@ -841,6 +841,7 @@ class BaseModel(ABC):
                 if not self.opt.model_type in [
                     "palette",
                     "cm",
+                    "cm_gan",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
