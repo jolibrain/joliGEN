@@ -126,7 +126,7 @@ Here are all the available options to call with `train.py`
 | --alg_cut_netF_nc | int | 256 |  |
 | --alg_cut_netF_norm | string | instance | instance normalization or batch normalization for F<br/><br/> **Values:** instance, batch, none |
 | --alg_cut_num_patches | int | 256 | number of patches per layer |
-| --alg_cut_supervised_loss | array | [''] | supervised loss with aligned data<br/><br/> **Values:** , MSE, L1, LPIPS |
+| --alg_cut_supervised_loss | array | [''] | supervised loss with aligned data<br/><br/> **Values:** , MSE, L1, LPIPS, DISTS |
 
 ### CycleGAN model
 
