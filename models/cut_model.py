@@ -162,11 +162,19 @@ class CUTModel(BaseGanModel):
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
-        # Vanilla cut
+        max_visual_outputs = max(self.opt.train_batch_size, self.opt.num_test_images)
 
         # Images to visualize
         visual_names_A = ["real_A", "fake_B"]
         visual_names_B = ["real_B"]
+
+        self.gen_visual_names = [
+            "real_B_",
+            "real_A_",
+            "fake_B_",
+        ]
+        for k in range(max_visual_outputs):
+            self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
 
         if "segformer" in self.opt.G_netG:
             self.opt.alg_cut_nce_layers = "0,1,2,3"
@@ -493,7 +501,6 @@ class CUTModel(BaseGanModel):
             self.visual_names += [visual_names_out_mask_A]
 
     def inference(self, nb_imgs, offset=0):
-        del nb_imgs  # unused
         self.real = (
             torch.cat((self.real_A, self.real_B), dim=0)
             if self.opt.alg_cut_nce_idt and self.opt.isTrain
@@ -519,7 +526,14 @@ class CUTModel(BaseGanModel):
 
         self.fake = self.netG_A(self.real_with_z)
 
-        self.fake_B = self.fake[: self.real_A.size(0)]
+        self.fake_B = self.fake  # [: self.real_A.size(0)]
+
+        for name in self.gen_visual_names:
+            whole_tensor = getattr(self, name[:-1])  # i.e. real_A, fake_B
+            for k in range(min(nb_imgs, self.get_current_batch_size())):
+                cur_name = name + str(offset + k)
+                cur_tensor = whole_tensor[k : k + 1]
+                setattr(self, cur_name, cur_tensor)
 
     def forward_cut(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -775,3 +789,8 @@ class CUTModel(BaseGanModel):
             total_SRC_loss += loss_SRC * self.opt.alg_cut_lambda_SRC
             weights.append(weight)
         return total_SRC_loss / n_layers, weights
+
+    def compute_visuals(self, nb_imgs):
+        super().compute_visuals(nb_imgs)
+        with torch.no_grad():
+            self.inference(nb_imgs)
