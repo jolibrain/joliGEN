@@ -1484,7 +1484,10 @@ class BaseModel(ABC):
                 )  # unpack data from dataloader and apply preprocessing
 
             offset = i * self.opt.test_batch_size
+            istrain = self.opt.isTrain
+            self.opt.isTrain = False
             self.inference(self.opt.test_batch_size, offset=offset)
+            self.opt.isTrain = istrain
 
             if save_images:
                 pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (
@@ -1568,6 +1571,7 @@ class BaseModel(ABC):
 
         real_tensor = (torch.cat(real_list) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
+
         self.psnr_test = psnr(real_tensor, fake_tensor)
         self.ssim_test = ssim(real_tensor, fake_tensor)
 
