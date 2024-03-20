@@ -28,8 +28,8 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
         else:
             return self.A_size
 
-    def __init__(self, opt, phase):
-        BaseDataset.__init__(self, opt, phase)
+    def __init__(self, opt, phase, name=""):
+        BaseDataset.__init__(self, opt, phase, name)
 
         self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
             self.dir_A, "/paths.txt"

@@ -10,8 +10,8 @@ from data.image_folder import make_ref_path
 
 
 class UnalignedLabeledMaskRefDataset(UnalignedLabeledMaskDataset):
-    def __init__(self, opt, phase):
-        super().__init__(opt, phase)
+    def __init__(self, opt, phase, name=""):
+        super().__init__(opt, phase, name)
 
         self.A_img_ref = make_ref_path(self.dir_A, "/conditions.txt")
 

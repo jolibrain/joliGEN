@@ -12,13 +12,13 @@ class SelfSupervisedLabeledMaskDataset(UnalignedLabeledMaskDataset):
     This dataset class can create paired datasets with mask labels from only one domain.
     """
 
-    def __init__(self, opt, phase):
+    def __init__(self, opt, phase, name=""):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        super().__init__(opt, phase)
+        super().__init__(opt, phase, name)
 
     def get_img(
         self,

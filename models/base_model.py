@@ -180,6 +180,7 @@ class BaseModel(ABC):
                     test_device = self.gpu_ids[0]
                 else:
                     test_device = self.device  # cpu
+                ##TODO: per test set ?
                 self.realactB_test = _compute_statistics_of_dataloader(
                     path_sv=path_sv_B,
                     model=self.netFid,
@@ -751,14 +752,14 @@ class BaseModel(ABC):
         # lr_D = self.optimizers[1].param_groups[0]['lr']
         # print('learning rate G = %.7f' % lr_G, ' / learning rate D = %.7f' % lr_D)
 
-    def get_current_visuals(self, nb_imgs, phase="train"):
+    def get_current_visuals(self, nb_imgs, phase="train", test_name=""):
         """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""
         visual_ret = []
         for i, group in enumerate(self.visual_names):
             cur_visual = OrderedDict()
             for name in group:
                 if phase == "test":
-                    name = name + "_test"
+                    name = name + "_test_" + test_name
                 if isinstance(name, str) and hasattr(self, name):
                     cur_visual[name] = getattr(self, name)
             visual_ret.append(cur_visual)
@@ -1406,52 +1407,53 @@ class BaseModel(ABC):
             if not self.opt.train_cls_regression:
                 _, self.pfB = self.pred_cls_fake_A.max(1)
 
-    def get_current_metrics(self):
+    def get_current_metrics(self, test_names):
         metrics = OrderedDict()
 
         metrics_names = []
 
         if self.opt.train_compute_metrics_test:
-            if "FID" in self.opt.train_metrics_list:
-                metrics_names += [
-                    "fidB_test",
-                ]
+            for name in test_names:
+                if "FID" in self.opt.train_metrics_list:
+                    metrics_names += [
+                        "fidB_test_" + name,
+                    ]
 
-            if "MSID" in self.opt.train_metrics_list:
-                metrics_names += [
-                    "msidB_test",
-                ]
+                if "MSID" in self.opt.train_metrics_list:
+                    metrics_names += [
+                        "msidB_test_" + name,
+                    ]
 
-            if "KID" in self.opt.train_metrics_list:
-                metrics_names += [
-                    "kidB_test",
-                ]
+                if "KID" in self.opt.train_metrics_list:
+                    metrics_names += [
+                        "kidB_test_" + name,
+                    ]
 
-            if "PSNR" in self.opt.train_metrics_list:
-                metrics_names += [
-                    "psnr_test",
-                ]
+                if "PSNR" in self.opt.train_metrics_list:
+                    metrics_names += [
+                        "psnr_test_" + name,
+                    ]
 
-            if "SSIM" in self.opt.train_metrics_list:
-                metrics_names += [
-                    "ssim_test",
-                ]
+                if "SSIM" in self.opt.train_metrics_list:
+                    metrics_names += [
+                        "ssim_test_" + name,
+                    ]
 
-            if "LPIPS" in self.opt.train_metrics_list:
-                metrics_names += [
-                    "lpips_test",
-                ]
+                if "LPIPS" in self.opt.train_metrics_list:
+                    metrics_names += [
+                        "lpips_test_" + name,
+                    ]
 
-        for name in metrics_names:
-            if isinstance(name, str):
-                metrics[name] = float(
-                    getattr(self, name)
-                )  # float(...) works for both scalar tensor and float number
+            for name in metrics_names:
+                if isinstance(name, str):
+                    metrics[name] = float(
+                        getattr(self, name)
+                    )  # float(...) works for both scalar tensor and float number
 
         return metrics
 
     def compute_metrics_test(
-        self, dataloaders_test, n_epoch, n_iter, save_images=False
+        self, dataloaders_test, n_epoch, n_iter, save_images=False, test_name=""
     ):
         dims = 2048
         batch = 1
@@ -1528,7 +1530,7 @@ class BaseModel(ABC):
                     continue
                 for name in sub_list:
                     if hasattr(self, name):
-                        setattr(self, name + "_test", getattr(self, name))
+                        setattr(self, name + "_test_" + test_name, getattr(self, name))
                 i += 1
                 if i - offset == self.opt.test_batch_size:
                     break
@@ -1554,6 +1556,7 @@ class BaseModel(ABC):
             domain = "B"
             if self.opt.data_direction == "BtoA":
                 domain = "A"
+            ##TOD: fakeactB per dataloader
             self.fakeactB_test = _compute_statistics_of_dataloader(
                 path_sv=None,
                 model=self.netFid,
@@ -1575,13 +1578,16 @@ class BaseModel(ABC):
         real_tensor = (torch.cat(real_list) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
 
-        self.psnr_test = psnr(real_tensor, fake_tensor)
-        self.ssim_test = ssim(real_tensor, fake_tensor)
+        psnr_test = psnr(real_tensor, fake_tensor)
+        ssim_test = ssim(real_tensor, fake_tensor)
+        setattr(self, "psnr_test_" + test_name, psnr_test)
+        setattr(self, "ssim_test_" + test_name, ssim_test)
 
         if "LPIPS" in self.opt.train_metrics_list:
             real_tensor = torch.cat(real_list)
             fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)
-            self.lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
+            lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
+            setattr(self, "lpips_test_" + test_name, lpips_test)
 
     def compute_metrics_generic(self, real_act, fake_act):
         # FID

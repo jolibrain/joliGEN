@@ -25,13 +25,13 @@ class UnalignedLabeledMaskDataset(BaseDataset):
     '/path/to/data/testA' and '/path/to/data/testB' during test time.
     """
 
-    def __init__(self, opt, phase):
+    def __init__(self, opt, phase, name=""):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset.__init__(self, opt, phase)
+        BaseDataset.__init__(self, opt, phase, name)
 
         if os.path.exists(self.dir_A):
             self.A_img_paths, self.A_label = make_labeled_path_dataset(
