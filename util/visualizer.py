@@ -134,16 +134,33 @@ class Visualizer:
         first=False,
         phase="train",
         image_bits=8,
+        vwin_id=1,
+        test_name="",
     ):
         if "visdom" in self.display_type:
             self.display_current_results_visdom(
-                visuals, epoch, save_result, params, phase=phase, image_bits=image_bits
+                visuals,
+                epoch,
+                save_result,
+                params,
+                phase=phase,
+                image_bits=image_bits,
+                vwin_id=vwin_id,
+                test_name=test_name,
             )
         if "aim" in self.display_type:
             self.display_current_results_aim(visuals, epoch, save_result, params, first)
 
     def display_current_results_visdom(
-        self, visuals, epoch, save_result, params, phase, image_bits=8
+        self,
+        visuals,
+        epoch,
+        save_result,
+        params,
+        phase,
+        image_bits=8,
+        vwin_id=1,
+        test_name="",
     ):
         """Display current results on visdom; save current results to an HTML file.
 
@@ -212,7 +229,7 @@ class Visualizer:
                     if phase == "train":
                         win_id = 1
                     elif phase == "test":
-                        win_id = 2
+                        win_id = vwin_id
 
                     if image_bits > 8:  # using matplotlib gray cmap
                         import matplotlib
@@ -235,25 +252,27 @@ class Visualizer:
                         nrow=ncols,
                         win=self.display_id + win_id,
                         padding=2,
-                        opts=dict(title=title + " " + phase + " images"),
+                        opts=dict(
+                            title=title + " " + phase + " " + test_name + " images"
+                        ),
                     )
                     label_html = "<table>%s</table>" % label_html
                     param_html = "<table>%s</table>" % param_html
                     self.vis.text(
                         table_css + label_html,
-                        win=self.display_id + 3,
+                        win=self.display_id + win_id + 3,
                         opts=dict(title=title + " labels"),
                     )
                     self.vis.text(
                         table_css + param_html,
-                        win=self.display_id + 4,
+                        win=self.display_id + win_id + 4,
                         opts=dict(title=title + " params"),
                     )
 
                     if self.nets_arch is not None:
                         self.vis.text(
                             "<pre>" + self.nets_arch + "<pre>",
-                            win=self.display_id + 5,
+                            win=self.display_id + win_id + 5,
                             opts=dict(title=title + " architecture "),
                         )
 
@@ -475,7 +494,7 @@ class Visualizer:
             metrics,
             title="metrics over time",
             ylabel="value",
-            win_id=6,
+            win_id=16,
         )
 
     def plot_current_D_accuracies(self, epoch, counter_ratio, accuracies):
@@ -493,7 +512,7 @@ class Visualizer:
             accuracies,
             title="accuracy over time",
             ylabel="accuracy",
-            win_id=7,
+            win_id=17,
         )
 
     def plot_current_APA_prob(self, epoch, counter_ratio, p):
@@ -504,7 +523,7 @@ class Visualizer:
             p,
             title="APA params over time",
             ylabel="prob APA",
-            win_id=8,
+            win_id=18,
         )
 
     def plot_current_miou(self, epoch, counter_ratio, miou):
@@ -522,7 +541,7 @@ class Visualizer:
             miou,
             title="miou over time",
             ylabel="miou",
-            win_id=9,
+            win_id=19,
         )
 
     def print_networks(self, nets, verbose):

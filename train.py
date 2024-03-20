@@ -23,6 +23,7 @@ from data import (
     create_dataset,
     create_dataset_temporal,
     create_iterable_dataloader,
+    list_test_sets,
 )
 from models import create_model
 from util.parser import get_opt
@@ -87,25 +88,32 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             temp_opt = copy.deepcopy(opt)
             temp_opt.gpu_ids = temp_opt.gpu_ids[:1]
 
-            testset = create_dataset(temp_opt, phase="test")
-            opt.num_test_images = len(testset)
-            print("The number of testing images = %d" % len(testset))
+            ##TODO: dataset numbering for multi-test
+            all_test_sets = list_test_sets(temp_opt)
+            all_dataloaders_test = []
 
-            dataloader_test = create_dataloader(
-                temp_opt, rank, testset, batch_size=opt.test_batch_size
-            )  # create a dataset given opt.dataset_mode and other options
+            for test_set in all_test_sets:
+                testset = create_dataset(temp_opt, phase="test", name=test_set)
+                opt.num_test_images = len(testset)
+                print("The number of testing images = %d" % len(testset))
 
-            if use_temporal:
-                testset_temporal = create_dataset_temporal(temp_opt, phase="test")
+                dataloader_test = create_dataloader(
+                    temp_opt, rank, testset, batch_size=opt.test_batch_size
+                )  # create a dataset given opt.dataset_mode and other options
 
-                dataloader_test_temporal = create_iterable_dataloader(
-                    temp_opt, rank, testset_temporal, batch_size=opt.test_batch_size
-                )
-            else:
-                dataloader_test_temporal = None
+                all_dataloaders_test.append(dataloader_test)
+
+                if use_temporal:
+                    testset_temporal = create_dataset_temporal(temp_opt, phase="test")
+
+                    dataloader_test_temporal = create_iterable_dataloader(
+                        temp_opt, rank, testset_temporal, batch_size=opt.test_batch_size
+                    )
+                else:
+                    dataloader_test_temporal = None
         else:
             opt.num_test_images = 0
-            dataloader_test = None
+            all_dataloaders_test = []
             dataloader_test_temporal = None
     else:
         opt.num_test_images = 0
@@ -165,7 +173,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             print(f"Command line was saved at {sv_path}")
 
     if rank_0:
-        model.init_metrics(dataloader_test)
+        ##TODO: realactB_test at init
+        for dataloader_test in all_dataloaders_test:
+            model.init_metrics(dataloader_test)
 
     for epoch in range(
         opt.train_epoch_count, opt.train_n_epochs + opt.train_n_epochs_decay + 1
@@ -247,6 +257,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                             first=(opt.total_iters == batch_size),
                             phase="train",
                             image_bits=opt.data_image_bits,
+                            vwin_id=1,
                         )
 
                 if (
@@ -270,34 +281,42 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                 ):
                     with torch.no_grad():
                         if opt.train_compute_metrics_test:
-                            if use_temporal:
-                                dataloaders_test = zip(
-                                    dataloader_test, dataloader_test_temporal
+                            ts = 2
+                            for dataloader_test in all_dataloaders_test:
+                                if use_temporal:
+                                    dataloaders_test = zip(
+                                        dataloader_test, dataloader_test_temporal
+                                    )
+                                else:
+                                    dataloaders_test = zip(dataloader_test)
+
+                                model.compute_metrics_test(
+                                    dataloaders_test,
+                                    epoch,
+                                    opt.total_iters,
+                                    opt.train_metrics_save_images,
+                                    dataloader_test.dataset.name,
                                 )
-                            else:
-                                dataloaders_test = zip(dataloader_test)
 
-                            model.compute_metrics_test(
-                                dataloaders_test,
-                                epoch,
-                                opt.total_iters,
-                                opt.train_metrics_save_images,
-                            )
-
-                            visualizer.display_current_results(
-                                model.get_current_visuals(
-                                    opt.num_test_images, phase="test"
-                                ),
-                                epoch,
-                                False,
-                                params=model.get_display_param(),
-                                first=(opt.total_iters == batch_size),
-                                phase="test",
-                                image_bits=opt.data_image_bits,
-                            )
+                                visualizer.display_current_results(
+                                    model.get_current_visuals(
+                                        opt.num_test_images,
+                                        phase="test",
+                                        test_name=dataloader_test.dataset.name,
+                                    ),
+                                    epoch,
+                                    False,
+                                    params=model.get_display_param(),
+                                    first=(opt.total_iters == batch_size),
+                                    phase="test",
+                                    image_bits=opt.data_image_bits,
+                                    vwin_id=ts,
+                                    test_name=dataloader_test.dataset.name,
+                                )
+                                ts += 1
 
                     if opt.output_display_id > 0:
-                        metrics = model.get_current_metrics()
+                        metrics = model.get_current_metrics(all_test_sets)
                         visualizer.plot_current_metrics(
                             epoch, float(epoch_iter) / trainset_size, metrics
                         )
@@ -364,17 +383,19 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     ###Let's compute final FID
     if rank_0 and opt.train_compute_metrics_test:
         with torch.no_grad():
-            if use_temporal:
-                dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
-            else:
-                dataloaders_test = zip(dataloader_test)
-            model.compute_metrics_test(
-                dataloaders_test,
-                opt.train_epoch_count - 1,
-                opt.total_iters,
-                save_images=opt.train_metrics_save_images,
-            )
-            cur_metrics = model.get_current_metrics()
+            for dataloader_test in all_dataloaders_test:
+                if use_temporal:
+                    dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
+                else:
+                    dataloaders_test = zip(dataloader_test)
+                model.compute_metrics_test(
+                    dataloaders_test,
+                    opt.train_epoch_count - 1,
+                    opt.total_iters,
+                    save_images=opt.train_metrics_save_images,
+                    test_name=dataloader_test.dataset.name,
+                )
+            cur_metrics = model.get_current_metrics(all_test_sets)
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")
         if os.path.exists(path_json):
             with open(path_json, "r") as loadfile:

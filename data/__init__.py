@@ -12,9 +12,11 @@ See our template dataset class 'template_dataset.py' for more details.
 """
 
 import importlib
+import glob
 import torch.utils.data
 from data.base_dataset import BaseDataset
 from torch.utils import data
+import sys
 
 
 def find_dataset_using_name(dataset_name):
@@ -48,9 +50,10 @@ def get_option_setter(dataset_name):
     return dataset_class.modify_commandline_options
 
 
-def create_dataset(opt, phase):
+def create_dataset(opt, phase, name=""):
     dataset_class = find_dataset_using_name(opt.data_dataset_mode)
-    dataset = dataset_class(opt, phase)
+    print("create dataset name", name)
+    dataset = dataset_class(opt, phase, name)
     return dataset
 
 
@@ -78,6 +81,19 @@ def collate_fn(batch):
         return torch.utils.data.dataloader.default_collate(batch)
     else:
         return None
+
+
+def list_test_sets(opt):
+    btoA = opt.data_direction == "BtoA"
+    lookup = "B" if btoA else "A"
+    test_set_dirs = glob.glob(f"{opt.dataroot}/test" + lookup + "*")
+    print("test_set_dirs", test_set_dirs)
+    test_sets = []
+    for i, test_set in enumerate(test_set_dirs):
+        ## extract postfix as test set name
+        test_sets.append(test_set.split("/")[-1].split(lookup)[1])
+    print(f"Found test sets: {test_sets}")
+    return test_sets
 
 
 class CustomDatasetDataLoader:

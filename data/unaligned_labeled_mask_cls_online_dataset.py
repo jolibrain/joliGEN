@@ -2,13 +2,13 @@ from data.unaligned_labeled_mask_online_dataset import UnalignedLabeledMaskOnlin
 
 
 class UnalignedLabeledMaskClsOnlineDataset(UnalignedLabeledMaskOnlineDataset):
-    def __init__(self, opt, phase):
+    def __init__(self, opt, phase, name=""):
         """Initialize this dataset class.
 
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        UnalignedLabeledMaskOnlineDataset.__init__(self, opt, phase)
+        UnalignedLabeledMaskOnlineDataset.__init__(self, opt, phase, name)
         self.header = ["img", "cls", "mask"]
 
     def get_img(
