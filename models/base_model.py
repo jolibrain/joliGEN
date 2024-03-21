@@ -765,8 +765,11 @@ class BaseModel(ABC):
                 if isinstance(name, str) and hasattr(self, name):
                     cur_visual[name] = getattr(self, name)
             visual_ret.append(cur_visual)
-            if i == nb_imgs - 1:
-                break
+            if (
+                self.opt.model_type != "cut" and self.opt.model_type != "cycle_gan"
+            ):  # GANs have more outputs in practice, including semantics
+                if i == nb_imgs - 1:
+                    break
         return visual_ret
 
     def get_display_param(self):
