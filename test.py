@@ -80,7 +80,7 @@ def launch_testing(opt, main_opt):
     with torch.no_grad():
         model.compute_metrics_test(dataloaders_test, epoch, total_iters)
 
-    metrics = model.get_current_metrics()
+    metrics = model.get_current_metrics([""])
     for metric, value in metrics.items():
         print(f"{metric}: {value}")
 
