@@ -921,8 +921,8 @@ class HDiT(nn.Module):
 
 # Config
 class HDiTConfig:
-    def __init__(self, G_hdit_depths, G_hdit_widths):
-        self.patch_size = [4, 4]
+    def __init__(self, G_hdit_depths, G_hdit_widths, G_hdit_patch_size):
+        self.patch_size = [G_hdit_patch_size, G_hdit_patch_size]
         depths = G_hdit_depths  # [2, 2, 4]
         widths = G_hdit_widths  # [192, 384, 768]
         d_ffs = []
