@@ -175,7 +175,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     if rank_0:
         ##TODO: realactB_test at init
         for dataloader_test in all_dataloaders_test:
-            model.init_metrics(dataloader_test)
+            model.init_metrics(dataloader_test, dataloader_test.dataset.name)
 
     for epoch in range(
         opt.train_epoch_count, opt.train_n_epochs + opt.train_n_epochs_decay + 1
