@@ -379,6 +379,13 @@ class CommonOptions(BaseOptions):
             help="width multiplier for each level of the HDiT",
         )
 
+        parser.add_argument(
+            "--G_hdit_patch_size",
+            default=4,
+            type=int,
+            help="Patch size for HDIT, e.g. 4 for 4x4 patches",
+        )
+
         # discriminator
         parser.add_argument(
             "--D_ndf",

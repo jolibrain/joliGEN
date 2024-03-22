@@ -32,6 +32,7 @@ def define_G(
     G_unet_mha_attn_res,
     G_hdit_depths,
     G_hdit_widths,
+    G_hdit_patch_size,
     G_attn_nb_mask_attn,
     G_attn_nb_mask_input,
     G_spectral,
@@ -190,7 +191,7 @@ def define_G(
         )
         cond_embed_dim = alg_diffusion_cond_embed_dim
     elif G_netG == "hdit":
-        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths)
+        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths, G_hdit_patch_size)
         print("HDiT levels=", hdit_config.levels)
         print("HDiT mapping=", hdit_config.mapping)
         model = HDiT(

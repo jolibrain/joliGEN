@@ -72,6 +72,7 @@ def define_G(
     G_unet_mha_vit_efficient,
     G_hdit_depths,
     G_hdit_widths,
+    G_hdit_patch_size,
     train_feat_wavelet,
     **unused_options
 ):
@@ -239,7 +240,7 @@ def define_G(
         )
         return net
     elif G_netG == "hdit":
-        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths)
+        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths, G_hdit_patch_size)
         print("HDiT levels=", hdit_config.levels)
         print("HDiT mapping=", hdit_config.mapping)
         net = HDiT(
