@@ -148,7 +148,7 @@ class BaseModel(ABC):
         if "LPIPS" in self.opt.train_metrics_list:
             self.lpips_metric = LPIPS().to(self.device)
 
-    def init_metrics(self, dataloader_test):
+    def init_metrics(self, dataloader_test, test_name=""):
         self.use_inception = any(
             metric in self.opt.train_metrics_list for metric in ["KID", "FID", "MSID"]
         )
@@ -180,8 +180,8 @@ class BaseModel(ABC):
                     test_device = self.gpu_ids[0]
                 else:
                     test_device = self.device  # cpu
-                ##TODO: per test set ?
-                self.realactB_test = _compute_statistics_of_dataloader(
+
+                realactB_test = _compute_statistics_of_dataloader(
                     path_sv=path_sv_B,
                     model=self.netFid,
                     domain="B",
@@ -191,7 +191,9 @@ class BaseModel(ABC):
                     dataloader=dataloader_test,
                     nb_max_img=self.opt.train_nb_img_max_fid,
                     root=self.root,
+                    data_image_bits=self.opt.data_image_bits,
                 )
+                setattr(self, "realactB_test" + test_name, realactB_test)
 
     def init_semantic_cls(self, opt):
         # specify the semantic training networks and losses.
@@ -1556,8 +1558,8 @@ class BaseModel(ABC):
             domain = "B"
             if self.opt.data_direction == "BtoA":
                 domain = "A"
-            ##TOD: fakeactB per dataloader
-            self.fakeactB_test = _compute_statistics_of_dataloader(
+
+            fakeactB_test = _compute_statistics_of_dataloader(
                 path_sv=None,
                 model=self.netFid,
                 domain=domain,
@@ -1567,13 +1569,19 @@ class BaseModel(ABC):
                 dataloader=fake_list,
                 nb_max_img=self.opt.train_nb_img_max_fid,
                 root=self.root,
+                data_image_bits=self.opt.data_image_bits,
             )
 
+            realactB_test = getattr(self, "realactB_test" + test_name)
             (
-                self.fidB_test,
-                self.msidB_test,
-                self.kidB_test,
-            ) = self.compute_metrics_generic(self.realactB_test, self.fakeactB_test)
+                fidB_test,
+                msidB_test,
+                kidB_test,
+            ) = self.compute_metrics_generic(realactB_test, fakeactB_test)
+
+            setattr(self, "fidB_test_" + test_name, fidB_test)
+            setattr(self, "msidB_test_" + test_name, msidB_test)
+            setattr(self, "kidB_test_" + test_name, kidB_test)
 
         real_tensor = (torch.cat(real_list) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0

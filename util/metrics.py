@@ -59,6 +59,7 @@ def get_activations(
     dims,
     device,
     nb_max_img,
+    data_image_bits,
 ):
     """Calculates the activations of the pool_3 layer for all images.
 
@@ -117,6 +118,8 @@ def get_activations(
         with torch.no_grad():
             # Inceptionv3 works with 299 resolution images.
             img = interpolate(img, size=299, mode="bilinear")
+            if data_image_bits != 8:
+                img = img.expand(-1, 3, -1, -1)
             pred = model(img)
             if isinstance(pred, list):
                 pred = pred[0]
@@ -150,6 +153,7 @@ def _compute_statistics_of_dataloader(
     dataloader,
     nb_max_img=float("inf"),
     root=None,
+    data_image_bits=8,
 ):
 
     if path_sv is not None and os.path.isfile(path_sv):
@@ -165,6 +169,7 @@ def _compute_statistics_of_dataloader(
             dims=dims,
             device=device,
             nb_max_img=nb_max_img,
+            data_image_bits=data_image_bits,
         )
 
     if path_sv:
