@@ -12,6 +12,15 @@ Broadly speaking, labels do help constrain the search space of all
 possible combinations of generated pixels. For this reason labels are
 sometimes refered to as semantic constraints.
 
+A dataset contains :
+
+- One (``trainA``) or two (``trainA`` and ``trainB``) **training sets**;
+
+- One (``testA``) or more (``testAxxx``, ``testAyyy``, ``testBxxx``,
+  ``testByyy``) **test sets**. Multiple test sets are useful to keep
+  track of various set of examples during training, e.g. corner-cases,
+  various difficulties, etc...
+
 For instance:
 
 - **class labels** allow to ensure matching between input and output
