@@ -18,12 +18,14 @@ Below, the recommended manner is through a JSON configuration file,
 from the `examples/` directory.
 
 Training involves:
+
 - One or more Generator neural networks (GANs and DDPMs)
 - One or more Discriminators (GANs only)
 - One or more supervised neural networks acting as constraints, e.g. on labels (GANs only)
 - One or more frozen neural networks for input data processing, e.g. segmentation (GANs and DDPMs)
 
 Training requires the following:
+
 - one or more GPUs
 - a labeled/unlabled, paired/unpaired dataset of images
 - a `checkpoints` directory to be specified in which model weights are stored
