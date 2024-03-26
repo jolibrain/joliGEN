@@ -51,6 +51,7 @@ Here are all the available options to call with `train.py`
 | --G_diff_n_timestep_train | int | 2000 | Number of timesteps used for UNET mha training. |
 | --G_dropout | flag |  | dropout for the generator |
 | --G_hdit_depths | array | [2, 2, 4] | distribution of depth blocks across the HDiT stages, should have same size as --G_hdit_widths |
+| --G_hdit_patch_size | int | 4 | Patch size for HDIT, e.g. 4 for 4x4 patches |
 | --G_hdit_widths | array | [192, 384, 768] | width multiplier for each level of the HDiT |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/> **Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512 |
@@ -155,6 +156,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_ddim_eta | float | 0.5 | eta for ddim sampling variance |
 | --alg_palette_ddim_num_steps | int | 10 | number of steps for ddim sampling |
 | --alg_palette_loss | string | MSE | loss type of the denoising model<br/><br/> **Values:** L1, MSE, multiscale_L1, multiscale_MSE |
+| --alg_palette_minsnr | flag |  | use min-SNR weighting |
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/> **Values:** ddpm, ddim |
 
 ## Datasets
