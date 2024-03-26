@@ -102,7 +102,7 @@ class CMModel(BaseDiffusionModel):
         opt.alg_palette_sampling_method = ""
         opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
         opt.alg_diffusion_cond_embed_dim = 256
-        self.netG_A = diffusion_networks.define_G(**vars(opt))
+        self.netG_A = diffusion_networks.define_G(**vars(opt)).to(self.device)
         self.netG_A.current_t = max(self.netG_A.current_t, opt.total_iters)
         print("Setting CM current_iter to", self.netG_A.current_t)
 
@@ -152,7 +152,6 @@ class CMModel(BaseDiffusionModel):
         self.iter_calculator_init()
 
     def set_input(self, data):
-
         if (
             len(data["A"].to(self.device).shape) == 5
         ):  # we're using temporal successive frames
@@ -219,7 +218,7 @@ class CMModel(BaseDiffusionModel):
         y_cond = self.cond_image  # conditioning
         mask = self.mask
         (
-            pred_x,
+            self.pred_x,
             target_x,
             num_timesteps,
             sigmas,
@@ -229,10 +228,10 @@ class CMModel(BaseDiffusionModel):
         ) = self.netG_A(y_0, self.total_t, mask, y_cond)
 
         if mask is not None:
-            mask_pred_x = mask * pred_x
+            mask_pred_x = mask * self.pred_x
             mask_target_x = mask * target_x
         else:
-            mask_pred_x = pred_x
+            mask_pred_x = self.pred_x
             mask_target_x = target_x
         loss = (pseudo_huber_loss(mask_pred_x, mask_target_x) * loss_weights).mean()
 
