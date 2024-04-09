@@ -44,6 +44,8 @@ from .modules.unet_generator_attn.unet_generator_attn import (
 
 from .modules.hdit.hdit import HDiT, HDiTConfig
 
+from .modules.img2img_turbo.img2img_turbo import Img2ImgTurbo
+
 
 def define_G(
     model_input_nc,
@@ -255,6 +257,14 @@ def define_G(
         )
         cond_embed_dim = hdit_config.mapping.width
         net.cond_embed_dim = cond_embed_dim
+        return net
+    elif G_netG == "img2img_turbo":
+        ##TODO: add img2img_turbo
+        net = Img2ImgTurbo(
+            ##TODO
+            in_channels=model_input_nc,
+            out_channels=model_output_nc,
+        )
         return net
     else:
         raise NotImplementedError(
