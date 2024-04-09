@@ -63,7 +63,7 @@ class CUTModel(BaseGanModel):
             type=util.str2bool,
             nargs="?",
             const=True,
-            default=True,
+            default=False,
             help="use NCE loss for identity mapping: NCE(G(Y), Y))",
         )
 
@@ -503,7 +503,7 @@ class CUTModel(BaseGanModel):
     def inference(self, nb_imgs, offset=0):
         self.real = (
             torch.cat((self.real_A, self.real_B), dim=0)
-            if self.opt.alg_cut_nce_idt and self.opt.isTrain
+            if self.opt.alg_cut_nce_idt  # and self.opt.isTrain
             else self.real_A
         )
 
@@ -540,7 +540,7 @@ class CUTModel(BaseGanModel):
 
         self.real = (
             torch.cat((self.real_A, self.real_B), dim=0)
-            if self.opt.alg_cut_nce_idt and self.opt.isTrain
+            if self.opt.alg_cut_nce_idt  # and self.opt.isTrain
             else self.real_A
         )
         if self.opt.alg_cut_flip_equivariance:
@@ -643,7 +643,8 @@ class CUTModel(BaseGanModel):
             self.loss_G_NCE = 0.0
 
         # Identity losses
-        feat_q_pool, feat_k_pool = self.calculate_feats(self.real_B, self.idt_B)
+        if self.opt.alg_cut_nce_idt and self.opt.alg_cut_lambda_SRC > 0.0:
+            feat_q_pool, feat_k_pool = self.calculate_feats(self.real_B, self.idt_B)
         if self.opt.alg_cut_lambda_SRC > 0.0 or self.opt.alg_cut_nce_loss == "SRC_hDCE":
             self.loss_G_SRC_Y, weight = self.calculate_R_loss(feat_q_pool, feat_k_pool)
         else:

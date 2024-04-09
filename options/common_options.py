@@ -209,6 +209,7 @@ class CommonOptions(BaseOptions):
                 "unet_mha_ref_attn",
                 "dit",
                 "hdit",
+                "img2img_turbo",
             ],
             help="specify generator architecture",
         )

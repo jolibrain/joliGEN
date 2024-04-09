@@ -18,6 +18,8 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
+import bitsandbytes as bnb
+
 from data import (
     create_dataloader,
     create_dataset,
@@ -52,6 +54,8 @@ def optim(opt, params, lr, betas, weight_decay, eps):
         return torch.optim.AdamW(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "lion":
         return Lion(params, lr, betas, weight_decay)
+    elif opt.train_optim == "adam8bit":
+        return bnb.optim.Adam8bit(params, lr, betas, weight_decay=weight_decay, eps=eps)
 
 
 def signal_handler(sig, frame):
