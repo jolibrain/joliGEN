@@ -66,7 +66,6 @@ def my_vae_decoder_fwd(self, sample, latent_embeds=None):
 
 class Img2ImgTurbo(nn.Module):
     def __init__(self, in_channels, out_channels):
-        ##TODO
         super().__init__()
 
         # TODO: other params
@@ -83,12 +82,14 @@ class Img2ImgTurbo(nn.Module):
 
         ## Load the VAE
         vae = AutoencoderKL.from_pretrained("stabilityai/sd-turbo", subfolder="vae")
+        vae.requires_grad_(False)
         vae.encoder.forward = my_vae_encoder_fwd.__get__(
             vae.encoder, vae.encoder.__class__
         )
         vae.decoder.forward = my_vae_decoder_fwd.__get__(
             vae.decoder, vae.decoder.__class__
         )
+        vae.requires_grad_(True)
 
         # add the skip connection convs
         vae.decoder.skip_conv_1 = torch.nn.Conv2d(
@@ -109,6 +110,7 @@ class Img2ImgTurbo(nn.Module):
         unet = UNet2DConditionModel.from_pretrained(
             "stabilityai/sd-turbo", subfolder="unet"
         )
+        unet.requires_grad_(False)
 
         # Model initialization
         print("Initializing model with random weights")
@@ -185,33 +187,30 @@ class Img2ImgTurbo(nn.Module):
         self.vae.decoder.skip_conv_3.requires_grad_(True)
         self.vae.decoder.skip_conv_4.requires_grad_(True)
 
-    def forward(self, x):
-        # print("x", x.shape)
+        unet.enable_xformers_memory_efficient_attention()
+        unet.enable_gradient_checkpointing()
 
-        ##TODO: self.prompt
-        prompt = "driving in the night"
+    def forward(self, x):
         caption_tokens = self.tokenizer(
-            prompt,
+            self.prompt,
             max_length=self.tokenizer.model_max_length,
             padding="max_length",
             truncation=True,
             return_tensors="pt",
         ).input_ids.cuda()
         caption_enc = self.text_encoder(caption_tokens)[0]
-        # for i in range(x.shape[0]):
-        # cat caption to match batch size
-        #    caption_enc = torch.cat([caption_enc, caption_enc[0].unsqueeze(0)], dim=0)
-        # print("caption_enc", caption_enc.shape)
+
+        # match batch size
+        captions_enc = caption_enc.repeat(x.shape[0], 1, 1)
 
         # deterministic forward
         encoded_control = (
             self.vae.encode(x).latent_dist.sample() * self.vae.config.scaling_factor
         )
-        # print("encoded_control", encoded_control.shape)
         model_pred = self.unet(
             encoded_control,
             self.timesteps,
-            encoder_hidden_states=caption_enc,
+            encoder_hidden_states=captions_enc,
         ).sample
         x_denoised = self.sched.step(
             model_pred, self.timesteps, encoded_control, return_dict=True
@@ -222,25 +221,20 @@ class Img2ImgTurbo(nn.Module):
         )
         return x
 
-    ##TODO: for CUT
     def compute_feats(self, input, extract_layer_ids=[]):
-        ##TODO
-        prompt = "driving in the night"
         caption_tokens = self.tokenizer(
-            prompt,
+            self.prompt,  # XXX: set externally
             max_length=self.tokenizer.model_max_length,
             padding="max_length",
             truncation=True,
             return_tensors="pt",
         ).input_ids.cuda()
-        caption_enc = self.text_encoder(caption_tokens)[0]
 
         # deterministic forward
         encoded_control = (
             self.vae.encode(input).latent_dist.sample() * self.vae.config.scaling_factor
         )
         feats = self.vae.encoder.current_down_blocks
-        # print('feats vae=', feats)
         return feats
 
     def get_feats(self, input, extract_layer_ids=[]):
