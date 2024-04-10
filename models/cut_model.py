@@ -285,9 +285,32 @@ class CUTModel(BaseGanModel):
                 self.criterionDISTS = DISTS().to(self.device)
 
             # Optimizers
+            if self.opt.G_netG != "img2img_turbo":
+                layers_to_opt = self.netG_A.parameters()
+            else:
+                layers_to_opt = []
+                for n, _p in self.netG_A.named_parameters():
+                    if "lora" in n:
+                        assert _p.requires_grad
+                        layers_to_opt.append(_p)
+                layers_to_opt += list(self.netG_A.unet.conv_in.parameters())
+                for n, _p in self.netG_A.vae.named_parameters():
+                    if "lora" in n:
+                        assert _p.requires_grad
+                        layers_to_opt.append(_p)
+                layers_to_opt = (
+                    layers_to_opt
+                    + list(self.netG_A.vae.decoder.skip_conv_1.parameters())
+                    + list(self.netG_A.vae.decoder.skip_conv_2.parameters())
+                    + list(self.netG_A.vae.decoder.skip_conv_3.parameters())
+                    + list(self.netG_A.vae.decoder.skip_conv_4.parameters())
+                )
+                # print("layers_to_opt", len(layers_to_opt))
+
             self.optimizer_G = opt.optim(
                 opt,
-                self.netG_A.parameters(),
+                # self.netG_A.parameters(),
+                layers_to_opt,
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
                 weight_decay=opt.train_optim_weight_decay,
