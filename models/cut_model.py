@@ -237,6 +237,10 @@ class CUTModel(BaseGanModel):
             tmp_model_input_nc = self.opt.model_input_nc
             self.opt.model_input_nc += self.opt.train_mm_nz
         self.netG_A = gan_networks.define_G(**vars(opt))
+
+        # XXX: early prompt support
+        self.netG_A.prompt = self.opt.G_prompt
+
         if self.opt.model_multimodal:
             self.opt.model_input_nc = tmp_model_input_nc
         self.netF = gan_networks.define_F(**vars(opt))
@@ -666,8 +670,8 @@ class CUTModel(BaseGanModel):
             self.loss_G_NCE = 0.0
 
         # Identity losses
-        if self.opt.alg_cut_nce_idt and self.opt.alg_cut_lambda_SRC > 0.0:
-            feat_q_pool, feat_k_pool = self.calculate_feats(self.real_B, self.idt_B)
+        # if self.opt.alg_cut_nce_idt and self.opt.alg_cut_lambda_SRC > 0.0:
+        feat_q_pool, feat_k_pool = self.calculate_feats(self.real_B, self.idt_B)
         if self.opt.alg_cut_lambda_SRC > 0.0 or self.opt.alg_cut_nce_loss == "SRC_hDCE":
             self.loss_G_SRC_Y, weight = self.calculate_R_loss(feat_q_pool, feat_k_pool)
         else:
