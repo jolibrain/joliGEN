@@ -63,7 +63,7 @@ class CUTModel(BaseGanModel):
             type=util.str2bool,
             nargs="?",
             const=True,
-            default=False,
+            default=True,
             help="use NCE loss for identity mapping: NCE(G(Y), Y))",
         )
 
