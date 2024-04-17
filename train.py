@@ -138,7 +138,6 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
-
     if hasattr(model, "data_dependent_initialize"):
         data = next(iter(dataloader))
         model.data_dependent_initialize(data)

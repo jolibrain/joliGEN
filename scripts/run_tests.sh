@@ -15,7 +15,9 @@ echo "Current dir is [$current_dir]"
 export PYTHONDONTWRITEBYTECODE=1
 export NCCL_P2P_DISABLE=1
 
-####### doc auto generation
+
+
+###### doc auto generation
 echo "Running doc auto generation"
 python3 ${current_dir}/../scripts/generate_doc.py --save_to ""
 OUT=$?
@@ -67,6 +69,7 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
+
 
 ####### no sem tests
 echo "Running no semantics training tests"
@@ -173,6 +176,14 @@ fi
 
 ###### test cut
 echo "Running test cut"
+URL=https://joligen.com/datasets/horse2zebra.zip
+ZIP_FILE=$DIR/horse2zebra.zip
+TARGET_NOSEM_DIR=$DIR/horse2zebra
+wget -N $URL -O $ZIP_FILE
+mkdir $TARGET_NOSEM_DIR
+unzip $ZIP_FILE -d $DIR
+rm $ZIP_FILE
+
 python3 "${current_dir}/../test.py" \
 	--save_config \
 	--test_model_dir $DIR/joligen_utest_cut/ \
@@ -346,6 +357,18 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
+
+
+###### test img2img_turbo
+echo "Running test img2img_turbo"
+
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_img2img_turbo.py" --dataroot "$TARGET_NOSEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 
 # End of tests
 # Clean up

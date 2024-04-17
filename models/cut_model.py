@@ -553,7 +553,7 @@ class CUTModel(BaseGanModel):
 
         self.fake = self.netG_A(self.real_with_z)
 
-        self.fake_B = self.fake  # [: self.real_A.size(0)]
+        self.fake_B = self.fake[: self.real_A.size(0)]
 
         for name in self.gen_visual_names:
             whole_tensor = getattr(self, name[:-1])  # i.e. real_A, fake_B
