@@ -76,6 +76,8 @@ def define_G(
     G_hdit_widths,
     G_hdit_patch_size,
     train_feat_wavelet,
+    G_lora_unet,
+    G_lora_vae,
     **unused_options
 ):
     """Create a generator
@@ -264,6 +266,8 @@ def define_G(
             ##TODO
             in_channels=model_input_nc,
             out_channels=model_output_nc,
+            lora_rank_unet=G_lora_unet,
+            lora_rank_vae=G_lora_vae,
         )
         return net
     else:

@@ -393,6 +393,18 @@ class CommonOptions(BaseOptions):
             default="",
             help="Text prompt for G",
         )
+        parser.add_argument(
+            "--G_lora_unet",
+            type=int,
+            default=8,
+            help="lora unet rank for G",
+        )
+        parser.add_argument(
+            "--G_lora_vae",
+            type=int,
+            default=8,
+            help="lora vae rank for G",
+        )
 
         # discriminator
         parser.add_argument(
