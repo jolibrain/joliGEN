@@ -26,9 +26,13 @@ json_like_dict = {
     "D_netDs": ["basic"],
     "train_iter_size": 2,
     "G_prompt": "zebra",
+    "G_lora_unet": 8,
+    "G_lora_vea": 8,
 }
 
-
+infer_options = {
+    "gpu_ids": "0",
+}
 models_gan = ["cut"]
 G_netG = ["img2img_turbo"]
 G_efficient = [True]
@@ -52,3 +56,20 @@ def test_img2img_turbo(dataroot):
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
+
+
+#        # Inference
+#        infer_options_c = infer_options.copy()
+#        infer_options_c["model_in_file"] = os.path.join(
+#            json_like_dict_c["checkpoints_dir"],
+#            json_like_dict_c["name"],
+#            "latest_net_G_A.pth",
+#        )
+#        infer_options_c["img_out"] = os.path.join(
+#            json_like_dict_c["checkpoints_dir"],
+#            json_like_dict_c["name"],
+#            "test_image.jpg",
+#        )
+#
+#        opt = InferenceGANOptions().parse_json(infer_options_c, save_config=False)
+#        inference(opt)

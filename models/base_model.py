@@ -803,7 +803,12 @@ class BaseModel(ABC):
                 if len(self.gpu_ids) > 1 and self.use_cuda:
                     torch.save(net.module.state_dict(), save_path)
                 else:
-                    torch.save(net.state_dict(), save_path)
+                    if name == "G_A" and any(
+                        "lora" in n for n, _ in net.unet.named_parameters()
+                    ):
+                        net.save_lora_config(save_path)
+                    else:
+                        torch.save(net.state_dict(), save_path)
 
     def export_networks(self, epoch):
         """Export chosen networks weights to the disk.
@@ -964,7 +969,13 @@ class BaseModel(ABC):
                 if hasattr(state_dict, "g_ema"):
                     net.load_state_dict(state_dict["g_ema"])
                 else:
-                    net.load_state_dict(state_dict)
+                    if name == "G_A" and any(
+                        "lora" in n for n, _ in net.unet.named_parameters()
+                    ):
+                        net.load_lora_config(load_path)
+                        print("load_lora")
+                    else:
+                        net.load_state_dict(state_dict)
 
     def get_nets(self):
         return_nets = {}
@@ -1586,7 +1597,6 @@ class BaseModel(ABC):
             setattr(self, "fidB_test_" + test_name, fidB_test)
             setattr(self, "msidB_test_" + test_name, msidB_test)
             setattr(self, "kidB_test_" + test_name, kidB_test)
-
         real_tensor = (torch.cat(real_list) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
 
