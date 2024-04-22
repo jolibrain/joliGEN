@@ -16,6 +16,25 @@ export PYTHONDONTWRITEBYTECODE=1
 export NCCL_P2P_DISABLE=1
 
 
+####### test img2img_turbo
+#echo "Running test img2img_turbo"
+#URL=https://joligen.com/datasets/horse2zebra.zip
+#ZIP_FILE=$DIR/horse2zebra.zip
+#TARGET_NOSEM_DIR=$DIR/horse2zebra
+#wget -N $URL -O $ZIP_FILE
+#mkdir $TARGET_NOSEM_DIR
+#unzip $ZIP_FILE -d $DIR
+#rm $ZIP_FILE
+#
+#
+#python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_img2img_turbo.py" --dataroot "$TARGET_NOSEM_DIR"
+#OUT=$?
+#
+#if [ $OUT != 0 ]; then
+#    exit 1
+#fi
+#exit
+#
 
 ###### doc auto generation
 echo "Running doc auto generation"

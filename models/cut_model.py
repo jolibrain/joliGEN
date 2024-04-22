@@ -241,6 +241,9 @@ class CUTModel(BaseGanModel):
         # XXX: early prompt support
         self.netG_A.prompt = self.opt.G_prompt
 
+        self.netG_A.lora_rank_unet = self.opt.G_lora_unet
+        self.netG_A.lora_rank_vae = self.opt.G_lora_vae
+
         if self.opt.model_multimodal:
             self.opt.model_input_nc = tmp_model_input_nc
         self.netF = gan_networks.define_F(**vars(opt))
@@ -293,13 +296,13 @@ class CUTModel(BaseGanModel):
                 layers_to_opt = self.netG_A.parameters()
             else:
                 layers_to_opt = []
-                for n, _p in self.netG_A.named_parameters():
-                    if "lora" in n:
+                for n, _p in self.netG_A.unet.named_parameters():
+                    if "lora" in n or "conv_in" in n:
                         assert _p.requires_grad
                         layers_to_opt.append(_p)
                 layers_to_opt += list(self.netG_A.unet.conv_in.parameters())
                 for n, _p in self.netG_A.vae.named_parameters():
-                    if "lora" in n:
+                    if "lora" in n or "skip" in n:
                         assert _p.requires_grad
                         layers_to_opt.append(_p)
                 layers_to_opt = (
@@ -309,7 +312,7 @@ class CUTModel(BaseGanModel):
                     + list(self.netG_A.vae.decoder.skip_conv_3.parameters())
                     + list(self.netG_A.vae.decoder.skip_conv_4.parameters())
                 )
-                # print("layers_to_opt", len(layers_to_opt))
+            # print("layers_to_opt", len(layers_to_opt))
 
             self.optimizer_G = opt.optim(
                 opt,

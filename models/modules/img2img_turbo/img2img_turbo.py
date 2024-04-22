@@ -65,13 +65,12 @@ def my_vae_decoder_fwd(self, sample, latent_embeds=None):
 
 
 class Img2ImgTurbo(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, lora_rank_unet, lora_rank_vae):
         super().__init__()
 
         # TODO: other params
-        lora_rank_unet = 8
-        lora_rank_vae = 4
-
+        self.lora_rank_unet = lora_rank_unet
+        self.lora_rank_vae = lora_rank_vae
         self.tokenizer = AutoTokenizer.from_pretrained(
             "stabilityai/sd-turbo", subfolder="tokenizer"
         )
@@ -154,6 +153,10 @@ class Img2ImgTurbo(nn.Module):
             "proj_out",
             "ff.net.2",
             "ff.net.0.proj",
+            "conv_in",  # additional
+            "linear_1",
+            "linear_2",
+            "time_emb_proj",
         ]
         unet_lora_config = LoraConfig(
             r=lora_rank_unet,
@@ -244,4 +247,43 @@ class Img2ImgTurbo(nn.Module):
     ##TODO: load lora config and weights
     def load_lora_config(self, lora_config_path):
         ##TODO
+        sd = torch.load(lora_config_path, map_location="cpu")
+
+        unet_lora_config = LoraConfig(
+            r=sd["rank_unet"],
+            init_lora_weights="gaussian",
+            target_modules=sd["unet_lora_target_modules"],
+        )
+        vae_lora_config = LoraConfig(
+            r=sd["rank_vae"],
+            init_lora_weights="gaussian",
+            target_modules=sd["vae_lora_target_modules"],
+        )
+
+        _sd_vae = self.vae.state_dict()
+        for k in sd["state_dict_vae"]:
+            _sd_vae[k] = sd["state_dict_vae"][k]
+        self.vae.load_state_dict(_sd_vae)
+        _sd_unet = self.unet.state_dict()
+        for k in sd["state_dict_unet"]:
+            _sd_unet[k] = sd["state_dict_unet"][k]
+        self.unet.load_state_dict(_sd_unet)
+
+        return
+
+    def save_lora_config(self, save_lora_path):
+        sd = {}
+        sd["unet_lora_target_modules"] = self.target_modules_unet
+        sd["vae_lora_target_modules"] = self.target_modules_vae
+        sd["rank_unet"] = self.lora_rank_unet
+        sd["rank_vae"] = self.lora_rank_vae
+        sd["state_dict_unet"] = {
+            k: v
+            for k, v in self.unet.state_dict().items()
+            if "lora" in k or "conv_in" in k
+        }
+        sd["state_dict_vae"] = {
+            k: v for k, v in self.vae.state_dict().items() if "lora" in k or "skip" in k
+        }
+        torch.save(sd, save_lora_path)
         return
