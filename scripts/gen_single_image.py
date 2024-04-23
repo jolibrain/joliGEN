@@ -41,9 +41,17 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
 
     model = gan_networks.define_G(**vars(opt))
     model.eval()
-    model.load_state_dict(
-        torch.load(modelpath + "/" + model_in_file, map_location=device)
-    )
+
+    if (
+        hasattr(model, "unet")
+        and hasattr(model, "vae")
+        and any("lora" in n for n, _ in model.unet.named_parameters())
+    ):
+        model.load_lora_config(modelpath + "/" + model_in_file)
+    else:
+        model.load_state_dict(
+            torch.load(modelpath + "/" + model_in_file, map_location=device)
+        )
 
     model = model.to(device)
     return model, opt, device
@@ -77,11 +85,9 @@ def inference(args):
 
     modelpath = os.path.dirname(args.model_in_file)
     print("modelpath=%s" % modelpath)
-
     model, opt, device = load_model(
         modelpath, os.path.basename(args.model_in_file), args.cpu, args.gpuid
     )
-
     logger.info(f"[2/%i] model loaded" % PROGRESS_NUM_STEPS)
 
     # reading image

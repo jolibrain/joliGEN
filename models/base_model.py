@@ -803,8 +803,11 @@ class BaseModel(ABC):
                 if len(self.gpu_ids) > 1 and self.use_cuda:
                     torch.save(net.module.state_dict(), save_path)
                 else:
-                    if name == "G_A" and any(
-                        "lora" in n for n, _ in net.unet.named_parameters()
+                    if (
+                        name == "G_A"
+                        and hasattr(net, "unet")
+                        and hasattr(net, "vae")
+                        and any("lora" in n for n, _ in net.unet.named_parameters())
                     ):
                         net.save_lora_config(save_path)
                     else:
@@ -969,8 +972,11 @@ class BaseModel(ABC):
                 if hasattr(state_dict, "g_ema"):
                     net.load_state_dict(state_dict["g_ema"])
                 else:
-                    if name == "G_A" and any(
-                        "lora" in n for n, _ in net.unet.named_parameters()
+                    if (
+                        name == "G_A"
+                        and hasattr(net, "unet")
+                        and hasattr(net, "vae")
+                        and any("lora" in n for n, _ in net.unet.named_parameters())
                     ):
                         net.load_lora_config(load_path)
                         print("load_lora")
