@@ -78,6 +78,7 @@ def define_G(
     train_feat_wavelet,
     G_lora_unet,
     G_lora_vae,
+    G_prompt,
     **unused_options
 ):
     """Create a generator
@@ -268,6 +269,7 @@ def define_G(
             out_channels=model_output_nc,
             lora_rank_unet=G_lora_unet,
             lora_rank_vae=G_lora_vae,
+            prompt=G_prompt,
         )
         return net
     else:

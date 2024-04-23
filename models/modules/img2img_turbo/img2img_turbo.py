@@ -65,10 +65,13 @@ def my_vae_decoder_fwd(self, sample, latent_embeds=None):
 
 
 class Img2ImgTurbo(nn.Module):
-    def __init__(self, in_channels, out_channels, lora_rank_unet, lora_rank_vae):
+    def __init__(
+        self, in_channels, out_channels, lora_rank_unet, lora_rank_vae, prompt=None
+    ):
         super().__init__()
 
         # TODO: other params
+        self.prompt = prompt
         self.lora_rank_unet = lora_rank_unet
         self.lora_rank_vae = lora_rank_vae
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -164,8 +167,6 @@ class Img2ImgTurbo(nn.Module):
             target_modules=target_modules_unet,
         )
         unet.add_adapter(unet_lora_config)
-        self.lora_rank_unet = lora_rank_unet
-        self.lora_rank_vae = lora_rank_vae
         self.target_modules_vae = target_modules_vae
         self.target_modules_unet = target_modules_unet
 
