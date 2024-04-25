@@ -17,7 +17,7 @@ export NCCL_P2P_DISABLE=1
 
 
 
-###### doc auto generation
+####### doc auto generation
 echo "Running doc auto generation"
 python3 ${current_dir}/../scripts/generate_doc.py --save_to ""
 OUT=$?
@@ -90,7 +90,7 @@ fi
 
 
 
-###### test img2img_turbo
+##### test img2img_turbo
 echo "Running test img2img_turbo"
 
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_img2img_turbo.py" --dataroot "$TARGET_NOSEM_DIR"
@@ -111,6 +111,7 @@ mkdir $TARGET_MASK_SEM_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
+
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
@@ -119,6 +120,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### self supervised mask semantics test
+echo "Running self supervised mask semantics test"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_self_supervised.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
@@ -127,6 +129,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### diffusion process test
+echo "Running diffusion process test"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
@@ -135,6 +138,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### consistency model process test
+echo "Running consistency model process test"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_cm.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
@@ -143,6 +147,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### diffusion super-resolution process test
+echo "Running diffusion super-resolution process test"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_sr_diffusion.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
@@ -150,7 +155,8 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-####### mask cls as bbox semantics test
+######## mask cls as bbox semantics test
+echo "Running mask cls as bbox semantics test"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
@@ -158,7 +164,8 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-####### mask cls semantics test with online dataloading
+
+###### mask cls semantics test with online dataloading
 echo "Running mask online semantics training tests"
 URL=https://joligen.com/datasets/online_mario2sonic_lite2.zip 
 ZIP_FILE=$DIR/online_mario2sonic_lite2.zip 
@@ -180,6 +187,7 @@ fi
 
 
 ###### diffusion process test online
+echo "Running diffusion process test online"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
 
@@ -188,15 +196,7 @@ if [ $OUT != 0 ]; then
 fi
 
 ###### test cut
-echo "Running test cut"
-URL=https://joligen.com/datasets/horse2zebra.zip
-ZIP_FILE=$DIR/horse2zebra.zip
-TARGET_NOSEM_DIR=$DIR/horse2zebra
-wget -N $URL -O $ZIP_FILE
-mkdir $TARGET_NOSEM_DIR
-unzip $ZIP_FILE -d $DIR
-rm $ZIP_FILE
-
+echo "Running cut test"
 python3 "${current_dir}/../test.py" \
 	--save_config \
 	--test_model_dir $DIR/joligen_utest_cut/ \
