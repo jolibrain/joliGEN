@@ -60,7 +60,7 @@ def define_G(
     use_new_attention_order=False,
     f_s_semantic_nclasses=-1,
     train_feat_wavelet=False,
-    **unused_options
+    **unused_options,
 ):
     """Create a generator
 

@@ -8,7 +8,6 @@ import train
 from options.train_options import TrainOptions
 from data import create_dataset
 
-
 json_like_dict = {
     "name": "joligen_utest",
     "G_netG": "mobile_resnet_attn",
