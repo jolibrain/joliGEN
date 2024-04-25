@@ -79,7 +79,7 @@ def define_G(
     G_lora_unet,
     G_lora_vae,
     G_prompt,
-    **unused_options
+    **unused_options,
 ):
     """Create a generator
 
@@ -304,7 +304,7 @@ def define_D(
     f_s_semantic_nclasses,
     model_depth_network,
     train_feat_wavelet,
-    **unused_options
+    **unused_options,
 ):
     """Create a discriminator
 
@@ -482,7 +482,7 @@ def define_F(
     alg_cut_netF_dropout,
     model_init_type,
     model_init_gain,
-    **unused_options
+    **unused_options,
 ):
     if alg_cut_netF == "global_pool":
         net = PoolingF()
@@ -526,7 +526,7 @@ def define_E(
     G_netE,
     model_init_type="xavier",
     model_init_gain=0.02,
-    **unused_options
+    **unused_options,
 ):
     net = None
     vaeLike = False

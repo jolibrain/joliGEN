@@ -272,8 +272,9 @@ def download_mobile_sam_weight(path):
             temp = path.split("/")[:i]
             cur_path = "/".join(temp)
             if not os.path.isdir(cur_path):
-                os.mkdir(cur_path)
+                os.makedirs(cur_path, exist_ok=True)
         model_name = path.split("/")[-1]
+        print("model_name ", model_name)
         if model_name in sam_weights:
             wget.download(sam_weights, path)
         else:

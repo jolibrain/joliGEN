@@ -30,7 +30,8 @@ json_like_dict = {
     "G_prompt": "zebra",
     "G_lora_unet": 8,
     "G_lora_vea": 8,
-    "train_n_epochs_decay": 4,
+    "train_n_epochs_decay": 0,
+    "train_save_latest_freq": 10,
 }
 
 infer_options = {
