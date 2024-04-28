@@ -245,7 +245,6 @@ class Img2ImgTurbo(nn.Module):
         feats = self.compute_feats(input, extract_layer_ids)
         return feats
 
-    ##TODO: load lora config and weights
     def load_lora_config(self, lora_config_path):
         ##TODO
         sd = torch.load(lora_config_path, map_location="cpu")
