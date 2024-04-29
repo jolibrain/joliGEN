@@ -979,7 +979,7 @@ class BaseModel(ABC):
                         and any("lora" in n for n, _ in net.unet.named_parameters())
                     ):
                         net.load_lora_config(load_path)
-                        print("load_lora")
+                        print("loading the lora")
                     else:
                         net.load_state_dict(state_dict)
 
