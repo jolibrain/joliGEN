@@ -53,12 +53,15 @@ Here are all the available options to call with `train.py`
 | --G_hdit_depths | array | [2, 2, 4] | distribution of depth blocks across the HDiT stages, should have same size as --G_hdit_widths |
 | --G_hdit_patch_size | int | 4 | Patch size for HDIT, e.g. 4 for 4x4 patches |
 | --G_hdit_widths | array | [192, 384, 768] | width multiplier for each level of the HDiT |
+| --G_lora_unet | int | 8 | lora unet rank for G |
+| --G_lora_vae | int | 8 | lora vae rank for G |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/> **Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512 |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit, unet_mha_ref_attn, dit, hdit |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit, unet_mha_ref_attn, dit, hdit, img2img_turbo |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/> **Values:** instance, batch, none |
 | --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/> **Values:** reflect, replicate, zeros |
+| --G_prompt | string |  | Text prompt for G |
 | --G_spectral | flag |  | whether to use spectral norm in the generator |
 | --G_unet_mha_attn_res | array | [16] | downrate samples at which attention takes place |
 | --G_unet_mha_channel_mults | array | [1, 2, 4, 8] | channel multiplier for each level of the UNET mha |
@@ -310,7 +313,7 @@ Here are all the available options to call with `train.py`
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |
 | --train_n_epochs_decay | int | 100 | number of epochs to linearly decay learning rate to zero |
 | --train_nb_img_max_fid | int | 1000000000 | Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used. |
-| --train_optim | string | adam | optimizer (adam, radam, adamw, ...)<br/><br/> **Values:** adam, radam, adamw, lion |
+| --train_optim | string | adam | optimizer (adam, radam, adamw, ...)<br/><br/> **Values:** adam, radam, adamw, lion, adam8bit |
 | --train_optim_eps | float | 1e-08 | epsilon for optimizer |
 | --train_optim_weight_decay | float | 0.0 | weight decay for optimizer |
 | --train_pool_size | int | 50 | the size of image buffer that stores previously generated images |
