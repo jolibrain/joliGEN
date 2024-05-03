@@ -6,14 +6,24 @@ from . import gan_networks
 
 from .modules import loss
 
+from util.network_group import NetworkGroup
 import itertools
 
+
 class CMGanModel(CMModel, BaseGanModel):
-    
+
     def __init__(self, opt, rank):
         CMModel.__init__(self, opt, rank)
-        BaseGanModel.__init__(self, opt, rank)
-
+        cm_model_names = self.model_names
+        cm_visual_names = self.visual_names
+        BaseGanModel.__init__(self, self.opt, rank)
+        self.model_names = cm_model_names + self.model_names
+        self.visual_names = cm_visual_names + self.visual_names
+        self.opt.alg_gan_lambda = 0.01
+        visual_names_A = ["real_A", "fake_B"]
+        visual_names_B = ["real_B"]
+        self.visual_names.append(visual_names_A)
+        self.visual_names.append(visual_names_B)
         if self.isTrain:
             # Discriminator(s)
             self.netDs = gan_networks.define_D(**vars(opt))
@@ -23,21 +33,20 @@ class CMGanModel(CMModel, BaseGanModel):
             ]
             self.model_names += self.discriminators_names
 
-            #print("netDs", self.netDs)
             for D_name, netD in self.netDs.items():
                 setattr(self, "netD_B_" + D_name, netD)
 
-                if len(self.discriminators_names) > 0:
-                    D_parameters = itertools.chain(
-                        *[
-                            getattr(self, "net" + D_name).parameters()
-                            for D_name in self.discriminators_names
-                        ]
-                    )
-                else:
-                    D_parameters = getattr(
-                        self, "net" + self.discriminators_names[0]
-                    ).parameters()
+            if len(self.discriminators_names) > 0:
+                D_parameters = itertools.chain(
+                    *[
+                        getattr(self, "net" + D_name).parameters()
+                        for D_name in self.discriminators_names
+                    ]
+                )
+            else:
+                D_parameters = getattr(
+                    self, "net" + self.discriminators_names[0]
+                ).parameters()
 
             self.optimizer_D = opt.optim(
                 opt,
@@ -49,8 +58,10 @@ class CMGanModel(CMModel, BaseGanModel):
             )
             self.optimizers.append(self.optimizer_D)
 
-            self.group_G.backward_functions = ["compute_cm_gan_loss"] # modify the backward function
-            
+            self.group_G.backward_functions = [
+                "compute_cm_gan_loss"
+            ]  # modify the backward function
+
             self.group_D = NetworkGroup(
                 networks_to_optimize=self.discriminators_names,
                 forward_functions=None,
@@ -61,6 +72,8 @@ class CMGanModel(CMModel, BaseGanModel):
             )
             self.networks_groups.append(self.group_D)
             self.set_discriminators_info()
+            losses_D = []
+            losses_G = ["G_cm"]
             for discriminator in self.discriminators:
                 losses_D.append(discriminator.loss_name_D)
                 if "mask" in discriminator.name:
@@ -69,11 +82,27 @@ class CMGanModel(CMModel, BaseGanModel):
                     losses_G.append(discriminator.loss_name_G)
 
         self.loss_names_D += losses_D
+        self.loss_names_G += losses_G
         self.loss_names = self.loss_names_G + self.loss_names_D
 
-    def compute_cm_gan_loss(self): ##TODO: replace compute_cm_loss in backward
+        # Itercalculator
+        self.iter_calculator_init()
 
-        self.loss_G_cm_tot = self.compute_cm_loss()
-        self.loss_G_cm_gan_tot = self.compute_G_loss()
+    def compute_G_loss(self):
+        for loss_function in self.loss_functions_G:
+            with torch.cuda.amp.autocast(enabled=self.with_amp):
+                getattr(self, loss_function)()
 
-        return self.loss_G_cm_tot + self.loss_G_cm_gan_tot
+    def compute_cm_gan_loss(self):  ##TODO: replace compute_cm_loss in backward
+        self.compute_cm_loss()
+        self.loss_G_cm = self.loss_G_tot.clone().detach()
+        self.fake_B = self.pred_x
+        self.compute_G_loss_GAN()
+        total_G_total = self.loss_G_tot
+        self.compute_D_loss()
+        total_D_total = self.loss_D_tot
+        return (
+            self.loss_G_tot * (1 - self.opt.alg_cm_gan_lambda)
+            + self.loss_G_tot * self.opt.alg_cm_gan_lambda
+            + self.loss_D_tot * self.opt.alg_cm_gan_lambda
+        )

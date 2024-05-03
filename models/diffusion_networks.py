@@ -12,6 +12,7 @@ from .modules.hdit.hdit import HDiT, HDiTConfig
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
 
+
 def define_G(
     model_type,
     model_input_nc,

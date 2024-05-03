@@ -148,7 +148,7 @@ class BaseModel(ABC):
         if "LPIPS" in self.opt.train_metrics_list:
             self.lpips_metric = LPIPS().to(self.device)
 
-    def init_metrics(self, dataloader_test, test_name=""):
+    def init_metrics(self, dataloader_test):
         self.use_inception = any(
             metric in self.opt.train_metrics_list for metric in ["KID", "FID", "MSID"]
         )
@@ -180,8 +180,7 @@ class BaseModel(ABC):
                     test_device = self.gpu_ids[0]
                 else:
                     test_device = self.device  # cpu
-
-                realactB_test = _compute_statistics_of_dataloader(
+                self.realactB_test = _compute_statistics_of_dataloader(
                     path_sv=path_sv_B,
                     model=self.netFid,
                     domain="B",
@@ -191,9 +190,7 @@ class BaseModel(ABC):
                     dataloader=dataloader_test,
                     nb_max_img=self.opt.train_nb_img_max_fid,
                     root=self.root,
-                    data_image_bits=self.opt.data_image_bits,
                 )
-                setattr(self, "realactB_test" + test_name, realactB_test)
 
     def init_semantic_cls(self, opt):
         # specify the semantic training networks and losses.
@@ -754,22 +751,19 @@ class BaseModel(ABC):
         # lr_D = self.optimizers[1].param_groups[0]['lr']
         # print('learning rate G = %.7f' % lr_G, ' / learning rate D = %.7f' % lr_D)
 
-    def get_current_visuals(self, nb_imgs, phase="train", test_name=""):
+    def get_current_visuals(self, nb_imgs, phase="train"):
         """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""
         visual_ret = []
         for i, group in enumerate(self.visual_names):
             cur_visual = OrderedDict()
             for name in group:
                 if phase == "test":
-                    name = name + "_test_" + test_name
+                    name = name + "_test"
                 if isinstance(name, str) and hasattr(self, name):
                     cur_visual[name] = getattr(self, name)
             visual_ret.append(cur_visual)
-            if (
-                self.opt.model_type != "cut" and self.opt.model_type != "cycle_gan"
-            ):  # GANs have more outputs in practice, including semantics
-                if i == nb_imgs - 1:
-                    break
+            if i == nb_imgs - 1:
+                break
         return visual_ret
 
     def get_display_param(self):
@@ -803,15 +797,7 @@ class BaseModel(ABC):
                 if len(self.gpu_ids) > 1 and self.use_cuda:
                     torch.save(net.module.state_dict(), save_path)
                 else:
-                    if (
-                        name == "G_A"
-                        and hasattr(net, "unet")
-                        and hasattr(net, "vae")
-                        and any("lora" in n for n, _ in net.unet.named_parameters())
-                    ):
-                        net.save_lora_config(save_path)
-                    else:
-                        torch.save(net.state_dict(), save_path)
+                    torch.save(net.state_dict(), save_path)
 
     def export_networks(self, epoch):
         """Export chosen networks weights to the disk.
@@ -831,6 +817,7 @@ class BaseModel(ABC):
                 if not self.opt.model_type in [
                     "palette",
                     "cm",
+                    "cm_gan",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
@@ -844,7 +831,6 @@ class BaseModel(ABC):
                         not self.opt.train_feat_wavelet
                         and not "ittr" in self.opt.G_netG
                         and not "hdit" in self.opt.G_netG
-                        and not "img2img_turbo" in self.opt.G_netG
                         and not (
                             torch.__version__[0] == "2"
                             and "segformer" in self.opt.G_netG
@@ -866,7 +852,6 @@ class BaseModel(ABC):
                         self.opt.train_export_jit
                         and not ("uvit" in self.opt.G_netG)
                         and not ("hdit" in self.opt.G_netG)
-                        and not ("img2img_turbo" in self.opt.G_netG)
                     ):
                         export_path_jit = save_path.replace(".pth", ".pt")
 
@@ -972,16 +957,7 @@ class BaseModel(ABC):
                 if hasattr(state_dict, "g_ema"):
                     net.load_state_dict(state_dict["g_ema"])
                 else:
-                    if (
-                        name == "G_A"
-                        and hasattr(net, "unet")
-                        and hasattr(net, "vae")
-                        and any("lora" in n for n, _ in net.unet.named_parameters())
-                    ):
-                        net.load_lora_config(load_path)
-                        print("loading the lora")
-                    else:
-                        net.load_state_dict(state_dict)
+                    net.load_state_dict(state_dict)
 
     def get_nets(self):
         return_nets = {}
@@ -1001,9 +977,7 @@ class BaseModel(ABC):
         for net in nets:
             if net is not None:
                 for name, param in net.named_parameters():
-                    if "lora" or "skip_conv" or "conv_in" in name:
-                        param.requires_grad = requires_grad
-                    elif (
+                    if (
                         not "freeze" in name
                         and not "cv_ensemble" in name
                         and not ("f_s" in name and self.opt.f_s_net == "sam")
@@ -1430,53 +1404,52 @@ class BaseModel(ABC):
             if not self.opt.train_cls_regression:
                 _, self.pfB = self.pred_cls_fake_A.max(1)
 
-    def get_current_metrics(self, test_names):
+    def get_current_metrics(self):
         metrics = OrderedDict()
 
         metrics_names = []
 
         if self.opt.train_compute_metrics_test:
-            for name in test_names:
-                if "FID" in self.opt.train_metrics_list:
-                    metrics_names += [
-                        "fidB_test_" + name,
-                    ]
+            if "FID" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "fidB_test",
+                ]
 
-                if "MSID" in self.opt.train_metrics_list:
-                    metrics_names += [
-                        "msidB_test_" + name,
-                    ]
+            if "MSID" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "msidB_test",
+                ]
 
-                if "KID" in self.opt.train_metrics_list:
-                    metrics_names += [
-                        "kidB_test_" + name,
-                    ]
+            if "KID" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "kidB_test",
+                ]
 
-                if "PSNR" in self.opt.train_metrics_list:
-                    metrics_names += [
-                        "psnr_test_" + name,
-                    ]
+            if "PSNR" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "psnr_test",
+                ]
 
-                if "SSIM" in self.opt.train_metrics_list:
-                    metrics_names += [
-                        "ssim_test_" + name,
-                    ]
+            if "SSIM" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "ssim_test",
+                ]
 
-                if "LPIPS" in self.opt.train_metrics_list:
-                    metrics_names += [
-                        "lpips_test_" + name,
-                    ]
+            if "LPIPS" in self.opt.train_metrics_list:
+                metrics_names += [
+                    "lpips_test",
+                ]
 
-            for name in metrics_names:
-                if isinstance(name, str):
-                    metrics[name] = float(
-                        getattr(self, name)
-                    )  # float(...) works for both scalar tensor and float number
+        for name in metrics_names:
+            if isinstance(name, str):
+                metrics[name] = float(
+                    getattr(self, name)
+                )  # float(...) works for both scalar tensor and float number
 
         return metrics
 
     def compute_metrics_test(
-        self, dataloaders_test, n_epoch, n_iter, save_images=False, test_name=""
+        self, dataloaders_test, n_epoch, n_iter, save_images=False
     ):
         dims = 2048
         batch = 1
@@ -1512,10 +1485,7 @@ class BaseModel(ABC):
                 )  # unpack data from dataloader and apply preprocessing
 
             offset = i * self.opt.test_batch_size
-            istrain = self.opt.isTrain
-            self.opt.isTrain = False
             self.inference(self.opt.test_batch_size, offset=offset)
-            self.opt.isTrain = istrain
 
             if save_images:
                 pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (
@@ -1553,7 +1523,7 @@ class BaseModel(ABC):
                     continue
                 for name in sub_list:
                     if hasattr(self, name):
-                        setattr(self, name + "_test_" + test_name, getattr(self, name))
+                        setattr(self, name + "_test", getattr(self, name))
                 i += 1
                 if i - offset == self.opt.test_batch_size:
                     break
@@ -1579,8 +1549,7 @@ class BaseModel(ABC):
             domain = "B"
             if self.opt.data_direction == "BtoA":
                 domain = "A"
-
-            fakeactB_test = _compute_statistics_of_dataloader(
+            self.fakeactB_test = _compute_statistics_of_dataloader(
                 path_sv=None,
                 model=self.netFid,
                 domain=domain,
@@ -1590,32 +1559,23 @@ class BaseModel(ABC):
                 dataloader=fake_list,
                 nb_max_img=self.opt.train_nb_img_max_fid,
                 root=self.root,
-                data_image_bits=self.opt.data_image_bits,
             )
 
-            realactB_test = getattr(self, "realactB_test" + test_name)
             (
-                fidB_test,
-                msidB_test,
-                kidB_test,
-            ) = self.compute_metrics_generic(realactB_test, fakeactB_test)
+                self.fidB_test,
+                self.msidB_test,
+                self.kidB_test,
+            ) = self.compute_metrics_generic(self.realactB_test, self.fakeactB_test)
 
-            setattr(self, "fidB_test_" + test_name, fidB_test)
-            setattr(self, "msidB_test_" + test_name, msidB_test)
-            setattr(self, "kidB_test_" + test_name, kidB_test)
         real_tensor = (torch.cat(real_list) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
-
-        psnr_test = psnr(real_tensor, fake_tensor)
-        ssim_test = ssim(real_tensor, fake_tensor)
-        setattr(self, "psnr_test_" + test_name, psnr_test)
-        setattr(self, "ssim_test_" + test_name, ssim_test)
+        self.psnr_test = psnr(real_tensor, fake_tensor)
+        self.ssim_test = ssim(real_tensor, fake_tensor)
 
         if "LPIPS" in self.opt.train_metrics_list:
             real_tensor = torch.cat(real_list)
             fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)
-            lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
-            setattr(self, "lpips_test_" + test_name, lpips_test)
+            self.lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
 
     def compute_metrics_generic(self, real_act, fake_act):
         # FID

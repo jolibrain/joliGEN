@@ -379,6 +379,12 @@ class CommonOptions(BaseOptions):
             type=int,
             help="width multiplier for each level of the HDiT",
         )
+        parser.add_argument(
+            "--alg_cm_gan_lambda",
+            type=float,
+            default=0.1,
+            help="Adjusts the propotion of GAN loss in the cm_gan model",
+        )
 
         parser.add_argument(
             "--G_hdit_patch_size",
