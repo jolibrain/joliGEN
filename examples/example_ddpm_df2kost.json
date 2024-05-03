@@ -1,0 +1,152 @@
+{
+    "G": {
+         "diff_n_timestep_test": 1000,
+        "diff_n_timestep_train": 2000,
+        "dropout": false,
+        "nblocks": 9,
+        "netG": "unet_mha",
+        "ngf": 64,
+        "norm": "instance",
+        "padding_type": "reflect",
+        "unet_mha_attn_res": [
+            16
+        ],
+        "unet_mha_channel_mults": [
+            1,
+            2,
+            4,
+            8
+        ],
+        "unet_mha_group_norm_size": 32,
+        "unet_mha_norm_layer": "groupnorm",
+        "unet_mha_num_head_channels": 32,
+        "unet_mha_num_heads": 1,
+        "unet_mha_res_blocks": [
+            2,
+            2,
+            2,
+            2
+        ],
+        "unet_mha_vit_efficient": false,
+        "uvit_num_transformer_blocks": 6
+    },
+    "alg": {
+        "gan": {},
+        "cut": {},
+        "cyclegan": {},
+	"palette": {
+	    "loss": "MSE",
+	    "sampling_method": "ddpm"
+	},
+        "diffusion": {
+            "computed_sketch_list": [
+                "canny",
+                "hed"
+            ],
+            "cond_embed_dim": 32,
+            "cond_image_creation": "y_t",
+            "cond_embed": "",
+            "ddim_eta": 0.5,
+            "ddim_num_steps": 10,
+            "dropout_prob": 0.0,
+            "generate_per_class": false,
+            "inference_num": -1,
+            "lambda_G": 1.0,
+            "super_resolution_scale": 4.0,
+            "task": "super_resolution"
+        }
+    },
+    "data": {
+        "online_creation": {
+        },
+        "crop_size": 128,
+        "dataset_mode": "single",
+        "direction": "AtoB",
+        "inverted_mask": false,
+        "load_size": 128,
+        "max_dataset_size": 1000000000,
+        "num_threads": 6,
+        "preprocess": "resize_and_crop",
+        "relative_paths": true,
+        "sanitize_paths": false
+    },
+    "output": {
+        "display": {
+            "G_attention_masks": false,
+            "aim_port": 53800,
+            "aim_server": "http://localhost",
+            "diff_fake_real": false,
+            "env": "",
+            "freq": 1000,
+            "id": 1,
+            "ncols": 0,
+            "networks": false,
+            "type": [
+                "visdom"
+            ],
+            "visdom_autostart": true,
+            "visdom_port": 8097,
+            "visdom_server": "http://localhost",
+            "winsize": 256
+        },
+        "no_html": false,
+        "print_freq": 1000,
+        "update_html_freq": 1000,
+        "verbose": false
+    },
+    "model": {
+              "init_gain": 0.02,
+        "init_type": "normal",
+        "input_nc": 3,
+        "multimodal": false,
+        "output_nc": 3
+    },
+    "train": {
+        "G_ema": true,
+        "G_ema_beta": 0.999,
+        "G_lr": 0.0001,
+        "batch_size": 8,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "compute_metrics_test": true,
+        "continue": false,
+        "epoch": "latest",
+        "epoch_count": 1,
+        "export_jit": false,
+        "feat_wavelet": false,
+        "iter_size": 1,
+        "load_iter": 0,
+        "metrics_every": 1000,
+        "metrics_list": [
+	    "PSNR",
+	    "SSIM",
+	    "LPIPS"
+        ],
+        "n_epochs": 5000,
+        "n_epochs_decay": 0,
+        "nb_img_max_fid": 1000000000,
+        "optim": "adamw",
+        "optim_weight_decay": 0.0,
+        "pool_size": 50,
+        "save_by_iter": false,
+        "save_epoch_freq": 500,
+        "save_latest_freq": 50000
+    },
+    "dataaug": {
+        "flip": "both",
+        "no_rotate": true
+    },
+    "checkpoints_dir": "checkpoints",
+    "dataroot": "datasets/df2kost",
+    "ddp_port": "12355",
+    "gpu_ids": "3",
+    "model_type": "palette",
+    "name": "df2kost_palette",
+    "phase": "train",
+    "suffix": "",
+    "test_batch_size": 8,
+    "warning_mode": false,
+    "with_amp": false,
+    "with_tf32": false,
+    "with_torch_compile": false
+}
