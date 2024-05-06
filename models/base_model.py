@@ -1001,9 +1001,10 @@ class BaseModel(ABC):
         for net in nets:
             if net is not None:
                 for name, param in net.named_parameters():
-                    if "lora" or "skip_conv" or "conv_in" in name:
-                        param.requires_grad = requires_grad
-                    elif (
+                    if self.opt.G_netG == "img2img_turbo":
+                        if "lora" or "skip_conv" or "conv_in" in name:
+                            param.requires_grad = requires_grad
+                    if (
                         not "freeze" in name
                         and not "cv_ensemble" in name
                         and not ("f_s" in name and self.opt.f_s_net == "sam")
