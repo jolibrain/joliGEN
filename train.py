@@ -127,14 +127,13 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     if opt.output_display_env == "":
         opt.output_display_env = opt.name
 
-    if rank_0:
-        visualizer = Visualizer(
-            opt
-        )  # create a visualizer that display/save images and plots
+    visualizer = Visualizer(
+        opt
+    )  # create a visualizer that display/save images and plots
 
-        if opt.train_continue:
-            opt.train_epoch_count = visualizer.load_data()
-            opt.total_iters = opt.train_epoch_count * trainset_size
+    if opt.train_continue:
+        opt.train_epoch_count = visualizer.load_data()
+        opt.total_iters = opt.train_epoch_count * trainset_size
 
     opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
