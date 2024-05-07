@@ -118,7 +118,7 @@ class CommonOptions(BaseOptions):
             "--model_type",
             type=str,
             default="cut",
-            choices=["cut", "cycle_gan", "palette", "cm"],
+            choices=["cut", "cycle_gan", "palette", "cm", "cm_gan"],
             help="chooses which model to use.",
         )
         parser.add_argument(
@@ -404,6 +404,12 @@ class CommonOptions(BaseOptions):
             type=int,
             default=8,
             help="lora vae rank for G",
+        )
+        parser.add_argument(
+            "--alg_cm_gan_lambda",
+            type=float,
+            default=0.1,
+            help="Adjusts the propotion of GAN loss in the cm_gan model",
         )
 
         # discriminator

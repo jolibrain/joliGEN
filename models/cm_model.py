@@ -219,7 +219,7 @@ class CMModel(BaseDiffusionModel):
         y_cond = self.cond_image  # conditioning
         mask = self.mask
         (
-            pred_x,
+            self.pred_x,
             target_x,
             num_timesteps,
             sigmas,
@@ -229,10 +229,10 @@ class CMModel(BaseDiffusionModel):
         ) = self.netG_A(y_0, self.total_t, mask, y_cond)
 
         if mask is not None:
-            mask_pred_x = mask * pred_x
+            mask_pred_x = mask * self.pred_x
             mask_target_x = mask * target_x
         else:
-            mask_pred_x = pred_x
+            mask_pred_x = self.pred_x
             mask_target_x = target_x
         loss = (pseudo_huber_loss(mask_pred_x, mask_target_x) * loss_weights).mean()
 
