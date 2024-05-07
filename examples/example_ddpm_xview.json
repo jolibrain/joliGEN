@@ -45,7 +45,7 @@
 	    "sampling_method": "ddpm"
 	},
         "diffusion": {
-            "computed_sketch_list": [
+            "cond_computed_sketch_list": [
                 "canny",
                 "hed"
             ],
