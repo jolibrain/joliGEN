@@ -28,8 +28,8 @@ json_like_dict = {
     "D_netDs": ["vision_aided"],
     "train_iter_size": 1,
     "G_prompt": "zebra",
-    "G_lora_unet": 8,
-    "G_lora_vae": 8,
+    "G_lora_unet": 2,
+    "G_lora_vae": 2,
     "train_n_epochs_decay": 0,
     "train_save_latest_freq": 10,
 }
