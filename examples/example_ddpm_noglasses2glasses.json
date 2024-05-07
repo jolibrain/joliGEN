@@ -77,7 +77,7 @@
 	    "sampling_method": "ddpm"
 	},
         "diffusion": {
-            "computed_sketch_list": [
+            "cond_computed_sketch_list": [
                 "canny",
                 "hed"
             ],
@@ -99,7 +99,7 @@
             "sam_redundancy_threshold": 0.62,
             "sam_sobel_threshold": 0.7,
             "sam_use_gaussian_filter": false,
-            "sketch_canny_range": [
+            "cond_sketch_canny_range": [
                 0,
                 765
             ],
