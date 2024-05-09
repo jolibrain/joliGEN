@@ -402,7 +402,7 @@ def define_D(
                 weight_path = ""
             net = ProjectedDiscriminator(
                 D_proj_network_type,
-                interp=224 if data_crop_size + margin < 224 else D_proj_interp,
+                interp=D_proj_interp,
                 config_path=os.path.join(jg_dir, D_proj_config_segformer),
                 weight_path=weight_path,
                 img_size=data_crop_size + margin,
@@ -446,7 +446,7 @@ def define_D(
                 download_segformer_weight(weight_path)
             net = TemporalProjectedDiscriminator(
                 D_proj_network_type,
-                interp=224 if data_crop_size < 224 else D_proj_interp,
+                interp=D_proj_interp,
                 config_path=os.path.join(jg_dir, D_proj_config_segformer),
                 weight_path=weight_path,
                 data_temporal_number_frames=data_temporal_number_frames,

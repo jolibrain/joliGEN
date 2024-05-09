@@ -694,6 +694,12 @@ class TrainOptions(CommonOptions):
             )
 
         # vitclip16 projector only works with input size 224
+        if opt.D_proj_network_type == "efficientnet":
+            if opt.D_proj_interp < 224:
+                warnings.warn(
+                    "Efficiennet projector has minimal input size of 224, setting D_proj_interp to 224"
+                )
+                opt.D_proj_interp = 224
         if opt.D_proj_network_type == "vitclip16":
             if opt.D_proj_interp != 224:
                 warnings.warn(
