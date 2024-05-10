@@ -49,7 +49,7 @@ class CMGanModel(CMModel, BaseGanModel):
                     self, "net" + self.discriminators_names[0]
                 ).parameters()
             # print("netDs", self.netDs)
-            
+
             self.optimizer_D = opt.optim(
                 opt,
                 D_parameters,
@@ -108,4 +108,3 @@ class CMGanModel(CMModel, BaseGanModel):
             + self.loss_G_tot * self.opt.alg_cm_gan_lambda
             + self.loss_D_tot * self.opt.alg_cm_gan_lambda
         )
-
