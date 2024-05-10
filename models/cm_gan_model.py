@@ -24,6 +24,7 @@ class CMGanModel(CMModel, BaseGanModel):
         visual_names_B = ["real_B"]
         self.visual_names.append(visual_names_A)
         self.visual_names.append(visual_names_B)
+
         if self.isTrain:
             # Discriminator(s)
             self.netDs = gan_networks.define_D(**vars(opt))
@@ -47,7 +48,8 @@ class CMGanModel(CMModel, BaseGanModel):
                 D_parameters = getattr(
                     self, "net" + self.discriminators_names[0]
                 ).parameters()
-
+            # print("netDs", self.netDs)
+            
             self.optimizer_D = opt.optim(
                 opt,
                 D_parameters,
@@ -106,3 +108,4 @@ class CMGanModel(CMModel, BaseGanModel):
             + self.loss_G_tot * self.opt.alg_cm_gan_lambda
             + self.loss_D_tot * self.opt.alg_cm_gan_lambda
         )
+
