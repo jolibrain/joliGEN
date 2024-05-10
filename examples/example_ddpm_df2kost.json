@@ -1,15 +1,11 @@
 {
-    "D": {
-    },
     "G": {
-        "attn_nb_mask_attn": 10,
-        "attn_nb_mask_input": 1,
-        "diff_n_timestep_test": 1000,
+         "diff_n_timestep_test": 1000,
         "diff_n_timestep_train": 2000,
         "dropout": false,
-        "nblocks": 2,
+        "nblocks": 9,
         "netG": "unet_mha",
-        "ngf": 128,
+        "ngf": 64,
         "norm": "instance",
         "padding_type": "reflect",
         "unet_mha_attn_res": [
@@ -38,70 +34,41 @@
         "gan": {},
         "cut": {},
         "cyclegan": {},
-        "re": {
-        },
 	"palette": {
 	    "loss": "MSE",
 	    "sampling_method": "ddpm"
 	},
         "diffusion": {
-            "cond_computed_sketch_list": [
+            "computed_sketch_list": [
                 "canny",
                 "hed"
             ],
             "cond_embed_dim": 32,
             "cond_image_creation": "y_t",
             "cond_embed": "",
+            "ddim_eta": 0.5,
+            "ddim_num_steps": 10,
+            "dropout_prob": 0.0,
             "generate_per_class": false,
             "inference_num": -1,
             "lambda_G": 1.0,
-            "task": "inpainting"
+            "super_resolution_scale": 4.0,
+            "task": "super_resolution"
         }
     },
     "data": {
         "online_creation": {
-            "color_mask_A": false,
-            "crop_delta_A": 0,
-            "crop_delta_B": 0,
-            "crop_size_A": 128,
-            "crop_size_B": 128,
-            "load_size_A": [],
-            "load_size_B": [],
-            "mask_delta_A": [
-                []
-            ],
-            "mask_delta_B": [
-                []
-            ],
-            "mask_random_offset_A": [
-                0.0
-            ],
-            "mask_random_offset_B": [
-                0.0
-            ],
-            "mask_square_A": false,
-            "mask_square_B": false,
-            "rand_mask_A": true
         },
         "crop_size": 128,
-        "dataset_mode": "self_supervised_labeled_mask_online",
+        "dataset_mode": "single",
         "direction": "AtoB",
         "inverted_mask": false,
         "load_size": 128,
         "max_dataset_size": 1000000000,
-        "num_threads": 4,
-        "online_context_pixels": 0,
-        "online_fixed_mask_size": -1,
-        "online_select_category": -1,
-        "online_single_bbox": false,
-	"online_random_bbox": true,
+        "num_threads": 6,
         "preprocess": "resize_and_crop",
-        "refined_mask": false,
         "relative_paths": true,
-        "sanitize_paths": false,
-        "serial_batches": false
-    },
-    "f_s": {
+        "sanitize_paths": false
     },
     "output": {
         "display": {
@@ -109,69 +76,75 @@
             "aim_port": 53800,
             "aim_server": "http://localhost",
             "diff_fake_real": false,
-            "freq": 64000,
+            "env": "",
+            "freq": 1000,
             "id": 1,
             "ncols": 0,
             "networks": false,
             "type": [
                 "visdom"
             ],
+            "visdom_autostart": true,
             "visdom_port": 8097,
             "visdom_server": "http://localhost",
             "winsize": 256
         },
         "no_html": false,
-        "print_freq": 2048,
+        "print_freq": 1000,
         "update_html_freq": 1000,
         "verbose": false
     },
     "model": {
-        "init_gain": 0.02,
+              "init_gain": 0.02,
         "init_type": "normal",
         "input_nc": 3,
+        "multimodal": false,
         "output_nc": 3
     },
     "train": {
         "G_ema": true,
         "G_ema_beta": 0.999,
-        "G_lr": 0.0002,
-        "batch_size": 16,
+        "G_lr": 0.0001,
+        "batch_size": 8,
         "beta1": 0.9,
         "beta2": 0.999,
-        "compute_metrics": false,
-        "compute_metrics_test": false,
+        "compute_metrics_test": true,
         "continue": false,
         "epoch": "latest",
         "epoch_count": 1,
         "export_jit": false,
-        "iter_size": 16,
+        "feat_wavelet": false,
+        "iter_size": 1,
         "load_iter": 0,
-        "lr_decay_iters": 50,
-        "lr_policy": "linear",
         "metrics_every": 1000,
+        "metrics_list": [
+	    "PSNR",
+	    "SSIM",
+	    "LPIPS"
+        ],
         "n_epochs": 5000,
         "n_epochs_decay": 0,
         "nb_img_max_fid": 1000000000,
         "optim": "adamw",
+        "optim_weight_decay": 0.0,
         "pool_size": 50,
         "save_by_iter": false,
-        "save_epoch_freq": 100,
-        "save_latest_freq": 5000
+        "save_epoch_freq": 500,
+        "save_latest_freq": 50000
     },
     "dataaug": {
-        "imgaug": false,
-        "no_flip": false,
-        "no_rotate": false
+        "flip": "both",
+        "no_rotate": true
     },
-    "checkpoints_dir": "./checkpoints/",
-    "dataroot": "xview_inpaint",
+    "checkpoints_dir": "checkpoints",
+    "dataroot": "datasets/df2kost",
     "ddp_port": "12355",
-    "gpu_ids": "0",
+    "gpu_ids": "3",
     "model_type": "palette",
-    "name": "xview_inpaint",
+    "name": "df2kost_palette",
     "phase": "train",
     "suffix": "",
-    "test_batch_size": 1,
+    "test_batch_size": 8,
     "warning_mode": false,
     "with_amp": false,
     "with_tf32": false,

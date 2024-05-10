@@ -16,8 +16,8 @@ json_like_dict = {
     "output_display_id": 0,
     "gpu_ids": "0",
     "data_dataset_mode": "unaligned",
-    "data_load_size": 128,
-    "data_crop_size": 128,
+    "data_load_size": 48,
+    "data_crop_size": 48,
     "train_batch_size": 1,
     "train_n_epochs": 1,
     "data_max_dataset_size": 10,
@@ -25,11 +25,11 @@ json_like_dict = {
     "G_nblocks": 1,
     "G_padding_type": "reflect",
     "dataaug_flip": "both",
-    "D_netDs": ["basic"],
+    "D_netDs": ["vision_aided"],
     "train_iter_size": 1,
     "G_prompt": "zebra",
-    "G_lora_unet": 8,
-    "G_lora_vea": 8,
+    "G_lora_unet": 2,
+    "G_lora_vae": 2,
     "train_n_epochs_decay": 0,
     "train_save_latest_freq": 10,
 }
@@ -39,11 +39,7 @@ infer_options = {
 }
 models_gan = ["cut"]
 G_netG = ["img2img_turbo"]
-G_efficient = [True]
-G_unet_mha_norm_layer = [
-    "groupnorm",
-]
-product_list = product(models_gan, G_netG, G_efficient, G_unet_mha_norm_layer)
+product_list = product(models_gan, G_netG)
 
 
 def test_img2img_turbo(dataroot):
@@ -52,14 +48,11 @@ def test_img2img_turbo(dataroot):
     infer_options["img_in"] = os.path.join(
         json_like_dict["dataroot"], "trainA", "n02381460_9223.jpg"
     )
-    for model, Gtype, G_efficient, G_norm in product_list:
+    for model, Gtype in product_list:
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
-        json_like_dict_c["G_unet_mha_norm_layer"] = G_norm
-        json_like_dict_c["G_unet_mha_vit_efficient"] = G_efficient
-        json_like_dict_c["alg_cut_supervised_loss"] = ["L1"]
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
