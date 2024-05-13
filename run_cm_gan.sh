@@ -1,0 +1,19 @@
+python3 train.py \
+--dataroot /data1/juliew/ori_dataset/noglasses2glasses_ffhq \
+--checkpoints_dir /data1/juliew/checkpoints/ \
+--name cm_gan \
+--model_type cm_gan \
+--G_netG unet_mha \
+--D_netDs basic \
+--train_batch_size 1 \
+--data_load_size 64 \
+--data_crop_size 64 \
+--output_print_freq 50  \
+--gpu_ids 2 \
+--dataaug_no_rotate \
+--data_dataset_mode unaligned_labeled_mask \
+--output_display_env test_cm_gan_hz \
+--output_display_freq 50  \
+--data_relative_paths  \
+--train_save_spoch_freq 2 \
+--train_continue  \
