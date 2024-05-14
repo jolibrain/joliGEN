@@ -663,6 +663,7 @@ class CommonOptions(BaseOptions):
                 "unaligned_labeled_mask_ref",
                 "self_supervised_labeled_mask_ref",
                 "unaligned_labeled_mask_online_ref",
+                "unaligned_labeled_mask_online_ref_prompt",
                 "self_supervised_labeled_mask_online_ref",
             ],
             help="chooses how datasets are loaded.",

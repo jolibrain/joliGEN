@@ -28,10 +28,14 @@ def find_dataset_using_name(dataset_name):
     """
     dataset_filename = "data." + dataset_name + "_dataset"
     datasetlib = importlib.import_module(dataset_filename)
-
+    print("dataset_name ", dataset_name, dataset_filename, datasetlib)
     dataset = None
     target_dataset_name = dataset_name.replace("_", "") + "dataset"
+    print()
     for name, cls in datasetlib.__dict__.items():
+        print("target_dataset_name ", target_dataset_name )
+        print("name, cls", name, cls)
+        print("issubclass",   issubclass(cls,BaseDataset))
         if name.lower() == target_dataset_name.lower() and issubclass(cls, BaseDataset):
             dataset = cls
 
