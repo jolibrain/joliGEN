@@ -73,7 +73,6 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     signal.signal(signal.SIGTERM, signal_handler)
     if len(opt.gpu_ids) > 1:
         setup(rank, world_size, opt.ddp_port)
-
     dataloader = create_dataloader(
         opt, rank, trainset, batch_size=opt.train_batch_size
     )  # create a dataset given opt.dataset_mode and other options
@@ -134,9 +133,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     if opt.train_continue:
         opt.train_epoch_count = visualizer.load_data()
         opt.total_iters = opt.train_epoch_count * trainset_size
-
     opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
+    
     if hasattr(model, "data_dependent_initialize"):
         data = next(iter(dataloader))
         model.data_dependent_initialize(data)
@@ -197,6 +196,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             dataloaders
         ):  # inner loop (minibatch) within one epoch
             data = data_list[0]
+            if "ref_B_prompt" in data :
+                model.netG_A.prompt = data["ref_B_prompt"][0]
+            
 
             iter_start_time = time.time()  # timer for computation per iteration
             t_data_mini_batch = iter_start_time - iter_data_time
@@ -425,8 +427,9 @@ def launch_training(opt):
         warnings.simplefilter("ignore")
 
     trainset = create_dataset(opt, phase="train")
+    
     print("The number of training images = %d" % len(trainset))
-
+    print(  trainset )
     use_temporal = ("temporal" in opt.D_netDs) or opt.train_temporal_criterion
 
     if use_temporal:

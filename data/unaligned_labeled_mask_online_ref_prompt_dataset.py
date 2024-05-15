@@ -7,7 +7,7 @@ from data.unaligned_labeled_mask_online_dataset import UnalignedLabeledMaskOnlin
 from data.image_folder import make_ref_path_list
 
 
-class UnalignedLabeledMaskOnlineRefDataset(UnalignedLabeledMaskOnlineDataset):
+class UnalignedLabeledMaskOnlineRefPromptDataset(UnalignedLabeledMaskOnlineDataset):
     def __init__(self, opt, phase, name=""):
         super().__init__(opt, phase, name)
 
@@ -35,30 +35,14 @@ class UnalignedLabeledMaskOnlineRefDataset(UnalignedLabeledMaskOnlineDataset):
             index,
             clamp_semantics,
         )
-
-        img_path = result["A_img_paths"]
-
-        if self.opt.data_relative_paths:
-            img_path = img_path.replace(self.root, "")
+        print()
+        img_path_B_prompt = result["B_img_paths"]
 
 
-        ref_B_prompt_path = self.B_img_ref_prompt[img_path]
-
-        if self.opt.data_relative_paths:
-            ref_B_prompt_path = os.path.join(self.root, ref_B_prompt_path)
-
-        try:
-            with open(ref_B_prompt_path, "r") as file:
-                ref_B_prompt = file.read()
-
-        except Exception as e:
-            print(
-                "failure with reading B domain prompt ref ",
-                ref_B_prompt_path,
-            )
-            print(e)
-            return None
-
+        ref_B_prompt_path = self.B_img_ref_prompt[img_path_B_prompt]
+        
+        if len(ref_B_prompt_path) == 1  and isinstance(ref_B_prompt_path[0], str):
+            ref_B_prompt = ref_B_prompt_path[0]
+      
         result.update({"ref_B_prompt": ref_B_prompt})
-
         return result
