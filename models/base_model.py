@@ -386,6 +386,8 @@ class BaseModel(ABC):
             self.real_A_with_context = data["A_ref"].to(self.device)
         else:
             self.real_A_with_context = data["A"].to(self.device)
+        if "real_B_prompt" in data:
+            self.real_B_prompt = data["real_B_prompt"]
         self.real_A = self.real_A_with_context.clone()
         if self.opt.data_online_context_pixels > 0:
             self.real_A = self.real_A[
