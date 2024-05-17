@@ -65,13 +65,10 @@ def my_vae_decoder_fwd(self, sample, latent_embeds=None):
 
 
 class Img2ImgTurbo(nn.Module):
-    def __init__(
-        self, in_channels, out_channels, lora_rank_unet, lora_rank_vae, prompt=None
-    ):
+    def __init__(self, in_channels, out_channels, lora_rank_unet, lora_rank_vae):
         super().__init__()
 
         # TODO: other params
-        self.prompt = prompt
         self.lora_rank_unet = lora_rank_unet
         self.lora_rank_vae = lora_rank_vae
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -194,9 +191,9 @@ class Img2ImgTurbo(nn.Module):
         unet.enable_xformers_memory_efficient_attention()
         unet.enable_gradient_checkpointing()
 
-    def forward(self, x):
+    def forward(self, x, prompt):
         caption_tokens = self.tokenizer(
-            self.prompt,
+            prompt,
             max_length=self.tokenizer.model_max_length,
             padding="max_length",
             truncation=True,
@@ -226,13 +223,14 @@ class Img2ImgTurbo(nn.Module):
         return x
 
     def compute_feats(self, input, extract_layer_ids=[]):
-        caption_tokens = self.tokenizer(
-            self.prompt,  # XXX: set externally
-            max_length=self.tokenizer.model_max_length,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt",
-        ).input_ids.cuda()
+        # caption_tokens = self.tokenizer(
+        #     #self.prompt,  # XXX: set externally
+        #     prompt,
+        #     max_length=self.tokenizer.model_max_length,
+        #     padding="max_length",
+        #     truncation=True,
+        #     return_tensors="pt",
+        # ).input_ids.cuda()
 
         # deterministic forward
         encoded_control = (
@@ -246,7 +244,6 @@ class Img2ImgTurbo(nn.Module):
         return feats
 
     def load_lora_config(self, lora_config_path):
-        ##TODO
         sd = torch.load(lora_config_path, map_location="cpu")
 
         unet_lora_config = LoraConfig(

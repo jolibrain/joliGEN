@@ -387,12 +387,12 @@ class CommonOptions(BaseOptions):
             help="Patch size for HDIT, e.g. 4 for 4x4 patches",
         )
 
-        parser.add_argument(
-            "--G_prompt",
-            type=str,
-            default="",
-            help="Text prompt for G",
-        )
+        # parser.add_argument(
+        #     "--G_prompt",
+        #     type=str,
+        #     default="",
+        #     help="Text prompt for G",
+        # )
         parser.add_argument(
             "--G_lora_unet",
             type=int,
@@ -663,7 +663,7 @@ class CommonOptions(BaseOptions):
                 "unaligned_labeled_mask_ref",
                 "self_supervised_labeled_mask_ref",
                 "unaligned_labeled_mask_online_ref",
-                "unaligned_labeled_mask_online_ref_prompt",
+                "unaligned_labeled_mask_online_prompt",
                 "self_supervised_labeled_mask_online_ref",
             ],
             help="chooses how datasets are loaded.",
