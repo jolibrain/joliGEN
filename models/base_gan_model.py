@@ -784,7 +784,7 @@ class BaseGanModel(BaseModel):
             not hasattr(self, "loss_f_s")
             or self.loss_f_s > self.opt.f_s_semantic_threshold
         ) and self.opt.f_s_net != "sam":
-            loss_G_sem_mask_ = 0 * loss_G_sem_mask
+            loss_G_sem_mask = 0 * loss_G_sem_mask
             if self.opt.train_sem_idt:
                 loss_G_sem_mask_idt = 0 * loss_G_sem_mask_idt
 
