@@ -801,7 +801,17 @@ class BaseModel(ABC):
                 net = getattr(self, "net" + name)
 
                 if len(self.gpu_ids) > 1 and self.use_cuda:
-                    torch.save(net.module.state_dict(), save_path)
+                    if (
+                        name == "G_A"
+                        and hasattr(net.module, "unet")
+                        and hasattr(net.module, "vae")
+                        and any(
+                            "lora" in n for n, _ in net.module.unet.named_parameters()
+                        )
+                    ):
+                        net.module.save_lora_config(save_path)
+                    else:
+                        torch.save(net.module.state_dict(), save_path)
                 else:
                     if (
                         name == "G_A"
