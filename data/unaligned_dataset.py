@@ -1,7 +1,7 @@
 import os.path
 from data.base_dataset import BaseDataset, get_transform
 from data.utils import load_image
-from data.image_folder import make_dataset
+from data.image_folder import make_dataset, make_ref_path_list
 from PIL import Image
 import random
 
@@ -40,10 +40,10 @@ class UnalignedDataset(BaseDataset):
 
         self.header = ["img"]
 
-        if self.opt.data_relative_paths:
-            self.B_img_prompt = {
-                f"{self.root}{key}": value for key, value in self.B_img_prompt.items()
-            }
+        if os.path.isfile(self.dir_B + "/prompts.txt"):
+            self.B_img_prompt = make_ref_path_list(self.dir_B, "/prompts.txt")
+        else:
+            self.B_img_prompt = None
 
     # A_label_path and B_label_path are unused
     def get_img(
@@ -62,7 +62,17 @@ class UnalignedDataset(BaseDataset):
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)
 
-        return {"A": A, "B": B, "A_img_paths": A_img_path, "B_img_paths": B_img_path}
+        real_B_prompt = self.B_img_prompt[B_img_path]
+        if len(real_B_prompt) == 1 and isinstance(real_B_prompt[0], str):
+            real_B_prompt = real_B_prompt[0]
+
+        return {
+            "A": A,
+            "B": B,
+            "A_img_paths": A_img_path,
+            "B_img_paths": B_img_path,
+            "real_B_prompt": real_B_prompt,
+        }
 
     def __len__(self):
         """Return the total number of images in the dataset.
