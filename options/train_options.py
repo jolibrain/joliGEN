@@ -751,7 +751,12 @@ class TrainOptions(CommonOptions):
             ):
                 raise ValueError("SAM with masks and bbox prompting requires Pytorch 2")
         if opt.f_s_net == "sam" and opt.data_dataset_mode == "unaligned_labeled_mask":
-            raise warning.warn("SAM with direct masks does not use mask/bbox prompting")
+            warnings.warn("SAM with direct masks does not use mask/bbox prompting")
+
+        # no EMA with turbo finetuning
+        if opt.train_G_ema and opt.G_netG == "img2img_turbo":
+            warnings.warn("EMA not compatible with turbo finetuning")
+            opt.train_G_ema = False
 
         self.opt = opt
 
