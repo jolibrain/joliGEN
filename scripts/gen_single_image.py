@@ -78,7 +78,6 @@ def inference_logger(name):
 
 
 def inference(args):
-
     PROGRESS_NUM_STEPS = 6
     logger = inference_logger(args.name)
     logger.info(f"[1/%i] launch inference" % PROGRESS_NUM_STEPS)

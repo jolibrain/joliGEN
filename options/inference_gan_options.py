@@ -31,5 +31,8 @@ class InferenceGANOptions(BaseOptions):
             help="Concatenate the true image and the transformed image",
         )
 
+        parser.add_argument(
+            "--prompt", type=str, default="", help="which prompt to use"
+        )
         self.isTrain = False
         return parser
