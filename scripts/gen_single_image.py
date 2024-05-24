@@ -152,7 +152,6 @@ def inference(args):
         out_tensor = model(img_tensor, args.prompt)[0].detach()
     else:
         out_tensor = model(img_tensor)[0].detach()
-
     logger.info(f"[5/%i] out tensor available" % PROGRESS_NUM_STEPS)
 
     # post-processing
