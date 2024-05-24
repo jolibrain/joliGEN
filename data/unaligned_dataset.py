@@ -40,6 +40,11 @@ class UnalignedDataset(BaseDataset):
 
         self.header = ["img"]
 
+        if self.opt.data_relative_paths:
+            self.B_img_prompt = {
+                f"{self.root}{key}": value for key, value in self.B_img_prompt.items()
+            }
+
     # A_label_path and B_label_path are unused
     def get_img(
         self,
