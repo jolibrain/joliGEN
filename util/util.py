@@ -10,6 +10,7 @@ import requests
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
+import cv2
 
 
 def display_mask(mask):
@@ -183,6 +184,82 @@ def tensor2im(input_image, imtype=np.uint8):
     else:  # if it is a numpy array, do nothing
         image_numpy = input_image
     return image_numpy.astype(imtype)
+
+
+def tensor2im_re(input_image, imtype=np.uint8):
+    """Converts a Tensor array into a numpy image array.
+
+    Parameters:
+        input_image (tensor) -- the input image tensor array
+        imtype (type)        -- the desired type of the converted numpy array
+
+    Returns:
+        np.ndarray -- the converted image as a NumPy array
+    """
+    if not isinstance(input_image, np.ndarray):
+        if isinstance(input_image, torch.Tensor):
+            image_tensor = input_image.detach()  # Detach from computation graph
+        else:
+            return input_image
+
+        image_numpy = image_tensor.cpu().float().numpy()  # Convert to NumPy array
+
+        if image_numpy.shape[1] == 1:  # Grayscale to RGB
+            image_numpy = np.tile(image_numpy, (1, 3, 1, 1))
+
+        image_numpy = np.squeeze(image_numpy)  # Remove batch dimension if present
+        image_numpy = np.transpose(image_numpy, (1, 2, 0))  # CHW to HWC
+
+        # Normalize the values to [0, 1]
+        image_numpy = (image_numpy + 1) / 2.0
+        # Scale the values to [0, 255]
+        image_numpy = image_numpy * 255.0
+
+        image_numpy = np.clip(image_numpy, 0, 255)  # Clip to valid range
+    else:
+        image_numpy = input_image
+
+    return image_numpy.astype(imtype)
+
+
+def add_text2image(
+    image_numpy,
+    text,
+    font=cv2.FONT_HERSHEY_SIMPLEX,
+    font_scale=0.6,
+    color=(0, 0, 255),
+    thickness=2,
+):
+
+    if image_numpy.shape[2] == 3:
+        image_numpy_bgr = cv2.cvtColor(image_numpy, cv2.COLOR_RGB2BGR)
+    else:
+        image_numpy_bgr = image_numpy
+
+    # Get the text size
+    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+
+    # Calculate the position for the text to be in the center
+    text_x = (image_numpy_bgr.shape[1] - text_size[0]) // 2
+    text_y = (image_numpy_bgr.shape[0] + text_size[1]) // 2
+
+    # Add the text
+    image_with_text = cv2.putText(
+        image_numpy_bgr,
+        text,
+        (text_x, text_y),
+        font,
+        font_scale,
+        color,
+        thickness,
+        cv2.LINE_AA,
+    )
+
+    # Convert back to RGB
+    if image_numpy.shape[2] == 3:
+        image_with_text = cv2.cvtColor(image_with_text, cv2.COLOR_BGR2RGB)
+
+    return image_with_text
 
 
 def im2tensor(input_image, imtype=torch.float32):

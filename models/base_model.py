@@ -1,6 +1,6 @@
 import copy
 import os
-
+import cv2
 import torch
 
 if torch.__version__[0] == "2":
@@ -23,7 +23,7 @@ from tqdm import tqdm
 from piq import MSID, KID, FID, psnr, ssim
 from lpips import LPIPS
 
-from util.util import save_image, tensor2im, delete_flop_param
+from util.util import save_image, delete_flop_param, add_text2image, im2tensor
 
 
 from util.diff_aug import DiffAugment
@@ -388,6 +388,7 @@ class BaseModel(ABC):
             self.real_A_with_context = data["A"].to(self.device)
         if "real_B_prompt" in data:
             self.real_B_prompt = data["real_B_prompt"]
+
         self.real_A = self.real_A_with_context.clone()
         if self.opt.data_online_context_pixels > 0:
             self.real_A = self.real_A[
@@ -469,6 +470,19 @@ class BaseModel(ABC):
             self.real_B_prompt_img = (
                 data["real_B_prompt_img"].to(self.device).squeeze(1)
             )
+
+            ##add each prompt to batch
+            processed_images = [
+                im2tensor(
+                    add_text2image(
+                        tensor2im(data["A"][i].unsqueeze(0)), data["real_B_prompt"][i]
+                    )
+                )
+                for i in range(self.opt.train_batch_size)
+            ]
+            modified_image_batch = torch.stack(processed_images).to(self.device)
+            self.real_A2B_prompt_img = modified_image_batch
+            data.update({"real_A2B_prompt_img": modified_image_batch})
 
     def set_input_semantic_cls(self, data):
         if "A_label_cls" in data:

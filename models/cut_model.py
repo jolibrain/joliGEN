@@ -533,7 +533,8 @@ class CUTModel(BaseGanModel):
             self.visual_names += [visual_names_out_mask_A]
 
     def data_dependent_initialize_semantic_prompt(self, data):
-        visual_names_prompt_B = ["real_B_prompt_img"]
+
+        visual_names_prompt_B = ["real_B_prompt_img", "real_A2B_prompt_img"]
         self.visual_names += [visual_names_prompt_B]
 
     def inference(self, nb_imgs, offset=0):

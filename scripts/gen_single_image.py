@@ -127,7 +127,7 @@ def inference(args):
     logger.info(f"[4/%i] preprocessing finished" % PROGRESS_NUM_STEPS)
 
     # run through model
-    out_tensor = model(img_tensor, args.prompt )[0].detach()
+    out_tensor = model(img_tensor, args.prompt)[0].detach()
 
     logger.info(f"[5/%i] out tensor available" % PROGRESS_NUM_STEPS)
 
