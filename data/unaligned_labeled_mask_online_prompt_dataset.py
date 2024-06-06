@@ -5,7 +5,7 @@ from data.base_dataset import get_transform_ref, get_transform
 from data.utils import load_image
 from data.unaligned_labeled_mask_online_dataset import UnalignedLabeledMaskOnlineDataset
 from data.image_folder import make_ref_path_list
-from util.util import tensor2im_re, add_text2image, im2tensor
+from util.util import tensor2im, add_text2image, im2tensor
 import torch
 import numpy as np
 
@@ -47,8 +47,7 @@ class UnalignedLabeledMaskOnlinePromptDataset(UnalignedLabeledMaskOnlineDataset)
             real_B_prompt = real_B_prompt_path[0]
 
         result.update({"real_B_prompt": real_B_prompt})
-
-        image_numpy_B = tensor2im_re(result["B"])
+        image_numpy_B = tensor2im(result["B"].unsqueeze(0))
         imageB_text = add_text2image(image_numpy_B, real_B_prompt)
         real_B_prompt_img_tensor = im2tensor(imageB_text)
 
