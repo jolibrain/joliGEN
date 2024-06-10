@@ -231,14 +231,6 @@ class Img2ImgTurbo(nn.Module):
         return x
 
     def compute_feats(self, input, extract_layer_ids=[]):
-        # caption_tokens = self.tokenizer(
-        #     #self.prompt,  # XXX: set externally
-        #     prompt,
-        #     max_length=self.tokenizer.model_max_length,
-        #     padding="max_length",
-        #     truncation=True,
-        #     return_tensors="pt",
-        # ).input_ids.cuda()
 
         # deterministic forward
         encoded_control = (

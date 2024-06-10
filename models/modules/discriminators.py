@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .utils import spectral_norm, normal_init
-from util.util import tensor2im, save_image, tensor2im_re
+from util.util import tensor2im, save_image
 
 
 class NLayerDiscriminator(nn.Module):
@@ -44,15 +44,15 @@ class NLayerDiscriminator(nn.Module):
         if self.freq_space:
             from .freq_utils import InverseHaarTransform, HaarTransform
 
-            self.iwt = InverseHaarTransform(input_nc )
-            self.dwt = HaarTransform(input_nc )
+            self.iwt = InverseHaarTransform(input_nc)
+            self.dwt = HaarTransform(input_nc)
             input_nc *= 4
 
         kw = 4
         padw = 1
         sequence = [
             spectral_norm(
-                nn.Conv2d(input_nc , ndf, kernel_size=kw, stride=2, padding=padw),
+                nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw),
                 use_spectral,
             ),
             nn.LeakyReLU(0.2, True),

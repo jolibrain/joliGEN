@@ -428,7 +428,7 @@ class BaseModel(ABC):
 
         if self.opt.train_semantic_mask:
             self.set_input_semantic_mask(data)
-            self.set_input_semantic_prompt(data)
+            self.set_input_prompt(data)
         if self.opt.train_semantic_cls:
             self.set_input_semantic_cls(data)
 
@@ -465,7 +465,7 @@ class BaseModel(ABC):
                     self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
                 ]
 
-    def set_input_semantic_prompt(self, data):
+    def set_input_prompt(self, data):
         if "real_B_prompt_img" in data:
             self.real_B_prompt_img = (
                 data["real_B_prompt_img"].to(self.device).squeeze(1)
