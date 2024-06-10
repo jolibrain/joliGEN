@@ -348,7 +348,7 @@ class BaseGanModel(BaseModel):
 
         D_cls = prompt_to_label[prompt]
         batch_size, _, height, width = self.real_B.shape
-        label_tensor = torch.full((batch_size, 1, height, width), D_cls).to(self.device)
+        label_tensor = torch.full((batch_size, 1, height, width), D_cls, dtype=self.real_B.dtype).to(self.device)
         real_B_with_label = torch.cat(
             (self.real_B.clone().detach(), label_tensor), dim=1
         )
@@ -402,7 +402,6 @@ class BaseGanModel(BaseModel):
             fake_B_with_label_query = getattr(
                 self, "fake_" + domain_img + "_pool"
             ).query(fake_B_with_label)
-
             with torch.cuda.amp.autocast(enabled=self.with_amp):
                 loss = loss.compute_loss_D(
                     netD,
@@ -522,7 +521,6 @@ class BaseGanModel(BaseModel):
                 else:
                     fake_name = None
                     real_name = None
-
                 loss_value = self.opt.alg_gan_lambda * self.compute_G_loss_GAN_generic(
                     netD,
                     domain,
@@ -535,7 +533,6 @@ class BaseGanModel(BaseModel):
                 loss_value = torch.zeros([], device=self.device)
 
             loss_name = "loss_" + discriminator.loss_name_G
-
             setattr(
                 self,
                 loss_name,
@@ -798,20 +795,19 @@ class BaseGanModel(BaseModel):
         domain_real = "A" if domain_fake == "B" else "B"
         direction = domain_real + domain_fake
 
-        if self.opt.train_mask_for_removal:
+        if self.opt.train_mask_for_removal:  
             label_fake = torch.zeros_like(self.input_A_label_mask)
         elif self.opt.train_sem_net_output or "mask" in self.opt.D_netDs:
             label_fake = getattr(
                 self, "gt_pred_f_s_real_%s_max" % domain_real
             )  # argmax
-        else:
+        else: 
             label_fake = getattr(self, "input_%s_label_mask" % domain_real)  # logits
 
         loss_G_sem_mask = self.opt.train_sem_mask_lambda * self.criterionf_s(
             getattr(self, "pred_f_s_fake_%s" % domain_fake), label_fake
         )
-
-        if self.opt.train_sem_idt:
+        if self.opt.train_sem_idt: 
             if self.opt.train_mask_for_removal:
                 label_idt = torch.zeros_like(self.input_A_label_mask)
             elif self.opt.train_sem_net_output or not hasattr(
@@ -826,18 +822,17 @@ class BaseGanModel(BaseModel):
             loss_G_sem_mask_idt = self.opt.train_sem_mask_lambda * self.criterionf_s(
                 getattr(self, "pred_f_s_idt_%s" % domain_fake), label_idt
             )
-
+        
         # Check if f_s is good enough
         if (
             not hasattr(self, "loss_f_s")
             or self.loss_f_s > self.opt.f_s_semantic_threshold
         ) and self.opt.f_s_net != "sam":
-            loss_G_sem_mask = 0 * loss_G_sem_mask
+            loss_G_sem_mask_ = 0 * loss_G_sem_mask
             if self.opt.train_sem_idt:
                 loss_G_sem_mask_idt = 0 * loss_G_sem_mask_idt
 
         setattr(self, "loss_G_sem_mask_%s" % direction, loss_G_sem_mask)
-
         self.loss_G_tot += loss_G_sem_mask
 
         if self.opt.train_sem_idt:

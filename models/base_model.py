@@ -38,7 +38,7 @@ from util.image_pool import ImagePool
 # Iter Calculator
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
-from util.util import delete_flop_param, save_image, tensor2im, MAX_INT
+from util.util import delete_flop_param, save_image, tensor2im, MAX_INT, im2tensor
 
 from . import base_networks, semantic_networks
 
@@ -1351,7 +1351,11 @@ class BaseModel(ABC):
 
     def forward_semantic_mask(self):
         d = 1
-
+        if self.opt.G_netG == "img2img_turbo":
+            image_numpy_fake_B = tensor2im(self.fake_B)
+            image_fakeB_text = add_text2image(image_numpy_fake_B, self.real_B_prompt[0])
+            image_tensor = im2tensor(image_fakeB_text).unsqueeze(0)
+            self.fake_A2B_prompt_img = image_tensor
         if self.opt.f_s_net == "sam":
             self.pred_f_s_real_A = predict_sam(
                 self.real_A, self.f_s_mg, self.input_A_ref_bbox
