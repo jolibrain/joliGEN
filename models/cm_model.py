@@ -192,11 +192,11 @@ class CMModel(BaseDiffusionModel):
                 self.cond_image = self.cond_image.to(self.device)
         elif self.opt.alg_diffusion_cond_image_creation == "computed_sketch":
             fill_img_with_random_sketch = random_edge_mask(
-                fn_list=self.opt.alg_diffusion_computed_sketch_list
+                fn_list=self.opt.alg_diffusion_cond_computed_sketch_list
             )
             if "canny" in fill_img_with_random_sketch.__name__:
-                low = min(self.opt.alg_diffusion_sketch_canny_range)
-                high = max(self.opt.alg_diffusion_sketch_canny_range)
+                low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
+                high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
                 self.cond_image = fill_img_with_random_sketch(
                     self.gt_image,
                     self.mask,
