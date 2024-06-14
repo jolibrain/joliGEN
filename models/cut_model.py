@@ -693,8 +693,8 @@ class CUTModel(BaseGanModel):
             self.loss_G_NCE = 0.0
 
         # Identity losses
-        # if self.opt.alg_cut_nce_idt and self.opt.alg_cut_lambda_SRC > 0.0:
-        feat_q_pool, feat_k_pool = self.calculate_feats(self.real_B, self.idt_B)
+        if self.opt.alg_cut_nce_idt and self.opt.alg_cut_lambda_SRC > 0.0:
+            feat_q_pool, feat_k_pool = self.calculate_feats(self.real_B, self.idt_B)
         if self.opt.alg_cut_lambda_SRC > 0.0 or self.opt.alg_cut_nce_loss == "SRC_hDCE":
             self.loss_G_SRC_Y, weight = self.calculate_R_loss(feat_q_pool, feat_k_pool)
         else:
