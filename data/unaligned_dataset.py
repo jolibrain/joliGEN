@@ -62,20 +62,22 @@ class UnalignedDataset(BaseDataset):
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)
 
-        if self.B_img_prompt is not None:
-            real_B_prompt = self.B_img_prompt[B_img_path]
-            if len(real_B_prompt) == 1 and isinstance(real_B_prompt[0], str):
-                real_B_prompt = real_B_prompt[0]
-        else:
-            real_B_prompt = None
-
-        return {
+        result = {
             "A": A,
             "B": B,
             "A_img_paths": A_img_path,
             "B_img_paths": B_img_path,
-            "real_B_prompt": real_B_prompt,
         }
+
+        if self.B_img_prompt is not None:
+            img_name = os.path.relpath(B_img_path, self.dir_B)
+            prompt_key = os.path.join("trainB", img_name)
+            real_B_prompt = self.B_img_prompt[prompt_key]
+            if len(real_B_prompt) == 1 and isinstance(real_B_prompt[0], str):
+                real_B_prompt = real_B_prompt[0]
+                result["real_B_prompt"] = real_B_prompt
+
+        return result
 
     def __len__(self):
         """Return the total number of images in the dataset.
