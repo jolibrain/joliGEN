@@ -41,7 +41,7 @@ infer_options = {
     "img_height": 128,
 }
 
-models_diffusion = ["cm"]
+models_diffusion = ["cm", "cm_gan"]
 G_netG = ["unet_mha", "hdit"]
 
 alg_diffusion_cond_embed = ["y_t"]
@@ -74,6 +74,9 @@ def test_semantic_mask(dataroot):
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
         json_like_dict_c["alg_diffusion_cond_embed"] = alg_diffusion_cond_embed
+
+        if model == "cm_gan":
+            json_like_dict_c["D_netDs"] = ["projected_d", "basic"]
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
