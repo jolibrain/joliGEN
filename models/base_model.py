@@ -420,6 +420,11 @@ class BaseModel(ABC):
 
         self.image_paths = data["A_img_paths"]
 
+        if "real_B_prompt" in data:
+            self.real_prompt = data["real_B_prompt"][0]
+        else:
+            self.real_prompt = self.opt.G_prompt
+
         self.input_A_ref_bbox = None
         self.input_B_ref_bbox = None
 

@@ -238,8 +238,6 @@ class CUTModel(BaseGanModel):
             self.opt.model_input_nc += self.opt.train_mm_nz
         self.netG_A = gan_networks.define_G(**vars(opt))
 
-        # XXX: early prompt support
-        self.netG_A.prompt = self.opt.G_prompt
 
         self.netG_A.lora_rank_unet = self.opt.G_lora_unet
         self.netG_A.lora_rank_vae = self.opt.G_lora_vae
@@ -554,7 +552,10 @@ class CUTModel(BaseGanModel):
         else:
             self.real_with_z = self.real
 
-        self.fake = self.netG_A(self.real_with_z)
+        if self.opt.G_netG == "img2img_turbo":
+            self.fake = self.netG_A(self.real_with_z, self.real_prompt)
+        else:
+            self.fake = self.netG_A(self.real_with_z)
 
         self.fake_B = self.fake[: self.real_A.size(0)]
 
@@ -597,7 +598,10 @@ class CUTModel(BaseGanModel):
         else:
             self.real_with_z = self.real
 
-        self.fake = self.netG_A(self.real_with_z)
+        if self.opt.G_netG == "img2img_turbo":
+            self.fake = self.netG_A(self.real_with_z, self.real_prompt)
+        else:
+            self.fake = self.netG_A(self.real_with_z)
 
         self.fake_B = self.fake[: self.real_A.size(0)]
 
@@ -652,7 +656,11 @@ class CUTModel(BaseGanModel):
                 self.real_A.size(3),
             )
             real_A_with_z = torch.cat([self.real_A, z_real], 1)
-            fake_B = self.netG_A(real_A_with_z)
+        if self.opt.G_netG == "img2img_turbo":
+            fake_B = self.netG_A(self.real_with_z, self.real_prompt)
+        else:
+            fake_B = self.netG_A(self.real_with_z)
+
             self.mu2 = self.netE(fake_B)
 
     def compute_G_loss_cut(self):
