@@ -62,9 +62,12 @@ class UnalignedDataset(BaseDataset):
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)
 
-        real_B_prompt = self.B_img_prompt[B_img_path]
-        if len(real_B_prompt) == 1 and isinstance(real_B_prompt[0], str):
-            real_B_prompt = real_B_prompt[0]
+        if self.B_img_prompt is not None:
+            real_B_prompt = self.B_img_prompt[B_img_path]
+            if len(real_B_prompt) == 1 and isinstance(real_B_prompt[0], str):
+                real_B_prompt = real_B_prompt[0]
+        else:
+            real_B_prompt = None
 
         return {
             "A": A,
