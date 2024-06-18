@@ -78,7 +78,6 @@ class UnalignedDataset(BaseDataset):
                 result["real_B_prompt"] = real_B_prompt
         return result
 
-
     def __len__(self):
         """Return the total number of images in the dataset.
 
