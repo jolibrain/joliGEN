@@ -24,6 +24,8 @@ class CMGanModel(CMModel, BaseGanModel):
         visual_names_B = ["real_B"]
         self.visual_names.append(visual_names_A)
         self.visual_names.append(visual_names_B)
+        self.variable1 = 0.6
+        self.variable2 = 1.6
 
         if self.isTrain:
             # Discriminator(s)
@@ -94,13 +96,21 @@ class CMGanModel(CMModel, BaseGanModel):
             with torch.cuda.amp.autocast(enabled=self.with_amp):
                 getattr(self, loss_function)()
 
-    def compute_cm_gan_loss(self):  ##TODO: replace compute_cm_loss in backward
+    def lambda_function(self, n, N):
+        return self.variable1 * (n / (N - 1)) ** self.variable2
+
+    def compute_cm_gan_loss(self):
         self.compute_cm_loss()
         self.loss_G_cm = self.loss_G_tot.clone().detach()
-        # print("loss_G_tot cm: ", self.loss_G_tot)
-        # print("self.loss_G_cm_tot: ", self.loss_G_cm_tot)
         self.fake_B = self.pred_x
         self.compute_G_loss()
-        # print("self.loss_G_cm_gan_tot: ", self.loss_G_cm_gan_tot)
-        # return self.loss_G_cm_tot + self.loss_G_cm_gan_tot
-        # print("loss_G_tot: ", self.loss_G_tot)
+        self.loss_G_cm_gan_tot = self.loss_G_tot
+        lambda_gan = self.lambda_function(
+            self.opt.total_iters, self.opt.alg_cm_num_steps
+        )
+        self.compute_D_loss()
+        loss_cm_gan_tot = (
+            self.loss_G_cm * (1 - lambda_gan)
+            + (self.loss_G_cm_gan_tot - self.loss_G_cm + self.loss_D_tot) * lambda_gan
+        )
+        return loss_cm_gan_tot
