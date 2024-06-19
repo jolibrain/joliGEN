@@ -31,7 +31,7 @@ def get_opt(main_opt, remaining_args):
         )
 
         # Save the config file when --save_config is passed
-        is_config_saved = False
+        is_config_saved = True #False
         if "save_config" in override_options_names:
             is_config_saved = True
             override_options_names.remove("save_config")
