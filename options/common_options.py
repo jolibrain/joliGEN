@@ -387,12 +387,12 @@ class CommonOptions(BaseOptions):
             help="Patch size for HDIT, e.g. 4 for 4x4 patches",
         )
 
-        # parser.add_argument(
-        #     "--G_prompt",
-        #     type=str,
-        #     default="",
-        #     help="Text prompt for G",
-        # )
+        parser.add_argument(
+            "--G_prompt",
+            type=str,
+            default="",
+            help="Text prompt for G",
+        )
         parser.add_argument(
             "--G_lora_unet",
             type=int,

@@ -556,7 +556,12 @@ class CUTModel(BaseGanModel):
             self.real_with_z = self.real
 
         if self.opt.G_netG == "img2img_turbo":
-            self.fake = self.netG_A(self.real_with_z, self.real_B_prompt)
+            G_prompt = (
+                [self.opt.G_prompt] * self.opt.train_batch_size
+                if self.opt.G_prompt is not None
+                else self.real_B_prompt
+            )
+            self.fake = self.netG_A(self.real_with_z, G_prompt)
         else:
             self.fake = self.netG_A(self.real_with_z)
 
@@ -602,7 +607,12 @@ class CUTModel(BaseGanModel):
             self.real_with_z = self.real
 
         if self.opt.G_netG == "img2img_turbo":
-            self.fake = self.netG_A(self.real_with_z, self.real_B_prompt)
+            G_prompt = (
+                [self.opt.G_prompt] * self.opt.train_batch_size
+                if self.opt.G_prompt is not None
+                else self.real_B_prompt
+            )
+            self.fake = self.netG_A(self.real_with_z, G_prompt)
         else:
             self.fake = self.netG_A(self.real_with_z)
 
@@ -659,10 +669,16 @@ class CUTModel(BaseGanModel):
                 self.real_A.size(3),
             )
             real_A_with_z = torch.cat([self.real_A, z_real], 1)
+
             if self.opt.G_netG == "img2img_turbo":
-                fake_B = self.netG_A(real_A_with_z, self.real_B_prompt)
+                G_prompt = (
+                    [self.opt.G_prompt] * self.opt.train_batch_size
+                    if self.opt.G_prompt is not None
+                    else self.real_B_prompt
+                )
+                self.fake_B = self.netG_A(self.real_with_z, G_prompt)
             else:
-                fake_B = self.netG_A(real_A_with_z)
+                self.fake_B = self.netG_A(self.real_with_z)
             self.mu2 = self.netE(fake_B)
 
     def compute_G_loss_cut(self):

@@ -1,0 +1,139 @@
+{
+    "D": {
+        "dropout": false,
+        "n_layers": 3,
+        "ndf": 64,
+        "netDs": [
+            "projected_d",
+            "basic"
+        ],
+        "norm": "instance",
+        "proj_interp": -1,
+        "proj_network_type": "efficientnet"
+    },
+    "G": {
+        "attn_nb_mask_attn": 10,
+        "attn_nb_mask_input": 1,
+        "dropout": false,
+        "nblocks": 9,
+        "netG": "img2img_turbo",
+        "ngf": 64,
+        "norm": "instance",
+        "padding_type": "reflect"
+    },
+    "alg": {
+        "gan": {
+            "lambda": 1.0
+        },
+        "cut": {
+            "HDCE_gamma": 1.0,
+            "HDCE_gamma_min": 1.0,
+            "MSE_idt": false,
+            "flip_equivariance": false,
+            "lambda_MSE_idt": 1.0,
+            "lambda_NCE": 1.0,
+            "lambda_SRC": 0.0,
+            "nce_T": 0.07,
+            "nce_idt": true,
+            "nce_includes_all_negatives_from_minibatch": false,
+            "nce_layers": "0,4,8,12,16",
+            "nce_loss": "monce",
+            "netF": "mlp_sample",
+            "netF_dropout": false,
+            "netF_nc": 256,
+            "netF_norm": "instance",
+            "num_patches": 256
+        }
+    },
+    "data": {
+        "crop_size": 256,
+        "dataset_mode": "unaligned",
+        "direction": "AtoB",
+        "load_size": 256,
+        "max_dataset_size": 1000000000,
+        "num_threads": 4,
+        "preprocess": "resize_and_crop"
+    },
+    "output": {
+        "display": {
+            "freq": 400,
+            "id": 1,
+            "ncols": 0,
+            "type": [
+                "visdom"
+            ],
+            "visdom_port": 8097,
+            "visdom_server": "http://localhost",
+            "winsize": 256
+        },
+        "no_html": false,
+        "print_freq": 100,
+        "update_html_freq": 1000,
+        "verbose": false
+    },
+    "model": {
+        "init_gain": 0.02,
+        "init_type": "normal",
+        "input_nc": 3,
+        "multimodal": false,
+        "output_nc": 3
+    },
+    "train": {
+        "D_lr": 0.0001,
+        "G_ema": false,
+        "G_ema_beta": 0.999,
+        "G_lr": 0.0002,
+        "batch_size": 4,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "continue": false,
+        "epoch": "latest",
+        "epoch_count": 1,
+        "export_jit": false,
+        "gan_mode": "lsgan",
+        "iter_size": 8,
+        "load_iter": 0,
+        "metrics_every": 1000,
+        "n_epochs": 200,
+        "n_epochs_decay": 100,
+        "nb_img_max_fid": 1000000000,
+        "optim": "adam",
+        "pool_size": 50,
+        "save_by_iter": false,
+        "save_epoch_freq": 1,
+        "save_latest_freq": 5000
+    },
+    "dataaug": {
+        "APA": false,
+        "APA_every": 4,
+        "APA_nimg": 50,
+        "APA_p": 0,
+        "APA_target": 0.6,
+        "D_diffusion": false,
+        "D_diffusion_every": 4,
+        "D_label_smooth": false,
+        "D_noise": 0.0,
+        "affine": 0.0,
+        "affine_scale_max": 1.2,
+        "affine_scale_min": 0.8,
+        "affine_shear": 45,
+        "affine_translate": 0.2,
+        "diff_aug_policy": "",
+        "diff_aug_proba": 0.5,
+        "imgaug": false,
+        "no_flip": false,
+        "no_rotate": true
+    },
+    "checkpoints_dir": "/path/to/checkpoints",
+    "dataroot": "/path/to/horse2zebra",
+    "ddp_port": "12355",
+    "gpu_ids": "0",
+    "model_type": "cut",
+    "name": "horse2zebra",
+    "phase": "train",
+    "test_batch_size": 1,
+    "warning_mode": false,
+    "with_amp": false,
+    "with_tf32": false,
+    "with_torch_compile": false
+}
