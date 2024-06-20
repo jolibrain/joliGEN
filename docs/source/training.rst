@@ -196,3 +196,15 @@ Trains a consistency model to insert glasses onto faces.
 .. code:: bash
 
    python3 train.py --dataroot /path/to/data/noglasses2glasses_ffhq --checkpoints_dir /path/to/checkpoints --name noglasses2glasses --config_json examples/example_cm_noglasses2glasses.json
+
+*************************************************************
+Adversarial Consistency Model training for object insertion / inpainting
+*************************************************************
+
+Dataset: https://joligen.com/datasets/noglasses2glasses_ffhq.zip
+
+Trains an adversarial consistency model to insert glasses onto faces, achieving faster convergence
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/data/noglasses2glasses_ffhq --checkpoints_dir /path/to/checkpoints --name noglasses2glasses --config_json examples/example_cm_noglasses2glasses.json
