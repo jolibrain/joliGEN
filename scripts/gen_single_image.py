@@ -11,10 +11,13 @@ from options.inference_gan_options import InferenceGANOptions
 import cv2
 import numpy as np
 import torch
+import torchvision
 from models import gan_networks
 from options.train_options import TrainOptions
 from torchvision import transforms
 from torchvision.utils import save_image
+
+from PIL import Image
 
 
 def get_z_random(batch_size=1, nz=8, random_type="gauss"):
@@ -93,18 +96,37 @@ def inference(args):
     # reading image
     img_width = args.img_width if args.img_width is not None else opt.data_crop_size
     img_height = args.img_height if args.img_height is not None else opt.data_crop_size
-    img = cv2.imread(args.img_in)
+    if opt.data_image_bits > 8:
+        # img = cv2.imread(args.img_in, cv2.IMREAD_UNCHANGED)
+        img = Image.open(args.img_in)
+        if img_height != opt.data_crop_size or img_width != opt.data_crop_size:
+            print(
+                "Requested image size differs from training crop size, resizing is not supported for images with more than 8 bits per channel"
+            )
+            exit(1)
+    else:
+        img = cv2.imread(args.img_in)
     original_img = img.copy()
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = cv2.resize(img, (img_width, img_height), interpolation=cv2.INTER_CUBIC)
+    if opt.model_input_nc != 1:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = cv2.resize(img, (img_width, img_height), interpolation=cv2.INTER_CUBIC)
 
     logger.info(f"[3/%i] image loaded" % PROGRESS_NUM_STEPS)
 
     # preprocessing
-    tranlist = [
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ]
+    if opt.data_image_bits > 8:
+        tranlist = [transforms.ToTensor()]
+        tranlist += [torchvision.transforms.v2.ToDtype(torch.float32)]
+        bit_scaling = 2**opt.data_image_bits - 1
+        tranlist += [transforms.Lambda(lambda img: img * (1 / float(bit_scaling)))]
+        tranlist += [
+            transforms.Normalize((0.5,), (0.5,))
+        ]  # XXX: > 8bit, mono canal only for now
+    else:
+        tranlist = [
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]
     tran = transforms.Compose(tranlist)
     img_tensor = tran(img)
     if not args.cpu:
