@@ -1642,7 +1642,7 @@ class BaseModel(ABC):
             setattr(self, "fidB_test_" + test_name, fidB_test)
             setattr(self, "msidB_test_" + test_name, msidB_test)
             setattr(self, "kidB_test_" + test_name, kidB_test)
-        real_tensor = (torch.cat(real_list) + 1.0) / 2.0
+        real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
 
         psnr_test = psnr(real_tensor, fake_tensor)
