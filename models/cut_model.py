@@ -238,8 +238,8 @@ class CUTModel(BaseGanModel):
             self.opt.model_input_nc += self.opt.train_mm_nz
         self.netG_A = gan_networks.define_G(**vars(opt))
 
-        if self.opt.G_netG == "img2img_turbo" and self.opt.G_prompt : 
-            self.prompt_opt = [self.opt.G_prompt]*opt.train_batch_size
+        if self.opt.G_netG == "img2img_turbo" and self.opt.G_prompt:
+            self.prompt_opt = [self.opt.G_prompt] * opt.train_batch_size
 
         self.netG_A.lora_rank_unet = self.opt.G_lora_unet
         self.netG_A.lora_rank_vae = self.opt.G_lora_vae
@@ -556,7 +556,7 @@ class CUTModel(BaseGanModel):
 
         if self.opt.G_netG == "img2img_turbo":
             prompt = self.prompt_opt if self.opt.G_prompt else self.real_B_prompt
-            self.fake = self.netG_A(self.real_with_z, self.real_prompt )
+            self.fake = self.netG_A(self.real_with_z, prompt)
         else:
             self.fake = self.netG_A(self.real_with_z)
 
