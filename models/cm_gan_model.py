@@ -24,8 +24,8 @@ class CMGanModel(CMModel, BaseGanModel):
         visual_names_B = ["real_B"]
         self.visual_names.append(visual_names_A)
         self.visual_names.append(visual_names_B)
-        self.variable1 = 0.6
-        self.variable2 = 1.6
+        self.lambda1 = 0.6
+        self.lambda2 = 1.6
 
         if self.isTrain:
             # Discriminator(s)
@@ -97,7 +97,7 @@ class CMGanModel(CMModel, BaseGanModel):
                 getattr(self, loss_function)()
 
     def lambda_function(self, n, N):
-        return self.variable1 * (n / (N - 1)) ** self.variable2
+        return self.lambda1 * (n / (N - 1)) ** self.lambda2
 
     def compute_cm_gan_loss(self):
         self.compute_cm_loss()
