@@ -152,6 +152,12 @@ class CUTModel(BaseGanModel):
             default=1.0,
             help="weight for supervised loss",
         )
+        parser.add_argument(
+            "--visual_num_test_image",
+            type=int,
+            default=4,
+            help="number of test images show in visdom",
+        )
 
         return parser
 
@@ -162,7 +168,10 @@ class CUTModel(BaseGanModel):
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
-        max_visual_outputs = max(self.opt.train_batch_size, self.opt.num_test_images)
+        max_visual_outputs = min(
+            max(self.opt.train_batch_size, self.opt.num_test_images),
+            self.opt.visual_num_test_image,
+        )
 
         # Images to visualize
         visual_names_A = ["real_A", "fake_B"]
