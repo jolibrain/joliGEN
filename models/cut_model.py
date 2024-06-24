@@ -162,7 +162,10 @@ class CUTModel(BaseGanModel):
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
-        max_visual_outputs = max(self.opt.train_batch_size, self.opt.num_test_images)
+        max_visual_outputs = min(
+            max(self.opt.train_batch_size, self.opt.num_test_images),
+            self.opt.output_num_images,
+        )
 
         # Images to visualize
         visual_names_A = ["real_A", "fake_B"]
