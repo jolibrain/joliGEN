@@ -120,6 +120,12 @@ class TrainOptions(CommonOptions):
             help="if True x - G(x) is displayed",
         )
         parser.add_argument("--output_display_G_attention_masks", action="store_true")
+        parser.add_argument(
+            "--output_num_images",
+            type=int,
+            default=20,
+            help="number of visualized images results from the train/test set",
+        )
 
         # network saving and loading parameters
         parser.add_argument(

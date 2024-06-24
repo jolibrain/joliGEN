@@ -104,7 +104,10 @@ class PaletteModel(BaseDiffusionModel):
         else:
             batch_size = self.opt.test_batch_size
 
-        max_visual_outputs = max(self.opt.train_batch_size, self.opt.num_test_images)
+        max_visual_outputs = min(
+            max(self.opt.train_batch_size, self.opt.num_test_images),
+            self.opt.output_num_images,
+        )
 
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
