@@ -192,7 +192,6 @@ class Img2ImgTurbo(nn.Module):
         unet.enable_gradient_checkpointing()
 
     def forward(self, x, prompt):
-
         caption_tokens = self.tokenizer(
             prompt,
             max_length=self.tokenizer.model_max_length,
@@ -205,7 +204,7 @@ class Img2ImgTurbo(nn.Module):
         batch_size = caption_enc.shape[0]
         repeated_encs = [
             caption_enc[i].repeat(int(x.shape[0] / batch_size), 1, 1)
-            for i in range(caption_enc.shape[0])
+            for i in range(batch_size)
         ]
 
         # Concatenate the repeated encodings along the batch dimension
