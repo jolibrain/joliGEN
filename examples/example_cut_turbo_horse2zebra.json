@@ -3,13 +3,10 @@
         "dropout": false,
         "n_layers": 3,
         "ndf": 64,
-        "netDs": [
-            "projected_d",
-            "basic"
-        ],
+        "netDs": ["projected_d", "basic"],
         "norm": "instance",
         "proj_interp": -1,
-        "proj_network_type": "efficientnet"
+        "proj_network_type": "efficientnet",
     },
     "G": {
         "attn_nb_mask_attn": 10,
@@ -19,12 +16,10 @@
         "netG": "img2img_turbo",
         "ngf": 64,
         "norm": "instance",
-        "padding_type": "reflect"
+        "padding_type": "reflect",
     },
     "alg": {
-        "gan": {
-            "lambda": 1.0
-        },
+        "gan": {"lambda": 1.0},
         "cut": {
             "HDCE_gamma": 1.0,
             "HDCE_gamma_min": 1.0,
@@ -42,8 +37,8 @@
             "netF_dropout": false,
             "netF_nc": 256,
             "netF_norm": "instance",
-            "num_patches": 256
-        }
+            "num_patches": 256,
+        },
     },
     "data": {
         "crop_size": 256,
@@ -52,37 +47,35 @@
         "load_size": 256,
         "max_dataset_size": 1000000000,
         "num_threads": 4,
-        "preprocess": "resize_and_crop"
+        "preprocess": "resize_and_crop",
     },
     "output": {
         "display": {
             "freq": 400,
             "id": 1,
             "ncols": 0,
-            "type": [
-                "visdom"
-            ],
+            "type": ["visdom"],
             "visdom_port": 8097,
             "visdom_server": "http://localhost",
-            "winsize": 256
+            "winsize": 256,
         },
         "no_html": false,
         "print_freq": 100,
         "update_html_freq": 1000,
-        "verbose": false
+        "verbose": false,
     },
     "model": {
         "init_gain": 0.02,
         "init_type": "normal",
         "input_nc": 3,
         "multimodal": false,
-        "output_nc": 3
+        "output_nc": 3,
     },
     "train": {
         "D_lr": 0.0001,
         "G_ema": false,
         "G_ema_beta": 0.999,
-        "G_lr": 0.0002,
+        "G_lr": 0.0001,
         "batch_size": 4,
         "beta1": 0.9,
         "beta2": 0.999,
@@ -101,7 +94,7 @@
         "pool_size": 50,
         "save_by_iter": false,
         "save_epoch_freq": 1,
-        "save_latest_freq": 5000
+        "save_latest_freq": 5000,
     },
     "dataaug": {
         "APA": false,
@@ -122,7 +115,7 @@
         "diff_aug_proba": 0.5,
         "imgaug": false,
         "no_flip": false,
-        "no_rotate": true
+        "no_rotate": true,
     },
     "checkpoints_dir": "/path/to/checkpoints",
     "dataroot": "/path/to/horse2zebra",
@@ -135,5 +128,5 @@
     "warning_mode": false,
     "with_amp": false,
     "with_tf32": false,
-    "with_torch_compile": false
+    "with_torch_compile": false,
 }
