@@ -109,9 +109,11 @@ class PaletteModel(BaseDiffusionModel):
             self.opt.output_num_images,
         )
 
-        self.num_classes = max(
-            self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
-        )
+        # self.num_classes = max(
+        #    self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
+        # )
+        # TODO decide if we keep cls_semantic_nclasses (not used atm)
+        self.num_classes = self.opt.f_s_semantic_nclasses
 
         self.use_ref = (
             self.opt.alg_diffusion_cond_image_creation == "ref"
@@ -599,10 +601,18 @@ class PaletteModel(BaseDiffusionModel):
 
         # task: super resolution, pix2pix
         elif self.task in ["super_resolution", "pix2pix"]:
+            cls = None
+
+            if "class" in self.opt.alg_diffusion_cond_embed:
+                cls = []
+                for i in self.num_classes:
+                    cls.append(torch.randint_like(self.cls[:, 0], 0, i))
+                cls = torch.stack(cls, dim=1)
+
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[:nb_imgs],
                 sample_num=self.sample_num,
-                cls=None,
+                cls=cls,
             )
             self.fake_B = self.output
 
