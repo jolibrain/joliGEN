@@ -24,6 +24,7 @@ class InferenceGANOptions(BaseOptions):
         )
         parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
         parser.add_argument("--gpuid", type=int, default=0, help="which GPU to use")
+        parser.add_argument("--prompt", type=str, default="", help="what prompt to use")
         parser.add_argument(
             "--compare",
             action="store_true",

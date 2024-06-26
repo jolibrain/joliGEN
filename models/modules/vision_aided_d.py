@@ -18,6 +18,9 @@ class VisionAidedDiscriminator(nn.Module):
             device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         )
         self.model.cv_ensemble.requires_grad_(False)  # freeze feature extractor
+        self.adapter = nn.Conv2d(in_channels=4, out_channels=3, kernel_size=1)
 
     def forward(self, input):
+
+        input = self.adapter(input)
         return self.model(input)[0]

@@ -180,7 +180,6 @@ class MultiScaleD(nn.Module):
         super().__init__()
 
         assert num_discs in [1, 2, 3, 4]
-
         # the first disc is on the lowest level of the backbone
         self.disc_in_channels = channels[:num_discs]
         self.disc_in_res = resolutions[:num_discs]
@@ -244,7 +243,6 @@ class ProjectedDiscriminator(torch.nn.Module):
     ):
         super().__init__()
         self.interp = interp
-
         self.freeze_feature_network = Proj(
             projector_model,
             config_path=config_path,
@@ -255,7 +253,6 @@ class ProjectedDiscriminator(torch.nn.Module):
             **backbone_kwargs,
         )
         self.freeze_feature_network.requires_grad_(False)
-
         self.discriminator = MultiScaleD(
             channels=self.freeze_feature_network.CHANNELS,
             resolutions=self.freeze_feature_network.RESOLUTIONS,
@@ -273,10 +270,34 @@ class ProjectedDiscriminator(torch.nn.Module):
         return self.train(False)
 
     def forward(self, x):
+        x_rgb = x[:, :3, :, :]
         if self.interp > 0:
-            x = F.interpolate(x, self.interp, mode="bilinear", align_corners=False)
+            x_rgb = F.interpolate(
+                x_rgb, self.interp, mode="bilinear", align_corners=False
+            )
 
-        features = self.freeze_feature_network(x)
+        features = self.freeze_feature_network(x_rgb)
+
+        x_fourth_channel = x[:, 3:4, :, :]
+
+        # Process and integrate the fourth channel into each feature map in the dictionary
+        integrated_features = {}
+        for key, feature in features.items():
+            if self.interp > 0:
+                x_fourth_channel = F.interpolate(
+                    x_fourth_channel,
+                    size=feature.shape[2:],
+                    mode="bilinear",
+                    align_corners=False,
+                )
+            batch_size, num_features, height, width = feature.shape
+            x_fourth_channel_expanded = x_fourth_channel.expand(
+                batch_size, 1, height, width
+            )
+            integrated_features[key] = torch.cat(
+                [feature, x_fourth_channel_expanded], dim=1
+            )
+
         logits = self.discriminator(features)
 
         return logits

@@ -10,6 +10,7 @@ import requests
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
+import cv2
 
 
 def display_mask(mask):
@@ -183,6 +184,46 @@ def tensor2im(input_image, imtype=np.uint8):
     else:  # if it is a numpy array, do nothing
         image_numpy = input_image
     return image_numpy.astype(imtype)
+
+
+def add_text2image(
+    image_numpy,
+    text,
+    font=cv2.FONT_HERSHEY_SIMPLEX,
+    font_scale=0.6,
+    color=(0, 0, 255),
+    thickness=2,
+):
+
+    if image_numpy.shape[2] == 3:
+        image_numpy_bgr = cv2.cvtColor(image_numpy, cv2.COLOR_RGB2BGR)
+    else:
+        image_numpy_bgr = image_numpy
+
+    # Get the text size
+    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+
+    # Calculate the position for the text to be in the center
+    text_x = (image_numpy_bgr.shape[1] - text_size[0]) // 2
+    text_y = (image_numpy_bgr.shape[0] + text_size[1]) // 2
+
+    # Add the text
+    image_with_text = cv2.putText(
+        image_numpy_bgr,
+        text,
+        (text_x, text_y),
+        font,
+        font_scale,
+        color,
+        thickness,
+        cv2.LINE_AA,
+    )
+
+    # Convert back to RGB
+    if image_numpy.shape[2] == 3:
+        image_with_text = cv2.cvtColor(image_with_text, cv2.COLOR_BGR2RGB)
+
+    return image_with_text
 
 
 def im2tensor(input_image, imtype=torch.float32):

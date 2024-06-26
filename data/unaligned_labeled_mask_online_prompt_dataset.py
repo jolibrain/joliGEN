@@ -1,4 +1,5 @@
 import os
+
 from PIL import Image
 
 from data.base_dataset import get_transform_ref
@@ -34,7 +35,7 @@ class UnalignedLabeledMaskOnlinePromptDataset(UnalignedLabeledMaskOnlineDataset)
             index,
             clamp_semantics,
         )
-        # print()
+
         img_path_B = result["B_img_paths"]
 
         real_B_prompt_path = self.B_img_prompt[img_path_B]
@@ -42,6 +43,6 @@ class UnalignedLabeledMaskOnlinePromptDataset(UnalignedLabeledMaskOnlineDataset)
         if len(real_B_prompt_path) == 1 and isinstance(real_B_prompt_path[0], str):
             real_B_prompt = real_B_prompt_path[0]
 
-        # print("real_B_prompt=", real_B_prompt)
         result.update({"real_B_prompt": real_B_prompt})
+
         return result
