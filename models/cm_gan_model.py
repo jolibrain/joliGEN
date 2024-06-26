@@ -22,11 +22,14 @@ class CMGanModel(CMModel, BaseGanModel):
         self.opt.alg_gan_lambda = 0.01
         visual_names_A = ["real_A", "fake_B"]
         visual_names_B = ["real_B"]
+        visual_names_lambda_gan = ["lambda_gan"]
+
         self.visual_names.append(visual_names_A)
         self.visual_names.append(visual_names_B)
+        self.visual_names.append(visual_names_lambda_gan)
         self.lambda1 = 0.6
         self.lambda2 = 1.6
-
+        self.lambda_gan = 0
         if self.isTrain:
             # Discriminator(s)
             self.netDs = gan_networks.define_D(**vars(opt))
@@ -105,12 +108,14 @@ class CMGanModel(CMModel, BaseGanModel):
         self.fake_B = self.pred_x
         self.compute_G_loss()
         self.loss_G_cm_gan_tot = self.loss_G_tot
-        lambda_gan = self.lambda_function(
+        self.lambda_gan = self.lambda_function(
             self.opt.total_iters, self.opt.alg_cm_num_steps
         )
         self.compute_D_loss()
         loss_cm_gan_tot = (
-            self.loss_G_cm * (1 - lambda_gan)
-            + (self.loss_G_cm_gan_tot - self.loss_G_cm + self.loss_D_tot) * lambda_gan
+            self.loss_G_cm * (1 - self.lambda_gan)
+            + (self.loss_G_cm_gan_tot - self.loss_G_cm + self.loss_D_tot)
+            * self.lambda_gan
         )
+
         return loss_cm_gan_tot
