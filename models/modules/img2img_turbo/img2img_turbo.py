@@ -201,8 +201,6 @@ class Img2ImgTurbo(nn.Module):
         ).input_ids.cuda()
         caption_enc = self.text_encoder(caption_tokens)[0]
 
-        # match batch size
-        # match batch size
         batch_size = caption_enc.shape[0]
         repeated_encs = [
             caption_enc[i].repeat(int(x.shape[0] / batch_size), 1, 1)
@@ -240,7 +238,6 @@ class Img2ImgTurbo(nn.Module):
         #     truncation=True,
         #     return_tensors="pt",
         # ).input_ids.cuda()
-
 
         # deterministic forward
         encoded_control = (

@@ -393,7 +393,9 @@ class CommonOptions(BaseOptions):
         #     default="",
         #     help="Text prompt for G",
         # )
-
+        parser.add_argument(
+            "--G_multiprompt", action="store_true", help="activate the multiprompt"
+        )
         parser.add_argument(
             "--G_lora_unet",
             type=int,
