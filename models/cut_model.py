@@ -556,6 +556,11 @@ class CUTModel(BaseGanModel):
 
         if self.opt.G_netG == "img2img_turbo":
             prompt = self.prompt_opt if self.opt.G_prompt else self.real_B_prompt
+            if len(prompt) != self.real_with_z.shape[0]:
+                prompt = prompt * (
+                    self.real_with_z.shape[0] // self.opt.train_batch_size
+                )
+
             self.fake = self.netG_A(self.real_with_z, prompt)
         else:
             self.fake = self.netG_A(self.real_with_z)
@@ -603,6 +608,11 @@ class CUTModel(BaseGanModel):
 
         if self.opt.G_netG == "img2img_turbo":
             prompt = self.prompt_opt if self.opt.G_prompt else self.real_B_prompt
+            if len(prompt) != self.real_with_z.shape[0]:
+                prompt = prompt * (
+                    self.real_with_z.shape[0] // self.opt.train_batch_size
+                )
+
             self.fake = self.netG_A(self.real_with_z, prompt)
         else:
             self.fake = self.netG_A(self.real_with_z)
@@ -663,6 +673,11 @@ class CUTModel(BaseGanModel):
 
             if self.opt.G_netG == "img2img_turbo":
                 prompt = self.prompt_opt if self.opt.G_prompt else self.real_B_prompt
+                if len(prompt) != self.real_with_z.shape[0]:
+                    prompt = prompt * (
+                        self.real_with_z.shape[0] // self.opt.train_batch_size
+                    )
+
                 fake_B = self.netG_A(self.real_with_z, prompt)
             else:
                 fake_B = self.netG_A(self.real_with_z)

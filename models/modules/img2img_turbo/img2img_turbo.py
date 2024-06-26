@@ -200,15 +200,6 @@ class Img2ImgTurbo(nn.Module):
             return_tensors="pt",
         ).input_ids.cuda()
         caption_enc = self.text_encoder(caption_tokens)[0]
-        # match batch size
-        batch_size = caption_enc.shape[0]
-        repeated_encs = [
-            caption_enc[i].repeat(int(x.shape[0] / batch_size), 1, 1)
-            for i in range(batch_size)
-        ]
-
-        # Concatenate the repeated encodings along the batch dimension
-        captions_enc = torch.cat(repeated_encs, dim=0)
 
         # deterministic forward
         encoded_control = (
@@ -217,7 +208,7 @@ class Img2ImgTurbo(nn.Module):
         model_pred = self.unet(
             encoded_control,
             self.timesteps,
-            encoder_hidden_states=captions_enc,
+            encoder_hidden_states=caption_enc,
         ).sample
         x_denoised = self.sched.step(
             model_pred, self.timesteps, encoded_control, return_dict=True
