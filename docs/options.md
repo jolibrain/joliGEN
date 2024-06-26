@@ -242,6 +242,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --output_no_html | flag |  | do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/ |
+| --output_num_images | int | 20 | number of visualized images results from the train/test set |
 | --output_print_freq | int | 100 | frequency of showing training results on console |
 | --output_update_html_freq | int | 1000 | frequency of saving training results to html |
 | --output_verbose | flag |  | if specified, print more debugging information |
