@@ -201,9 +201,6 @@ class Img2ImgTurbo(nn.Module):
         ).input_ids.cuda()
         caption_enc = self.text_encoder(caption_tokens)[0]
 
-        # match batch size
-        captions_enc = caption_enc.repeat(x.shape[0], 1, 1)
-
         # deterministic forward
         encoded_control = (
             self.vae.encode(x).latent_dist.sample() * self.vae.config.scaling_factor
@@ -211,7 +208,7 @@ class Img2ImgTurbo(nn.Module):
         model_pred = self.unet(
             encoded_control,
             self.timesteps,
-            encoder_hidden_states=captions_enc,
+            encoder_hidden_states=caption_enc,
         ).sample
         x_denoised = self.sched.step(
             model_pred, self.timesteps, encoded_control, return_dict=True
@@ -223,14 +220,6 @@ class Img2ImgTurbo(nn.Module):
         return x
 
     def compute_feats(self, input, extract_layer_ids=[]):
-        # caption_tokens = self.tokenizer(
-        #     #self.prompt,  # XXX: set externally
-        #     prompt,
-        #     max_length=self.tokenizer.model_max_length,
-        #     padding="max_length",
-        #     truncation=True,
-        #     return_tensors="pt",
-        # ).input_ids.cuda()
 
         # deterministic forward
         encoded_control = (
