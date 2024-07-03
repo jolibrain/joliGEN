@@ -1,6 +1,6 @@
 import copy
 import os
-
+import cv2
 import torch
 
 if torch.__version__[0] == "2":
@@ -23,7 +23,7 @@ from tqdm import tqdm
 from piq import MSID, KID, FID, psnr, ssim
 from lpips import LPIPS
 
-from util.util import save_image, tensor2im, delete_flop_param
+from util.util import save_image, delete_flop_param, add_text2image, im2tensor
 
 
 from util.diff_aug import DiffAugment
@@ -38,7 +38,7 @@ from util.image_pool import ImagePool
 # Iter Calculator
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
-from util.util import delete_flop_param, save_image, tensor2im, MAX_INT
+from util.util import delete_flop_param, save_image, tensor2im, MAX_INT, im2tensor
 
 from . import base_networks, semantic_networks
 
@@ -388,6 +388,7 @@ class BaseModel(ABC):
             self.real_A_with_context = data["A"].to(self.device)
         if "real_B_prompt" in data:
             self.real_B_prompt = data["real_B_prompt"]
+
         self.real_A = self.real_A_with_context.clone()
         if self.opt.data_online_context_pixels > 0:
             self.real_A = self.real_A[
@@ -427,6 +428,7 @@ class BaseModel(ABC):
 
         if self.opt.train_semantic_mask:
             self.set_input_semantic_mask(data)
+            self.set_input_prompt(data)
         if self.opt.train_semantic_cls:
             self.set_input_semantic_cls(data)
 
@@ -462,6 +464,25 @@ class BaseModel(ABC):
                     self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
                     self.opt.data_online_context_pixels : -self.opt.data_online_context_pixels,
                 ]
+
+    def set_input_prompt(self, data):
+        if "real_B_prompt_img" in data:
+            self.real_B_prompt_img = (
+                data["real_B_prompt_img"].to(self.device).squeeze(1)
+            )
+
+            ##add each prompt to batch
+            processed_images = [
+                im2tensor(
+                    add_text2image(
+                        tensor2im(data["A"][i].unsqueeze(0)), data["real_B_prompt"][i]
+                    )
+                )
+                for i in range(self.opt.train_batch_size)
+            ]
+            modified_image_batch = torch.stack(processed_images).to(self.device)
+            self.real_A2B_prompt_img = modified_image_batch
+            data.update({"real_A2B_prompt_img": modified_image_batch})
 
     def set_input_semantic_cls(self, data):
         if "A_label_cls" in data:
@@ -1331,7 +1352,11 @@ class BaseModel(ABC):
 
     def forward_semantic_mask(self):
         d = 1
-
+        if self.opt.G_netG == "img2img_turbo":
+            image_numpy_fake_B = tensor2im(self.fake_B)
+            image_fakeB_text = add_text2image(image_numpy_fake_B, self.real_B_prompt[0])
+            image_tensor = im2tensor(image_fakeB_text).unsqueeze(0)
+            self.fake_A2B_prompt_img = image_tensor
         if self.opt.f_s_net == "sam":
             self.pred_f_s_real_A = predict_sam(
                 self.real_A, self.f_s_mg, self.input_A_ref_bbox

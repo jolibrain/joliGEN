@@ -5,6 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .utils import spectral_norm, normal_init
+from util.util import tensor2im, save_image
 
 
 class NLayerDiscriminator(nn.Module):
@@ -30,6 +31,7 @@ class NLayerDiscriminator(nn.Module):
             use_dropout (bool) -- whether to use dropout layers
             use_spectral (bool) -- whether to use spectral norm
         """
+        input_nc += 1
         super(NLayerDiscriminator, self).__init__()
         if (
             type(norm_layer) == functools.partial

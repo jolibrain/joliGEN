@@ -510,6 +510,7 @@ class CUTModel(BaseGanModel):
 
         if self.opt.train_semantic_mask:
             self.data_dependent_initialize_semantic_mask(data)
+            self.data_dependent_initialize_semantic_prompt(data)
 
     def data_dependent_initialize_semantic_mask(self, data):
         visual_names_seg_A = ["input_A_label_mask", "gt_pred_f_s_real_A_max", "pfB_max"]
@@ -533,6 +534,15 @@ class CUTModel(BaseGanModel):
         if self.opt.train_mask_out_mask and self.isTrain:
             visual_names_out_mask_A = ["real_A_out_mask", "fake_B_out_mask"]
             self.visual_names += [visual_names_out_mask_A]
+
+    def data_dependent_initialize_semantic_prompt(self, data):
+
+        visual_names_prompt_B = [
+            "real_B_prompt_img",
+            "real_A2B_prompt_img",
+            "fake_A2B_prompt_img",
+        ]
+        self.visual_names += [visual_names_prompt_B]
 
     def inference(self, nb_imgs, offset=0):
         self.real = (
