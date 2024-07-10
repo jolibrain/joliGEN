@@ -71,6 +71,7 @@ Here are all the available options to call with `train.py`
 | --G_unet_mha_res_blocks | array | [2, 2, 2, 2] | distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults |
 | --G_unet_mha_vit_efficient | flag |  | if true, use efficient attention in UNet and UViT |
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
+| --G_unet_vid_max_frame | int | 24 | Number of max frame can be used in the unet_vidfor video generation |
 
 ## Algorithm-specific
 
@@ -265,6 +266,7 @@ Here are all the available options to call with `train.py`
 | --output_display_visdom_port | int | 8097 | visdom port of the web display |
 | --output_display_visdom_server | string | http://localhost | visdom server of the web display |
 | --output_display_winsize | int | 256 | display window size for both visdom and HTML |
+| --output_num_images | int | 20 | max number of images shows in the visdom window |
 
 ## Model
 

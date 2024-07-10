@@ -210,6 +210,7 @@ class CommonOptions(BaseOptions):
                 "dit",
                 "hdit",
                 "img2img_turbo",
+                "unet_vid",
             ],
             help="specify generator architecture",
         )
@@ -385,6 +386,12 @@ class CommonOptions(BaseOptions):
             default=4,
             type=int,
             help="Patch size for HDIT, e.g. 4 for 4x4 patches",
+        )
+        parser.add_argument(
+            "--G_unet_vid_max_frame",
+            default=24,
+            type=int,
+            help="max frame number for unet_vid in the PositionalEncoding",
         )
 
         # parser.add_argument(
@@ -658,6 +665,7 @@ class CommonOptions(BaseOptions):
                 "aligned",
                 "nuplet_unaligned_labeled_mask",
                 "temporal_labeled_mask_online",
+                "self_supervised_temporal_labeled_mask_online",
                 "self_supervised_temporal",
                 "single",
                 "unaligned_labeled_mask_ref",

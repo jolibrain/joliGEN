@@ -310,3 +310,37 @@ The output files will be in the ``mapillary_inference_output`` folder, with:
       -  ``img_0_y_0.png``: the original image resized after conditioning image insertion
 
       -  ``img_0_y_t.png``: the noisy image given to the model
+
+******************************************************
+ Generate a video with diffusion model for inpainting
+******************************************************
+
+Download the testdataset & pretrained model
+=====================================
+
+.. code:: bash
+
+   wget https://www.joligen.com/models/mario_vid.zip
+   unzip mario_vid.zip -d checkpoints
+   rm mario_vid.zip
+   
+   wget https://www.joligen.com/datasets/online_mario2sonic_full.zip
+   unzip online_mario2sonic_full.zip -d online_mario2sonic_full
+   rm online_mario2sonic_full.zip
+
+Run the inference script
+========================
+
+.. code:: bash
+
+   cd scripts
+   python3 gen_vid_diffusion.py\
+        --model_in_file ../checkpoints/latest_net_G_A.pth\
+        --img_in ../image_path\
+        --paths_file ../datasets/online_mario2sonic_full/trainA/paths.txt\
+        --mask_in ../mask_file\
+        --dir_out ../inference_mario_vid\
+        --img_width 128\
+        --img_height 128\
+
+The output files will be in the ``inference_mario_vid`` folder, with ``mario_video_0_generated.avi`` for the generated video and ``mario_video_0_orig.avi`` for the original frames.
