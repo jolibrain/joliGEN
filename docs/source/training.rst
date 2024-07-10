@@ -196,3 +196,15 @@ Trains a consistency model to insert glasses onto faces.
 .. code:: bash
 
    python3 train.py --dataroot /path/to/data/noglasses2glasses_ffhq --checkpoints_dir /path/to/checkpoints --name noglasses2glasses --config_json examples/example_cm_noglasses2glasses.json
+
+*************************************************************
+ DDPM training for video generation with inpainting
+*************************************************************
+
+Dataset: https://joligen.com/datasets/online_mario2sonic_full.tar
+
+Train a DDPM model to generate a sequence of frame images for inpainting, ensuring temporal consistency throughout the series of frames.
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/data/online_mario2sonic_full  --checkpoints_dir /path/to/checkpoints  --name mario_vid  --config_json examples/example_ddpm_vid_mario.json

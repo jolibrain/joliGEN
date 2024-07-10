@@ -17,7 +17,7 @@ export NCCL_P2P_DISABLE=1
 
 
 
-####### doc auto generation
+######## doc auto generation
 echo "Running doc auto generation"
 python3 ${current_dir}/../scripts/generate_doc.py --save_to ""
 OUT=$?
@@ -70,7 +70,6 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-
 ####### no sem tests
 echo "Running no semantics training tests"
 URL=https://joligen.com/datasets/horse2zebra.zip
@@ -88,8 +87,6 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-
-
 ##### test img2img_turbo
 echo "Running test img2img_turbo"
 
@@ -99,7 +96,6 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
-
 
 ####### mask semantics test
 echo "Running mask semantics training tests"
@@ -201,6 +197,16 @@ python3 "${current_dir}/../test.py" \
 	--save_config \
 	--test_model_dir $DIR/joligen_utest_cut/ \
 	--test_metrics_list FID KID PSNR LPIPS
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+####### vid diffusion tests
+echo "Running vid diffusion training tests"
+
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_vid_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
