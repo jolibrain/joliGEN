@@ -123,7 +123,7 @@ def define_G(
             cond_embed_dim=cond_embed_dim,
             freq_space=train_feat_wavelet,
         )
-
+    # print("diffusionnetwork in_channel inner_channel", in_channel, G_ngf )
     elif G_netG == "unet_mha_ref_attn":
         cond_embed_dim = alg_diffusion_cond_embed_dim
 
@@ -229,6 +229,7 @@ def define_G(
             G_ngf=G_ngf,
             loading_backward_compatibility=model_prior_321_backwardcompatibility,
         )
+        # print("diffusion_networkpy palette net ", net )
     elif model_type == "cm" or model_type == "cm_gan":
         net = CMGenerator(
             cm_model=model,

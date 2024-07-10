@@ -82,7 +82,7 @@ class Upsample(nn.Module):
     def forward(self, x):
         if self.freq_space:
             x = self.iwt(x)
-
+        # print("self.efficient ", self.efficient , self.use_conv , self.freq_space )
         assert x.shape[1] == self.channels
         if not self.efficient:
             x = F.interpolate(x, scale_factor=2, mode="nearest")
@@ -207,7 +207,7 @@ class ResBlock(EmbedBlock):
             ),
         )
         self.out_layers = nn.Sequential(
-            normalization(self.out_channel, norm),
+            normalization(self.out_channel, norm),  # groupnorm32
             torch.nn.SiLU(),
             nn.Dropout(p=dropout),
             zero_module(nn.Conv2d(self.out_channel, self.out_channel, 3, padding=1)),
@@ -232,9 +232,9 @@ class ResBlock(EmbedBlock):
         )
 
     def _forward(self, x, emb):
+        # print("resBlock input x shape, emb shape ", x.shape, emb.shape )
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
-
             h = in_rest(x)
 
             if self.efficient and self.up:
@@ -245,6 +245,7 @@ class ResBlock(EmbedBlock):
                 h = self.h_upd(h)
                 x = self.x_upd(x)
                 h = in_conv(h)
+        #        print("in_conv ", in_conv)
 
         else:
             h = self.in_layers(x)
@@ -252,7 +253,7 @@ class ResBlock(EmbedBlock):
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out.unsqueeze(-1)
             # emb_out = emb_out[..., None]
-        if self.use_scale_shift_norm:
+        if self.use_scale_shift_norm:  # True
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = torch.chunk(emb_out, 2, dim=1)
             h = out_norm(h) * (1 + scale) + shift
@@ -285,6 +286,7 @@ class AttentionBlock(nn.Module):
     ):
         super().__init__()
         self.channels = channels
+        # print("attentionblock channels", self.channels )
         if num_head_channels == -1:
             self.num_heads = num_heads
         else:
@@ -292,14 +294,21 @@ class AttentionBlock(nn.Module):
                 channels % num_head_channels == 0
             ), f"q,k,v channels {channels} is not divisible by num_head_channels {num_head_channels}"
             self.num_heads = channels // num_head_channels
+
+        # print("num_heads", self.num_heads )
         self.use_checkpoint = use_checkpoint
         self.use_transformer = use_transformer
         self.norm = normalization1d(channels)
+        # print("init self.norm", self.norm )
         self.qkv = nn.Conv1d(channels, channels * 3, 1)
+        # print("init attentionblock self.qkv ", self.qkv)
+        # print("init attentionblock self.num_heads ", self.num_heads)
+
         if use_new_attention_order:
             # split qkv before split heads
             self.attention = QKVAttention(self.num_heads)
         else:
+            #    print("init which attention use, qkvattentionlegacy ")
             # split heads before split qkv
             self.attention = QKVAttentionLegacy(self.num_heads)
 
@@ -310,13 +319,23 @@ class AttentionBlock(nn.Module):
 
     def _forward(self, x):
         b, c, *spatial = x.shape
+        print("attentionblock input shape ", x.shape, b, c, *spatial)
         if self.use_transformer:
             x = x.reshape(b, -1, c)
         else:
             x = x.reshape(b, c, -1)
+        # print("attentionblock before input qkv shape ", x.shape )
+        #        print("before norm x shape ", x.shape )
+        #       print("self.norm(x) shape ", self.norm(x).shape )
         qkv = self.qkv(self.norm(x))
+        # print("attentionblock  before self.attention qkv shape ", qkv.shape )
         h = self.attention(qkv)
+        # print("attentionblock  after  self.attention qkv shape ", h.shape )
         h = self.proj_out(h)
+        # print("h before return shape ", h.shape)
+        # print(" (x + h).reshape(b, c, *spatial) ",   (x + h).reshape(b, c, *spatial).shape  )
+        is_all_zero = torch.all(h == 0)
+        # print(is_all_zero)  # Output: True
         return (x + h).reshape(b, c, *spatial)
 
 
@@ -336,15 +355,21 @@ class QKVAttentionLegacy(nn.Module):
         :return: an [N x (H * C) x T] tensor after attention.
         """
         bs, width, length = qkv.shape
+        # print("qkvattention qkvshape", qkv.shape , bs, width, length)
         assert width % (3 * self.n_heads) == 0
         ch = width // (3 * self.n_heads)
+        # print("qkvattention ch self.n_heads ", ch, self.n_heads)
         q, k, v = qkv.reshape(bs * self.n_heads, ch * 3, length).split(ch, dim=1)
+        # print("q, k, v ", q.shape, k.shape, v.shape )
         scale = 1 / math.sqrt(math.sqrt(ch))
         weight = torch.einsum(
             "bct,bcs->bts", q * scale, k * scale
         )  # More stable with f16 than dividing afterwards
+        # print("weight shape ", weight.shape )
+
         weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
         a = torch.einsum("bts,bcs->bct", weight, v)
+        # print("a attention score shape ", a.shape)
         return a.reshape(bs, -1, length)
 
     @staticmethod
@@ -365,12 +390,15 @@ class QKVAttention(nn.Module):
         """
         Apply QKV attention.
         :param qkv: an [N x (3 * H * C) x T] tensor of Qs, Ks, and Vs.
-        :return: an [N x (H * C) x T] tensor after attention.
+        :return: an [N x (H * C) x T] tensor after attentionsntion.
         """
         bs, width, length = qkv.shape
+        #  print("!! bs, width, length ", bs, width, length )
         assert width % (3 * self.n_heads) == 0
         ch = width // (3 * self.n_heads)
+        # print("!!ch should be 32", ch)
         q, k, v = qkv.chunk(3, dim=1)
+        # print("!! q k v ",q.shape, k.shape, v.shape )
         scale = 1 / math.sqrt(math.sqrt(ch))
         weight = torch.einsum(
             "bct,bcs->bts",
@@ -378,9 +406,12 @@ class QKVAttention(nn.Module):
             (k * scale).view(bs * self.n_heads, ch, length),
         )  # More stable with f16 than dividing afterwards
         weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
+        # print("!!weight shape ", weight.shape )
         a = torch.einsum(
             "bts,bcs->bct", weight, v.reshape(bs * self.n_heads, ch, length)
         )
+        # print("!!a shape ", a.shape )
+        # print("!! a.reshape(bs, -1, length) ",  a.reshape(bs, -1, length).shape )
         return a.reshape(bs, -1, length)
 
     @staticmethod
@@ -439,7 +470,7 @@ class UNet(nn.Module):
         num_heads_upsample=-1,
         use_scale_shift_norm=True,
         resblock_updown=True,
-        use_new_attention_order=False,
+        use_new_attention_order=True,  # False,
         efficient=False,
         freq_space=False,
     ):
@@ -464,6 +495,22 @@ class UNet(nn.Module):
         self.num_head_channels = num_head_channels
         self.num_heads_upsample = num_heads_upsample
         self.freq_space = freq_space
+        print(f"image_size: {self.image_size}")
+        print(f"in_channel: {self.in_channel}")
+        print(f"inner_channel: {self.inner_channel}")
+        print(f"out_channel: {self.out_channel}")
+        print(f"res_blocks: {self.res_blocks}")
+        print(f"attn_res: {self.attn_res}")
+        print(f"dropout: {self.dropout}")
+        print(f"zero_dropout: {self.zero_dropout}")
+        print(f"channel_mults: {self.channel_mults}")
+        print(f"conv_resample: {self.conv_resample}")
+        print(f"use_checkpoint: {self.use_checkpoint}")
+        print(f"dtype: {self.dtype}")
+        print(f"num_heads: {self.num_heads}")
+        print(f"num_head_channels: {self.num_head_channels}")
+        print(f"num_heads_upsample: {self.num_heads_upsample}")
+        print(f"freq_space: {self.freq_space}")
 
         if self.freq_space:
             from ..freq_utils import InverseHaarTransform, HaarTransform
@@ -479,12 +526,16 @@ class UNet(nn.Module):
         self.cond_embed_dim = cond_embed_dim
 
         ch = input_ch = int(channel_mults[0] * self.inner_channel)
+        # print("unet ch", ch)
+        # print("res_blocks", res_blocks)
         self.input_blocks = nn.ModuleList(
             [EmbedSequential(nn.Conv2d(in_channel, ch, 3, padding=1))]
         )
         self._feature_size = ch
         input_block_chans = [ch]
+        # print("input_block_chans ", input_block_chans)
         ds = 1
+
         for level, mult in enumerate(channel_mults):
             for _ in range(res_blocks[level]):
                 layers = [
@@ -543,7 +594,6 @@ class UNet(nn.Module):
                 input_block_chans.append(ch)
                 ds *= 2
                 self._feature_size += ch
-
         self.middle_block = EmbedSequential(
             ResBlock(
                 ch,
@@ -574,7 +624,6 @@ class UNet(nn.Module):
             ),
         )
         self._feature_size += ch
-
         self.output_blocks = nn.ModuleList([])
         for level, mult in list(enumerate(channel_mults))[::-1]:
             for i in range(res_blocks[level] + 1):
@@ -629,7 +678,7 @@ class UNet(nn.Module):
                     ds //= 2
                 self.output_blocks.append(EmbedSequential(*layers))
                 self._feature_size += ch
-
+        # print("output block ", self.output_blocks )
         if tanh:
             self.out = nn.Sequential(
                 normalization(ch, norm),
@@ -676,17 +725,20 @@ class UNet(nn.Module):
         for module in self.input_blocks:
             h = module(h, emb)
             hs.append(h)
+            # print("input_blocks h shape ", h.shape )
         h = self.middle_block(h, emb)
 
         outs, feats = h, hs
         return outs, feats, emb
 
     def forward(self, input, embed_gammas=None):
+        print("forward input unet shape ", input.shape)
         h, hs, emb = self.compute_feats(input, embed_gammas=embed_gammas)
 
         for i, module in enumerate(self.output_blocks):
             h = torch.cat([h, hs.pop()], dim=1)
             h = module(h, emb)
+        # print("output_blocks  h  shape ", h.shape )
         h = h.type(input.dtype)
         outh = self.out(h)
 

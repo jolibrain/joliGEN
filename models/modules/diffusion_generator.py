@@ -138,6 +138,8 @@ class DiffusionGenerator(nn.Module):
 
         y_t = self.default(y_t, lambda: torch.randn_like(y_cond))
         ret_arr = y_t
+        print("stop in diffusion_generatorpy")
+        exit()
         for i in tqdm(
             reversed(range(0, self.denoise_fn.model.num_timesteps_test)),
             desc="sampling loop time step",

@@ -135,7 +135,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         opt.total_iters = opt.train_epoch_count * trainset_size
     opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
-
+    # print("model ", model )
     if hasattr(model, "data_dependent_initialize"):
         data = next(iter(dataloader))
         model.data_dependent_initialize(data)
@@ -152,7 +152,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     if rank_0:
         visualizer.print_networks(nets=model.get_nets(), verbose=opt.output_verbose)
-        # model.print_flop()
+        model.print_flop()
 
     if rank_0 and opt.output_display_networks:
         data = next(iter(dataloader))

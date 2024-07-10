@@ -8,12 +8,42 @@ import torch
 import torch.nn as nn
 
 from .switchable_norm import SwitchNorm2d
+from einops import rearrange
+
+
+class InflatedConv3d(nn.Conv2d):
+    def forward(self, x):
+        video_length = x.shape[2]
+
+        x = rearrange(x, "b c f h w -> (b f) c h w")
+        x = super().forward(x)
+        x = rearrange(x, "(b f) c h w -> b c f h w", f=video_length)
+
+        return x
+
+
+class InflatedGroupNorm(nn.GroupNorm):
+    def forward(self, x):
+        # Extract the video length dimension
+        video_length = x.shape[2]
+
+        # Reshape (b, c, f, h, w) to (b*f, c, h, w) for 2D group normalization
+        x = rearrange(x, "b c f h w -> (b f) c h w")
+
+        # Apply group normalization
+        x = super().forward(x)
+
+        # Reshape back from (b*f, c, h w) to (b, c, f, h, w)
+        x = rearrange(x, "(b f) c h w -> b c f h w", f=video_length)
+
+        return x
 
 
 class GroupNorm(nn.Module):
     def __init__(self, group_size, channels):
         super().__init__()
         self.norm = nn.GroupNorm(group_size, channels)
+        print("channels ", group_size, channels)
 
     def forward(self, x):
         return self.norm(x.float()).type(x.dtype)
@@ -80,6 +110,20 @@ def normalization(channels, norm="groupnorm32"):
         return BatchNorm2dC(channels)
     elif norm == "switchablenorm":
         return SwitchNorm2d(channels)
+    else:
+        raise ValueError("%s is not implemented for unet attn generator" % norm)
+
+
+def normalization5D(channels, norm="groupnorm32"):
+    """
+    Make a standard normalization layer for video 5 dimension.
+
+    :param channels: number of input channels.
+    :return: an nn.Module for normalization.
+    """
+    if "groupnorm" in norm:
+        group_norm_size = int(norm.split("groupnorm")[1])
+        return InflatedGroupNorm(group_norm_size, channels)
     else:
         raise ValueError("%s is not implemented for unet attn generator" % norm)
 
