@@ -103,12 +103,14 @@ class PaletteModel(BaseDiffusionModel):
             batch_size = self.opt.train_batch_size
         else:
             batch_size = self.opt.test_batch_size
-
         max_visual_outputs = min(
             max(self.opt.train_batch_size, self.opt.num_test_images),
             self.opt.output_num_images,
         )
-
+        if self.opt.G_netG == "unet_vid":
+            max_visual_outputs = min(
+                self.opt.output_num_images, self.opt.data_temporal_number_frames
+            )
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
         )
@@ -251,8 +253,12 @@ class PaletteModel(BaseDiffusionModel):
             len(data["A"].to(self.device).shape) == 5
         ):  # we're using temporal successive frames
             self.previous_frame = data["A"].to(self.device)[:, 0]
-            self.y_t = data["A"].to(self.device)[:, 1]
-            self.gt_image = data["B"].to(self.device)[:, 1]
+            if self.opt.G_netG == "unet_vid":
+                self.y_t = data["A"].to(self.device)
+                self.gt_image = data["B"].to(self.device)
+            else:
+                self.y_t = data["A"].to(self.device)[:, 1]
+                self.gt_image = data["B"].to(self.device)[:, 1]
             if self.task == "inpainting":
                 self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
                 ### Note: the sam related stuff should eventually go into the dataloader
@@ -278,7 +284,10 @@ class PaletteModel(BaseDiffusionModel):
                         self.mask[self.mask == 2] = 0
                     self.y_t = fill_mask_with_random(self.gt_image, self.mask, -1)
                 else:
-                    self.mask = data["B_label_mask"].to(self.device)[:, 1]
+                    if self.opt.G_netG == "unet_vid":
+                        self.mask = data["B_label_mask"].to(self.device)
+                    else:
+                        self.mask = data["B_label_mask"].to(self.device)[:, 1]
             else:
                 self.mask = None
         else:
@@ -461,6 +470,7 @@ class PaletteModel(BaseDiffusionModel):
                 min_snr_loss_weight * mask_binary * noise,
                 min_snr_loss_weight * mask_binary * noise_hat,
             )
+
         else:
             loss = self.loss_fn(
                 min_snr_loss_weight * noise, min_snr_loss_weight * noise_hat
@@ -478,6 +488,7 @@ class PaletteModel(BaseDiffusionModel):
         self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
 
     def inference(self, nb_imgs, offset=0):
+
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
         else:
@@ -611,18 +622,29 @@ class PaletteModel(BaseDiffusionModel):
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[:nb_imgs], sample_num=self.sample_num
             )
-
-        for name in self.gen_visual_names:
-            whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
+        if not self.opt.G_netG == "unet_vid":
+            for name in self.gen_visual_names:
+                whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
+                for k in range(min(nb_imgs, self.get_current_batch_size())):
+                    cur_name = name + str(offset + k)
+                    cur_tensor = whole_tensor[k : k + 1]
+                    if "mask" in name:
+                        cur_tensor = cur_tensor.squeeze(0)
+                    setattr(self, cur_name, cur_tensor)
             for k in range(min(nb_imgs, self.get_current_batch_size())):
-                cur_name = name + str(offset + k)
-                cur_tensor = whole_tensor[k : k + 1]
-                if "mask" in name:
-                    cur_tensor = cur_tensor.squeeze(0)
-                setattr(self, cur_name, cur_tensor)
+                self.fake_B_pool.query(self.visuals[k : k + 1])
 
-        for k in range(min(nb_imgs, self.get_current_batch_size())):
-            self.fake_B_pool.query(self.visuals[k : k + 1])
+        else:
+            for name in self.gen_visual_names:
+                whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
+                for k in range(self.opt.data_temporal_number_frames):
+                    cur_name = name + str(offset + k)
+                    cur_tensor = whole_tensor[:, k, :, :, :]
+                    if "mask" in name:
+                        cur_tensor = cur_tensor.squeeze(0)
+                    setattr(self, cur_name, cur_tensor)
+            for k in range(min(nb_imgs, self.get_current_batch_size())):
+                self.fake_B_pool.query(self.visuals[k : k + 1, :, :, :, :])
 
         if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = torch.nn.SyncBatchNorm.convert_sync_batchnorm(netG)

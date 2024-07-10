@@ -6,8 +6,36 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-
+from einops import rearrange
 from .switchable_norm import SwitchNorm2d
+
+
+class InflatedConv3d(nn.Conv2d):
+    def forward(self, x):
+        video_length = x.shape[1]
+        input_channels = x.shape[2]
+        x = rearrange(x, "b f c h w -> (b f) c h w")
+        expected_channels = self.in_channels
+        if input_channels != expected_channels:
+            raise ValueError(
+                f"Expected input channels: {expected_channels}, but got: {input_channels}"
+            )
+
+        x = super().forward(x)
+        x = rearrange(x, "(b f) c h w -> b f c h w", f=video_length)
+
+        return x
+
+
+class InflatedGroupNorm(nn.GroupNorm):
+    def forward(self, x):
+        video_length = x.shape[1]
+
+        x = rearrange(x, "b f c h w -> (b f) c h w")
+        x = super().forward(x)
+        x = rearrange(x, "(b f) c h w -> b f c h w", f=video_length)
+
+        return x
 
 
 class GroupNorm(nn.Module):

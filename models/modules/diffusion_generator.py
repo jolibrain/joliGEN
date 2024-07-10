@@ -194,8 +194,10 @@ class DiffusionGenerator(nn.Module):
 
         embed_noise_level = self.compute_gammas(noise_level)
 
-        input = torch.cat([y_cond, y_t], dim=1)
-
+        if len(y_cond.shape) == 5 and len(y_t.shape) == 5:
+            input = torch.cat([y_cond, y_t], dim=2)
+        else:
+            input = torch.cat([y_cond, y_t], dim=1)
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = predict_start_from_noise(
                 self.denoise_fn.model,
@@ -451,9 +453,10 @@ class DiffusionGenerator(nn.Module):
         if mask is not None:
             temp_mask = torch.clamp(mask, min=0.0, max=1.0)
             y_noisy = y_noisy * temp_mask + (1.0 - temp_mask) * y_0
-
-        input = torch.cat([y_cond, y_noisy], dim=1)
-
+        if len(y_cond.shape) == 5 and len(y_noisy.shape) == 5:
+            input = torch.cat([y_cond, y_noisy], dim=2)
+        else:
+            input = torch.cat([y_cond, y_noisy], dim=1)
         noise_hat = self.denoise_fn(
             input, embed_sample_gammas, cls=cls, mask=mask, ref=ref
         )

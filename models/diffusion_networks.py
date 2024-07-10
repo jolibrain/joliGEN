@@ -7,6 +7,8 @@ from .modules.unet_generator_attn.unet_generator_attn import (
     UViT,
     UNetGeneratorRefAttn,
 )
+from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
+
 from .modules.hdit.hdit import HDiT, HDiTConfig
 
 from .modules.palette_denoise_fn import PaletteDenoiseFn
@@ -36,6 +38,7 @@ def define_G(
     G_attn_nb_mask_attn,
     G_attn_nb_mask_input,
     G_spectral,
+    G_unet_vid_max_frame,
     jg_dir,
     G_padding_type,
     G_config_segformer,
@@ -122,6 +125,34 @@ def define_G(
             efficient=G_unet_mha_vit_efficient,
             cond_embed_dim=cond_embed_dim,
             freq_space=train_feat_wavelet,
+        )
+
+    elif G_netG == "unet_vid":
+        if model_prior_321_backwardcompatibility:
+            cond_embed_dim = G_ngf * 4
+        else:
+            cond_embed_dim = alg_diffusion_cond_embed_dim
+
+        model = UNetVid(
+            image_size=data_crop_size,
+            in_channel=in_channel,
+            inner_channel=G_ngf,
+            out_channel=model_output_nc,
+            res_blocks=G_unet_mha_res_blocks,
+            attn_res=G_unet_mha_attn_res,
+            num_heads=G_unet_mha_num_heads,
+            num_head_channels=G_unet_mha_num_head_channels,
+            tanh=False,
+            dropout=G_dropout,
+            n_timestep_train=G_diff_n_timestep_train,
+            n_timestep_test=G_diff_n_timestep_test,
+            channel_mults=G_unet_mha_channel_mults,
+            norm=G_unet_mha_norm_layer,
+            group_norm_size=G_unet_mha_group_norm_size,
+            efficient=G_unet_mha_vit_efficient,
+            cond_embed_dim=cond_embed_dim,
+            freq_space=train_feat_wavelet,
+            max_frame=G_unet_vid_max_frame,
         )
 
     elif G_netG == "unet_mha_ref_attn":
