@@ -276,6 +276,10 @@ class ProjectedDiscriminator(torch.nn.Module):
         if self.interp > 0:
             x = F.interpolate(x, self.interp, mode="bilinear", align_corners=False)
 
+        # repeat if input is single channel as frozen backbones are RGB
+        if x.shape[1] == 1:
+            x = x.repeat(1, 3, 1, 1)
+
         features = self.freeze_feature_network(x)
         logits = self.discriminator(features)
 
