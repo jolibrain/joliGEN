@@ -11,8 +11,7 @@ from .modules.NCE.monce import MoNCELoss
 from .modules.NCE.hDCE import PatchHDCELoss
 from .modules.NCE.SRC import SRC_Loss
 
-from lpips import LPIPS
-from DISTS_pytorch import DISTS
+from piq import DISTS, LPIPS
 
 from util.network_group import NetworkGroup
 import util.util as util
@@ -151,6 +150,26 @@ class CUTModel(BaseGanModel):
             type=float,
             default=1.0,
             help="weight for supervised loss",
+        )
+        parser.add_argument(
+            "--alg_cut_lambda_perceptual",
+            type=float,
+            default=1.0,
+            help="weight for LPIPS and DISTS perceptual losses",
+        )
+        parser.add_argument(
+            "--alg_cut_dists_mean",
+            default=[0.485, 0.456, 0.406],  # Imagenet default
+            nargs="*",
+            type=float,
+            help="mean for DISTS perceptual loss",
+        )
+        parser.add_argument(
+            "--alg_cut_dists_std",
+            default=[0.229, 0.224, 0.225],  # Imagenet default
+            nargs="*",
+            type=float,
+            help="std for DISTS perceptual loss",
         )
 
         return parser
@@ -291,9 +310,11 @@ class CUTModel(BaseGanModel):
             elif "L1" in self.opt.alg_cut_supervised_loss:
                 self.criterionSupervised = torch.nn.L1Loss()
             if "LPIPS" in self.opt.alg_cut_supervised_loss:
-                self.criterionLPIPS = LPIPS(net="vgg").to(self.device)
+                self.criterionLPIPS = LPIPS().to(self.device)
             if "DISTS" in self.opt.alg_cut_supervised_loss:
-                self.criterionDISTS = DISTS().to(self.device)
+                self.criterionDISTS = DISTS(
+                    mean=self.opt.alg_cut_dists_mean, std=self.opt.alg_cut_dists_std
+                ).to(self.device)
 
             # Optimizers
             if self.opt.G_netG != "img2img_turbo":
@@ -726,9 +747,7 @@ class CUTModel(BaseGanModel):
         else:
             self.loss_G_supervised_lpips = 0
         if "DISTS" in self.opt.alg_cut_supervised_loss:
-            self.loss_G_supervised_dists = self.criterionDISTS(
-                self.real_B, self.fake_B, require_grad=True, batch_average=True
-            )
+            self.loss_G_supervised_dists = self.criterionDISTS(self.real_B, self.fake_B)
         else:
             self.loss_G_supervised_dists = 0
 
@@ -741,8 +760,8 @@ class CUTModel(BaseGanModel):
         ):
             self.loss_G_supervised = self.opt.alg_cut_lambda_supervised * (
                 self.loss_G_supervised_norm
-                + self.loss_G_supervised_lpips
-                + self.loss_G_supervised_dists
+                + self.opt.alg_cut_lambda_perceptual
+                * (self.loss_G_supervised_lpips + self.loss_G_supervised_dists)
             )
             self.loss_G_tot += self.loss_G_supervised
 
