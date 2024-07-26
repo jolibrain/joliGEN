@@ -21,25 +21,25 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--model-in-file",
+        "--model_in_file",
         help="file path to generator model (.pth file)",
         type=Path,
         required=True,
     )
     parser.add_argument(
-        "--video-in", help="video to transform", type=Path, required=True
+        "--video_in", help="video to transform", type=Path, required=True
     )
     parser.add_argument(
-        "--video-out", help="transformed video", type=Path, required=True
+        "--video_out", help="transformed video", type=Path, required=True
     )
     parser.add_argument(
-        "--img-width", type=int, help="image width, defaults to model crop size"
+        "--img_width", type=int, help="image width, defaults to model crop size"
     )
     parser.add_argument(
-        "--img-height", type=int, help="image height, defaults to model crop size"
+        "--img_height", type=int, help="image height, defaults to model crop size"
     )
     parser.add_argument(
-        "--max-frames", type=int, help="Select total number of frames to generate"
+        "--max_frames", type=int, help="Select total number of frames to generate"
     )
     parser.add_argument("--fps", type=int, help="select FPS")
     parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
         help="put the input video on the left side to compare",
     )
     parser.add_argument(
-        "--n-inferences",
+        "--n_inferences",
         type=int,
         default=1,
         help="Number of recursive inferences per frame",

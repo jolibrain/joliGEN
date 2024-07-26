@@ -10,13 +10,13 @@ dd.set_return_format(dd.RETURN_PYTHON)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--model-in-path",
+    "--model_in_path",
     help="directory path that contains the exported model (i.e. the .pt file)",
     required=True,
 )
-parser.add_argument("--img-size", default=256, type=int, help="square image size")
-parser.add_argument("--img-in", help="image to transform", required=True)
-parser.add_argument("--img-out", help="transformed image", required=True)
+parser.add_argument("--img_size", default=256, type=int, help="square image size")
+parser.add_argument("--img_in", help="image to transform", required=True)
+parser.add_argument("--img_out", help="transformed image", required=True)
 parser.add_argument("--gpu", help="whether to run on GPU", action="store_true")
 parser.add_argument(
     "--backend",

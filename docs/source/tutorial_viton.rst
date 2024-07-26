@@ -105,13 +105,13 @@ More details: :doc:`quickstart_ddpm`
    mkdir -p ~/inferences
    cd ~/joliGEN/scripts
    python3 gen_single_image_diffusion.py \
-        --model-in-file ~/checkpoints/VITON-HD/latest_net_G_A.pth \
-        --img-in ~/datasets/VITON-HD/testA/imgs/00006_00.jpg \
-        --mask-in ~/datasets/VITON-HD/testA/mask/00006_00.png \
-        --dir-out ~/inferences \
+        --model_in_file ~/checkpoints/VITON-HD/latest_net_G_A.pth \
+        --img_in ~/datasets/VITON-HD/testA/imgs/00006_00.jpg \
+        --mask_in ~/datasets/VITON-HD/testA/mask/00006_00.png \
+        --dir_out ~/inferences \
         --nb_samples 4 \
-        --img-width 256 \
-        --img-height 256
+        --img_width 256 \
+        --img_height 256
 
 This will produce 4 samples in the ``~/inferences`` folder.
 

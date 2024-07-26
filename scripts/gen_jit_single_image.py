@@ -8,14 +8,14 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--model-in-file",
+    "--model_in_file",
     help="file path to generator model to export (.pt file)",
     required=True,
 )
-parser.add_argument("--img-in", help="image to transform", required=True)
-parser.add_argument("--img-out", help="transformed image", required=True)
+parser.add_argument("--img_in", help="image to transform", required=True)
+parser.add_argument("--img_out", help="transformed image", required=True)
 parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
-parser.add_argument("--img-size", default=256, type=int, help="square image size")
+parser.add_argument("--img_size", default=256, type=int, help="square image size")
 args = parser.parse_args()
 
 model = torch.jit.load(args.model_in_file)

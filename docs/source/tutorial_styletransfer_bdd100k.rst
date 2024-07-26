@@ -319,11 +319,11 @@ The following script will produce a transformed image using the lastest saved mo
 
    cd ~/joliGEN/scripts
    python3 gen_single_image.py\
-        --model-in-file PATH/TO/checkpoints/bdd100k_clear2snowy_512/latest_net_G_A.pth\
-        --img-in /PATH/TO/YOUR/IMAGE.jpg\
-        --img-out output.png\
-        --img-width 1280\
-        --img-height 720
+        --model_in_file PATH/TO/checkpoints/bdd100k_clear2snowy_512/latest_net_G_A.pth\
+        --img_in /PATH/TO/YOUR/IMAGE.jpg\
+        --img_out output.png\
+        --img_width 1280\
+        --img_height 720
 
 .. figure:: _static/tutorial_bdd100k_inference-input.jpg
 

@@ -84,13 +84,13 @@ python3 util/load_display_losses.py --loss_log_file_path path_to_repo_of_loss.js
 ### Using python
 
 ```
-python3 -m scripts.gen_single_image --model-in-file "/path/to/model_checkpoint.pth" --model-type mobile_resnet_9blocks --img-size 360 --img-in "/path/to/img_in.png" --img-out result.png
+python3 -m scripts.gen_single_image --model_in_file "/path/to/model_checkpoint.pth" --model_type mobile_resnet_9blocks --img_size 360 --img_in "/path/to/img_in.png" --img_out result.png
 ```
 
 ### Export model
 
 ```
-python3 -m scripts.export_jit_model --model-in-file "/path/to/model_checkpoint.pth" --model-out-file exported_model.pt --model-type mobile_resnet_9blocks --img-size 360 
+python3 -m scripts.export_jit_model --model_in_file "/path/to/model_checkpoint.pth" --model_out_file exported_model.pt --model_type mobile_resnet_9blocks --img_size 360 
 ```
 
 Then `exported_model.pt` can be reloaded without JoliGEN to perform inference with an external software, e.g. [DeepDetect](https://github.com/jolibrain/deepdetect) with torch backend.
