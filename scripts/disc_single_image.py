@@ -12,15 +12,15 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--model-in-file",
+    "--model_in_file",
     help="file path to discriminator model (.pth file)",
     required=True,
 )
 parser.add_argument(
-    "--model-type", default="projected_d", help="model type, e.g. projected_d, basic"
+    "--model_type", default="projected_d", help="model type, e.g. projected_d, basic"
 )
-parser.add_argument("--img-size", default=256, type=int, help="square image size")
-parser.add_argument("--img-in", help="image to transform", required=True)
+parser.add_argument("--img_size", default=256, type=int, help="square image size")
+parser.add_argument("--img_in", help="image to transform", required=True)
 parser.add_argument("--cpu", action="store_true", help="whether to use CPU")
 args = parser.parse_args()
 

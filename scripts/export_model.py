@@ -35,7 +35,7 @@ if __name__ == "__main__":
         "--model_config",
         help="optional model configuration, e.g /path/to/segformer_config_b0.py",
     )
-    parser.add_argument("--img-size", default=256, type=int, help="square image size")
+    parser.add_argument("--img_size", default=256, type=int, help="square image size")
     parser.add_argument(
         "--cuda", action="store_true", help="whether to export using gpu"
     )
