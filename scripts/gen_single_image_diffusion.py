@@ -249,12 +249,13 @@ def generate(
     # reading image
     if opt.data_image_bits > 8:
         img = Image.open(img_in)  # we use PIL
+        img_orig = img.copy()
         local_img_width, local_img_height = img.size
     else:
         img = cv2.imread(img_in)
+        img_orig = img.copy()
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         local_img_width, local_img_height = img.shape[:2]
-    img_orig = img.copy()
 
     # reading the mask
     mask = None
