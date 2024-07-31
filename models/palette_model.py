@@ -246,6 +246,12 @@ class PaletteModel(BaseDiffusionModel):
 
     def set_input(self, data):
         """must use set_device in tensor"""
+        print(f"palettemodel set_input {type(data)}")
+        for key, value in data.items():
+            if isinstance(value, torch.Tensor):
+                print(key, value.shape)
+            else:
+                print(key, value)
 
         if (
             len(data["A"].to(self.device).shape) == 5
@@ -253,6 +259,26 @@ class PaletteModel(BaseDiffusionModel):
             self.previous_frame = data["A"].to(self.device)[:, 0]
             self.y_t = data["A"].to(self.device)[:, 1]
             self.gt_image = data["B"].to(self.device)[:, 1]
+            if self.opt.G_netG == "unet_vid":
+                bs, frame, channel, height, width = data["A"].shape
+                self.y_t = (
+                    data["A"]
+                    .contiguous()
+                    .view(bs * frame, channel, height, width)
+                    .to(self.device)
+                )
+                self.gt_image = (
+                    data["B"]
+                    .contiguous()
+                    .view(bs * frame, channel, height, width)
+                    .to(self.device)
+                )
+            print(
+                "palettemodel self.gt_image, y_t b_label_mask shape before view",
+                self.gt_image.shape,
+                self.y_t.shape,
+                data["B_label_mask"].shape,
+            )
             if self.task == "inpainting":
                 self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
                 ### Note: the sam related stuff should eventually go into the dataloader
@@ -277,6 +303,14 @@ class PaletteModel(BaseDiffusionModel):
                         self.mask[self.mask == 0] = 1
                         self.mask[self.mask == 2] = 0
                     self.y_t = fill_mask_with_random(self.gt_image, self.mask, -1)
+                elif self.opt.G_netG == "unet_vid":
+                    bs, frame, channel, height, width = data["B_label_mask"].shape
+                    self.mask = (
+                        data["B_label_mask"]
+                        .contiguous()
+                        .view(bs * frame, channel, height, width)
+                        .to(self.device)
+                    )
                 else:
                     self.mask = data["B_label_mask"].to(self.device)[:, 1]
             else:
@@ -327,6 +361,7 @@ class PaletteModel(BaseDiffusionModel):
 
         if self.opt.alg_diffusion_cond_image_creation == "y_t":
             self.cond_image = self.y_t
+
         elif self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             cond_image_list = []
 
@@ -411,18 +446,21 @@ class PaletteModel(BaseDiffusionModel):
         elif self.opt.alg_diffusion_cond_image_creation == "ref":
             self.cond_image = self.ref_A
 
-        self.batch_size = self.cond_image.shape[0]
+        print("palette selfcond_image ", self.cond_image.shape)
+        self.batch_size = self.cond_image.shape[0]  # ?why this line ?
 
         self.real_A = self.cond_image
         self.real_B = self.gt_image
 
     def compute_palette_loss(self):
+        print("palettemodel loss")
         y_0 = self.gt_image
         y_cond = self.cond_image
         mask = self.mask
         noise = None
         cls = self.cls
 
+        print(" ydd_0 y_cond mask, cls", y_0.shape, y_cond.shape, mask.shape, cls)
         if self.opt.alg_diffusion_dropout_prob > 0.0:
             drop_ids = (
                 torch.rand(mask.shape[0], device=mask.device)
@@ -449,9 +487,36 @@ class PaletteModel(BaseDiffusionModel):
         else:
             ref = None
 
+        bs = self.opt.train_batch_size
+        bf, channel, height, width = y_cond.shape
+        frame = bf // bs
+        y_0 = y_0.contiguous().view(bs, frame, channel, height, width)
+        y_cond = y_cond.contiguous().view(bs, frame, channel, height, width)
+        bf, channel, height, width = mask.shape
+        mask = mask.contiguous().view(bs, frame, channel, height, width)
+
+        print(
+            " ydd_0 y_cond noise  mask, cls ref ",
+            y_0.shape,
+            y_cond.shape,
+            noise,
+            mask.shape,
+            cls,
+            ref,
+        )
         noise, noise_hat, min_snr_loss_weight = self.netG_A(
             y_0=y_0, y_cond=y_cond, noise=noise, mask=mask, cls=cls, ref=ref
         )
+        print(
+            "  after netG_A  noise noise_hat, min_snr_loss  mask ",
+            noise.shape,
+            noise_hat.shape,
+            min_snr_loss_weight.shape,
+            mask.shape,
+        )
+        bs, frame, channel, height, width = mask.shape
+        mask = mask.contiguous().view(bs * frame, channel, height, width)
+
         if not self.opt.alg_palette_minsnr:
             min_snr_loss_weight = 1.0
 
@@ -478,6 +543,7 @@ class PaletteModel(BaseDiffusionModel):
         self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
 
     def inference(self, nb_imgs, offset=0):
+        print("  palettemodel inference ", nb_imgs)
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
         else:

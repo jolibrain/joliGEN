@@ -382,6 +382,8 @@ class BaseModel(ABC):
             input (dict): include the data itself and its metadata information.
         The option 'direction' can be used to swap domain A and domain B.
         """
+
+        print(f"basemodelpy set_input {type(data)}")
         if "A_ref" in data:  # accomodates multi-frames dataloader
             self.real_A_with_context = data["A_ref"].to(self.device)
         else:
@@ -594,6 +596,7 @@ class BaseModel(ABC):
 
     def forward(self):
         for forward_function in self.forward_functions:
+            print("basemodel forwardfunction", forward_function)
             getattr(self, forward_function)()
 
     def compute_fake_with_context(self, fake_name, real_name):
@@ -768,7 +771,9 @@ class BaseModel(ABC):
                     cur_visual[name] = getattr(self, name)
             visual_ret.append(cur_visual)
             if (
-                self.opt.model_type != "cut" and self.opt.model_type != "cycle_gan"
+                self.opt.model_type != "cut"
+                and self.opt.model_type != "cycle_gan"
+                and self.opt.G_netG != "unet_vid"
             ):  # GANs have more outputs in practice, including semantics
                 if i == nb_imgs - 1:
                     break
@@ -1111,7 +1116,7 @@ class BaseModel(ABC):
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
-
+        print("basemodel optimize_parameters ")
         self.niter = self.niter + 1
 
         with ExitStack() as stack:

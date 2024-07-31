@@ -276,6 +276,7 @@ class BaseDiffusionModel(BaseModel):
 
     def forward_diffusion(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
+        print("basediffusionmodel  forward_diffusion ")
         self.real_A_pool.query(self.real_A)
         self.real_B_pool.query(self.real_B)
 

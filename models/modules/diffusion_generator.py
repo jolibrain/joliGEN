@@ -129,6 +129,17 @@ class DiffusionGenerator(nn.Module):
     ):
         phase = "test"
 
+        print(
+            "  restoration_ddpm  ",
+            y_cond.shape,
+            y_t.shape,
+            y_0.shape,
+            mask.shape,
+            sample_num,
+            cls,
+            guidance_scale,
+            ref,
+        )
         b, *_ = y_cond.shape
 
         assert (
@@ -427,6 +438,13 @@ class DiffusionGenerator(nn.Module):
         return model_mean, posterior_log_variance
 
     def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):
+        # print("diffusiongenerator forward ", y_0.shape , y_cond.shape, mask.shape, noise,cls, ref )
+        bs, frame, channel, height, width = y_0.shape
+        y_0 = y_0.view(bs * frame, channel, height, width)
+        y_cond = y_cond.view(bs * frame, channel, height, width)
+        bs, frame, channel, height, width = mask.shape
+        mask = mask.view(bs * frame, channel, height, width)
+
         b, *_ = y_0.shape
         t = torch.randint(
             1, self.denoise_fn.model.num_timesteps_train, (b,), device=y_0.device
@@ -453,11 +471,28 @@ class DiffusionGenerator(nn.Module):
             y_noisy = y_noisy * temp_mask + (1.0 - temp_mask) * y_0
 
         input = torch.cat([y_cond, y_noisy], dim=1)
+        print(
+            "diffusiongenerator self.denoise_fn  input, ",
+            input.shape,
+            embed_sample_gammas.shape,
+            cls,
+            mask.shape,
+            ref,
+        )
 
+        bf, channel, height, width = input.shape
+        frame = bf // bs
+        input = input.contiguous().view(bs, frame, channel, height, width)
+        bf, channel, height, width = mask.shape
+        mask = mask.contiguous().view(bs, frame, channel, height, width)
+        # 5D input into VID net
         noise_hat = self.denoise_fn(
             input, embed_sample_gammas, cls=cls, mask=mask, ref=ref
         )
+        print("noise_hat ?? ", noise_hat.shape)
 
+        bs, frame, channel, height, width = noise_hat.shape
+        noise_hat = noise_hat.contiguous().view(bs * frame, channel, height, width)
         # min-SNR loss weight
         phase = "train"
         ksnr = 5.0

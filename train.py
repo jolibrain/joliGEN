@@ -5,6 +5,7 @@ It then does standard network training. During the training, it also visualize/s
 The script supports continue/resume training. Use '--train_continue' to resume your previous training.
 """
 
+import logging
 import argparse
 import json
 import os
@@ -204,14 +205,12 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                 temporal_data = data_list[1]
                 model.set_input_temporal(temporal_data)
             model.set_input(data)  # unpack data from dataloader and apply preprocessing
-
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
             t_comp = (time.time() - iter_start_time) / opt.train_batch_size
 
             batch_size = model.get_current_batch_size() * len(opt.gpu_ids)
             opt.total_iters += batch_size
             epoch_iter += batch_size
-
             if (
                 opt.total_iters % opt.output_print_freq < batch_size
             ):  # print training losses and save logging information to the disk

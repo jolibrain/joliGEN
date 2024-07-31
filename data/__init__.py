@@ -60,8 +60,16 @@ def create_dataloader(opt, rank, dataset, batch_size):
     return dataset
 
 
+# def create_dataset_temporal(opt, phase):
+#    dataset_class = find_dataset_using_name("temporal_labeled_mask_online")
+#    dataset = dataset_class(opt, phase)
+#    return dataset
+
+
 def create_dataset_temporal(opt, phase):
-    dataset_class = find_dataset_using_name("temporal_labeled_mask_online")
+    dataset_class = find_dataset_using_name(
+        "self_supervised_temporal_labeled_mask_online"
+    )
     dataset = dataset_class(opt, phase)
     return dataset
 
