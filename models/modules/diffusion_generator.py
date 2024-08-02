@@ -128,6 +128,7 @@ class DiffusionGenerator(nn.Module):
         ref,
     ):
         phase = "test"
+        print(self.cond_embed_dim)
 
         print(
             "  restoration_ddpm  ",
@@ -140,22 +141,45 @@ class DiffusionGenerator(nn.Module):
             guidance_scale,
             ref,
         )
+        #
+        #        bs, frame, channel, height, width = y_0.shape
+        #        y_cond = y_cond.view(bs * frame, channel, height, width)
+        #        y_t = y_t.view(bs * frame, channel, height, width)
+        #        y_0 = y_0.view(bs * frame, channel, height, width)
+        #        bs, frame, channel, height, width = mask.shape
+        #        mask = mask.view(bs * frame, channel, height, width)
+        #
+        print(
+            "  y_cond, y_t, y_0 mask  ", y_cond.shape, y_t.shape, y_0.shape, mask.shape
+        )
         b, *_ = y_cond.shape
 
         assert (
             self.denoise_fn.model.num_timesteps_test > sample_num
         ), "num_timesteps must greater than sample_num"
         sample_inter = self.denoise_fn.model.num_timesteps_test // sample_num
-
+        print("sample_inter", sample_inter)
         y_t = self.default(y_t, lambda: torch.randn_like(y_cond))
         ret_arr = y_t
+        print(" y_t", y_t.shape, ret_arr.shape)
         for i in tqdm(
             reversed(range(0, self.denoise_fn.model.num_timesteps_test)),
             desc="sampling loop time step",
             total=self.denoise_fn.model.num_timesteps_test,
         ):
+            b = y_cond.shape[-4]
             t = torch.full((b,), i, device=y_cond.device, dtype=torch.long)
-
+            print(
+                "p_sample block input ",
+                y_t.shape,
+                t,
+                y_cond.shape,
+                phase,
+                cls,
+                mask.shape,
+                ref,
+                guidance_scale,
+            )
             y_t = self.p_sample(
                 y_t,
                 t,
@@ -166,7 +190,6 @@ class DiffusionGenerator(nn.Module):
                 ref=ref,
                 guidance_scale=guidance_scale,
             )
-
             if mask is not None:
                 temp_mask = torch.clamp(mask, min=0.0, max=1.0)
                 y_t = y_0 * (1.0 - temp_mask) + temp_mask * y_t
@@ -202,10 +225,19 @@ class DiffusionGenerator(nn.Module):
         noise_level = self.extract(
             getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
-
         embed_noise_level = self.compute_gammas(noise_level)
-
-        input = torch.cat([y_cond, y_t], dim=1)
+        print(
+            " p_mean_variance y_cond y_t ",
+            y_cond.shape,
+            y_t.shape,
+            embed_noise_level.shape,
+        )
+        print(
+            " ",
+            getattr(self.denoise_fn.model, "gammas_" + phase).shape,
+            dir(self.denoise_fn.model),
+        )
+        input = torch.cat([y_cond, y_t], dim=-3)
 
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = predict_start_from_noise(
@@ -231,6 +263,15 @@ class DiffusionGenerator(nn.Module):
             ),
             phase=phase,
         )
+        print(
+            " after predictstart fromnoise y_0_hat ",
+            y_0_hat.shape,
+            input.shape,
+            embed_noise_level.shape,
+            cls,
+            mask.shape,
+            ref,
+        )
 
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat = (1 + guidance_scale) * y_0_hat - guidance_scale * y_0_hat_uncond
@@ -238,8 +279,14 @@ class DiffusionGenerator(nn.Module):
         if clip_denoised:
             y_0_hat.clamp_(-1.0, 1.0)
 
+        print(" before q_posterior ", y_0_hat.shape, y_t.shape, y_t.shape, t, phase)
         model_mean, posterior_log_variance = q_posterior(
             self.denoise_fn.model, y_0_hat=y_0_hat, y_t=y_t, t=t, phase=phase
+        )
+        print(
+            " model_mean, posterior_log_variance ",
+            model_mean.shape,
+            posterior_log_variance.shape,
         )
         return model_mean, posterior_log_variance
 
@@ -438,7 +485,15 @@ class DiffusionGenerator(nn.Module):
         return model_mean, posterior_log_variance
 
     def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):
-        # print("diffusiongenerator forward ", y_0.shape , y_cond.shape, mask.shape, noise,cls, ref )
+        print(
+            "diffusiongenerator forward ",
+            y_0.shape,
+            y_cond.shape,
+            mask.shape,
+            noise,
+            cls,
+            ref,
+        )
         bs, frame, channel, height, width = y_0.shape
         y_0 = y_0.view(bs * frame, channel, height, width)
         y_cond = y_cond.view(bs * frame, channel, height, width)
@@ -519,5 +574,6 @@ class DiffusionGenerator(nn.Module):
         self.sampling_method = sampling_method
 
     def compute_gammas(self, gammas):
+        print(" diffusion_generator compute_gammas ", gammas)
         emb = self.cond_embed(gamma_embedding(gammas, self.cond_embed_gammas_in))
         return emb

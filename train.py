@@ -209,6 +209,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             t_comp = (time.time() - iter_start_time) / opt.train_batch_size
 
             batch_size = model.get_current_batch_size() * len(opt.gpu_ids)
+            print("trainpy batch_size ", batch_size)
             opt.total_iters += batch_size
             epoch_iter += batch_size
             if (
@@ -247,6 +248,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     opt.total_iters % opt.output_display_freq < batch_size
                 ):  # display images on visdom and save images to a HTML file
                     save_result = opt.total_iters % opt.output_update_html_freq == 0
+                    print("trainpy from here nb_imgs ???", opt.train_batch_size)
                     model.compute_visuals(opt.train_batch_size)
                     if not "none" in opt.output_display_type:
                         visualizer.display_current_results(

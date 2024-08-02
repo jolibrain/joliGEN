@@ -113,6 +113,7 @@ def set_new_noise_schedule(model, phase):
 
 
 def predict_start_from_noise(model, y_t, t, noise, phase):
+    print(" inside  predictstartfromnoise ", y_t.shape, t.shape, noise.shape, phase)
     return (
         extract(getattr(model, "sqrt_recip_gammas_" + phase), t, y_t.shape) * y_t
         - extract(getattr(model, "sqrt_recipm1_gammas_" + phase), t, y_t.shape) * noise

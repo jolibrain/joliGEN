@@ -1112,7 +1112,11 @@ class BaseModel(ABC):
                 b_ema.copy_(b)
 
     def get_current_batch_size(self):
-        return self.real_A.shape[0]
+        if self.opt.G_netG == "unet_vid":
+            batch_size = self.real_A.shape[0] // self.opt.data_temporal_number_frames
+        else:
+            batch_size = self.real_A.shape[0]
+        return batch_size
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""

@@ -641,6 +641,7 @@ class PaletteModel(BaseDiffusionModel):
 
             # no class conditioning
             else:
+                print("is here ??? ")
                 if self.cls is not None:
                     cls = self.cls[:nb_imgs]
                 else:
@@ -650,17 +651,56 @@ class PaletteModel(BaseDiffusionModel):
                     mask = self.mask[:nb_imgs]
                 else:
                     mask = self.mask
-
-                self.output, self.visuals = netG.restoration(
-                    y_cond=self.cond_image[:nb_imgs],
-                    y_t=self.y_t[:nb_imgs],
-                    y_0=self.gt_image[:nb_imgs],
-                    mask=mask,
-                    sample_num=self.sample_num,
-                    cls=cls,
-                    ddim_num_steps=self.ddim_num_steps,
-                    ddim_eta=self.ddim_eta,
+                print("befroe restoration ")
+                print(
+                    " self.cond_image y_t gt_image, mask ,cls, ddim_num_steps, ddim_eta ",
+                    self.cond_image.shape,
+                    self.y_t.shape,
+                    self.gt_image.shape,
+                    self.mask.shape,
+                    self.sample_num,
+                    cls,
+                    self.ddim_num_steps,
+                    self.ddim_eta,
                 )
+                print(self.opt.train_batch_size)
+                if self.opt.G_netG == "unet_vid":
+                    bf, channel, height, width = self.cond_image.shape
+                    frame = bf // self.opt.train_batch_size
+                    self.cond_image = self.cond_image.contiguous().view(
+                        self.opt.train_batch_size, frame, channel, height, width
+                    )
+                    self.y_t = self.y_t.contiguous().view(
+                        self.opt.train_batch_size, frame, channel, height, width
+                    )
+                    self.gt_image = self.gt_image.contiguous().view(
+                        self.opt.train_batch_size, frame, channel, height, width
+                    )
+                    bf, channel, height, width = mask.shape
+                    mask = mask.contiguous().view(
+                        self.opt.train_batch_size, frame, channel, height, width
+                    )
+                    self.output, self.visuals = netG.restoration(
+                        y_cond=self.cond_image[0:1],
+                        y_t=self.y_t[0:1],
+                        y_0=self.gt_image[0:1],
+                        mask=mask[0:1],
+                        sample_num=self.sample_num,
+                        cls=cls,
+                        ddim_num_steps=self.ddim_num_steps,
+                        ddim_eta=self.ddim_eta,
+                    )
+                else:
+                    self.output, self.visuals = netG.restoration(
+                        y_cond=self.cond_image[:nb_imgs],
+                        y_t=self.y_t[:nb_imgs],
+                        y_0=self.gt_image[:nb_imgs],
+                        mask=mask,
+                        sample_num=self.sample_num,
+                        cls=cls,
+                        ddim_num_steps=self.ddim_num_steps,
+                        ddim_eta=self.ddim_eta,
+                    )
                 self.fake_B = self.output
 
         # task: super resolution, pix2pix
@@ -696,6 +736,10 @@ class PaletteModel(BaseDiffusionModel):
     def compute_visuals(self, nb_imgs):
         super().compute_visuals(nb_imgs)
         with torch.no_grad():
+            if self.opt.G_netG == "unet_vid":
+                nb_imgs = self.batch_size
+            else:
+                nb_imgs = nb_imgs
             self.inference(nb_imgs)
 
     def get_dummy_input(self, device=None):
