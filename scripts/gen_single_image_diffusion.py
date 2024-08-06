@@ -391,6 +391,12 @@ def generate(
         bbox_select[3] += opt.data_online_context_pixels
         bbox_select[2] += opt.data_online_context_pixels
 
+        # clamp bbox to image size
+        bbox_select[0] = max(0, bbox_select[0])
+        bbox_select[1] = max(0, bbox_select[1])
+        bbox_select[2] = min(img_orig.shape[1], bbox_select[2])
+        bbox_select[3] = min(img_orig.shape[0], bbox_select[3])
+
         img, mask = np.array(img), np.array(mask)
 
     if img_width > 0 and img_height > 0:
