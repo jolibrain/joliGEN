@@ -13,6 +13,7 @@ from .modules.hdit.hdit import HDiT, HDiTConfig
 
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
+from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 
 
 def define_G(
@@ -128,10 +129,7 @@ def define_G(
         )
 
     elif G_netG == "unet_vid":
-        if model_prior_321_backwardcompatibility:
-            cond_embed_dim = G_ngf * 4
-        else:
-            cond_embed_dim = alg_diffusion_cond_embed_dim
+        cond_embed_dim = alg_diffusion_cond_embed_dim
 
         model = UNetVid(
             image_size=data_crop_size,

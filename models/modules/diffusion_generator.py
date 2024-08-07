@@ -6,7 +6,7 @@ from functools import partial
 import numpy as np
 from tqdm import tqdm
 from torch import nn
-
+from einops import rearrange, repeat
 
 from models.modules.diffusion_utils import (
     set_new_noise_schedule,
@@ -14,6 +14,8 @@ from models.modules.diffusion_utils import (
     q_posterior,
     gamma_embedding,
     extract,
+    rearrange_5dto4d,
+    rearrange_4dto5d,
 )
 
 
@@ -138,6 +140,7 @@ class DiffusionGenerator(nn.Module):
 
         y_t = self.default(y_t, lambda: torch.randn_like(y_cond))
         ret_arr = y_t
+
         for i in tqdm(
             reversed(range(0, self.denoise_fn.model.num_timesteps_test)),
             desc="sampling loop time step",
@@ -161,6 +164,7 @@ class DiffusionGenerator(nn.Module):
                 y_t = y_0 * (1.0 - temp_mask) + temp_mask * y_t
             if i % sample_inter == 0:
                 ret_arr = torch.cat([ret_arr, y_t], dim=0)
+
         return y_t, ret_arr
 
     def exists(self, x):
@@ -188,16 +192,21 @@ class DiffusionGenerator(nn.Module):
         y_cond=None,
         guidance_scale=0.0,
     ):
+        sequence_length = 0
+        if len(y_t.shape) == 5:
+            sequence_length = y_t.shape[1]
+            y_t, y_cond, mask = rearrange_5dto4d(y_t, y_cond, mask)
+
         noise_level = self.extract(
             getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
 
         embed_noise_level = self.compute_gammas(noise_level)
 
-        if len(y_cond.shape) == 5 and len(y_t.shape) == 5:
-            input = torch.cat([y_cond, y_t], dim=2)
-        else:
-            input = torch.cat([y_cond, y_t], dim=1)
+        input = torch.cat([y_cond, y_t], dim=1)
+        if sequence_length != 0:
+            input, y_t, mask = rearrange_4dto5d(sequence_length, input, y_t, mask)
+
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = predict_start_from_noise(
                 self.denoise_fn.model,
@@ -212,7 +221,6 @@ class DiffusionGenerator(nn.Module):
                 ),
                 phase=phase,
             )
-
         y_0_hat = predict_start_from_noise(
             self.denoise_fn.model,
             y_t,
@@ -228,7 +236,6 @@ class DiffusionGenerator(nn.Module):
 
         if clip_denoised:
             y_0_hat.clamp_(-1.0, 1.0)
-
         model_mean, posterior_log_variance = q_posterior(
             self.denoise_fn.model, y_0_hat=y_0_hat, y_t=y_t, t=t, phase=phase
         )
@@ -250,6 +257,7 @@ class DiffusionGenerator(nn.Module):
         y_cond=None,
         guidance_scale=0.0,
     ):
+
         model_mean, model_log_variance = self.p_mean_variance(
             y_t=y_t,
             t=t,
@@ -261,9 +269,10 @@ class DiffusionGenerator(nn.Module):
             ref=ref,
             guidance_scale=guidance_scale,
         )
-
         noise = torch.randn_like(y_t) if any(t > 0) else torch.zeros_like(y_t)
+
         out = model_mean + noise * (0.5 * model_log_variance).exp()
+
         return out
 
     ## DDIM
@@ -429,7 +438,13 @@ class DiffusionGenerator(nn.Module):
         return model_mean, posterior_log_variance
 
     def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):
+        sequence_length = 0
+        if len(y_0.shape) == 5:
+            sequence_length = y_0.shape[1]
+            y_0, y_cond, mask = rearrange_5dto4d(y_0, y_cond, mask)
+
         b, *_ = y_0.shape
+
         t = torch.randint(
             1, self.denoise_fn.model.num_timesteps_train, (b,), device=y_0.device
         ).long()
@@ -453,10 +468,12 @@ class DiffusionGenerator(nn.Module):
         if mask is not None:
             temp_mask = torch.clamp(mask, min=0.0, max=1.0)
             y_noisy = y_noisy * temp_mask + (1.0 - temp_mask) * y_0
-        if len(y_cond.shape) == 5 and len(y_noisy.shape) == 5:
-            input = torch.cat([y_cond, y_noisy], dim=2)
-        else:
-            input = torch.cat([y_cond, y_noisy], dim=1)
+
+        input = torch.cat([y_cond, y_noisy], dim=1)
+
+        if sequence_length != 0:
+            input, mask, noise = rearrange_4dto5d(sequence_length, input, mask, noise)
+
         noise_hat = self.denoise_fn(
             input, embed_sample_gammas, cls=cls, mask=mask, ref=ref
         )
@@ -477,7 +494,6 @@ class DiffusionGenerator(nn.Module):
         min_snr_loss_weight = (
             torch.stack([snr, ksnr * torch.ones_like(t)], dim=1).min(dim=1)[0] / snr
         )
-
         # reshape min_snr_loss_weight to match noise_hat
         min_snr_loss_weight = min_snr_loss_weight.view(-1, 1, 1, 1)
 

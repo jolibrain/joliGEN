@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import math
 from functools import partial
+from einops import rearrange
 
 
 def gamma_embedding_1D(gammas, dim, max_period):
@@ -134,3 +135,15 @@ def extract(a, t, x_shape=(1, 1, 1, 1)):
     b, *_ = t.shape
     out = a.gather(-1, t)
     return out.reshape(b, *((1,) * (len(x_shape) - 1)))
+
+
+def rearrange_5dto4d(*tensors):
+    """Rearrange a tensor according to a given pattern using einops.rearrange."""
+    return [rearrange(tensor, "b f c h w -> b c (f h) w") for tensor in tensors]
+
+
+def rearrange_4dto5d(frame, *tensors):
+    """Rearrange a tensor from 4D to 5D according to a given pattern using einops.rearrange."""
+    return [
+        rearrange(tensor, "b c (f h) w -> b f c h w", f=frame) for tensor in tensors
+    ]

@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 from .switchable_norm import SwitchNorm2d
+from einops import rearrange
 
 
 class InflatedConv3d(nn.Conv2d):

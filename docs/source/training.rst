@@ -208,3 +208,4 @@ Train a DDPM model to generate a sequence of frame images for inpainting, ensuri
 .. code:: bash
 
    python3 train.py --dataroot /path/to/data/online_mario2sonic_full  --checkpoints_dir /path/to/checkpoints  --name mario_vid  --config_json examples/example_ddpm_vid_mario.json
+

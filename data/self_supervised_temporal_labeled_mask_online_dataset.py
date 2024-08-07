@@ -38,6 +38,7 @@ class SelfSupervisedTemporalLabeledMaskOnlineDataset(BaseDataset):
         # sort
         self.A_img_paths.sort(key=natural_keys)
         self.A_label_mask_paths.sort(key=natural_keys)
+
         if self.opt.data_sanitize_paths:
             self.sanitize()
         elif opt.data_max_dataset_size != float("inf"):
@@ -95,6 +96,7 @@ class SelfSupervisedTemporalLabeledMaskOnlineDataset(BaseDataset):
                     print("Condition not met, generating a new index_A...")
             else:  # dataset from one video in form of img/frames.jpg
                 break
+
         for i in range(self.num_frames):
             cur_index_A = index_A + i * self.frame_step
 
@@ -212,5 +214,4 @@ class SelfSupervisedTemporalLabeledMaskOnlineDataset(BaseDataset):
                 ref_A_img_path,
             )
             return None
-
         return result

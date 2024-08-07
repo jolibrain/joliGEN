@@ -32,6 +32,7 @@ from util.parser import get_opt
 from util.visualizer import Visualizer
 from util.lion_pytorch import Lion
 from util.script import get_override_options_names
+import datetime
 
 
 def setup(rank, world_size, port):
@@ -39,7 +40,12 @@ def setup(rank, world_size, port):
     os.environ["MASTER_PORT"] = port
 
     # initialize the process group
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    dist.init_process_group(
+        "nccl",
+        rank=rank,
+        world_size=world_size,
+        timeout=datetime.timedelta(seconds=5400),
+    )  # modified timeout from default 10 or 30 mins (?) to 1.5h
 
 
 def optim(opt, params, lr, betas, weight_decay, eps):
