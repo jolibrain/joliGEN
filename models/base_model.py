@@ -760,15 +760,12 @@ class BaseModel(ABC):
         """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""
         visual_ret = []
         for i, group in enumerate(self.visual_names):
-            print("group ", group)
             cur_visual = OrderedDict()
             for name in group:
                 if phase == "test":
                     name = name + "_test_" + test_name
                 if isinstance(name, str) and hasattr(self, name):
                     cur_visual[name] = getattr(self, name)
-                    print("get_currentvisuals name, ", name, cur_visual[name].shape)
-            print(" cur_visual ", cur_visual.keys())
             visual_ret.append(cur_visual)
             if (
                 self.opt.model_type != "cut"
