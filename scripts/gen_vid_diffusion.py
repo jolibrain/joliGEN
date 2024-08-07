@@ -348,6 +348,7 @@ def generate(
                 bbox = bboxes[bbox_idx]
 
             # print(opt.data_online_creation_load_size_A)
+            # opt.data_online_creation_load_size_A = (1280, 720)
             crop_coordinates = crop_image(
                 img_path=img_in,
                 bbox_path=bbox_in,

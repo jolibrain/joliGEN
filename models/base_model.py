@@ -1621,6 +1621,7 @@ class BaseModel(ABC):
         real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
         if len(real_tensor.shape) == 5:  # temporal
+
             real_tensor = real_tensor[:, 1]
             fake_tensor = fake_tensor[:, 1]
             ssim_test = ssim(real_tensor, fake_tensor)

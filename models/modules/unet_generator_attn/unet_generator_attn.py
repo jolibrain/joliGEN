@@ -7,7 +7,6 @@ import torch.nn.functional as F
 
 import numpy as np
 
-from einops import rearrange
 from einops.layers.torch import Rearrange
 
 from positional_encodings.torch_encodings import PositionalEncoding1D, Summer

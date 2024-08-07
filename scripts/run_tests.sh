@@ -213,6 +213,7 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+
 ###### test cycle_gan
 # echo "Running test cycle_gan"
 # python3 "${current_dir}/../test.py" \

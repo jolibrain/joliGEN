@@ -240,36 +240,37 @@ class ResBlock(EmbedBlock):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
 
-            h = in_rest(x)
+            hd = in_rest(x)
 
             if self.efficient and self.up:
-                h = in_conv(h)
-                h = self.h_upd(h)
+                hd = in_conv(hd)
+                hd = self.h_upd(hd)
                 x = self.x_upd(x)
             else:
-                h = self.h_upd(h)
+                hd = self.h_upd(hd)
                 x = self.x_upd(x)
-                h = in_conv(h)
-
+                hd = in_conv(hd)
         else:
-            h = self.in_layers(x)
-        emb_out = self.emb_layers(emb).type(h.dtype)
-        while len(emb_out.shape) < len(h.shape):
+            hd = self.in_layers(x)
+
+        emb_out = self.emb_layers(emb).type(hd.dtype)
+        while len(emb_out.shape) < len(hd.shape):
             emb_out = emb_out.unsqueeze(-1)
-            # emb_out = emb_out[..., None]
+        emb_out = emb_out.repeat_interleave(f, dim=0)
         if self.use_scale_shift_norm:
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = torch.chunk(emb_out, 2, dim=1)
-            h = out_norm(h) * (1 + scale) + shift
-            h = out_rest(h)
+            hd = out_norm(hd) * (1 + scale) + shift
+            hd = out_rest(hd)
         else:
-            h = h + emb_out
-            h = self.out_layers(h)
+            hd = hd + emb_out
+            hd = hd.view(b * f, c, h, w)
+            hd = self.out_layers(hd)
 
         skipw = 1.0
         if self.efficient:
             skipw = 1.0 / math.sqrt(2)
-        output = self.skip_connection(x) + h
+        output = self.skip_connection(x) + hd
         bf, c, h, w = output.shape
         b = bf // f
         f = bf // b
@@ -378,7 +379,7 @@ class MotionModule(nn.Module):
         attention_block_types=("Temporal_Self", "Temporal_Self"),
         cross_frame_attention_mode=None,
         temporal_position_encoding=False,
-        temporal_position_encoding_max_len=None,
+        temporal_position_encoding_max_len=25,
         temporal_attention_dim_div=1,
         zero_initialize=True,
     ):
@@ -438,11 +439,12 @@ class TemporalTransformer3DModel(nn.Module):
         upcast_attention=False,
         cross_frame_attention_mode=None,
         temporal_position_encoding=False,
-        temporal_position_encoding_max_len=None,
+        temporal_position_encoding_max_len=25,
     ):
         super().__init__()
 
         inner_dim = num_attention_heads * attention_head_dim
+
         self.norm = torch.nn.GroupNorm(
             num_groups=norm_num_groups, num_channels=in_channels, eps=1e-6, affine=True
         )
@@ -527,7 +529,7 @@ class TemporalTransformerBlock(nn.Module):
         upcast_attention=False,
         cross_frame_attention_mode=None,
         temporal_position_encoding=False,
-        temporal_position_encoding_max_len=None,
+        temporal_position_encoding_max_len=25,
     ):
         super().__init__()
 
@@ -928,7 +930,7 @@ class GEGLU(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, dropout=0.0, max_len=None):
+    def __init__(self, d_model, dropout=0.0, max_len=25):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         position = torch.arange(max_len).unsqueeze(1)
@@ -951,7 +953,7 @@ class VersatileAttention(CrossAttention):
         attention_mode=None,
         cross_frame_attention_mode=None,
         temporal_position_encoding=False,
-        temporal_position_encoding_max_len=None,
+        temporal_position_encoding_max_len=25,
         *args,
         **kwargs,
     ):
@@ -1131,6 +1133,7 @@ class UNetVid(nn.Module):
         self.num_heads_upsample = num_heads_upsample
         self.freq_space = freq_space
         self.max_frame = max_frame
+
         if self.freq_space:
             from ..freq_utils import InverseHaarTransform, HaarTransform
 
@@ -1185,7 +1188,7 @@ class UNetVid(nn.Module):
                         attention_block_types=("Temporal_self", "Temporal_Self"),
                         cross_frame_attention_mode=None,
                         temporal_position_encoding=True,
-                        temporal_position_encoding_max_len=self.max_frame,
+                        temporal_position_encoding_max_len=25,  # self.max_frame,
                         temporal_attention_dim_div=1,
                         zero_initialize=True,
                     )
@@ -1291,7 +1294,7 @@ class UNetVid(nn.Module):
                         attention_block_types=("Temporal_self", "Temporal_Self"),
                         cross_frame_attention_mode=None,
                         temporal_position_encoding=True,
-                        temporal_position_encoding_max_len=max_frame,
+                        temporal_position_encoding_max_len=25,  # self.max_frame,
                         temporal_attention_dim_div=1,
                         zero_initialize=True,
                     )
@@ -1353,11 +1356,6 @@ class UNetVid(nn.Module):
         }
 
     def compute_feats(self, input, embed_gammas):
-        if embed_gammas is None:
-            # Only for GAN
-            b = (input.shape[0], self.cond_embed_dim)
-            embed_gammas = torch.ones(b).to(input.device)
-
         emb = embed_gammas
 
         hs = []
@@ -1376,7 +1374,6 @@ class UNetVid(nn.Module):
         return outs, feats, emb
 
     def forward(self, input, embed_gammas=None):
-
         h, hs, emb = self.compute_feats(input, embed_gammas=embed_gammas)
         for i, module in enumerate(self.output_blocks):
             h = torch.cat([h, hs.pop()], dim=2)
