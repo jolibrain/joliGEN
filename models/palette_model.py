@@ -465,8 +465,10 @@ class PaletteModel(BaseDiffusionModel):
         noise, noise_hat, min_snr_loss_weight = self.netG_A(
             y_0=y_0, y_cond=y_cond, noise=noise, mask=mask, cls=cls, ref=ref
         )
-        frame = y_0.shape[1]
-        mask = rearrange(mask, "b f c h w -> (b f) c h w")
+        frame = 0
+        if len(y_0.shape) == 5:
+            frame = y_0.shape[1]
+            mask = rearrange(mask, "b f c h w -> (b f) c h w")
 
         if not self.opt.alg_palette_minsnr:
             min_snr_loss_weight = 1.0

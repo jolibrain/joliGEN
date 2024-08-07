@@ -128,11 +128,13 @@ class DiffusionGenerator(nn.Module):
         ref,
     ):
         phase = "test"
-        frame = y_cond.shape[1]
-        y_cond = rearrange(y_cond, "b f c h w -> (b f) c h w")
-        y_t = rearrange(y_t, "b f c h w -> (b f) c h w")
-        y_0 = rearrange(y_0, "b f c h w -> (b f) c h w")
-        mask = rearrange(mask, "b f c h w -> (b f) c h w")
+        frame = 0
+        if len(y_cond.shape) == 5:
+            frame = y_cond.shape[1]
+            y_cond = rearrange(y_cond, "b f c h w -> (b f) c h w")
+            y_t = rearrange(y_t, "b f c h w -> (b f) c h w")
+            y_0 = rearrange(y_0, "b f c h w -> (b f) c h w")
+            mask = rearrange(mask, "b f c h w -> (b f) c h w")
 
         b, *_ = y_cond.shape
 
@@ -143,10 +145,10 @@ class DiffusionGenerator(nn.Module):
 
         y_t = self.default(y_t, lambda: torch.randn_like(y_cond))
         ret_arr = y_t
-
-        y_t = rearrange(y_t, " (b f) c h w -> b f c h w", f=frame)
-        y_cond = rearrange(y_cond, " (b f) c h w -> b f c h w", f=frame)
-        mask = rearrange(mask, " (b f) c h w -> b f c h w", f=frame)
+        if frame != 0:
+            y_t = rearrange(y_t, " (b f) c h w -> b f c h w", f=frame)
+            y_cond = rearrange(y_cond, " (b f) c h w -> b f c h w", f=frame)
+            mask = rearrange(mask, " (b f) c h w -> b f c h w", f=frame)
 
         for i in tqdm(
             reversed(range(0, self.denoise_fn.model.num_timesteps_test)),
@@ -165,16 +167,18 @@ class DiffusionGenerator(nn.Module):
                 ref=ref,
                 guidance_scale=guidance_scale,
             )
-            mask = rearrange(mask, "b f c h w -> (b f) c h w")
+            if frame != 0:
+                mask = rearrange(mask, "b f c h w -> (b f) c h w")
             if mask is not None:
                 temp_mask = torch.clamp(mask, min=0.0, max=1.0)
                 y_t = y_0 * (1.0 - temp_mask) + temp_mask * y_t
             if i % sample_inter == 0:
                 ret_arr = torch.cat([ret_arr, y_t], dim=0)
-
-            y_t = rearrange(y_t, " (b f) c h w -> b f c h w", f=frame)
-            mask = rearrange(mask, " (b f) c h w -> b f c h w", f=frame)
-        ret_arr = rearrange(ret_arr, " (b f) c h w -> b f c h w", f=frame)
+            if frame != 0:
+                y_t = rearrange(y_t, " (b f) c h w -> b f c h w", f=frame)
+                mask = rearrange(mask, " (b f) c h w -> b f c h w", f=frame)
+        if frame != 0:
+            ret_arr = rearrange(ret_arr, " (b f) c h w -> b f c h w", f=frame)
 
         return y_t, ret_arr
 
@@ -203,11 +207,12 @@ class DiffusionGenerator(nn.Module):
         y_cond=None,
         guidance_scale=0.0,
     ):
-
-        frame = y_t.shape[1]
-        y_t = rearrange(y_t, "b f c h w -> (b f) c h w")
-        y_cond = rearrange(y_cond, "b f c h w -> (b f) c h w")
-        mask = rearrange(mask, "b f c h w -> (b f) c h w")
+        frame = 0
+        if len(y_t.shape) == 5:
+            frame = y_t.shape[1]
+            y_t = rearrange(y_t, "b f c h w -> (b f) c h w")
+            y_cond = rearrange(y_cond, "b f c h w -> (b f) c h w")
+            mask = rearrange(mask, "b f c h w -> (b f) c h w")
 
         noise_level = self.extract(
             getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
@@ -216,9 +221,10 @@ class DiffusionGenerator(nn.Module):
         embed_noise_level = self.compute_gammas(noise_level)
 
         input = torch.cat([y_cond, y_t], dim=1)
+        if frame != 0:
 
-        input = rearrange(input, "(b f) c h w -> b f c h w", f=frame)
-        mask = rearrange(mask, "(b f) c h w -> b f c h w", f=frame)
+            input = rearrange(input, "(b f) c h w -> b f c h w", f=frame)
+            mask = rearrange(mask, "(b f) c h w -> b f c h w", f=frame)
 
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = predict_start_from_noise(
@@ -281,9 +287,10 @@ class DiffusionGenerator(nn.Module):
             ref=ref,
             guidance_scale=guidance_scale,
         )
-
-        frame = y_t.shape[1]
-        y_t = rearrange(y_t, "b f c h w -> (b f) c h w")
+        frame = 0
+        if len(y_t.shape) == 5:
+            frame = y_t.shape[1]
+            y_t = rearrange(y_t, "b f c h w -> (b f) c h w")
 
         noise = torch.randn_like(y_t) if any(t > 0) else torch.zeros_like(y_t)
         out = model_mean + noise * (0.5 * model_log_variance).exp()
@@ -452,10 +459,12 @@ class DiffusionGenerator(nn.Module):
         return model_mean, posterior_log_variance
 
     def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):
-        frame = y_0.shape[1]
-        y_0 = rearrange(y_0, "b f c h w -> (b f) c h w")
-        y_cond = rearrange(y_cond, "b f c h w -> (b f) c h w")
-        mask = rearrange(mask, "b f c h w -> (b f) c h w")
+        frame = 0
+        if len(y_0.shape) == 5:
+            frame = y_0.shape[1]
+            y_0 = rearrange(y_0, "b f c h w -> (b f) c h w")
+            y_cond = rearrange(y_cond, "b f c h w -> (b f) c h w")
+            mask = rearrange(mask, "b f c h w -> (b f) c h w")
 
         b, *_ = y_0.shape
 
@@ -484,8 +493,10 @@ class DiffusionGenerator(nn.Module):
             y_noisy = y_noisy * temp_mask + (1.0 - temp_mask) * y_0
 
         input = torch.cat([y_cond, y_noisy], dim=1)
-        input = rearrange(input, "(b f) c h w -> b f c h w", f=frame)
-        mask = rearrange(mask, "(b f) c h w -> b f c h w", f=frame)
+
+        if frame != 0:
+            input = rearrange(input, "(b f) c h w -> b f c h w", f=frame)
+            mask = rearrange(mask, "(b f) c h w -> b f c h w", f=frame)
         noise_hat = self.denoise_fn(
             input, embed_sample_gammas, cls=cls, mask=mask, ref=ref
         )
