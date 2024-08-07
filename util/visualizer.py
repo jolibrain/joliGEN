@@ -169,6 +169,11 @@ class Visualizer:
             epoch (int) - - the current epoch
             save_result (bool) - - if save the current results to an HTML file
         """
+        print("visuals ", len(visuals))
+        for i in range(len(visuals)):
+            print(" visual ", visuals[i].keys(), type(visuals[i]))
+        #    for key, item in visuals[i].items() :
+        #       print(" key, items ", key, item.shape)
         if self.display_id > 0:  # show images in the browser using visdom
             ncols = self.ncols
             if ncols >= 0:  # show all the images in one visdom panel
