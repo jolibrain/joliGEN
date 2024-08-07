@@ -210,6 +210,7 @@ class CommonOptions(BaseOptions):
                 "dit",
                 "hdit",
                 "img2img_turbo",
+                "unet_vid",
             ],
             help="specify generator architecture",
         )
@@ -658,6 +659,7 @@ class CommonOptions(BaseOptions):
                 "aligned",
                 "nuplet_unaligned_labeled_mask",
                 "temporal_labeled_mask_online",
+                "self_supervised_temporal_labeled_mask_online",
                 "self_supervised_temporal",
                 "single",
                 "unaligned_labeled_mask_ref",

@@ -11,6 +11,7 @@ from .modules.hdit.hdit import HDiT, HDiTConfig
 
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
+from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 
 
 def define_G(
@@ -104,6 +105,32 @@ def define_G(
             cond_embed_dim = alg_diffusion_cond_embed_dim
 
         model = UNet(
+            image_size=data_crop_size,
+            in_channel=in_channel,
+            inner_channel=G_ngf,
+            out_channel=model_output_nc,
+            res_blocks=G_unet_mha_res_blocks,
+            attn_res=G_unet_mha_attn_res,
+            num_heads=G_unet_mha_num_heads,
+            num_head_channels=G_unet_mha_num_head_channels,
+            tanh=False,
+            dropout=G_dropout,
+            n_timestep_train=G_diff_n_timestep_train,
+            n_timestep_test=G_diff_n_timestep_test,
+            channel_mults=G_unet_mha_channel_mults,
+            norm=G_unet_mha_norm_layer,
+            group_norm_size=G_unet_mha_group_norm_size,
+            efficient=G_unet_mha_vit_efficient,
+            cond_embed_dim=cond_embed_dim,
+            freq_space=train_feat_wavelet,
+        )
+    elif G_netG == "unet_vid":
+        if model_prior_321_backwardcompatibility:
+            cond_embed_dim = G_ngf * 4
+        else:
+            cond_embed_dim = alg_diffusion_cond_embed_dim
+
+        model = UNetVid(
             image_size=data_crop_size,
             in_channel=in_channel,
             inner_channel=G_ngf,
