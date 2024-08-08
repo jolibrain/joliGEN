@@ -210,7 +210,7 @@ fi
 ####### vid diffusion tests
 echo "Running vid diffusion training tests"
 
-python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_video_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_vid_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
