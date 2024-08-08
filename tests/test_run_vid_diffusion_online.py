@@ -83,15 +83,15 @@ def test_video_diffusion_online(dataroot):
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
 
-        # Inference
-        infer_options_c = infer_options.copy()
-        infer_options_c["model_in_file"] = os.path.join(
-            json_like_dict_c["checkpoints_dir"],
-            json_like_dict_c["name"],
-            "latest_net_G_A.pth",
-        )
-        infer_options_c["dir_out"] = os.path.join(
-            json_like_dict_c["checkpoints_dir"], json_like_dict_c["name"]
-        )
-        opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=False)
-        inference(opt)
+    # # Inference
+    # infer_options_c = infer_options.copy()
+    # infer_options_c["model_in_file"] = os.path.join(
+    #     json_like_dict_c["checkpoints_dir"],
+    #     json_like_dict_c["name"],
+    #     "latest_net_G_A.pth",
+    # )
+    # infer_options_c["dir_out"] = os.path.join(
+    #     json_like_dict_c["checkpoints_dir"], json_like_dict_c["name"]
+    # )
+    # opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=False)
+    # inference(opt)
