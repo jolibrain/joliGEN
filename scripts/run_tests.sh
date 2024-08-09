@@ -207,6 +207,17 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+####### vid diffusion tests
+echo "Running vid diffusion training tests"
+
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_vid_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+
 ###### test cycle_gan
 # echo "Running test cycle_gan"
 # python3 "${current_dir}/../test.py" \
