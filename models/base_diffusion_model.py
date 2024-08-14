@@ -60,7 +60,7 @@ class BaseDiffusionModel(BaseModel):
             default=0.0,
             help="dropout probability for classifier-free guidance",
         )
-        
+
         parser.add_argument(
             "--alg_vid_canny_dropout_prob",
             type=float,
