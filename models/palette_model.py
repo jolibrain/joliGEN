@@ -374,6 +374,7 @@ class PaletteModel(BaseDiffusionModel):
                             low_threshold_random=low,
                             high_threshold_random=high,
                         ).squeeze(0)
+
                     elif "sam" in fill_img_with_random_sketch.__name__:
                         batch_cond_image = fill_img_with_random_sketch(
                             image.unsqueeze(0),
@@ -399,14 +400,47 @@ class PaletteModel(BaseDiffusionModel):
                     self.gt_image = rearrange(self.gt_image, "b f c h w -> (b f) c h w")
 
                 if "canny" in fill_img_with_random_sketch.__name__:
-                    low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
-                    high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
-                    self.cond_image = fill_img_with_random_sketch(
-                        self.gt_image,
-                        self.mask,
-                        low_threshold_random=low,
-                        high_threshold_random=high,
-                    )
+                    if self.opt.G_netG == "unet_vid":
+                        self.cond_image_nosketch = fill_img_with_random_sketch(
+                            self.gt_image,
+                            self.mask,
+                            low_threshold_random=1000000,
+                            high_threshold_random=1000000,
+                        )
+
+                        low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
+                        high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
+                        self.cond_image_sketch = fill_img_with_random_sketch(
+                            self.gt_image,
+                            self.mask,
+                            low_threshold_random=low,
+                            high_threshold_random=high,
+                        )
+
+                        no_sketch = math.floor(
+                            self.opt.alg_vid_canny_dropout_prob
+                            * (self.cond_image_nosketch.shape[0])
+                        )
+                        no_sketch = min(
+                            max(no_sketch, 0), self.cond_image_nosketch.shape[0]
+                        )
+                        indices_nosketch = torch.randperm(
+                            self.cond_image_nosketch.shape[0]
+                        )[:no_sketch]
+                        samples_nosketch = self.cond_image_nosketch[indices_nosketch]
+                        modified_sketch = self.cond_image_sketch.clone()
+                        modified_sketch[indices_nosketch] = samples_nosketch
+                        self.cond_image = modified_sketch
+
+                    else:
+                        low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
+                        high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
+                        self.cond_image = fill_img_with_random_sketch(
+                            self.gt_image,
+                            self.mask,
+                            low_threshold_random=low,
+                            high_threshold_random=high,
+                        )
                 elif "sam" in fill_img_with_random_sketch.__name__:
                     self.cond_image = fill_img_with_random_sketch(
                         self.gt_image,
