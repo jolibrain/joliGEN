@@ -252,7 +252,6 @@ class PaletteModel(BaseDiffusionModel):
 
     def set_input(self, data):
         """must use set_device in tensor"""
-
         if (
             len(data["A"].to(self.device).shape) == 5
         ):  # we're using temporal successive frames
@@ -329,7 +328,6 @@ class PaletteModel(BaseDiffusionModel):
             else:  # e.g. super-resolution
                 self.gt_image = data["A"].to(self.device)
                 self.mask = None
-
         if "B_label_cls" in data:
             self.cls = data["B_label_cls"].to(self.device)
         else:
@@ -394,6 +392,12 @@ class PaletteModel(BaseDiffusionModel):
                 fill_img_with_random_sketch = random_edge_mask(
                     fn_list=self.opt.alg_diffusion_cond_computed_sketch_list
                 )
+                frame = 0
+                if len(self.gt_image.shape) == 5:
+                    frame = self.gt_image.shape[1]
+                    self.mask = rearrange(self.mask, "b f c h w -> (b f) c h w")
+                    self.gt_image = rearrange(self.gt_image, "b f c h w -> (b f) c h w")
+
                 if "canny" in fill_img_with_random_sketch.__name__:
                     low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
                     high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
@@ -416,6 +420,16 @@ class PaletteModel(BaseDiffusionModel):
                     )
 
                 self.cond_image = self.cond_image.to(self.device)
+                if frame != 0:
+                    self.gt_image = rearrange(
+                        self.gt_image, " (b f) c h w -> b f c h w", f=frame
+                    )
+                    self.mask = rearrange(
+                        self.mask, " (b f) c h w -> b f c h w", f=frame
+                    )
+                    self.cond_image = rearrange(
+                        self.cond_image, " (b f) c h w -> b f c h w", f=frame
+                    )
 
         elif self.opt.alg_diffusion_cond_image_creation == "low_res":
             self.cond_image = self.transform_lr(self.gt_image)  # bilinear interpolation
@@ -435,6 +449,11 @@ class PaletteModel(BaseDiffusionModel):
         mask = self.mask
         noise = None
         cls = self.cls
+
+        frame = 0
+        if len(mask.shape) == 5:
+            frame = mask.shape[1]
+            mask = rearrange(mask, "b f c h w -> (b f) c h w")
 
         if self.opt.alg_diffusion_dropout_prob > 0.0:
             drop_ids = (
@@ -456,6 +475,8 @@ class PaletteModel(BaseDiffusionModel):
             if cls is not None:
                 # the highest class is the unconditionned one.
                 cls = torch.where(drop_ids, self.num_classes - 1, cls)
+        if frame != 0:
+            mask = rearrange(mask, " (b f) c h w -> b f c h w", f=frame)
 
         if self.use_ref:
             ref = self.ref_A
