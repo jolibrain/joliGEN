@@ -451,7 +451,7 @@ class PaletteModel(BaseDiffusionModel):
         cls = self.cls
 
         frame = 0
-        if len(mask.shape) == 5:
+        if mask is not None and len(mask.shape) == 5:
             frame = mask.shape[1]
             mask = rearrange(mask, "b f c h w -> (b f) c h w")
 
