@@ -57,7 +57,7 @@ Here are all the available options to call with `train.py`
 | --G_lora_vae | int | 8 | lora vae rank for G |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/> **Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512 |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit, unet_mha_ref_attn, dit, hdit, img2img_turbo |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit, unet_mha_ref_attn, dit, hdit, img2img_turbo, unet_vid |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/> **Values:** instance, batch, none |
 | --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/> **Values:** reflect, replicate, zeros |
@@ -70,8 +70,8 @@ Here are all the available options to call with `train.py`
 | --G_unet_mha_num_heads | int | 1 | number of heads in the mha architecture |
 | --G_unet_mha_res_blocks | array | [2, 2, 2, 2] | distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults |
 | --G_unet_mha_vit_efficient | flag |  | if true, use efficient attention in UNet and UViT |
+| --G_unet_vid_max_frame | int | 24 | max frame number for unet_vid in the PositionalEncoding |
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
-| --G_unet_vid_max_frame | int | 24 | Number of max frame can be used in the unet_vidfor video generation |
 
 ## Algorithm-specific
 
@@ -170,7 +170,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_temporal, single, unaligned_labeled_mask_ref, self_supervised_labeled_mask_ref, unaligned_labeled_mask_online_ref, unaligned_labeled_mask_online_prompt, self_supervised_labeled_mask_online_ref |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_temporal_labeled_mask_online, self_supervised_temporal, single, unaligned_labeled_mask_ref, self_supervised_labeled_mask_ref, unaligned_labeled_mask_online_ref, unaligned_labeled_mask_online_prompt, self_supervised_labeled_mask_online_ref |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/> **Values:** AtoB, BtoA |
 | --data_image_bits | int | 8 | number of bits of the image (e.g. 8, 12 or 16) |
 | --data_inverted_mask | flag |  | whether to invert the mask, i.e. around the bbox |
@@ -269,7 +269,6 @@ Here are all the available options to call with `train.py`
 | --output_display_visdom_port | int | 8097 | visdom port of the web display |
 | --output_display_visdom_server | string | http://localhost | visdom server of the web display |
 | --output_display_winsize | int | 256 | display window size for both visdom and HTML |
-| --output_num_images | int | 20 | max number of images shows in the visdom window |
 
 ## Model
 
