@@ -12,11 +12,11 @@ from models.modules.sam.sam_inference import compute_mask_with_sam
 from util.iter_calculator import IterCalculator
 from util.mask_generation import random_edge_mask
 from util.network_group import NetworkGroup
-
 from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
 from .modules.loss import MultiScaleDiffusionLoss
 from .modules.unet_generator_attn.unet_attn_utils import revert_sync_batchnorm
+from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
 
 from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
 
@@ -336,7 +336,6 @@ class PaletteModel(BaseDiffusionModel):
 
         if self.use_ref:
             self.ref_A = data["ref_A"].to(self.device)
-
         if self.opt.alg_diffusion_cond_image_creation == "y_t":
             self.cond_image = self.y_t
         elif self.opt.alg_diffusion_cond_image_creation == "previous_frame":
@@ -405,13 +404,16 @@ class PaletteModel(BaseDiffusionModel):
                             self.mask, self.gt_image
                         )
 
-                    self.cond_image = (
-                        fill_img_with_random_sketch(  # random canny in batch
-                            self.gt_image,
-                            self.mask,
-                            low_threshold_random=low,
-                            high_threshold_random=high,
-                        )
+                    random_num = torch.rand(self.gt_image.shape[0])
+                    canny_frame = (
+                        random_num > self.opt.alg_diffusion_vid_canny_dropout
+                    ).int()  # binary canny_frame
+                    self.cond_image = fill_img_with_random_sketch(
+                        self.gt_image,
+                        self.mask,
+                        low_threshold_random=low,
+                        high_threshold_random=high,
+                        select_canny=canny_frame,
                     )
 
                     if (
@@ -419,7 +421,6 @@ class PaletteModel(BaseDiffusionModel):
                         and self.opt.alg_diffusion_cond_image_creation
                         == "computed_sketch"
                     ):
-
                         self.mask, self.gt_image, self.cond_image = rearrange_4dto5d_bf(
                             self.opt.data_temporal_number_frames,
                             self.mask,
