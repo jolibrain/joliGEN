@@ -1,9 +1,9 @@
 import os
 import random
 import re
-
+import bisect
 import torch
-
+from collections import OrderedDict
 from data.base_dataset import BaseDataset, get_transform_list
 from data.image_folder import make_labeled_path_dataset
 from data.online_creation import crop_image
@@ -61,6 +61,32 @@ class SelfSupervisedTemporalLabeledMaskOnlineDataset(BaseDataset):
 
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
 
+        # dataset form img(bbox)/vid_series/vid_series_#frame.png(.txt)
+        # a ordered list with all video series paths
+        self.vid_series_paths = list(
+            OrderedDict.fromkeys(os.path.dirname(path) for path in self.A_img_paths)
+        )
+        # Initialize a dictionary to count how many available paths belong to each directory
+        self.frames_counts = {
+            vid_serie: -self.num_frames * self.frame_step
+            for vid_serie in self.vid_series_paths
+        }
+        # Loop through self.A_img_paths and count the occurrences of each directory
+        for path in self.A_img_paths:
+            dirname = os.path.dirname(path)
+            if dirname in self.vid_series_paths:
+                self.frames_counts[dirname] += 1
+
+        # Store cumulative sums of available frames in the order of video series.
+        self.cumulative_sums = []
+        cumulative_sum = 0
+        # Iterate through each video series in frames_counts to compute the cumulative sum of available frame.
+        for vid_serie in self.vid_series_paths:
+            count_minus = self.frames_counts[vid_serie]
+            if count_minus > 0:
+                cumulative_sum += count_minus
+            self.cumulative_sums.append(cumulative_sum)
+
     def get_img(
         self,
         A_img_path,
@@ -72,30 +98,38 @@ class SelfSupervisedTemporalLabeledMaskOnlineDataset(BaseDataset):
         index=None,
     ):  # all params are unused
 
-        while True:
-
+        if len(self.frames_counts) == 1:  # single video mario
             index_A = random.randint(0, self.range_A - 1)
+        else:  # video series
+            range_A = self.cumulative_sums[
+                -1
+            ]  # total number of frames that can be used as a starting frame
+            random_A = random.randint(
+                0, range_A - 1
+            )  # chose one frame from available video series
 
-            images_A = []
-            labels_A = []
+            # according to the selected_index, get the video series and frame number
+            selected_index = bisect.bisect_left(self.cumulative_sums, random_A)
+            selected_vid = self.vid_series_paths[selected_index]
+            if selected_index > 0:
+                frame_num = random_A - self.cumulative_sums[selected_index - 1]
+            else:
+                frame_num = random_A
 
-            ref_A_img_path = self.A_img_paths[index_A]
-            ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
-            ref_A_name = ref_A_img_path.split("/")[-1]  # fullname of the ref_A
+            filtered_paths = [
+                path
+                for path in self.A_img_paths
+                if os.path.dirname(path) == selected_vid
+            ]
 
-            vid_series_path = os.path.dirname(ref_A_img_path)
-            vid_series = vid_series_path.split("/")[-1]
-            if ref_A_name.startswith(
-                vid_series
-            ):  # dataset contains different video in form of img/vid_series/vid_seriesframe.jpg
-                series_count = sum(vid_series_path in path for path in self.A_img_paths)
-                frame_num = int(ref_A_name[len(vid_series) : -4])  # remove ".jpg"
-                if frame_num < (series_count - self.num_frames):
-                    break
-                else:
-                    print("Condition not met, generating a new index_A...")
-            else:  # dataset from one video in form of img/frames.jpg
-                break
+            # Get path and index_A
+            selected_path = filtered_paths[frame_num - 1]
+            index_A = self.A_img_paths.index(selected_path)
+
+        images_A = []
+        labels_A = []
+        ref_A_img_path = self.A_img_paths[index_A]
+        ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
 
         for i in range(self.num_frames):
             cur_index_A = index_A + i * self.frame_step
