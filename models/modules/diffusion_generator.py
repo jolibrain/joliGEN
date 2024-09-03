@@ -14,8 +14,8 @@ from models.modules.diffusion_utils import (
     q_posterior,
     gamma_embedding,
     extract,
-    rearrange_5dto4d,
-    rearrange_4dto5d,
+    rearrange_5dto4d_fh,
+    rearrange_4dto5d_fh,
 )
 
 
@@ -203,7 +203,7 @@ class DiffusionGenerator(nn.Module):
         sequence_length = 0
         if len(y_t.shape) == 5:
             sequence_length = y_t.shape[1]
-            y_t, y_cond, mask = rearrange_5dto4d(y_t, y_cond, mask)
+            y_t, y_cond, mask = rearrange_5dto4d_fh(y_t, y_cond, mask)
 
         noise_level = self.extract(
             getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
@@ -213,7 +213,7 @@ class DiffusionGenerator(nn.Module):
 
         input = torch.cat([y_cond, y_t], dim=1)
         if sequence_length != 0:
-            input, y_t, mask = rearrange_4dto5d(sequence_length, input, y_t, mask)
+            input, y_t, mask = rearrange_4dto5d_fh(sequence_length, input, y_t, mask)
 
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = predict_start_from_noise(
@@ -451,8 +451,7 @@ class DiffusionGenerator(nn.Module):
         # vid only
         if len(y_0.shape) == 5:
             sequence_length = y_0.shape[1]
-            y_0, y_cond, mask = rearrange_5dto4d(y_0, y_cond, mask)
-
+            y_0, y_cond, mask = rearrange_5dto4d_fh(y_0, y_cond, mask)
         b, *_ = y_0.shape
 
         t = torch.randint(
@@ -482,7 +481,9 @@ class DiffusionGenerator(nn.Module):
         input = torch.cat([y_cond, y_noisy], dim=1)
 
         if sequence_length != 0:
-            input, mask, noise = rearrange_4dto5d(sequence_length, input, mask, noise)
+            input, mask, noise = rearrange_4dto5d_fh(
+                sequence_length, input, mask, noise
+            )
 
         noise_hat = self.denoise_fn(
             input, embed_sample_gammas, cls=cls, mask=mask, ref=ref
