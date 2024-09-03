@@ -62,9 +62,13 @@ product_list = product(models_diffusion, G_netG, data_dataset_mode)
 def test_vid_diffusion_online(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
-
     with open(
-        os.path.join(json_like_dict["dataroot"], "trainA", "paths.txt")
+        os.path.join(
+            json_like_dict["checkpoints_dir"],
+            dataroot.split("/")[-1],
+            "trainA",
+            "paths.txt",
+        )
     ) as paths_file:
         line = paths_file.readline().strip().split(" ")
         infer_options["img_in"] = os.path.join(json_like_dict["dataroot"], line[0])

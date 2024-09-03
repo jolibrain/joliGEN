@@ -205,6 +205,16 @@ fi
 
 ####### vid diffusion tests
 echo "Running vid diffusion training tests"
+URL=https://www.joligen.com/datasets/bdd100K_vid.zip 
+ZIP_FILE=$DIR/bdd100K_vid.zip
+TARGET_MASK_SEM_ONLINE_DIR=$DIR/bdd100k_vid
+wget -N $URL -O $ZIP_FILE
+mkdir $TARGET_MASK_SEM_ONLINE_DIR
+unzip $ZIP_FILE -d $DIR
+rm $ZIP_FILE
+ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainA $TARGET_MASK_SEM_ONLINE_DIR/testA
+ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainB $TARGET_MASK_SEM_ONLINE_DIR/testB
+
 
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_vid_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
