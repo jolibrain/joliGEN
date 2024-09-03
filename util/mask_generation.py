@@ -37,27 +37,31 @@ def fill_img_with_sketch(img, mask, **kwargs):
 def fill_img_with_canny(
     img,
     mask,
-    low_threshold=None,
-    high_threshold=None,
+    cur_low_threshold=None,
+    cur_high_threshold=None,
     **kwargs,
 ):
     """Fill the masked region with canny edges."""
     low_threshold_random = kwargs["low_threshold_random"]
     high_threshold_random = kwargs["high_threshold_random"]
     max_value = 255 * 3
-    if high_threshold is None and low_threshold is None:
-        threshold_1 = random.randint(low_threshold_random, high_threshold_random)
-        threshold_2 = random.randint(low_threshold_random, high_threshold_random)
-        high_threshold = max(threshold_1, threshold_2)
-        low_threshold = min(threshold_1, threshold_2)
-    elif high_threshold is None and low_threshold is not None:
-        high_threshold = random.randint(low_threshold, max_value)
-    elif high_threshold is not None and low_threshold is None:
-        low_threshold = random.randint(0, high_threshold)
-
     device = img.device
     edges_list = []
     for cur_img in img:
+        high_threshold = cur_high_threshold
+        low_threshold = (
+            cur_low_threshold  # Reset thresholds for each image for new random
+        )
+
+        if high_threshold is None and low_threshold is None:
+            threshold_1 = random.randint(low_threshold_random, high_threshold_random)
+            threshold_2 = random.randint(low_threshold_random, high_threshold_random)
+            high_threshold = max(threshold_1, threshold_2)
+            low_threshold = min(threshold_1, threshold_2)
+        elif high_threshold is None and low_threshold is not None:
+            high_threshold = random.randint(low_threshold, max_value)
+        elif high_threshold is not None and low_threshold is None:
+            low_threshold = random.randint(0, high_threshold)
         cur_img = (
             (torch.einsum("chw->hwc", cur_img).cpu().numpy() + 1) * 255 / 2
         ).astype(np.uint8)
@@ -70,7 +74,6 @@ def fill_img_with_canny(
         edges_list.append(edges)
     edges = torch.cat(edges_list, dim=0)
     mask = torch.clamp(mask, 0, 1)
-
     return mask * edges + (1 - mask) * img
 
 

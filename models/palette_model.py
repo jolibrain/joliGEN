@@ -3,7 +3,6 @@ import itertools
 import math
 import random
 import warnings
-
 import torch
 import torchvision.transforms as T
 from torch import nn
@@ -18,6 +17,8 @@ from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
 from .modules.loss import MultiScaleDiffusionLoss
 from .modules.unet_generator_attn.unet_attn_utils import revert_sync_batchnorm
+
+from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
 
 
 class PaletteModel(BaseDiffusionModel):
@@ -395,12 +396,37 @@ class PaletteModel(BaseDiffusionModel):
                 if "canny" in fill_img_with_random_sketch.__name__:
                     low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
                     high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
-                    self.cond_image = fill_img_with_random_sketch(
-                        self.gt_image,
-                        self.mask,
-                        low_threshold_random=low,
-                        high_threshold_random=high,
+                    if (
+                        self.opt.G_netG == "unet_vid"
+                        and self.opt.alg_diffusion_cond_image_creation
+                        == "computed_sketch"
+                    ):
+                        self.mask, self.gt_image = rearrange_5dto4d_bf(
+                            self.mask, self.gt_image
+                        )
+
+                    self.cond_image = (
+                        fill_img_with_random_sketch(  # random canny in batch
+                            self.gt_image,
+                            self.mask,
+                            low_threshold_random=low,
+                            high_threshold_random=high,
+                        )
                     )
+
+                    if (
+                        self.opt.G_netG == "unet_vid"
+                        and self.opt.alg_diffusion_cond_image_creation
+                        == "computed_sketch"
+                    ):
+
+                        self.mask, self.gt_image, self.cond_image = rearrange_4dto5d_bf(
+                            self.opt.data_temporal_number_frames,
+                            self.mask,
+                            self.gt_image,
+                            self.cond_image,
+                        )
+
                 elif "sam" in fill_img_with_random_sketch.__name__:
                     self.cond_image = fill_img_with_random_sketch(
                         self.gt_image,
@@ -459,7 +485,6 @@ class PaletteModel(BaseDiffusionModel):
             ref = self.ref_A
         else:
             ref = None
-
         noise, noise_hat, min_snr_loss_weight = self.netG_A(
             y_0=y_0, y_cond=y_cond, noise=noise, mask=mask, cls=cls, ref=ref
         )

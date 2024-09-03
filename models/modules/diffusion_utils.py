@@ -137,13 +137,25 @@ def extract(a, t, x_shape=(1, 1, 1, 1)):
     return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
 
-def rearrange_5dto4d(*tensors):
+def rearrange_5dto4d_fh(*tensors):
     """Rearrange a tensor according to a given pattern using einops.rearrange."""
     return [rearrange(tensor, "b f c h w -> b c (f h) w") for tensor in tensors]
 
 
-def rearrange_4dto5d(frame, *tensors):
+def rearrange_4dto5d_fh(frame, *tensors):
     """Rearrange a tensor from 4D to 5D according to a given pattern using einops.rearrange."""
     return [
         rearrange(tensor, "b c (f h) w -> b f c h w", f=frame) for tensor in tensors
+    ]
+
+
+def rearrange_5dto4d_bf(*tensors):
+    """Rearrange a tensor according to a given pattern using einops.rearrange."""
+    return [rearrange(tensor, "b f c h w -> (b f) c h w") for tensor in tensors]
+
+
+def rearrange_4dto5d_bf(frame, *tensors):
+    """Rearrange a tensor from 4D to 5D according to a given pattern using einops.rearrange."""
+    return [
+        rearrange(tensor, "(b f) c h w -> b f c h w", f=frame) for tensor in tensors
     ]
