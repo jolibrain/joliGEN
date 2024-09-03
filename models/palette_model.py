@@ -3,7 +3,7 @@ import itertools
 import math
 import random
 import warnings
-
+from einops import rearrange
 import torch
 import torchvision.transforms as T
 from torch import nn
@@ -13,7 +13,7 @@ from models.modules.sam.sam_inference import compute_mask_with_sam
 from util.iter_calculator import IterCalculator
 from util.mask_generation import random_edge_mask
 from util.network_group import NetworkGroup
-
+from util.mask_generation import fill_mask_with_canny_dropout
 from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
 from .modules.loss import MultiScaleDiffusionLoss
@@ -335,7 +335,7 @@ class PaletteModel(BaseDiffusionModel):
 
         if self.use_ref:
             self.ref_A = data["ref_A"].to(self.device)
-
+        sequence_length = 0
         if self.opt.alg_diffusion_cond_image_creation == "y_t":
             self.cond_image = self.y_t
         elif self.opt.alg_diffusion_cond_image_creation == "previous_frame":
@@ -395,12 +395,47 @@ class PaletteModel(BaseDiffusionModel):
                 if "canny" in fill_img_with_random_sketch.__name__:
                     low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
                     high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
-                    self.cond_image = fill_img_with_random_sketch(
+                    if self.opt.G_netG == "unet_vid":
                         self.gt_image,
+                        sequence_length = self.gt_image.shape[1]
                         self.mask,
-                        low_threshold_random=low,
-                        high_threshold_random=high,
-                    )
+                        self.mask = rearrange(self.mask, "b f c h w -> (b f) c h w")
+                        low_threshold_random = (low,)
+                        self.gt_image = rearrange(
+                            self.gt_image, "b f c h w -> (b f) c h w"
+                        )
+                        cond_image_canny = fill_img_with_random_sketch(
+                            self.gt_image,
+                            self.mask,
+                            low_threshold_random=low,
+                            high_threshold_random=high,
+                            vary_thresholds=True,
+                        )
+
+                        cond_image_nocanny, frame_select = fill_mask_with_canny_dropout(
+                            self.gt_image,
+                            self.mask,
+                            self.opt.data_temporal_number_frames,
+                            0.9,
+                        )
+
+                        print(" frame_select, ", frame_select)
+                        frame_select = torch.tensor(frame_select, dtype=torch.bool)
+                        frame_select = frame_select.to(cond_image_canny.device)
+                        self.cond_image = torch.where(
+                            frame_select.unsqueeze(1).unsqueeze(2).unsqueeze(3),
+                            cond_image_canny,
+                            cond_image_nocanny,
+                        )
+
+                    else:
+                        self.cond_image = fill_img_with_random_sketch(
+                            self.gt_image,
+                            self.mask,
+                            low_threshold_random=low,
+                            high_threshold_random=high,
+                        )
+
                 elif "sam" in fill_img_with_random_sketch.__name__:
                     self.cond_image = fill_img_with_random_sketch(
                         self.gt_image,
@@ -422,6 +457,16 @@ class PaletteModel(BaseDiffusionModel):
         elif self.opt.alg_diffusion_cond_image_creation == "ref":
             self.cond_image = self.ref_A
 
+        if self.opt.G_netG == "unet_vid":
+            self.cond_image = rearrange(
+                self.cond_image, "(b f) c h w -> b f c h w", f=sequence_length
+            )
+            self.gt_image = rearrange(
+                self.gt_image, "(b f) c h w -> b f c h w", f=sequence_length
+            )
+            self.mask = rearrange(
+                self.mask, "(b f) c h w -> b f c h w", f=sequence_length
+            )
         self.batch_size = self.cond_image.shape[0]
 
         self.real_A = self.cond_image
