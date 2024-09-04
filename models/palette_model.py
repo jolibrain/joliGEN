@@ -457,7 +457,7 @@ class PaletteModel(BaseDiffusionModel):
         elif self.opt.alg_diffusion_cond_image_creation == "ref":
             self.cond_image = self.ref_A
 
-        if self.opt.G_netG == "unet_vid":
+        if self.opt.alg_diffusion_cond_image_creation == "computed_sketch":
             self.cond_image = rearrange(
                 self.cond_image, "(b f) c h w -> b f c h w", f=sequence_length
             )
