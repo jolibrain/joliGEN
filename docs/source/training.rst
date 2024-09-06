@@ -86,6 +86,20 @@ Dataset: https://joligen.com/datasets/noglasses2glasses_ffhq.zip
 
    python3 train.py --dataroot /path/to/noglasses2glasses_ffhq/ --checkpoints_dir /path/to/checkpoints/ --name noglasses2glasses --config_json examples/example_cut_turbo_noglasses2glasses.json
 
+.. _training-im2im-without-mask-semantics:
+
+***************************************
+ CUT_Turbo Training without semantics
+***************************************
+
+Trains a GAN model to using a pretrained SD-Turbo model with LoRA adapter
+
+Dataset: https://joligen.com/datasets/horse2zebra.zip
+
+.. code:: bash
+
+   python3 train.py --dataroot /path/to/horse2zebra/ --checkpoints_dir /path/to/checkpoints/ --name horse2zebra --config_json examples/example_cut_turbo_horse2zebra.json
+
 .. _training-im2im-with-bbox-semantics-and-online-sampling-boxes-dataaug:
 
 ************************************************

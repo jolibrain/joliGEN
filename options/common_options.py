@@ -394,12 +394,12 @@ class CommonOptions(BaseOptions):
             help="max frame number for unet_vid in the PositionalEncoding",
         )
 
-        # parser.add_argument(
-        #     "--G_prompt",
-        #     type=str,
-        #     default="",
-        #     help="Text prompt for G",
-        # )
+        parser.add_argument(
+            "--G_prompt",
+            type=str,
+            default="",
+            help="Text prompt for G",
+        )
         parser.add_argument(
             "--G_lora_unet",
             type=int,
