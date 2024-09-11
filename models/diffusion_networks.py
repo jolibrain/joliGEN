@@ -90,7 +90,7 @@ def define_G(
     norm_layer = get_norm_layer(norm_type=G_norm)
 
     if model_type == "palette":
-        in_channel = model_input_nc * 2
+        in_channel = model_input_nc + model_output_nc
     else:  # CM
         in_channel = model_input_nc
         if (
