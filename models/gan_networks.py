@@ -277,7 +277,7 @@ def define_G(
 
 def define_D(
     D_netDs,
-    model_input_nc,
+    model_output_nc,
     D_ndf,
     D_n_layers,
     D_norm,
@@ -344,7 +344,7 @@ def define_D(
     for netD in D_netDs:
         if netD == "basic":  # default PatchGAN classifier
             net = NLayerDiscriminator(
-                model_input_nc,
+                model_output_nc,
                 D_ndf,
                 n_layers=3,
                 norm_layer=norm_layer,
@@ -356,7 +356,7 @@ def define_D(
 
         elif netD == "n_layers":  # more options
             net = NLayerDiscriminator(
-                model_input_nc,
+                model_output_nc,
                 D_ndf,
                 D_n_layers,
                 norm_layer=norm_layer,
@@ -366,14 +366,14 @@ def define_D(
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
         elif netD == "pixel":  # classify if each pixel is real or fake
-            net = PixelDiscriminator(model_input_nc, D_ndf, norm_layer=norm_layer)
+            net = PixelDiscriminator(model_output_nc, D_ndf, norm_layer=norm_layer)
             return_nets[netD] = init_net(net, model_init_type, model_init_gain)
 
         elif netD in TORCH_MODEL_CLASSES:  # load torchvision model
             nclasses = 1
             template = netD
             net = torch_model(
-                model_input_nc,
+                model_output_nc,
                 D_ndf,
                 nclasses,
                 data_crop_size + margin,
