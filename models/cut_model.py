@@ -62,7 +62,7 @@ class CUTModel(BaseGanModel):
             type=util.str2bool,
             nargs="?",
             const=True,
-            default=True,
+            default=False,
             help="use NCE loss for identity mapping: NCE(G(Y), Y))",
         )
 
@@ -383,14 +383,18 @@ class CUTModel(BaseGanModel):
             # Making groups
             self.networks_groups = []
 
-            optimizers = ["optimizer_G", "optimizer_F"]
+            networks_to_optimize = ["G_A"]
+            optimizers = ["optimizer_G"]
+            if self.opt.alg_cut_lambda_NCE > 0.0:
+                optimizers.append("optimizer_F")
+                networks_to_optimize.append("F")
             losses_backward = ["loss_G_tot"]
 
             if self.opt.model_multimodal:
                 #    optimizers.append("optimizer_E")
                 losses_backward.append("loss_G_z")
             self.group_G = NetworkGroup(
-                networks_to_optimize=["G_A", "F"],
+                networks_to_optimize=networks_to_optimize,
                 forward_functions=["forward"],
                 backward_functions=["compute_G_loss"],
                 loss_names_list=["loss_names_G"],
@@ -426,7 +430,9 @@ class CUTModel(BaseGanModel):
             self.set_discriminators_info()
 
         # Losses names
-        losses_G = ["G_NCE"]
+        losses_G = []
+        if opt.alg_cut_lambda_NCE > 0.0:
+            losses_G += ["G_NCE"]
         if opt.alg_cut_supervised_loss != [""]:
             losses_G += ["G_supervised"]
         losses_D = []
