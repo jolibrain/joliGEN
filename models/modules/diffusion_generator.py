@@ -138,7 +138,15 @@ class DiffusionGenerator(nn.Module):
         ), "num_timesteps must greater than sample_num"
         sample_inter = self.denoise_fn.model.num_timesteps_test // sample_num
 
-        y_t = self.default(y_t, lambda: torch.randn_like(y_cond))
+        # y_t must be of output channel size, since we do not have y_0 (gt), we get it from the model
+        y_t_shape = list(y_cond.shape)
+        y_t_shape[1] = (
+            self.denoise_fn.model.out_channel
+        )  # set to number of model output channels
+        y_t = self.default(
+            y_t,
+            lambda: torch.randn(y_t_shape, device=y_cond.device, dtype=y_cond.dtype),
+        )
         ret_arr = y_t
 
         for i in tqdm(
@@ -439,6 +447,8 @@ class DiffusionGenerator(nn.Module):
 
     def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):
         sequence_length = 0
+
+        # vid only
         if len(y_0.shape) == 5:
             sequence_length = y_0.shape[1]
             y_0, y_cond, mask = rearrange_5dto4d(y_0, y_cond, mask)
