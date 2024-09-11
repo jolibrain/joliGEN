@@ -260,10 +260,6 @@ class CUTModel(BaseGanModel):
             self.opt.model_input_nc += self.opt.train_mm_nz
         self.netG_A = gan_networks.define_G(**vars(opt))
 
-        # XXX: early prompt support
-        # if self.opt.G_prompt:
-        #    self.netG_A.prompt = self.opt.G_prompt
-
         self.netG_A.lora_rank_unet = self.opt.G_lora_unet
         self.netG_A.lora_rank_vae = self.opt.G_lora_vae
 
@@ -337,7 +333,6 @@ class CUTModel(BaseGanModel):
                     + list(self.netG_A.vae.decoder.skip_conv_3.parameters())
                     + list(self.netG_A.vae.decoder.skip_conv_4.parameters())
                 )
-            # print("layers_to_opt", len(layers_to_opt))
 
             self.optimizer_G = opt.optim(
                 opt,
@@ -672,7 +667,8 @@ class CUTModel(BaseGanModel):
                     gaussian(getattr(self, name + context), self.opt.dataaug_D_noise),
                 )
 
-        self.diff_real_A_fake_B = self.real_A - self.fake_B
+        if self.opt.output_display_diff_fake_real:
+            self.diff_real_A_fake_B = self.real_A - self.fake_B
 
         if self.opt.model_multimodal:
             self.mu2 = self.netE(self.fake_B)
