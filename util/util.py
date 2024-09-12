@@ -340,3 +340,42 @@ def pairs_of_floats(arg):
 
 def pairs_of_ints(arg):
     return [int(x) for x in arg.split(",")]
+
+
+def rgbn_float_img_to_8bits_display(rgbn_img, gamma: float = 1.0):
+    """
+    rgbn float (0.,1.) to rgb 8bits + ngb 8bits
+    """
+    rgb_img = rgbn_img[:, :, [0, 1, 2]]
+    if gamma != 1:
+        rgb_img = rgb_img**gamma
+
+    rgb_img = (rgb_img.clip(0.0, 1.0) * 255.0).astype(np.uint8)
+
+    nrg_img = rgbn_img[:, :, [3, 0, 1]]
+    if gamma != 1:
+        nrg_img = nrg_img**gamma
+
+    nrg_img = (nrg_img.clip(0.0, 1.0) * 255.0).astype(np.uint8)
+
+    return rgb_img, nrg_img
+
+
+def img_12bits_to_float(img: np.ndarray) -> np.ndarray:
+    """
+    convert img to np.float32 [0,1.]
+    """
+    img = img.astype(np.float32) / 4095.0
+
+    return img
+
+
+def pan_float_img_to_8bits_display(img, gamma=0.7):
+    """
+    float (0.,1.) to 8bits
+    optionnal gamma transform
+    """
+    if gamma != 1:
+        img = img**gamma
+
+    return (img.clip(0.0, 1.0) * 255.0).astype(np.uint8)

@@ -125,14 +125,13 @@ class CommonOptions(BaseOptions):
             "--model_input_nc",
             type=int,
             default=3,
-            choices=[1, 3],
-            help="# of input image channels: 3 for RGB and 1 for grayscale",
+            help="# of input image channels: 3 for RGB and 1 for grayscale, more supported",
         )
         parser.add_argument(
             "--model_output_nc",
             type=int,
             default=3,
-            choices=[1, 3],
+            # choices=[1, 3],
             help="# of output image channels: 3 for RGB and 1 for grayscale",
         )
         parser.add_argument(

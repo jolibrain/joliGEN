@@ -1639,6 +1639,12 @@ class BaseModel(ABC):
                 real_tensor = real_tensor[:, 1]
                 fake_tensor = fake_tensor[:, 1]
                 lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
+            elif real_tensor.shape[1] > 3:  # 3+ channels
+                real_tensor_3c = real_tensor[:, :-1, :, :]
+                fake_tensor_3c = fake_tensor[:, :-1, :, :]
+                lpips_test = self.lpips_metric(
+                    real_tensor_3c, fake_tensor_3c
+                ).mean()  ##TODO: per channel and sum
             else:
                 lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
             setattr(self, "lpips_test_" + test_name, lpips_test)

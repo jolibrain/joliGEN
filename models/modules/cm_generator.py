@@ -345,7 +345,6 @@ class CMGenerator(nn.Module):
         )
 
     def restoration(self, y, y_cond, sigmas, mask, clip_denoised=True):
-
         if mask is not None:
             mask = torch.clamp(
                 mask, min=0.0, max=1.0

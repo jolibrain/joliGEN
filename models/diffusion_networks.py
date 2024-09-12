@@ -96,7 +96,7 @@ def define_G(
         if (
             alg_diffusion_cond_embed != "" and alg_diffusion_cond_embed != "y_t"
         ) or alg_diffusion_task == "pix2pix":
-            in_channel *= 2
+            in_channel = model_input_nc + model_output_nc
 
     if "mask" in alg_diffusion_cond_embed:
         in_channel += alg_diffusion_cond_embed_dim
