@@ -446,7 +446,7 @@ class UNet(nn.Module):
 
         if num_heads_upsample == -1:
             num_heads_upsample = num_heads
-
+            
         self.image_size = image_size
         self.in_channel = in_channel
         self.inner_channel = inner_channel

@@ -395,10 +395,10 @@ def get_transform(
                 )
             )
 
-    if opt.data_preprocess == "none":
-        transform_list.append(
-            transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method))
-        )
+    # if opt.data_preprocess == "none":
+    #   transform_list.append(
+    #       transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method))
+    #   )
 
     if opt.dataaug_flip != "none":
         if params is None:

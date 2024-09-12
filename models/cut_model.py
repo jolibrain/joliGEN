@@ -62,7 +62,7 @@ class CUTModel(BaseGanModel):
             type=util.str2bool,
             nargs="?",
             const=True,
-            default=False,
+            default=True,
             help="use NCE loss for identity mapping: NCE(G(Y), Y))",
         )
 
@@ -695,7 +695,19 @@ class CUTModel(BaseGanModel):
         """Calculate NCE loss for the generator"""
 
         # Fake losses
-        feat_q_pool, feat_k_pool = self.calculate_feats(self.real_A, self.fake_B)
+        if self.real_A.size(1) != self.fake_B.size(1):
+            # hack: fake_B and real_A do not have the same number of channels
+            diffc = self.fake_B.size(1) - self.real_A.size(1)
+            assert diffc > 0
+            add1 = torch.zeros(
+                self.real_A.size(0), 1, self.real_A.size(2), self.real_A.size(3)
+            ).to(self.device)
+            fake_B_nc = self.fake_B
+            for c in range(diffc):
+                fake_B_nc = torch.cat((fake_B_nc, add1), dim=1)
+            feat_q_pool, feat_k_pool = self.calculate_feats(self.real_A, fake_B_nc)
+        else:
+            feat_q_pool, feat_k_pool = self.calculate_feats(self.real_A, self.fake_B)
 
         if self.opt.alg_cut_lambda_SRC > 0.0 or self.opt.alg_cut_nce_loss == "SRC_hDCE":
             self.loss_G_SRC, weight = self.calculate_R_loss(feat_q_pool, feat_k_pool)
@@ -743,13 +755,33 @@ class CUTModel(BaseGanModel):
         else:
             self.loss_G_supervised_norm = 0
         if "LPIPS" in self.opt.alg_cut_supervised_loss:
-            self.loss_G_supervised_lpips = torch.mean(
-                self.criterionLPIPS(self.real_B, self.fake_B)
-            )
+            if self.real_B.size(1) > 3:  # more than 3 channels
+                self.loss_g_supervised_lpips = 0.0
+                for c in range(4):  # per channel loss and sum
+                    real_Bc = self.real_B[:, c, :, :].unsqueeze(1)
+                    fake_Bc = self.fake_B[:, c, :, :].unsqueeze(1)
+                    self.loss_G_supervised_lpips += self.criterionLPIPS(
+                        real_B_c, fake_B_c
+                    )
+            else:
+                self.loss_G_supervised_lpips = torch.mean(
+                    self.criterionLPIPS(self.real_B, self.fake_B)
+                )
         else:
             self.loss_G_supervised_lpips = 0
         if "DISTS" in self.opt.alg_cut_supervised_loss:
-            self.loss_G_supervised_dists = self.criterionDISTS(self.real_B, self.fake_B)
+            if self.real_B.size(1) > 3:  # more than 3 channels
+                self.loss_G_supervised_dists = 0.0
+                for c in range(4):  # per channel loss and sum
+                    real_Bc = self.real_B[:, c, :, :].unsqueeze(1)
+                    fake_Bc = self.fake_B[:, c, :, :].unsqueeze(1)
+                    self.loss_G_supervised_dists += self.criterionDISTS(
+                        real_Bc, fake_Bc
+                    )
+            else:
+                self.loss_G_supervised_dists = torch.mean(
+                    self.criterionDISTS(self.real_B, self.fake_B)
+                )
         else:
             self.loss_G_supervised_dists = 0
 

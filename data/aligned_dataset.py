@@ -1,8 +1,10 @@
+import sys
 import os.path
 from data.base_dataset import BaseDataset, get_params, get_transform
 from data.utils import load_image
 from data.image_folder import make_dataset
 from PIL import Image
+import tifffile
 
 
 class AlignedDataset(BaseDataset):
@@ -32,6 +34,11 @@ class AlignedDataset(BaseDataset):
                 "aligned dataset: domain A and domain B should have the same number of images"
             )
 
+        if opt.data_image_bits > 8 and opt.model_input_nc > 1:
+            self.use_tiff = True  # multi-channel images > 8bit
+        else:
+            self.use_tiff = False
+
     def __getitem__(self, index):
         """Return a data point and its metadata information.
 
@@ -48,8 +55,13 @@ class AlignedDataset(BaseDataset):
         A_path = self.A_paths[index]
         B_path = self.B_paths[index]
 
-        A = Image.open(A_path)
-        B = Image.open(B_path)
+        if self.use_tiff:
+            A = tifffile.imread(A_path)
+            B = tifffile.imread(B_path)
+        else:
+            A = Image.open(A_path)
+            B = Image.open(B_path)
+
         if self.opt.data_image_bits == 8:
             A = A.convert("RGB")
             B = B.convert("RGB")
@@ -58,13 +70,13 @@ class AlignedDataset(BaseDataset):
             grayscale = False
 
         # apply the same transform to both A and B
-        transform_params = get_params(self.opt, A.size)
+        transform_params = get_params(self.opt, A.shape[:2])
 
         A_transform = get_transform(self.opt, transform_params, grayscale=grayscale)
         B_transform = get_transform(self.opt, transform_params, grayscale=grayscale)
 
         # resize B to A's size with PIL
-        if A.size != B.size:
+        if not self.use_tiff and A.size != B.size:
             B = B.resize(A.size, Image.NEAREST)
 
         A = A_transform(A)
