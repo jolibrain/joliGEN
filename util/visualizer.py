@@ -9,6 +9,11 @@ from PIL import Image
 import json
 from torchinfo import summary
 import math
+from .util import (
+    rgbn_float_img_to_8bits_display,
+    img_12bits_to_float,
+    pan_float_img_to_8bits_display,
+)
 
 if sys.version_info[0] == 2:
     VisdomExceptionBase = Exception
@@ -179,8 +184,8 @@ class Visualizer:
 
                 if ncols == 0:
                     ncols = max_ncol
-                else:
-                    ncols = min(ncols, max_ncol)
+                # else:
+                #    ncols = min(ncols, max_ncol)
 
                 h, w = next(iter(visuals[0].values())).shape[:2]
                 table_css = """<style>
@@ -212,12 +217,21 @@ class Visualizer:
                         else:
                             imtype = np.float32
                         image_numpy = util.tensor2im(image, imtype=imtype)
-                        label_html_row += "<td>%s</td>" % label
+                        if image_numpy.shape[2] == 5:
+                            npos = 3
+                        elif image_numpy.shape[2] == 4:
+                            npos = 2
+                        else:
+                            npos = 1
                         images.append(image_numpy.transpose([2, 0, 1]))
-                        idx += 1
-                        if idx % ncols == 0:
-                            label_html += "<tr>%s</tr>" % label_html_row
-                            label_html_row = ""
+                        pos = 0
+                        while pos < npos:
+                            label_html_row += "<td>%s</td>" % label_html_row
+                            idx += 1
+                            if idx % ncols == 0:
+                                label_html += "<tr>%s</tr>" % label_html_row
+                                label_html_row = ""
+                            pos += 1
                     white_image = np.ones_like(image_numpy.transpose([2, 0, 1])) * 255
                     while idx % ncols != 0:
                         images.append(white_image)
@@ -240,11 +254,39 @@ class Visualizer:
                             if im.shape[0] == 3:
                                 mapped_images.append(im)
                                 continue
-                            mapped_im = np.squeeze(gray_cm(im, bytes=True))
-                            mapped_im = mapped_im.transpose([2, 0, 1])
-                            # remove the alpha channel
-                            mapped_im = mapped_im[:3, :, :]
-                            mapped_images.append(mapped_im)
+                            elif im.shape[0] == 1:
+                                mapped_im = np.squeeze(gray_cm(im, bytes=True))
+                                mapped_im = mapped_im.transpose([2, 0, 1])
+                                # remove the alpha channel
+                                mapped_im = mapped_im[:3, :, :]
+                                mapped_images.append(mapped_im)
+                            elif im.shape[0] == 5:
+                                im = im.transpose([1, 2, 0])
+                                c_im = im[:, :, [1, 2, 3, 4]]
+                                rgb_im, nrg_im = rgbn_float_img_to_8bits_display(
+                                    c_im, gamma=0.7
+                                )
+                                rgb_im = rgb_im.transpose([2, 1, 0])
+                                nrg_im = nrg_im.transpose([2, 1, 0])
+
+                                pan_c1_im = im[:, :, 0]
+                                pan_c1_im = np.squeeze(gray_cm(pan_c1_im, bytes=True))
+                                pan_c1_im = pan_c1_im.transpose([2, 1, 0])
+                                pan_c1_im = pan_c1_im[:3, :, :]
+                                mapped_images.append(pan_c1_im)
+
+                                mapped_images.append(rgb_im)
+                                mapped_images.append(nrg_im)
+                            elif im.shape[0] == 4:
+                                im = im.transpose([1, 2, 0])
+                                rgb, ngr = rgbn_float_img_to_8bits_display(
+                                    im, gamma=0.7
+                                )
+                                rgb = rgb.transpose([2, 1, 0])
+                                ngr = ngr.transpose([2, 1, 0])
+                                mapped_images.append(rgb)
+                                mapped_images.append(ngr)
+
                         images = mapped_images
 
                     self.vis.images(
