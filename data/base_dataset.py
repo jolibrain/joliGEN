@@ -29,6 +29,7 @@ import imgaug as ia
 import imgaug.augmenters as iaa
 import os
 import warnings
+import tifffile
 
 
 class BaseDataset(data.Dataset, ABC):
@@ -62,6 +63,11 @@ class BaseDataset(data.Dataset, ABC):
         self.sv_dir = os.path.join(opt.checkpoints_dir, opt.name)
         self.warning_mode = self.opt.warning_mode
         self.set_dataset_dirs_and_dims()
+
+        if opt.data_image_bits > 8 and opt.model_input_nc > 1:
+            self.use_tiff = True  # multi-channel images > 8bit
+        else:
+            self.use_tiff = False
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
