@@ -4,7 +4,6 @@ from data.base_dataset import BaseDataset, get_params, get_transform
 from data.utils import load_image
 from data.image_folder import make_dataset
 from PIL import Image
-import tifffile
 
 
 class AlignedDataset(BaseDataset):
@@ -33,11 +32,6 @@ class AlignedDataset(BaseDataset):
             raise Exception(
                 "aligned dataset: domain A and domain B should have the same number of images"
             )
-
-        if opt.data_image_bits > 8 and opt.model_input_nc > 1:
-            self.use_tiff = True  # multi-channel images > 8bit
-        else:
-            self.use_tiff = False
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.

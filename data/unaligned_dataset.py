@@ -1,5 +1,5 @@
 import os.path
-from data.base_dataset import BaseDataset, get_transform
+from data.base_dataset import BaseDataset, get_transform, get_params
 from data.utils import load_image
 from data.image_folder import make_dataset, make_ref_path_list
 from PIL import Image
@@ -35,8 +35,12 @@ class UnalignedDataset(BaseDataset):
         self.A_size = len(self.A_img_paths)  # get the size of dataset A
         self.B_size = len(self.B_img_paths)  # get the size of dataset B
 
-        self.transform_A = get_transform(self.opt, grayscale=(self.input_nc == 1))
-        self.transform_B = get_transform(self.opt, grayscale=(self.output_nc == 1))
+        if self.opt.data_image_bits == 8:
+            self.grayscale = self.input_nc == 1
+        else:  # for > 8bit, no explicit conversion
+            self.grayscale = False
+
+        A = load_image(self.A_img_paths[0])  # temporarily load first image
 
         self.header = ["img"]
 
@@ -56,11 +60,24 @@ class UnalignedDataset(BaseDataset):
         B_label_cls,
         index,
     ):
-        A_img = load_image(A_img_path)
-        B_img = load_image(B_img_path)
+        A_img = load_image(A_img_path, self.opt.data_image_bits, self.use_tiff)
+        B_img = load_image(B_img_path, self.opt.data_image_bits, self.use_tiff)
+
+        if self.use_tiff:
+            transform_params = get_params(self.opt, A_img[:2])
+        else:
+            transform_params = get_params(self.opt, A_img.size)
+
+        transform_A = get_transform(
+            self.opt, params=transform_params, grayscale=self.grayscale
+        )
+        transform_B = get_transform(
+            self.opt, params=transform_params, grayscale=self.grayscale
+        )
+
         # apply image transformation
-        A = self.transform_A(A_img)
-        B = self.transform_B(B_img)
+        A = transform_A(A_img)
+        B = transform_B(B_img)
 
         result = {
             "A": A,
