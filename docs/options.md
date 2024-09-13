@@ -281,9 +281,9 @@ Here are all the available options to call with `train.py`
 | --model_depth_network | string | DPT_Large | specify depth prediction network architecture<br/><br/> **Values:** DPT_Large, DPT_Hybrid, MiDaS_small, DPT_BEiT_L_512, DPT_BEiT_L_384, DPT_BEiT_B_384, DPT_SwinV2_L_384, DPT_SwinV2_B_384, DPT_SwinV2_T_256, DPT_Swin_L_384, DPT_Next_ViT_L_384, DPT_LeViT_224 |
 | --model_init_gain | float | 0.02 | scaling factor for normal, xavier and orthogonal. |
 | --model_init_type | string | normal | network initialization<br/><br/> **Values:** normal, xavier, kaiming, orthogonal |
-| --model_input_nc | int | 3 | \# of input image channels: 3 for RGB and 1 for grayscale<br/><br/> **Values:** 1, 3 |
+| --model_input_nc | int | 3 | \# of input image channels: 3 for RGB and 1 for grayscale, more supported |
 | --model_multimodal | flag |  | multimodal model with random latent input vector |
-| --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale<br/><br/> **Values:** 1, 3 |
+| --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale |
 | --model_prior_321_backwardcompatibility | flag |  | whether to load models from previous version of JG. |
 | --model_type_sam | string | mobile_sam | which model to use for segment-anything mask generation<br/><br/> **Values:** sam, mobile_sam |
 
