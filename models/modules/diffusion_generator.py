@@ -452,6 +452,7 @@ class DiffusionGenerator(nn.Module):
         if len(y_0.shape) == 5:
             sequence_length = y_0.shape[1]
             y_0, y_cond, mask = rearrange_5dto4d_fh(y_0, y_cond, mask)
+
         b, *_ = y_0.shape
 
         t = torch.randint(
