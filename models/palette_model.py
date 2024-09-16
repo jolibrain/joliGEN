@@ -13,11 +13,11 @@ from models.modules.sam.sam_inference import compute_mask_with_sam
 from util.iter_calculator import IterCalculator
 from util.mask_generation import random_edge_mask
 from util.network_group import NetworkGroup
-from util.mask_generation import fill_mask_with_canny_dropout
 from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
 from .modules.loss import MultiScaleDiffusionLoss
 from .modules.unet_generator_attn.unet_attn_utils import revert_sync_batchnorm
+from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
 
 
 class PaletteModel(BaseDiffusionModel):
@@ -395,45 +395,37 @@ class PaletteModel(BaseDiffusionModel):
                 if "canny" in fill_img_with_random_sketch.__name__:
                     low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
                     high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
-                    if self.opt.G_netG == "unet_vid":
+                    if (
+                        self.opt.G_netG == "unet_vid"
+                        and self.opt.alg_diffusion_cond_image_creation
+                        == "computed_sketch"
+                    ):
+                        self.mask, self.gt_image = rearrange_5dto4d_bf(
+                            self.mask, self.gt_image
+                        )
+                    random_num = torch.rand(
+                        self.opt.train_batch_size * self.opt.data_temporal_number_frames
+                    )
+                    canny_frame = (
+                        random_num > self.opt.alg_diffusion_vid_canny_dropout
+                    ).int()  # binary canny_frame
+                    self.cond_image = fill_img_with_random_sketch(
                         self.gt_image,
-                        sequence_length = self.gt_image.shape[1]
                         self.mask,
-                        self.mask = rearrange(self.mask, "b f c h w -> (b f) c h w")
-                        low_threshold_random = (low,)
-                        self.gt_image = rearrange(
-                            self.gt_image, "b f c h w -> (b f) c h w"
-                        )
-                        cond_image_canny = fill_img_with_random_sketch(
-                            self.gt_image,
-                            self.mask,
-                            low_threshold_random=low,
-                            high_threshold_random=high,
-                            vary_thresholds=True,
-                        )
-
-                        cond_image_nocanny, frame_select = fill_mask_with_canny_dropout(
-                            self.gt_image,
-                            self.mask,
+                        low_threshold_random=low,
+                        high_threshold_random=high,
+                        select_canny=canny_frame,
+                    )
+                    if (
+                        self.opt.G_netG == "unet_vid"
+                        and self.opt.alg_diffusion_cond_image_creation
+                        == "computed_sketch"
+                    ):
+                        self.mask, self.gt_image, self.cond_image = rearrange_4dto5d_bf(
                             self.opt.data_temporal_number_frames,
-                            0.9,
-                        )
-
-                        print(" frame_select, ", frame_select)
-                        frame_select = torch.tensor(frame_select, dtype=torch.bool)
-                        frame_select = frame_select.to(cond_image_canny.device)
-                        self.cond_image = torch.where(
-                            frame_select.unsqueeze(1).unsqueeze(2).unsqueeze(3),
-                            cond_image_canny,
-                            cond_image_nocanny,
-                        )
-
-                    else:
-                        self.cond_image = fill_img_with_random_sketch(
-                            self.gt_image,
                             self.mask,
-                            low_threshold_random=low,
-                            high_threshold_random=high,
+                            self.gt_image,
+                            self.cond_image,
                         )
 
                 elif "sam" in fill_img_with_random_sketch.__name__:
@@ -457,16 +449,6 @@ class PaletteModel(BaseDiffusionModel):
         elif self.opt.alg_diffusion_cond_image_creation == "ref":
             self.cond_image = self.ref_A
 
-        if self.opt.alg_diffusion_cond_image_creation == "computed_sketch":
-            self.cond_image = rearrange(
-                self.cond_image, "(b f) c h w -> b f c h w", f=sequence_length
-            )
-            self.gt_image = rearrange(
-                self.gt_image, "(b f) c h w -> b f c h w", f=sequence_length
-            )
-            self.mask = rearrange(
-                self.mask, "(b f) c h w -> b f c h w", f=sequence_length
-            )
         self.batch_size = self.cond_image.shape[0]
 
         self.real_A = self.cond_image

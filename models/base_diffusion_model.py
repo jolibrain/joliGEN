@@ -211,6 +211,12 @@ class BaseDiffusionModel(BaseModel):
             choices=["clip", "imagebind"],
             help="embedding network to use for ref conditioning",
         )
+        parser.add_argument(
+            "--alg_diffusion_vid_canny_dropout",
+            type=float,
+            default=0,
+            help="prob to drop canny for each frame",
+        )
 
         return parser
 

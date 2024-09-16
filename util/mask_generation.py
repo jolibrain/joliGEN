@@ -34,43 +34,28 @@ def fill_img_with_sketch(img, mask, **kwargs):
     return mask * thresh + (1 - mask) * img
 
 
-def fill_mask_with_canny_dropout(
-    img,
-    mask,
-    sequence_length,
-    dropout=0.9,
-    **kwargs,
-):
-    """Fill the masked region with fill_value"""
-    fill_tensor = torch.full_like(mask, -1)
-    mask = torch.clamp(mask, 0, 1)
-    output_img = mask * fill_tensor + (1 - mask) * img
-    frame_dropout = [
-        1 if random.random() > dropout else 0 for _ in range(sequence_length)
-    ]
-
-    return output_img, frame_dropout
-
-
 def fill_img_with_canny(
     img,
     mask,
-    low_threshold=None,
-    high_threshold=None,
+    cur_low_threshold=None,
+    cur_high_threshold=None,
     **kwargs,
 ):
     """Fill the masked region with canny edges."""
     low_threshold_random = kwargs["low_threshold_random"]
     high_threshold_random = kwargs["high_threshold_random"]
-    vary_thresholds = kwargs.get("vary_thresholds", False)
+    canny_list = kwargs["select_canny"]
     max_value = 255 * 3
     device = img.device
     edges_list = []
-    threshold_pairs = []
-    for _ in range(img.shape[0]):
-        if (high_threshold is None and low_threshold is None) or (
-            vary_thresholds == True
-        ):
+
+    device = img.device
+    edges_list = []
+    for cur_img, canny in zip(img, canny_list):
+        high_threshold = cur_high_threshold
+        low_threshold = cur_low_threshold
+
+        if high_threshold is None and low_threshold is None:
             threshold_1 = random.randint(low_threshold_random, high_threshold_random)
             threshold_2 = random.randint(low_threshold_random, high_threshold_random)
             high_threshold = max(threshold_1, threshold_2)
@@ -79,56 +64,16 @@ def fill_img_with_canny(
             high_threshold = random.randint(low_threshold, max_value)
         elif high_threshold is not None and low_threshold is None:
             low_threshold = random.randint(0, high_threshold)
-        threshold_pairs.append((low_threshold, high_threshold))
-    for idx, cur_img in enumerate(img):
 
-        if vary_thresholds:
-            low_threshold, high_threshold = threshold_pairs[idx]
-        else:
-            low_threshold, high_threshold = threshold_pairs[0]
         cur_img = (
             (torch.einsum("chw->hwc", cur_img).cpu().numpy() + 1) * 255 / 2
         ).astype(np.uint8)
-        edges = cv2.Canny(cur_img, low_threshold, high_threshold)
-        edges = (
-            (((torch.tensor(edges, device=device) / 255) * 2) - 1)
-            .unsqueeze(0)
-            .unsqueeze(0)
-        )
-        edges_list.append(edges)
-    edges = torch.cat(edges_list, dim=0)
-    mask = torch.clamp(mask, 0, 1)
-    return mask * edges + (1 - mask) * img
 
+        if canny == 1:
+            edges = cv2.Canny(cur_img, low_threshold, high_threshold)
+        else:  # black image
+            edges = np.zeros_like(cur_img[:, :, 0])
 
-def fill_img_with_canny_ori(
-    img,
-    mask,
-    low_threshold=None,
-    high_threshold=None,
-    **kwargs,
-):
-    """Fill the masked region with canny edges."""
-    low_threshold_random = kwargs["low_threshold_random"]
-    high_threshold_random = kwargs["high_threshold_random"]
-    max_value = 255 * 3
-    if high_threshold is None and low_threshold is None:
-        threshold_1 = random.randint(low_threshold_random, high_threshold_random)
-        threshold_2 = random.randint(low_threshold_random, high_threshold_random)
-        high_threshold = max(threshold_1, threshold_2)
-        low_threshold = min(threshold_1, threshold_2)
-    elif high_threshold is None and low_threshold is not None:
-        high_threshold = random.randint(low_threshold, max_value)
-    elif high_threshold is not None and low_threshold is None:
-        low_threshold = random.randint(0, high_threshold)
-
-    device = img.device
-    edges_list = []
-    for cur_img in img:
-        cur_img = (
-            (torch.einsum("chw->hwc", cur_img).cpu().numpy() + 1) * 255 / 2
-        ).astype(np.uint8)
-        edges = cv2.Canny(cur_img, low_threshold, high_threshold)
         edges = (
             (((torch.tensor(edges, device=device) / 255) * 2) - 1)
             .unsqueeze(0)
