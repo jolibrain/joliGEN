@@ -138,6 +138,10 @@ def get_scheduler(optimizer, opt):
         scheduler = lr_scheduler.StepLR(
             optimizer, step_size=opt.train_lr_decay_iters, gamma=0.1
         )
+    elif opt.train_lr_policy == "multistep":
+        scheduler = lr_scheduler.MultiStepLR(
+            optimizer, milestones=opt.train_lr_steps, gamma=0.1
+        )
     elif opt.train_lr_policy == "plateau":
         scheduler = lr_scheduler.ReduceLROnPlateau(
             optimizer, mode="min", factor=0.2, threshold=0.01, patience=5
