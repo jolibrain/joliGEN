@@ -648,6 +648,7 @@ class PaletteModel(BaseDiffusionModel):
 
         # other tasks
         else:
+            print("canny task inference nb_imgs , sample_num", nb_imgs, self.sample_num)
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[:nb_imgs], sample_num=self.sample_num
             )
