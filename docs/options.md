@@ -312,7 +312,8 @@ Here are all the available options to call with `train.py`
 | --train_iter_size | int | 1 | backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size\*iter_size |
 | --train_load_iter | int | 0 | which iteration to load? if load_iter \> 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch] |
 | --train_lr_decay_iters | int | 50 | multiply by a gamma every lr_decay_iters iterations |
-| --train_lr_policy | string | linear | learning rate policy.<br/><br/> **Values:** linear, step, plateau, cosine |
+| --train_lr_policy | string | linear | learning rate policy.<br/><br/> **Values:** linear, step, multistep, plateau, cosine |
+| --train_lr_steps | array | [] | number of epochs between reductions of the learning rate by gamma=0.1 |
 | --train_metrics_every | int | 1000 | compute metrics every N iterations |
 | --train_metrics_list | array | ['FID'] | metrics on results quality to compute<br/><br/> **Values:** FID, KID, MSID, PSNR, LPIPS, SSIM |
 | --train_metrics_save_images | flag |  | whether to save images that result form metrics computation |
