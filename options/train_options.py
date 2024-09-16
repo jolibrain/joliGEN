@@ -298,7 +298,7 @@ class TrainOptions(CommonOptions):
             "--train_lr_policy",
             type=str,
             default="linear",
-            choices=["linear", "step", "plateau", "cosine"],
+            choices=["linear", "step", "multistep", "plateau", "cosine"],
             help="learning rate policy.",
         )
         parser.add_argument(
@@ -307,6 +307,14 @@ class TrainOptions(CommonOptions):
             default=50,
             help="multiply by a gamma every lr_decay_iters iterations",
         )
+        parser.add_argument(
+            "--train_lr_steps",
+            default=[],
+            nargs="*",
+            type=int,
+            help="number of epochs between reductions of the learning rate by gamma=0.1",
+        )
+
         parser.add_argument(
             "--train_nb_img_max_fid",
             type=int,
@@ -700,7 +708,7 @@ class TrainOptions(CommonOptions):
             )
 
         # vitclip16 projector only works with input size 224
-        if opt.D_proj_network_type == "efficientnet":
+        if "projected_d" in opt.D_netDs and opt.D_proj_network_type == "efficientnet":
             if opt.D_proj_interp < 224:
                 warnings.warn(
                     "Efficiennet projector has minimal input size of 224, setting D_proj_interp to 224"
