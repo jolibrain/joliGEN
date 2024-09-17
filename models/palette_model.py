@@ -335,7 +335,6 @@ class PaletteModel(BaseDiffusionModel):
 
         if self.use_ref:
             self.ref_A = data["ref_A"].to(self.device)
-        sequence_length = 0
         if self.opt.alg_diffusion_cond_image_creation == "y_t":
             self.cond_image = self.y_t
         elif self.opt.alg_diffusion_cond_image_creation == "previous_frame":
@@ -403,9 +402,7 @@ class PaletteModel(BaseDiffusionModel):
                         self.mask, self.gt_image = rearrange_5dto4d_bf(
                             self.mask, self.gt_image
                         )
-                    random_num = torch.rand(
-                        self.opt.train_batch_size * self.opt.data_temporal_number_frames
-                    )
+                    random_num = torch.rand(self.gt_image.shape[0])
                     canny_frame = (
                         random_num > self.opt.alg_diffusion_vid_canny_dropout
                     ).int()  # binary canny_frame
