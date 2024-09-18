@@ -105,6 +105,7 @@ Here are all the available options to call with `train.py`
 | --alg_diffusion_ref_embed_net | string | clip | embedding network to use for ref conditioning<br/><br/> **Values:** clip, imagebind |
 | --alg_diffusion_super_resolution_scale | float | 2.0 | scale for super resolution |
 | --alg_diffusion_task | string | inpainting | Whether to perform inpainting, super resolution or pix2pix<br/><br/> **Values:** inpainting, super_resolution, pix2pix |
+| --alg_diffusion_vid_canny_dropout | int | 0 | prob to drop canny for each frame |
 
 ### GAN model
 
