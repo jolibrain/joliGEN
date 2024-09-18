@@ -260,7 +260,7 @@ class TrainOptions(CommonOptions):
         parser.add_argument(
             "--train_n_epochs_decay",
             type=int,
-            default=100,
+            default=0,
             help="number of epochs to linearly decay learning rate to zero",
         )
         parser.add_argument(
