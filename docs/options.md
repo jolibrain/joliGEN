@@ -321,7 +321,7 @@ Here are all the available options to call with `train.py`
 | --train_mm_lambda_z | float | 0.5 | weight for random z loss |
 | --train_mm_nz | int | 8 | number of latent vectors |
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |
-| --train_n_epochs_decay | int | 100 | number of epochs to linearly decay learning rate to zero |
+| --train_n_epochs_decay | int | 0 | number of epochs to linearly decay learning rate to zero |
 | --train_nb_img_max_fid | int | 1000000000 | Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used. |
 | --train_optim | string | adam | optimizer (adam, radam, adamw, ...)<br/><br/> **Values:** adam, radam, adamw, lion, adam8bit |
 | --train_optim_eps | float | 1e-08 | epsilon for optimizer |
