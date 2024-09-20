@@ -226,8 +226,8 @@ def define_G(
         model = HDiT(
             levels=hdit_config.levels,
             mapping=hdit_config.mapping,
-            in_channels=in_channel,
-            out_channels=model_output_nc,
+            in_channel=in_channel,
+            out_channel=model_output_nc,
             patch_size=hdit_config.patch_size,
             num_classes=0,
             mapping_cond_dim=0,

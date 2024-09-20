@@ -65,7 +65,7 @@ def my_vae_decoder_fwd(self, sample, latent_embeds=None):
 
 
 class Img2ImgTurbo(nn.Module):
-    def __init__(self, in_channels, out_channels, lora_rank_unet, lora_rank_vae):
+    def __init__(self, in_channel, out_channel, lora_rank_unet, lora_rank_vae):
         super().__init__()
 
         # TODO: other params

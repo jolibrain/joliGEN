@@ -250,8 +250,8 @@ def define_G(
         net = HDiT(
             levels=hdit_config.levels,
             mapping=hdit_config.mapping,
-            in_channels=model_input_nc,
-            out_channels=model_output_nc,
+            in_channel=model_input_nc,
+            out_channel=model_output_nc,
             patch_size=hdit_config.patch_size,
             last_zero_init=False,
             num_classes=0,
@@ -262,8 +262,8 @@ def define_G(
         return net
     elif G_netG == "img2img_turbo":
         net = Img2ImgTurbo(
-            in_channels=model_input_nc,
-            out_channels=model_output_nc,
+            in_channel=model_input_nc,
+            out_channel=model_output_nc,
             lora_rank_unet=G_lora_unet,
             lora_rank_vae=G_lora_vae,
         )
