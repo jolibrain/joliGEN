@@ -276,6 +276,7 @@ def generate(
     img_tensor_list = []
     out_img_list = []
     sequence_count = 0
+    select_canny_list = [1] + [0] * (opt.data_temporal_number_frames - 1)
     for img_path, bbox_path in zip(limited_paths_img, limited_paths_bbox):
         img_in = os.path.join(os.path.dirname(os.path.dirname(paths_in_file)), img_path)
         bbox_in = os.path.join(
@@ -614,7 +615,7 @@ def generate(
                 high_threshold=alg_diffusion_sketch_canny_thresholds[1],
                 low_threshold_random=-1,
                 high_threshold_random=-1,
-                select_canny=[1] + [0] * (opt.data_temporal_number_frames - 1),
+                select_canny=[select_canny_list[sequence_count]],
             )
             if cond_in:
                 # restore background
@@ -685,22 +686,14 @@ def generate(
         else:
             ref_tensor = None
 
-        if opt.alg_diffusion_cond_image_creation == "computed_sketch":
+        if opt.alg_diffusion_cond_image_creation in ["computed_sketch", "y_t"]:
             if sequence_count == 0:
-                cond_image_list.append(cond_image)
                 y_t_list.append(y_t)
             else:
-                cond_image_list.append(y_t_list[0])
-                y_t_list.append(y_t_list[0])
-        if opt.alg_diffusion_cond_image_creation == "y_t":
-            if sequence_count == 0:
-                cond_image_list.append(cond_image)
-                y_t_list.append(y_t)
-            else:
-                cond_image_list.append(cond_image)
                 y_t_list.append(y_t_list[0])
 
         sequence_count = sequence_count + 1
+        cond_image_list.append(cond_image)
         y0_tensor_list.append(y0_tensor)
         mask_list.append(mask)
         bbox_select_list.append(bbox_select)
