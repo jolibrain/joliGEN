@@ -741,8 +741,8 @@ class HDiT(nn.Module):
         self,
         levels,
         mapping,
-        in_channels,
-        out_channels,
+        in_channel,
+        out_channel,
         patch_size,
         last_zero_init=True,
         num_classes=0,
@@ -752,7 +752,8 @@ class HDiT(nn.Module):
     ):
         super().__init__()
         self.num_classes = num_classes
-        self.patch_in = TokenMerge(in_channels, levels[0].width, patch_size)
+        self.out_channel = out_channel
+        self.patch_in = TokenMerge(in_channel, levels[0].width, patch_size)
         self.mapping = tag_module(
             MappingNetwork(
                 mapping.depth, mapping.width, mapping.d_ff, dropout=mapping.dropout
@@ -820,9 +821,7 @@ class HDiT(nn.Module):
         )
 
         self.out_norm = RMSNorm(levels[0].width)
-        self.patch_out = TokenSplitWithoutSkip(
-            levels[0].width, out_channels, patch_size
-        )
+        self.patch_out = TokenSplitWithoutSkip(levels[0].width, out_channel, patch_size)
         if last_zero_init:
             nn.init.zeros_(self.patch_out.proj.weight)
 
