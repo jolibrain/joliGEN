@@ -39,7 +39,7 @@ def define_G(
     G_attn_nb_mask_attn,
     G_attn_nb_mask_input,
     G_spectral,
-    G_unet_vid_max_frame,
+    G_unet_vid_max_sequence_length,
     jg_dir,
     G_padding_type,
     G_config_segformer,
@@ -150,7 +150,7 @@ def define_G(
             efficient=G_unet_mha_vit_efficient,
             cond_embed_dim=cond_embed_dim,
             freq_space=train_feat_wavelet,
-            max_frame=G_unet_vid_max_frame,
+            max_sequence_length=G_unet_vid_max_sequence_length,
         )
 
     elif G_netG == "unet_mha_ref_attn":

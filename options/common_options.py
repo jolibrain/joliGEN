@@ -387,10 +387,10 @@ class CommonOptions(BaseOptions):
             help="Patch size for HDIT, e.g. 4 for 4x4 patches",
         )
         parser.add_argument(
-            "--G_unet_vid_max_frame",
-            default=24,
+            "--G_unet_vid_max_sequence_length",
+            default=25,
             type=int,
-            help="max frame number for unet_vid in the PositionalEncoding",
+            help="max frame number(sequence length) for unet_vid in the PositionalEncoding",
         )
 
         # parser.add_argument(
