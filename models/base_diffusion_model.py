@@ -213,9 +213,10 @@ class BaseDiffusionModel(BaseModel):
         )
         parser.add_argument(
             "--alg_diffusion_vid_canny_dropout",
-            type=float,
-            default=0,
-            help="prob to drop canny for each frame",
+            type=pairs_of_floats,
+            default=[[]],
+            nargs="+",
+            help="the range of probabilities for dropping the canny for each frame",
         )
 
         return parser
