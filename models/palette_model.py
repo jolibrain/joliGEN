@@ -405,9 +405,11 @@ class PaletteModel(BaseDiffusionModel):
                         )
 
                     random_num = torch.rand(self.gt_image.shape[0])
-                    canny_frame = (
-                        random_num > self.opt.alg_diffusion_vid_canny_dropout
-                    ).int()  # binary canny_frame
+                    dropout_pro = torch.empty(self.gt_image.shape[0]).uniform_(
+                        self.opt.alg_diffusion_vid_canny_dropout[0][0],
+                        self.opt.alg_diffusion_vid_canny_dropout[1][0],
+                    )
+                    canny_frame = (random_num > dropout_pro).int()  # binary canny_frame
                     self.cond_image = fill_img_with_random_sketch(
                         self.gt_image,
                         self.mask,
