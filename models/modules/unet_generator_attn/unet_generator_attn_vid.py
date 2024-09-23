@@ -397,7 +397,6 @@ class MotionModule(nn.Module):
             temporal_position_encoding=temporal_position_encoding,
             temporal_position_encoding_max_len=temporal_position_encoding_max_len,
         )
-
         if zero_initialize:
             self.temporal_transformer.proj_out = zero_module(
                 self.temporal_transformer.proj_out
@@ -532,7 +531,6 @@ class TemporalTransformerBlock(nn.Module):
         temporal_position_encoding_max_len=25,
     ):
         super().__init__()
-
         attention_blocks = []
         norms = []
 
@@ -555,7 +553,6 @@ class TemporalTransformerBlock(nn.Module):
                 )
             )
             norms.append(nn.LayerNorm(dim))
-
         self.attention_blocks = nn.ModuleList(attention_blocks)
         self.norms = nn.ModuleList(norms)
 
@@ -962,7 +959,6 @@ class VersatileAttention(CrossAttention):
 
         self.attention_mode = attention_mode
         self.is_cross_attention = kwargs["cross_attention_dim"] is not None
-
         self.pos_encoder = (
             PositionalEncoding(
                 kwargs["query_dim"],
@@ -1109,7 +1105,7 @@ class UNetVid(nn.Module):
         use_new_attention_order=True,  # False,
         efficient=False,
         freq_space=False,
-        max_frame=25,
+        max_sequence_length=25,
     ):
         super().__init__()
 
@@ -1132,8 +1128,7 @@ class UNetVid(nn.Module):
         self.num_head_channels = num_head_channels
         self.num_heads_upsample = num_heads_upsample
         self.freq_space = freq_space
-        self.max_frame = max_frame
-
+        self.max_sequence_length = max_sequence_length
         if self.freq_space:
             from ..freq_utils import InverseHaarTransform, HaarTransform
 
@@ -1188,7 +1183,7 @@ class UNetVid(nn.Module):
                         attention_block_types=("Temporal_self", "Temporal_Self"),
                         cross_frame_attention_mode=None,
                         temporal_position_encoding=True,
-                        temporal_position_encoding_max_len=25,  # self.max_frame,
+                        temporal_position_encoding_max_len=self.max_sequence_length,
                         temporal_attention_dim_div=1,
                         zero_initialize=True,
                     )
@@ -1294,7 +1289,7 @@ class UNetVid(nn.Module):
                         attention_block_types=("Temporal_self", "Temporal_Self"),
                         cross_frame_attention_mode=None,
                         temporal_position_encoding=True,
-                        temporal_position_encoding_max_len=25,  # self.max_frame,
+                        temporal_position_encoding_max_len=self.max_sequence_length,
                         temporal_attention_dim_div=1,
                         zero_initialize=True,
                     )
