@@ -664,7 +664,7 @@ class CommonOptions(BaseOptions):
                 "aligned",
                 "nuplet_unaligned_labeled_mask",
                 "temporal_labeled_mask_online",
-                "self_supervised_temporal_labeled_mask_online",
+                "self_supervised_vid_mask_online",
                 "self_supervised_temporal",
                 "single",
                 "unaligned_labeled_mask_ref",

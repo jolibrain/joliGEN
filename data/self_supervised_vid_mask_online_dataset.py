@@ -18,7 +18,7 @@ def natural_keys(text):
     return [atoi(c) for c in re.split("(\d+)", text)]
 
 
-class SelfSupervisedTemporalLabeledMaskOnlineDataset(BaseDataset):
+class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
     def __len__(self):
         """Return the total number of images in the dataset.
         As we have two datasets with potentially different number of images,
