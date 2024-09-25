@@ -117,7 +117,7 @@
     },
     "data": {
         "crop_size": 64,
-        "dataset_mode": "self_supervised_temporal_labeled_mask_online",
+        "dataset_mode": "self_supervised_vid_mask_online",
         "direction": "AtoB",
         "image_bits": 8,
         "inverted_mask": false,
