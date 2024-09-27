@@ -668,7 +668,7 @@ class PaletteModel(BaseDiffusionModel):
         else:
             for name in self.gen_visual_names:
                 whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
-                for bs in range(self.opt.train_batch_size):
+                for bs in range(min(nb_imgs, self.get_current_batch_size())):
                     for k in range(self.opt.data_temporal_number_frames):
                         cur_name = name + str(
                             offset + bs * (self.opt.data_temporal_number_frames) + k
