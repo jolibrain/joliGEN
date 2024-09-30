@@ -11,6 +11,7 @@ from data import (
     create_dataset,
     create_dataset_temporal,
     create_iterable_dataloader,
+    list_test_sets,
 )
 from models import create_model
 from util.parser import get_opt
@@ -27,69 +28,74 @@ def launch_testing(opt, main_opt):
         torch.cuda.set_device(opt.gpu_ids[rank])
     opt.isTrain = False
 
-    testset = create_dataset(opt, phase="test")
-    print("The number of testing images = %d" % len(testset))
-    opt.num_test_images = len(testset)
-    opt.train_nb_img_max_fid = min(opt.train_nb_img_max_fid, len(testset))
-
-    dataloader_test = create_dataloader(
-        opt, rank, testset, batch_size=opt.test_batch_size
-    )  # create a dataset given opt.dataset_mode and other options
-
-    use_temporal = ("temporal" in opt.D_netDs) or opt.train_temporal_criterion
-
-    if use_temporal:
-        testset_temporal = create_dataset_temporal(opt, phase="test")
-
-        dataloader_test_temporal = create_iterable_dataloader(
-            opt, rank, testset_temporal, batch_size=opt.test_batch_size
-        )
-    else:
-        dataloader_test_temporal = None
-
     model = create_model(opt, rank)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
-    # sampling options
-    if main_opt.sampling_steps is not None:
-        model.netG_A.denoise_fn.model.beta_schedule["test"][
-            "n_timestep"
-        ] = main_opt.sampling_steps
-        if main.opt.model_type == "palette":
-            set_new_noise_schedule(model.netG_A.denoise_fn.model, "test")
-    if main_opt.sampling_method is not None:
-        model.netG_A.set_new_sampling_method(main_opt.sampling_method)
-    if main_opt.ddim_num_steps is not None:
-        model.ddim_num_steps = main_opt.ddim_num_steps
-    if main_opt.ddim_eta is not None:
-        model.ddim_eta = main_opt.ddim_eta
+    all_test_sets = list_test_sets(opt)
 
-    model.use_temporal = use_temporal
-    model.eval()
-    if opt.use_cuda:
-        model.single_gpu()
-    model.init_metrics(dataloader_test)
+    for test_set in all_test_sets:
+        testset = create_dataset(opt, phase="test", name=test_set)
+        print("The number of testing images = %d" % len(testset))
+        opt.num_test_images = len(testset)
+        opt.train_nb_img_max_fid = min(opt.train_nb_img_max_fid, len(testset))
 
-    if use_temporal:
-        dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
-    else:
-        dataloaders_test = zip(dataloader_test)
+        dataloader_test = create_dataloader(
+            opt, rank, testset, batch_size=opt.test_batch_size
+        )  # create a dataset given opt.dataset_mode and other options
 
-    epoch = "test"
-    total_iters = "test"
-    with torch.no_grad():
-        model.compute_metrics_test(dataloaders_test, epoch, total_iters)
+        use_temporal = ("temporal" in opt.D_netDs) or opt.train_temporal_criterion
 
-    metrics = model.get_current_metrics([""])
-    for metric, value in metrics.items():
-        print(f"{metric}: {value}")
+        if use_temporal:
+            testset_temporal = create_dataset_temporal(opt, phase="test")
 
-    metrics_dir = os.path.join(opt.test_model_dir, "metrics")
-    os.makedirs(metrics_dir, exist_ok=True)
-    metrics_file = os.path.join(metrics_dir, time.strftime("%Y%m%d-%H%M%S") + ".json")
-    with open(metrics_file, "w") as f:
-        f.write(json.dumps(metrics, indent=4))
-    print("metrics written to:", metrics_file)
+            dataloader_test_temporal = create_iterable_dataloader(
+                opt, rank, testset_temporal, batch_size=opt.test_batch_size
+            )
+        else:
+            dataloader_test_temporal = None
+
+        # sampling options
+        if main_opt.sampling_steps is not None:
+            model.netG_A.denoise_fn.model.beta_schedule["test"][
+                "n_timestep"
+            ] = main_opt.sampling_steps
+            if main.opt.model_type == "palette":
+                set_new_noise_schedule(model.netG_A.denoise_fn.model, "test")
+        if main_opt.sampling_method is not None:
+            model.netG_A.set_new_sampling_method(main_opt.sampling_method)
+        if main_opt.ddim_num_steps is not None:
+            model.ddim_num_steps = main_opt.ddim_num_steps
+        if main_opt.ddim_eta is not None:
+            model.ddim_eta = main_opt.ddim_eta
+
+        model.use_temporal = use_temporal
+        model.eval()
+        if opt.use_cuda:
+            model.single_gpu()
+        model.init_metrics(dataloader_test)
+
+        if use_temporal:
+            dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
+        else:
+            dataloaders_test = zip(dataloader_test)
+
+        epoch = "test"
+        total_iters = "test"
+        with torch.no_grad():
+            model.compute_metrics_test(dataloaders_test, epoch, total_iters)
+
+        metrics = model.get_current_metrics([""])
+        for metric, value in metrics.items():
+            print(f"{metric}: {value}")
+
+        metrics_dir = os.path.join(opt.test_model_dir, "metrics")
+        os.makedirs(metrics_dir, exist_ok=True)
+        metrics_file = os.path.join(
+            metrics_dir, time.strftime("%Y%m%d-%H%M%S") + ".json"
+        )
+        with open(metrics_file, "w") as f:
+            f.write(json.dumps(metrics, indent=4))
+        print("metrics written to:", metrics_file)
 
 
 if __name__ == "__main__":
@@ -108,7 +114,7 @@ if __name__ == "__main__":
         "--test_metrics_list",
         type=str,
         nargs="*",
-        choices=["FID", "KID", "MSID", "PSNR", "LPIPS"],
+        choices=["FID", "KID", "MSID", "PSNR", "LPIPS", "SSIM"],
         default=["FID", "KID", "MSID", "PSNR", "LPIPS"],
     )
     main_parser.add_argument(
