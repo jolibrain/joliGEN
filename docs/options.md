@@ -70,7 +70,7 @@ Here are all the available options to call with `train.py`
 | --G_unet_mha_num_heads | int | 1 | number of heads in the mha architecture |
 | --G_unet_mha_res_blocks | array | [2, 2, 2, 2] | distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults |
 | --G_unet_mha_vit_efficient | flag |  | if true, use efficient attention in UNet and UViT |
-| --G_unet_vid_max_frame | int | 24 | max frame number for unet_vid in the PositionalEncoding |
+| --G_unet_vid_max_sequence_length | int | 25 | max frame number(sequence length) for unet_vid in the PositionalEncoding |
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
 
 ## Algorithm-specific
@@ -175,7 +175,7 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_temporal_labeled_mask_online, self_supervised_temporal, single, unaligned_labeled_mask_ref, self_supervised_labeled_mask_ref, unaligned_labeled_mask_online_ref, unaligned_labeled_mask_online_prompt, self_supervised_labeled_mask_online_ref |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_vid_mask_online, self_supervised_temporal, single, unaligned_labeled_mask_ref, self_supervised_labeled_mask_ref, unaligned_labeled_mask_online_ref, unaligned_labeled_mask_online_prompt, self_supervised_labeled_mask_online_ref |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/> **Values:** AtoB, BtoA |
 | --data_image_bits | int | 8 | number of bits of the image (e.g. 8, 12 or 16) |
 | --data_inverted_mask | flag |  | whether to invert the mask, i.e. around the bbox |
