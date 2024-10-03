@@ -181,10 +181,11 @@ class CUTModel(BaseGanModel):
     def __init__(self, opt, rank):
         super().__init__(opt, rank)
 
-        max_visual_outputs = min(
-            max(self.opt.train_batch_size, self.opt.num_test_images),
-            self.opt.output_num_images,
-        )
+        if opt.isTrain:
+            max_visual_outputs = min(
+                max(self.opt.train_batch_size, self.opt.num_test_images),
+                self.opt.output_num_images,
+            )
 
         # Images to visualize
         visual_names_A = ["real_A", "fake_B"]
@@ -195,8 +196,11 @@ class CUTModel(BaseGanModel):
             "real_A_",
             "fake_B_",
         ]
-        for k in range(max_visual_outputs):
-            self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
+        if opt.isTrain:
+            for k in range(max_visual_outputs):
+                self.visual_names.append(
+                    [temp + str(k) for temp in self.gen_visual_names]
+                )
 
         if "segformer" in self.opt.G_netG:
             self.opt.alg_cut_nce_layers = "0,1,2,3"
