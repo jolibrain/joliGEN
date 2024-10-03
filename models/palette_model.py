@@ -104,15 +104,17 @@ class PaletteModel(BaseDiffusionModel):
             batch_size = self.opt.train_batch_size
         else:
             batch_size = self.opt.test_batch_size
-        max_visual_outputs = min(
-            max(self.opt.train_batch_size, self.opt.num_test_images),
-            self.opt.output_num_images,
-        )
 
-        if self.opt.G_netG == "unet_vid":
-            max_visual_outputs = (
-                self.opt.train_batch_size * self.opt.data_temporal_number_frames
+        if opt.isTrain:
+            max_visual_outputs = min(
+                max(self.opt.train_batch_size, self.opt.num_test_images),
+                self.opt.output_num_images,
             )
+
+            if self.opt.G_netG == "unet_vid":
+                max_visual_outputs = (
+                    self.opt.train_batch_size * self.opt.data_temporal_number_frames
+                )
 
         self.num_classes = max(
             self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses
@@ -147,9 +149,10 @@ class PaletteModel(BaseDiffusionModel):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
 
         elif self.use_ref:
-            for i in range(max_visual_outputs):
-                self.gen_visual_names.append("ref_" + str(i + 1) + "_")
-                self.gen_visual_names.append("output_" + str(i + 1) + "_")
+            if opt.isTrain:
+                for i in range(max_visual_outputs):
+                    self.gen_visual_names.append("ref_" + str(i + 1) + "_")
+                    self.gen_visual_names.append("output_" + str(i + 1) + "_")
 
         else:
             self.gen_visual_names.append("output_")
@@ -157,8 +160,11 @@ class PaletteModel(BaseDiffusionModel):
         if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
 
-        for k in range(max_visual_outputs):
-            self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
+        if opt.isTrain:
+            for k in range(max_visual_outputs):
+                self.visual_names.append(
+                    [temp + str(k) for temp in self.gen_visual_names]
+                )
 
         self.visual_names.append(visual_outputs)
 
