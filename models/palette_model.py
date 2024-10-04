@@ -377,8 +377,8 @@ class PaletteModel(BaseDiffusionModel):
                         batch_cond_image = fill_img_with_random_sketch(
                             image.unsqueeze(0),
                             mask.unsqueeze(0),
-                            low_threshold_random=low,
-                            high_threshold_random=high,
+                            cur_low_threshold_random=low,
+                            cur_high_threshold_random=high,
                         ).squeeze(0)
                     elif "sam" in fill_img_with_random_sketch.__name__:
                         batch_cond_image = fill_img_with_random_sketch(
