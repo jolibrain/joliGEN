@@ -29,7 +29,6 @@ import imgaug as ia
 import imgaug.augmenters as iaa
 import os
 import warnings
-import tifffile
 
 
 class BaseDataset(data.Dataset, ABC):
