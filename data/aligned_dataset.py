@@ -4,6 +4,7 @@ from data.base_dataset import BaseDataset, get_params, get_transform
 from data.utils import load_image
 from data.image_folder import make_dataset
 from PIL import Image
+import tifffile
 
 
 class AlignedDataset(BaseDataset):
