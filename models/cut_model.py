@@ -701,7 +701,10 @@ class CUTModel(BaseGanModel):
         # Fake losses
         if self.real_A.size(1) != self.fake_B.size(1):
             # hack: fake_B and real_A do not have the same number of channels
-            diffc = self.fake_B.size(1) - self.real_A.size(1)
+            if self.real_A.size(1) > self.fake_B.size(1):
+                diffc = self.real_A.size(1) - self.fake_B.size(1)
+            else:
+                diffc = self.fake_B.size(1) - self.real_A.size(1)
             assert diffc > 0
             add1 = torch.zeros(
                 self.real_A.size(0), 1, self.real_A.size(2), self.real_A.size(3)
