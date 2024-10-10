@@ -281,13 +281,31 @@ class CMModel(BaseDiffusionModel):
 
         # perceptual losses, if any
         if "LPIPS" in self.opt.alg_cm_perceptual_loss:
-            self.loss_G_perceptual_lpips = torch.mean(
-                self.criterionLPIPS(y_0, mask_pred_x)
-            )
+            if mask_pred_x.size(1) > 3:  # more than 3 channels
+                self.loss_G_perceptual_lpips = 0.0
+                for c in range(4):  # per channel loss and sum
+                    y_0_Bc = y_0[:, c, :, :].unsqueeze(1)
+                    mask_pred_Bc = mask_pred_x[:, c, :, :].unsqueeze(1)
+                    self.loss_G_perceptual_lpips += self.criterionLPIPS(
+                        y_0_Bc, mask_pred_Bc
+                    )
+            else:
+                self.loss_G_perceptual_lpips = torch.mean(
+                    self.criterionLPIPS(y_0, mask_pred_x)
+                )
         else:
             self.loss_G_perceptual_lpips = 0
         if "DISTS" in self.opt.alg_cm_perceptual_loss:
-            self.loss_G_perceptual_dists = self.criterionDISTS(y_0, mask_pred_x)
+            if mask_pred_x.size(1) > 3:  # more than 3 channels
+                self.loss_G_perceptual_dists = 0.0
+                for c in range(4):  # per channel loss and sum
+                    y_0_Bc = y_0[:, c, :, :].unsqueeze(1)
+                    mask_pred_Bc = mask_pred_x[:, c, :, :].unsqueeze(1)
+                    self.loss_G_perceptual_dists += self.criterionDISTS(
+                        y_0_Bc, mask_pred_Bc
+                    )
+            else:
+                self.loss_G_perceptual_dists = self.criterionDISTS(y_0, mask_pred_x)
         else:
             self.loss_G_perceptual_dists = 0
 
