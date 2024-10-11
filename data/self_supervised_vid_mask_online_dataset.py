@@ -68,7 +68,7 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
         )
         # Initialize a dictionary to count how many available paths belong to each directory
         self.frames_counts = {
-            vid_serie: -self.num_frames * self.frame_step
+            vid_serie: (-self.num_frames + 1) * self.frame_step
             for vid_serie in self.vid_series_paths
         }
         # Loop through self.A_img_paths and count the occurrences of each directory
@@ -112,7 +112,10 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
     ):  # all params are unused
 
         if len(self.frames_counts) == 1:  # single video mario
-            index_A = random.randint(0, self.range_A - 1)
+            if self.range_A == 0:
+                index_A = 0
+            else:
+                index_A = random.randint(0, self.range_A - 1)
         else:  # video series
             range_A = self.cumulative_sums[
                 -1
