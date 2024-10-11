@@ -37,8 +37,8 @@ def fill_img_with_sketch(img, mask, **kwargs):
 def fill_img_with_canny(
     img,
     mask,
-    cur_low_threshold=None,
-    cur_high_threshold=None,
+    low_threshold=None,
+    high_threshold=None,
     **kwargs,
 ):
     """Fill the masked region with canny edges."""
@@ -50,8 +50,8 @@ def fill_img_with_canny(
     device = img.device
     edges_list = []
     for cur_img, canny in zip(img, canny_list):
-        high_threshold = cur_high_threshold
-        low_threshold = cur_low_threshold
+        high_threshold = high_threshold_random
+        low_threshold = low_threshold_random
 
         if high_threshold is None and low_threshold is None:
             threshold_1 = random.randint(low_threshold_random, high_threshold_random)
