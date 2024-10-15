@@ -774,6 +774,11 @@ class BaseModel(ABC):
             ):  # GANs have more outputs in practice, including semantics
                 if i == nb_imgs - 1:
                     break
+        if phase == "test" and self.opt.G_netG == "unet_vid":
+            visual_ret = visual_ret[
+                : self.opt.test_batch_size * (self.opt.data_temporal_number_frames)
+            ]
+
         return visual_ret
 
     def get_display_param(self):
@@ -1563,21 +1568,33 @@ class BaseModel(ABC):
 
             i = 0
             for sub_list in self.visual_names:
-                if i < offset:
+                if self.opt.G_netG == "unet_vid":
+                    for name in sub_list:
+                        if hasattr(self, name):
+                            setattr(
+                                self, name + "_test_" + test_name, getattr(self, name)
+                            )
+
+                else:
+                    if i < offset:
+                        i += 1
+                        continue
+                    for name in sub_list:
+                        if hasattr(self, name):
+                            setattr(
+                                self, name + "_test_" + test_name, getattr(self, name)
+                            )
                     i += 1
-                    continue
-                for name in sub_list:
-                    if hasattr(self, name):
-                        setattr(self, name + "_test_" + test_name, getattr(self, name))
-                i += 1
-                if i - offset == self.opt.test_batch_size:
-                    break
+                    if i - offset == self.opt.test_batch_size:
+                        break
 
             if progress:
                 progress.n = min(len(fake_list), progress.total)
                 progress.refresh()
 
             if len(fake_list) >= self.opt.train_nb_img_max_fid:
+                break
+            if self.opt.G_netG == "unet_vid" and i < self.opt.test_batch_size:
                 break
 
         fake_list = fake_list[: self.opt.train_nb_img_max_fid]
