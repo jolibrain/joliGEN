@@ -15,8 +15,6 @@ echo "Current dir is [$current_dir]"
 export PYTHONDONTWRITEBYTECODE=1
 export NCCL_P2P_DISABLE=1
 
-
-
 ######## doc auto generation
 echo "Running doc auto generation"
 python3 ${current_dir}/../scripts/generate_doc.py --save_to ""
@@ -87,7 +85,8 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-##### test img2img_turbo
+
+###### test img2img_turbo
 echo "Running test img2img_turbo"
 
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_img2img_turbo.py" --dataroot "$TARGET_NOSEM_DIR"
@@ -107,7 +106,6 @@ mkdir $TARGET_MASK_SEM_DIR
 unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
-
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask.py" --dataroot "$TARGET_MASK_SEM_DIR"
 OUT=$?
 
@@ -118,6 +116,18 @@ fi
 ###### self supervised mask semantics test
 echo "Running self supervised mask semantics test"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_self_supervised.py" --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+###### test cut
+echo "Running cut test"
+python3 "${current_dir}/../test.py" \
+        --save_config \
+        --test_model_dir $DIR/joligen_utest_cut/ \
+        --test_metrics_list FID KID PSNR LPIPS
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -160,7 +170,6 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-
 ###### mask cls semantics test with online dataloading
 echo "Running mask online semantics training tests"
 URL=https://joligen.com/datasets/online_mario2sonic_lite2.zip 
@@ -173,14 +182,12 @@ rm $ZIP_FILE
 ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainA $TARGET_MASK_SEM_ONLINE_DIR/testA
 ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainB $TARGET_MASK_SEM_ONLINE_DIR/testB
 
-
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_mask_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
     exit 1
 fi
-
 
 ###### diffusion process test online
 echo "Running diffusion process test online"
@@ -191,12 +198,12 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-###### test cut
-echo "Running cut test"
+###### test palette
+echo "Running test palette"
 python3 "${current_dir}/../test.py" \
-	--save_config \
-	--test_model_dir $DIR/joligen_utest_cut/ \
-	--test_metrics_list FID KID PSNR LPIPS
+        --save_config \
+        --test_model_dir $DIR/joligen_utest_palette/ \
+        --test_metrics_list FID KID PSNR LPIPS
 OUT=$?
 
 if [ $OUT != 0 ]; then
@@ -215,7 +222,6 @@ rm $ZIP_FILE
 ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainA $TARGET_MASK_SEM_ONLINE_DIR/testA
 ln -s $TARGET_MASK_SEM_ONLINE_DIR/trainB $TARGET_MASK_SEM_ONLINE_DIR/testB
 
-
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_vid_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
 
@@ -223,6 +229,17 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+###### test vid palette
+echo "Running test vid palette"
+python3 "${current_dir}/../test.py" \
+        --save_config \
+        --test_model_dir $DIR/joligen_utest_vid_palette/ \
+        --test_metrics_list SSIM PSNR LPIPS
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
 
 ###### test cycle_gan
 # echo "Running test cycle_gan"
@@ -234,18 +251,6 @@ fi
 # if [ $OUT != 0 ]; then
 #     exit 1
 # fi
-
-###### test palette
-echo "Running test palette"
-python3 "${current_dir}/../test.py" \
-	--save_config \
-	--test_model_dir $DIR/joligen_utest_palette/ \
-	--test_metrics_list FID KID PSNR LPIPS
-OUT=$?
-
-if [ $OUT != 0 ]; then
-    exit 1
-fi
 
 ####### mask cls semantics test
 echo "Running mask and class semantics training tests"
@@ -276,7 +281,6 @@ unzip $ZIP_FILE -d $DIR
 rm $ZIP_FILE
 
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_semantic_cls.py" --dataroot "$TARGET_CLS_SEM_DIR"
-
 
 OUT=$?
 
@@ -336,7 +340,6 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_pix2pix_diffusion.py" --dataroot "$TARGET_PIX2PIX_DIR"
 OUT=$?
 
@@ -356,7 +359,7 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-# ####### api server tests
+######### api server tests
 echo "Running api server tests"
 
 python3 -m pytest --rootdir ${current_dir} \
@@ -387,7 +390,6 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
-
 
 # End of tests
 # Clean up
