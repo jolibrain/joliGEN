@@ -171,6 +171,7 @@ def generate(
     sampling_steps,
     img_in,
     mask_in,
+    vid_frame_extension_number,
     ref_in,
     bbox_in,
     cond_in,
@@ -262,12 +263,12 @@ def generate(
         0,
         len(image_bbox_pairs)
         - opt.data_temporal_number_frames
-        - args.vid_frame_extension_number,
+        - vid_frame_extension_number,
     )
     limited_image_bbox_pairs = image_bbox_pairs[
         startframe : startframe
         + opt.data_temporal_number_frames
-        + args.vid_frame_extension_number
+        + vid_frame_extension_number
     ]
     limited_paths_img = [pair[0] for pair in limited_image_bbox_pairs]
     limited_paths_bbox = [pair[1] for pair in limited_image_bbox_pairs]
@@ -281,7 +282,7 @@ def generate(
     out_img_list = []
     sequence_count = 0
     select_canny_list = [0] * (
-        opt.data_temporal_number_frames - 1 + args.vid_frame_extension_number
+        opt.data_temporal_number_frames - 1 + vid_frame_extension_number
     ) + [1]
     for img_path, bbox_path in zip(limited_paths_img, limited_paths_bbox):
         img_in = os.path.join(os.path.dirname(os.path.dirname(paths_in_file)), img_path)
