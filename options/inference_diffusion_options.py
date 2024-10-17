@@ -279,6 +279,18 @@ class InferenceDiffusionOptions(BaseOptions):
             action="store_true",
             help="whether to use refined mask with sam",
         )
+        parser.add_argument(
+            "--vid_frame_extension_number",
+            type=int,
+            default=0,
+            help="additional sequence number added during the inference",
+        )
+        parser.add_argument(
+            "--vid_fps",
+            type=float,
+            default=1.0,
+            help="fps during the inference video generation",
+        )
 
         self.isTrain = False
         return parser

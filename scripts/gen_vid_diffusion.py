@@ -257,13 +257,17 @@ def generate(
         parts = line.strip().split()
         image_bbox_pairs.append((parts[0], parts[1]))
     image_bbox_pairs.sort(key=lambda x: natural_keys(x[0]))
-    additional_frame = 0  # sum of opt.data_temporal_number_frames/additional_frame should less than option G_unet_vid_max_frame
 
     startframe = random.randint(
-        0, len(image_bbox_pairs) - opt.data_temporal_number_frames - additional_frame
+        0,
+        len(image_bbox_pairs)
+        - opt.data_temporal_number_frames
+        - args.vid_frame_extension_number,
     )
     limited_image_bbox_pairs = image_bbox_pairs[
-        startframe : startframe + opt.data_temporal_number_frames + additional_frame
+        startframe : startframe
+        + opt.data_temporal_number_frames
+        + args.vid_frame_extension_number
     ]
     limited_paths_img = [pair[0] for pair in limited_image_bbox_pairs]
     limited_paths_bbox = [pair[1] for pair in limited_image_bbox_pairs]
@@ -276,7 +280,9 @@ def generate(
     img_tensor_list = []
     out_img_list = []
     sequence_count = 0
-    select_canny_list = [1] + [0] * (opt.data_temporal_number_frames - 1)
+    select_canny_list = [0] * (
+        opt.data_temporal_number_frames - 1 + args.vid_frame_extension_number
+    ) + [1]
     for img_path, bbox_path in zip(limited_paths_img, limited_paths_bbox):
         img_in = os.path.join(os.path.dirname(os.path.dirname(paths_in_file)), img_path)
         bbox_in = os.path.join(
@@ -940,7 +946,7 @@ def img2video(args):
             video = cv2.VideoWriter(
                 video_path,
                 cv2.VideoWriter_fourcc("M", "J", "P", "G"),
-                0.5,
+                args.vid_fps,
                 (width, height),
             )
             for image in sorted_list:
