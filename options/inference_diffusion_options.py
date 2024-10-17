@@ -18,7 +18,7 @@ class InferenceDiffusionOptions(BaseOptions):
         parser.add_argument(
             "--paths_in_file",
             help="frames and bbox pairwise file path for the video generation(.txt file)",
-            required=True,
+            required=False,
         )
         parser.add_argument("--img_in", help="image to transform", required=True)
         parser.add_argument(
