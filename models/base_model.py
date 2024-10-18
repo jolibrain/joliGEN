@@ -697,7 +697,14 @@ class BaseModel(ABC):
                 if opt.train_load_iter > 0
                 else opt.train_epoch
             )
-            self.load_networks(load_suffix)
+            if opt.train_finetune:
+                # allow network to not already exists
+                try:
+                    self.load_networks(load_suffix)
+                except Exception as e:
+                    print(e)
+            else:
+                self.load_networks(load_suffix)
 
     def parallelize(self, rank):
         for name in self.model_names:
