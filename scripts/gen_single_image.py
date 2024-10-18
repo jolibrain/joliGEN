@@ -18,6 +18,8 @@ from torchvision import transforms
 from torchvision.utils import save_image
 
 from PIL import Image
+import tifffile
+from util.util import rgbn_float_img_to_8bits_display
 
 
 def get_z_random(batch_size=1, nz=8, random_type="gauss"):
@@ -95,18 +97,19 @@ def inference(args):
     # reading image
     img_width = args.img_width if args.img_width is not None else opt.data_crop_size
     img_height = args.img_height if args.img_height is not None else opt.data_crop_size
-    if opt.data_image_bits > 8:
-        # img = cv2.imread(args.img_in, cv2.IMREAD_UNCHANGED)
+    if opt.data_image_bits > 8 and opt.model_input_nc == 1:
         img = Image.open(args.img_in)
-        if img_height != opt.data_crop_size or img_width != opt.data_crop_size:
-            print(
-                "Requested image size differs from training crop size, resizing is not supported for images with more than 8 bits per channel"
-            )
-            exit(1)
+        # if img_height != opt.data_crop_size or img_width != opt.data_crop_size:
+        #    print(
+        #        "Requested image size differs from training crop size, resizing is not supported for images with more than 8 bits per channel"
+        #    )
+        #    exit(1)
+    elif opt.data_image_bits > 8 and opt.model_input_nc > 1:
+        img = tifffile.imread(args.img_in)
     else:
         img = cv2.imread(args.img_in)
     original_img = img.copy()
-    if opt.model_input_nc != 1:
+    if opt.data_image_bits == 8 and opt.model_input_nc != 1:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (img_width, img_height), interpolation=cv2.INTER_CUBIC)
 
@@ -158,12 +161,25 @@ def inference(args):
     # post-processing
     out_img = out_tensor.data.cpu().float().numpy()
     print(out_img.shape)
-    out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
+
     # print(out_img)
-    out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
+    if opt.data_image_bits > 8 and opt.model_input_nc > 1:
+        out_img = np.transpose(out_img, (1, 2, 0)) + 1
+        rgb_img, nrg_img = rgbn_float_img_to_8bits_display(out_img, gamma=0.7)
+        rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR)
+        nrg_img = cv2.cvtColor(nrg_img, cv2.COLOR_RGB2BGR)
+        out_img = np.concatenate((rgb_img, nrg_img), axis=1)
+    else:
+        out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
+        out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
 
     if args.compare:
-        out_img = np.concatenate((original_img, out_img), axis=1)
+        original_img_cv = np.array(original_img)
+        np.multiply(original_img_cv, 255.0 / 4096.0, original_img_cv, casting="unsafe")
+        original_img_cv = cv2.cvtColor(original_img_cv, cv2.COLOR_RGB2BGR)
+        print("original image size=", original_img_cv.shape)
+        print("generated image size=", out_img.shape)
+        out_img = np.concatenate((original_img_cv, out_img), axis=1)
 
     cv2.imwrite(args.img_out, out_img)
 
