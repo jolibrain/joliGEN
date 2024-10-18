@@ -157,11 +157,18 @@ class TrainOptions(CommonOptions):
             action="store_true",
             help="continue training: load the latest model",
         )
+
         parser.add_argument(
             "--train_epoch_count",
             type=int,
             default=1,
             help="the starting epoch count, we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>, ...",
+        )
+
+        parser.add_argument(
+            "--train_finetune",
+            action="store_true",
+            help="sets the models into finetune mode, i.e. less checks are applied, e.g. whether a network already exists, to be used in combination with --train_continue",
         )
 
         # training parameters
