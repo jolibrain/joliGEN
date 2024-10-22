@@ -153,6 +153,16 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
         ref_A_img_path = self.A_img_paths[index_A]
         ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
 
+        crop_size_min = (
+            self.opt.data_online_creation_crop_size_A
+            - self.opt.data_online_creation_crop_delta_A
+        )
+        crop_size_max = (
+            self.opt.data_online_creation_crop_size_A
+            + self.opt.data_online_creation_crop_delta_A
+        )
+        crop_size = random.randint(crop_size_min, crop_size_max)
+
         for i in range(self.num_frames):
             cur_index_A = index_A + i * self.frame_step
 
@@ -178,27 +188,27 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
                 else:
                     mask_delta_A = self.opt.data_online_creation_mask_delta_A_ratio
 
-                if i == 0:
-                    crop_coordinates = crop_image(
-                        cur_A_img_path,
-                        cur_A_label_path,
-                        mask_delta=mask_delta_A,
-                        mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
-                        crop_delta=self.opt.data_online_creation_crop_delta_A,
-                        mask_square=self.opt.data_online_creation_mask_square_A,
-                        crop_dim=self.opt.data_online_creation_crop_size_A,
-                        output_dim=self.opt.data_load_size,
-                        context_pixels=self.opt.data_online_context_pixels,
-                        load_size=self.opt.data_online_creation_load_size_A,
-                        get_crop_coordinates=True,
-                        fixed_mask_size=self.opt.data_online_fixed_mask_size,
-                    )
+                crop_coordinates = crop_image(
+                    cur_A_img_path,
+                    cur_A_label_path,
+                    mask_delta=mask_delta_A,
+                    mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
+                    crop_delta=0,
+                    mask_square=self.opt.data_online_creation_mask_square_A,
+                    crop_dim=self.opt.data_online_creation_crop_size_A,
+                    output_dim=self.opt.data_load_size,
+                    context_pixels=self.opt.data_online_context_pixels,
+                    load_size=self.opt.data_online_creation_load_size_A,
+                    get_crop_coordinates=True,
+                    fixed_mask_size=self.opt.data_online_fixed_mask_size,
+                    crop_center=True,
+                )
                 cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_image(
                     cur_A_img_path,
                     cur_A_label_path,
                     mask_delta=mask_delta_A,
                     mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
-                    crop_delta=self.opt.data_online_creation_crop_delta_A,
+                    crop_delta=0,
                     mask_square=self.opt.data_online_creation_mask_square_A,
                     crop_dim=self.opt.data_online_creation_crop_size_A,
                     output_dim=self.opt.data_load_size,
