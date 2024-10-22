@@ -195,7 +195,7 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
                     mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                     crop_delta=0,
                     mask_square=self.opt.data_online_creation_mask_square_A,
-                    crop_dim=self.opt.data_online_creation_crop_size_A,
+                    crop_dim=crop_size,
                     output_dim=self.opt.data_load_size,
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_A,
@@ -210,12 +210,13 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
                     mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                     crop_delta=0,
                     mask_square=self.opt.data_online_creation_mask_square_A,
-                    crop_dim=self.opt.data_online_creation_crop_size_A,
+                    crop_dim=crop_size,
                     output_dim=self.opt.data_load_size,
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_A,
                     crop_coordinates=crop_coordinates,
                     fixed_mask_size=self.opt.data_online_fixed_mask_size,
+                    crop_center=True,
                 )
                 if i == 0:
                     A_ref_bbox = ref_A_bbox[1:]
