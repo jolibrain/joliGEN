@@ -31,7 +31,7 @@ httpx
 black==24.2.0
 dists-pytorch
 transformers
-diffusers==0.25.1
+diffusers==0.31.0
 peft
 bitsandbytes
 tifffile
