@@ -309,6 +309,7 @@ Here are all the available options to call with `train.py`
 | --train_epoch_count | int | 1 | the starting epoch count, we save the model by \<epoch_count\>, \<epoch_count\>+\<save_latest_freq\>, ... |
 | --train_export_jit | flag |  | whether to export model in jit format |
 | --train_feat_wavelet | flag |  | if true, train in wavelet features space (Note: this may not include all discriminators, when training GANs) |
+| --train_finetune | flag |  | sets the models into finetune mode, i.e. less checks are applied, e.g. whether a network already exists, to be used in combination with --train_continue |
 | --train_gan_mode | string | lsgan | the type of GAN objective. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.<br/><br/> **Values:** vanilla, lsgan, wgangp, projected |
 | --train_iter_size | int | 1 | backward will be apllied each iter_size iterations, it simulate a greater batch size : its value is batch_size\*iter_size |
 | --train_load_iter | int | 0 | which iteration to load? if load_iter \> 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch] |
