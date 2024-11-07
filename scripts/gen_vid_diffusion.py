@@ -510,11 +510,7 @@ def generate(
                 # round & flatten
                 generated_bbox = list(map(round, generated_bbox[0] + generated_bbox[1]))
 
-            # add 1 pixel margin for sketches
-            cond = cv2.resize(
-                cond, (bbox_w - 2, bbox_h - 2), interpolation=cv2.INTER_CUBIC
-            )
-            cond = np.pad(cond, [(1, 1), (1, 1), (0, 0)])
+            cond = cv2.resize(cond, (bbox_w, bbox_h), interpolation=cv2.INTER_CUBIC)
             img[y0:y1, x0:x1] = cond
 
         # preprocessing to torch
@@ -611,22 +607,27 @@ def generate(
         elif opt.alg_diffusion_cond_image_creation == "computed_sketch":  # "canny":
             clamp = torch.clamp(mask, 0, 1)
             if cond_in:
-                # mask the background to avoid canny edges around cond image
-                img_tensor_canny = clamp * img_tensor + clamp - 1
+                # apply canny to the bbox to avoid edges around cond image
+                img_tensor_canny = img_tensor[:, y0:y1, x0:x1]
+                mask_canny = mask[:, y0:y1, x0:x1]
             else:
                 img_tensor_canny = img_tensor
-            cond_image = fill_img_with_canny(
+                mask_canny = mask
+            canny = fill_img_with_canny(
                 img_tensor_canny.unsqueeze(0),
-                mask.unsqueeze(0),
+                mask_canny.unsqueeze(0),
                 low_threshold=alg_diffusion_sketch_canny_thresholds[0],
                 high_threshold=alg_diffusion_sketch_canny_thresholds[1],
-                low_threshold_random=-1,
-                high_threshold_random=-1,
+                low_threshold_random=alg_diffusion_sketch_canny_thresholds[0],
+                high_threshold_random=alg_diffusion_sketch_canny_thresholds[1],
                 select_canny=[select_canny_list[sequence_count]],
             )
             if cond_in:
                 # restore background
-                cond_image = cond_image * clamp + img_tensor * (1 - clamp)
+                cond_image = img_tensor.unsqueeze(0).clone()
+                cond_image[:, :, y0:y1, x0:x1] = canny
+            else:
+                cond_image = canny
         elif opt.alg_diffusion_cond_image_creation == "sam":
             opt.f_s_weight_sam = "../" + opt.f_s_weight_sam
             if not os.path.exists(opt.f_s_weight_sam):
@@ -906,7 +907,7 @@ def extract_number(filename):
 
 def img2video(args):
     image_folder = args.dir_out
-    video_base_name = "mario_video"
+    video_base_name = "video"
 
     # Regular expression pattern to capture the number before "_generated.png"
     patterns = {
