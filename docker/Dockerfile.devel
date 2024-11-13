@@ -1,4 +1,5 @@
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 AS joligen_build
+#FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 AS joligen_build
+FROM nvidia/cuda:12.6.2-devel-ubuntu22.04 AS joligen_build
 
 LABEL description="Generative AI Toolset with GANs and Diffusion for Real-World Applications"
 LABEL maintainer="contact@jolibrain.com"
@@ -27,6 +28,6 @@ ADD requirements.txt .
 RUN pip3 install -r requirements.txt --upgrade
 RUN pip3 install uvicorn fastapi
 RUN mkdir .cache && mkdir .cache/torch 
-RUN export TORCH_HOME=/home/jenkins/app/.cache/torch
+RUN export TORCH_HOME=/home/jenkins/app/.cache/torch && export TORCH_CUDA_ARCH_LIST="8.6"
 
 ADD . /home/jenkins/app
