@@ -971,6 +971,8 @@ class BaseModel(ABC):
                     if key1 != key2:
                         print(key1 == key2, key1, key2)
 
+                if hasattr(state_dict, "_ema"):
+                    net.load_state_dict(state_dict["_ema"])
                 else:
                     if (
                         name == "G_A"
