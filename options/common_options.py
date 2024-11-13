@@ -152,6 +152,11 @@ class CommonOptions(BaseOptions):
             action="store_true",
             help="multimodal model with random latent input vector",
         )
+        parser.add_argument(
+            "--model_load_no_strictness",
+            action="store_true",
+            help="load model without strictness check (strict=False)",
+        )
 
         # depth network
         parser.add_argument(
