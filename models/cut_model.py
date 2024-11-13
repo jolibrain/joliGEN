@@ -763,12 +763,12 @@ class CUTModel(BaseGanModel):
             self.loss_G_supervised_norm = 0
         if "LPIPS" in self.opt.alg_cut_supervised_loss:
             if self.real_B.size(1) > 3:  # more than 3 channels
-                self.loss_g_supervised_lpips = 0.0
+                self.loss_G_supervised_lpips = 0.0
                 for c in range(4):  # per channel loss and sum
                     real_Bc = self.real_B[:, c, :, :].unsqueeze(1)
                     fake_Bc = self.fake_B[:, c, :, :].unsqueeze(1)
                     self.loss_G_supervised_lpips += self.criterionLPIPS(
-                        real_B_c, fake_B_c
+                        real_Bc, fake_Bc
                     )
             else:
                 self.loss_G_supervised_lpips = torch.mean(
