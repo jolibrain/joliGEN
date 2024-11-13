@@ -392,13 +392,24 @@ class CommonOptions(BaseOptions):
             type=int,
             help="max frame number(sequence length) for unet_vid in the PositionalEncoding",
         )
-
-        # parser.add_argument(
-        #     "--G_prompt",
-        #     type=str,
-        #     default="",
-        #     help="Text prompt for G",
-        # )
+        parser.add_argument(
+            "--G_unet_vid_cross_attention_dim",
+            default=768,
+            type=int,
+            help="cross attention inner dim for unet_vid motion module , 768, 384, ...",
+        )
+        parser.add_argument(
+            "--G_unet_vid_num_attention_heads",
+            default=8,
+            type=int,
+            help="number of attention heads for unet_vid motion module, 8, 4, ...",
+        )
+        parser.add_argument(
+            "--G_unet_vid_num_transformer_blocks",
+            default=2,
+            type=int,
+            help="number of unet_vid motion module transformer blocks, 2, 1, ...",
+        )
         parser.add_argument(
             "--G_lora_unet",
             type=int,
