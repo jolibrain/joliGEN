@@ -376,6 +376,7 @@ class MotionModule(nn.Module):
         in_channels,
         num_attention_heads=8,
         num_transformer_block=2,
+        cross_attention_dim=768,
         attention_block_types=("Temporal_Self", "Temporal_Self"),
         cross_frame_attention_mode=None,
         temporal_position_encoding=False,
@@ -391,6 +392,7 @@ class MotionModule(nn.Module):
             attention_head_dim=in_channels
             // num_attention_heads
             // temporal_attention_dim_div,
+            cross_attention_dim=cross_attention_dim,
             num_layers=num_transformer_block,
             attention_block_types=attention_block_types,
             cross_frame_attention_mode=cross_frame_attention_mode,
@@ -522,7 +524,7 @@ class TemporalTransformerBlock(nn.Module):
         ),
         dropout=0.0,
         norm_num_groups=32,
-        cross_attention_dim=768,
+        cross_attention_dim=384,  # 768,
         activation_fn="geglu",
         attention_bias=False,
         upcast_attention=False,
@@ -1106,6 +1108,9 @@ class UNetVid(nn.Module):
         efficient=False,
         freq_space=False,
         max_sequence_length=25,
+        cross_attention_dim=768,
+        num_attention_heads=8,
+        num_transformer_blocks=2,
     ):
         super().__init__()
 
@@ -1129,6 +1134,9 @@ class UNetVid(nn.Module):
         self.num_heads_upsample = num_heads_upsample
         self.freq_space = freq_space
         self.max_sequence_length = max_sequence_length
+        self.cross_attention_dim = cross_attention_dim
+        self.num_attention_heads = num_attention_heads
+        self.num_transformer_blocks = num_transformer_blocks
         if self.freq_space:
             from ..freq_utils import InverseHaarTransform, HaarTransform
 
@@ -1178,8 +1186,9 @@ class UNetVid(nn.Module):
                 layers.append(
                     MotionModule(
                         in_channels=ch,
-                        num_attention_heads=8,
-                        num_transformer_block=2,
+                        num_attention_heads=self.num_attention_heads,
+                        num_transformer_block=self.num_transformer_blocks,
+                        cross_attention_dim=self.cross_attention_dim,
                         attention_block_types=("Temporal_self", "Temporal_Self"),
                         cross_frame_attention_mode=None,
                         temporal_position_encoding=True,
@@ -1284,8 +1293,9 @@ class UNetVid(nn.Module):
                 layers.append(
                     MotionModule(
                         in_channels=ch,
-                        num_attention_heads=8,
-                        num_transformer_block=2,
+                        num_attention_heads=self.num_attention_heads,
+                        num_transformer_block=self.num_transformer_blocks,
+                        cross_attention_dim=self.cross_attention_dim,
                         attention_block_types=("Temporal_self", "Temporal_Self"),
                         cross_frame_attention_mode=None,
                         temporal_position_encoding=True,

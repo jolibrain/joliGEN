@@ -40,6 +40,9 @@ def define_G(
     G_attn_nb_mask_input,
     G_spectral,
     G_unet_vid_max_sequence_length,
+    G_unet_vid_cross_attention_dim,
+    G_unet_vid_num_attention_heads,
+    G_unet_vid_num_transformer_blocks,
     jg_dir,
     G_padding_type,
     G_config_segformer,
@@ -151,6 +154,9 @@ def define_G(
             cond_embed_dim=cond_embed_dim,
             freq_space=train_feat_wavelet,
             max_sequence_length=G_unet_vid_max_sequence_length,
+            cross_attention_dim=G_unet_vid_cross_attention_dim,
+            num_attention_heads=G_unet_vid_num_attention_heads,
+            num_transformer_blocks=G_unet_vid_num_transformer_blocks,
         )
 
     elif G_netG == "unet_mha_ref_attn":
