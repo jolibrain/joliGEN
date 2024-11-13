@@ -972,7 +972,9 @@ class BaseModel(ABC):
                         print(key1 == key2, key1, key2)
 
                 if hasattr(state_dict, "_ema"):
-                    net.load_state_dict(state_dict["_ema"])
+                    net.load_state_dict(
+                        state_dict["_ema"], strict=self.opt.model_load_no_strictness
+                    )
                 else:
                     if (
                         name == "G_A"
@@ -983,7 +985,9 @@ class BaseModel(ABC):
                         net.load_lora_config(load_path)
                         print("loading the lora")
                     else:
-                        net.load_state_dict(state_dict)
+                        net.load_state_dict(
+                            state_dict, strict=self.opt.model_load_no_strictness
+                        )
 
     def get_nets(self):
         return_nets = {}
