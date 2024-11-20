@@ -19,7 +19,7 @@ pipeline {
           sh '''
           export CUDA_VISIBLE_DEVICES=$(echo ${LOCKED_GPU} | sed -n -e "s/[^,]* GPU \\([^[0-9,]]\\)*/\\1/gp")
           echo "Running on GPU ${CUDA_VISIBLE_DEVICES}"
-          TORCH_HOME=/home/jenkins/app/.cache/ bash ./scripts/run_tests.sh /home/jenkins/app/checkpoints/'''
+          TORCH_HOME=/home/jenkins/app/.cache/ TORCH_CUDA_ARCH_LIST="8.6" bash ./scripts/run_tests.sh /home/jenkins/app/checkpoints/'''
         }
       }
     }
