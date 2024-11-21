@@ -11,8 +11,7 @@ def make_1step_sched():
     noise_scheduler_1step = DDPMScheduler.from_pretrained(
         "stabilityai/sd-turbo", subfolder="scheduler"
     )
-    noise_scheduler_1step.set_timesteps(1, device="cuda")
-    noise_scheduler_1step.alphas_cumprod = noise_scheduler_1step.alphas_cumprod.cuda()
+    noise_scheduler_1step.set_timesteps(1)
     return noise_scheduler_1step
 
 
@@ -76,7 +75,7 @@ class Img2ImgTurbo(nn.Module):
         )
         self.text_encoder = CLIPTextModel.from_pretrained(
             "stabilityai/sd-turbo", subfolder="text_encoder"
-        ).cuda()
+        )
         self.sched = make_1step_sched()
 
         ## Load the VAE
@@ -93,16 +92,16 @@ class Img2ImgTurbo(nn.Module):
         # add the skip connection convs
         vae.decoder.skip_conv_1 = torch.nn.Conv2d(
             512, 512, kernel_size=(1, 1), stride=(1, 1), bias=False
-        ).cuda()
+        )
         vae.decoder.skip_conv_2 = torch.nn.Conv2d(
             256, 512, kernel_size=(1, 1), stride=(1, 1), bias=False
-        ).cuda()
+        )
         vae.decoder.skip_conv_3 = torch.nn.Conv2d(
             128, 512, kernel_size=(1, 1), stride=(1, 1), bias=False
-        ).cuda()
+        )
         vae.decoder.skip_conv_4 = torch.nn.Conv2d(
             128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False
-        ).cuda()
+        )
         vae.decoder.ignore_skip = False
 
         # Load the UNet
@@ -169,7 +168,7 @@ class Img2ImgTurbo(nn.Module):
 
         self.unet, self.vae = unet, vae
         self.vae.decoder.gamma = 1
-        self.timesteps = torch.tensor([999], device="cuda").long()  ##TODO: beware
+        self.timesteps = torch.tensor([999]).long()  ##TODO: beware
         self.text_encoder.requires_grad_(False)
 
         ## force train mode
@@ -198,7 +197,7 @@ class Img2ImgTurbo(nn.Module):
             padding="max_length",
             truncation=True,
             return_tensors="pt",
-        ).input_ids.cuda()
+        ).input_ids.to(x.device)
         caption_enc = self.text_encoder(caption_tokens)[0]
 
         # match batch size
@@ -210,11 +209,15 @@ class Img2ImgTurbo(nn.Module):
         )
         model_pred = self.unet(
             encoded_control,
-            self.timesteps,
+            self.timesteps.to(x.device),
             encoder_hidden_states=captions_enc,
         ).sample
+        self.sched.alphas_cumprod = self.sched.alphas_cumprod.to(x.device)
         x_denoised = self.sched.step(
-            model_pred, self.timesteps, encoded_control, return_dict=True
+            model_pred,
+            self.timesteps.to(model_pred.device),
+            encoded_control,
+            return_dict=True,
         ).prev_sample
         self.vae.decoder.incoming_skip_acts = self.vae.encoder.current_down_blocks
         x = (self.vae.decode(x_denoised / self.vae.config.scaling_factor).sample).clamp(
@@ -223,15 +226,6 @@ class Img2ImgTurbo(nn.Module):
         return x
 
     def compute_feats(self, input, extract_layer_ids=[]):
-        # caption_tokens = self.tokenizer(
-        #     #self.prompt,  # XXX: set externally
-        #     prompt,
-        #     max_length=self.tokenizer.model_max_length,
-        #     padding="max_length",
-        #     truncation=True,
-        #     return_tensors="pt",
-        # ).input_ids.cuda()
-
         # deterministic forward
         encoded_control = (
             self.vae.encode(input).latent_dist.sample() * self.vae.config.scaling_factor
