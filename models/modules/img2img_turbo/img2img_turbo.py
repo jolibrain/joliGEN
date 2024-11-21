@@ -187,7 +187,7 @@ class Img2ImgTurbo(nn.Module):
         self.vae.decoder.skip_conv_3.requires_grad_(True)
         self.vae.decoder.skip_conv_4.requires_grad_(True)
 
-        unet.enable_xformers_memory_efficient_attention()
+        unet.cuda().enable_xformers_memory_efficient_attention()
         unet.enable_gradient_checkpointing()
 
     def forward(self, x, prompt):
