@@ -94,12 +94,15 @@ class Visualizer:
         if "aim" in self.display_type:
             import aim
 
-            self.aim_run = aim.Run(
-                experiment=opt.name,
-                repo="aim://"
+            repo = (
+                "aim://"
                 + self.opt.output_display_aim_server
                 + ":"
-                + str(self.opt.output_display_aim_port),
+                + str(self.opt.output_display_aim_port)
+            )
+            self.aim_run = aim.Run(
+                experiment=opt.name,
+                repo=repo,
             )
 
         if (
@@ -457,18 +460,18 @@ class Visualizer:
             self.aim_run["params"] = params  # hyper parameters
 
         # images
-        import aim
+        # import aim
 
-        aim_images = []
-        for visual_group in visuals:
-            for label, image in visual_group.items():
-                image_numpy = util.tensor2im(image)
-                aim_images.append(
-                    aim.Image(Image.fromarray(image_numpy), caption=label)
-                )
-        self.aim_run.track(
-            aim_images, name="generated", epoch=epoch, context={"train": True}
-        )
+        # aim_images = []
+        # for visual_group in visuals:
+        #     for label, image in visual_group.items():
+        #         image_numpy = util.tensor2im(image)
+        #         aim_images.append(
+        #             aim.Image(Image.fromarray(image_numpy), caption=label)
+        #         )
+        # self.aim_run.track(
+        #     aim_images, name="generated", epoch=epoch, context={"train": True}
+        # )
 
     def display_img(self, img_path):
         im = Image.open(img_path)
