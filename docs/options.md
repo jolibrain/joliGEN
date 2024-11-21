@@ -286,6 +286,7 @@ Here are all the available options to call with `train.py`
 | --model_init_gain | float | 0.02 | scaling factor for normal, xavier and orthogonal. |
 | --model_init_type | string | normal | network initialization<br/><br/> **Values:** normal, xavier, kaiming, orthogonal |
 | --model_input_nc | int | 3 | \# of input image channels: 3 for RGB and 1 for grayscale, more supported |
+| --model_load_no_strictness | flag |  | load model without strictness check (strict=False) |
 | --model_multimodal | flag |  | multimodal model with random latent input vector |
 | --model_output_nc | int | 3 | \# of output image channels: 3 for RGB and 1 for grayscale |
 | --model_prior_321_backwardcompatibility | flag |  | whether to load models from previous version of JG. |
