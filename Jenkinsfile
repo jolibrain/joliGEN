@@ -3,7 +3,7 @@ pipeline {
     dockerfile {
       filename 'docker/Dockerfile.devel'
       additionalBuildArgs '--no-cache'
-      args '--shm-size=8gb -u jenkins'
+      args '--shm-size=16gb -u jenkins'
     }
 
   }
@@ -50,6 +50,6 @@ pipeline {
     }
   }
   environment {
-    DOCKER_PARAMS = '"--runtime nvidia --shm-size=8gb -u jenkins"'
+    DOCKER_PARAMS = '"--runtime nvidia --shm-size=16gb -u jenkins"'
   }
 }
