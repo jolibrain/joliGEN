@@ -54,9 +54,7 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
     ):
         model.load_lora_config(modelpath + "/" + model_in_file)
     else:
-        model.load_state_dict(
-            torch.load(modelpath + "/" + model_in_file, map_location=device)
-        )
+        model.load_state_dict(torch.load(modelpath + "/" + model_in_file))
 
     model = model.to(device)
     return model, opt, device
