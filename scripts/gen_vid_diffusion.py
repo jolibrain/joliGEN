@@ -610,18 +610,28 @@ def generate(
                 # apply canny to the bbox to avoid edges around cond image
                 img_tensor_canny = img_tensor[:, y0:y1, x0:x1]
                 mask_canny = mask[:, y0:y1, x0:x1]
+                canny = fill_img_with_canny(
+                    img_tensor_canny.unsqueeze(0),
+                    mask_canny.unsqueeze(0),
+                    low_threshold=alg_diffusion_sketch_canny_thresholds[0],
+                    high_threshold=alg_diffusion_sketch_canny_thresholds[1],
+                    low_threshold_random=alg_diffusion_sketch_canny_thresholds[0],
+                    high_threshold_random=alg_diffusion_sketch_canny_thresholds[1],
+                    select_canny=[select_canny_list[sequence_count]],
+                )
+
             else:
                 img_tensor_canny = img_tensor
                 mask_canny = mask
-            canny = fill_img_with_canny(
-                img_tensor_canny.unsqueeze(0),
-                mask_canny.unsqueeze(0),
-                low_threshold=alg_diffusion_sketch_canny_thresholds[0],
-                high_threshold=alg_diffusion_sketch_canny_thresholds[1],
-                low_threshold_random=alg_diffusion_sketch_canny_thresholds[0],
-                high_threshold_random=alg_diffusion_sketch_canny_thresholds[1],
-                select_canny=[select_canny_list[sequence_count]],
-            )
+                canny = fill_img_with_canny(
+                    img_tensor_canny.unsqueeze(0),
+                    mask_canny.unsqueeze(0),
+                    low_threshold=alg_diffusion_sketch_canny_thresholds[0],
+                    high_threshold=alg_diffusion_sketch_canny_thresholds[1],
+                    low_threshold_random=-1,
+                    high_threshold_random=-1,
+                    select_canny=[select_canny_list[sequence_count]],
+                )
             if cond_in:
                 # restore background
                 cond_image = img_tensor.unsqueeze(0).clone()
