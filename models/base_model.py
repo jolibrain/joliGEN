@@ -1,3 +1,5 @@
+import cv2
+from util.fvd import FrechetVideoDistance
 import copy
 import os
 
@@ -147,6 +149,8 @@ class BaseModel(ABC):
             self.kid_metric = KID()
         if "LPIPS" in self.opt.train_metrics_list:
             self.lpips_metric = LPIPS().to(self.device)
+        if "FVD" in self.opt.train_metrics_list:
+            self.fvd_metric = FrechetVideoDistance()
 
     def init_metrics(self, dataloader_test, test_name=""):
         self.use_inception = any(
@@ -1463,6 +1467,10 @@ class BaseModel(ABC):
                     metrics_names += [
                         "psnr_test_" + name,
                     ]
+                if "FVD" in self.opt.train_metrics_list:
+                    metrics_names += [
+                        "fvd_test_" + name,
+                    ]
 
                 if "SSIM" in self.opt.train_metrics_list:
                     metrics_names += [
@@ -1624,9 +1632,9 @@ class BaseModel(ABC):
         real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
         if len(real_tensor.shape) == 5:  # temporal
-
             real_tensor = real_tensor[:, 1]
             fake_tensor = fake_tensor[:, 1]
+
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
         else:
@@ -1651,6 +1659,26 @@ class BaseModel(ABC):
             else:
                 lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
             setattr(self, "lpips_test_" + test_name, lpips_test)
+
+        if "FVD" in self.opt.train_metrics_list:
+            real_tensor = torch.cat(real_list)
+            fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)
+            combined_tensor = torch.cat((real_tensor, fake_tensor), dim=0)
+            resized_frames = []
+            for b in range(combined_tensor.shape[1]):
+                resized_video = []
+                for t in range(combined_tensor.shape[0]):
+                    frame = combined_tensor[t, b].permute(1, 2, 0).cpu().numpy()
+                    resized_frame = cv2.resize(frame, (224, 224))
+
+                    resized_frame_tensor = torch.tensor(resized_frame).permute(2, 0, 1)
+                    resized_video.append(resized_frame_tensor)
+                resized_frames.append(torch.stack(resized_video))
+            resized_tensor = torch.stack(resized_frames)
+            real_tensor_fvd, fake_tensor_fvd = torch.split(resized_tensor, 2, dim=1)
+            with torch.no_grad():
+                fvd_test = self.fvd_metric.compute(real_tensor_fvd, fake_tensor_fvd)
+            setattr(self, "fvd_test_" + test_name, fvd_test)
 
     def compute_metrics_generic(self, real_act, fake_act):
         # FID
