@@ -15,6 +15,8 @@ echo "Current dir is [$current_dir]"
 export PYTHONDONTWRITEBYTECODE=1
 export NCCL_P2P_DISABLE=1
 
+export TORCH_CUDA_ARCH_LIST="8.6"
+
 ######## doc auto generation
 echo "Running doc auto generation"
 python3 ${current_dir}/../scripts/generate_doc.py --save_to ""
