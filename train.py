@@ -74,6 +74,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     if opt.use_cuda:
         torch.cuda.set_device(opt.gpu_ids[rank])
+        print("using CUDA on device: %d" % opt.gpu_ids[rank])
 
     signal.signal(signal.SIGINT, signal_handler)  # to really kill the process
     signal.signal(signal.SIGTERM, signal_handler)
