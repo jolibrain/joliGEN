@@ -50,6 +50,6 @@ pipeline {
     }
   }
   environment {
-    DOCKER_PARAMS = '"--runtime nvidia --shm-size=16gb -u jenkins"'
+    DOCKER_PARAMS = '"--runtime=nvidia --shm-size=16gb -u jenkins"'
   }
 }
