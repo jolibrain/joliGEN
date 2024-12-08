@@ -109,6 +109,8 @@ def normalization(channels, norm="groupnorm32"):
         return BatchNorm2dC(channels)
     elif norm == "switchablenorm":
         return SwitchNorm2d(channels)
+    elif norm == "none":
+        return channels
     else:
         raise ValueError("%s is not implemented for unet attn generator" % norm)
 
