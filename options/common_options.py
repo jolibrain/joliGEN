@@ -353,6 +353,7 @@ class CommonOptions(BaseOptions):
                 "layernorm",
                 "instancenorm",
                 "switchablenorm",
+                "none",
             ],
             default="groupnorm",
         )
