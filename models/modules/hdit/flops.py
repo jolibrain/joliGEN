@@ -8,7 +8,7 @@ state.flop_counter = None
 
 
 @contextmanager
-def flop_counter(enable=True):
+def flop_counter(enable=False):
     try:
         old_flop_counter = state.flop_counter
         state.flop_counter = FlopCounter() if enable else None
