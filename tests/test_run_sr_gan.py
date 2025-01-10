@@ -34,7 +34,7 @@ models = [
 ]
 
 G_netGs = ["unet_mha", "hdit", "hat"]
-D_netDs = [["basic"]]
+D_netDs = [["basic"], ["none"]]
 
 product_list = product(models, G_netGs, D_netDs)
 
