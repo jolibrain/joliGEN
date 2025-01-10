@@ -799,8 +799,8 @@ class CUTModel(BaseGanModel):
             or self.loss_G_supervised_lpips > 0
             or self.loss_G_supervised_dists > 0
         ):
-            self.loss_G_supervised = self.opt.alg_cut_lambda_supervised * (
-                self.loss_G_supervised_norm
+            self.loss_G_supervised = (
+                self.opt.alg_cut_lambda_supervised * self.loss_G_supervised_norm
                 + self.opt.alg_cut_lambda_perceptual
                 * (self.loss_G_supervised_lpips + self.loss_G_supervised_dists)
             )
