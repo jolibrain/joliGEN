@@ -138,7 +138,10 @@ class BaseGanModel(BaseModel):
         self.loss_names_G = losses_G
         self.loss_names_D = losses_D
 
-        self.loss_functions_G = ["compute_G_loss_GAN"]
+        if self.opt.D_netDs != ["none"]:
+            self.loss_functions_G = ["compute_G_loss_GAN"]
+        else:
+            self.loss_functions_G = []
         self.forward_functions = ["forward_GAN"]
 
         if self.opt.train_semantic_mask:
