@@ -876,6 +876,7 @@ class BaseModel(ABC):
                         and not "ittr" in self.opt.G_netG
                         and not "hdit" in self.opt.G_netG
                         and not "img2img_turbo" in self.opt.G_netG
+                        and not "hat" == self.opt.G_netG
                         and not (
                             torch.__version__[0] == "2"
                             and "segformer" in self.opt.G_netG
