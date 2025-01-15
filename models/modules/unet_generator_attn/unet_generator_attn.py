@@ -263,7 +263,7 @@ class ResBlock(EmbedBlock):
         skipw = 1.0
         if self.efficient:
             skipw = 1.0 / math.sqrt(2)
-        return self.skip_connection(x) + h
+        return skipw * self.skip_connection(x) + h
 
 
 class AttentionBlock(nn.Module):
