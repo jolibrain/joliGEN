@@ -43,8 +43,8 @@ from .modules.unet_generator_attn.unet_generator_attn import (
 )
 
 from .modules.hdit.hdit import HDiT, HDiTConfig
-
 from .modules.img2img_turbo.img2img_turbo import Img2ImgTurbo
+from .modules.hat.hat import HAT
 
 
 def define_G(
@@ -259,6 +259,16 @@ def define_G(
         )
         cond_embed_dim = hdit_config.mapping.width
         net.cond_embed_dim = cond_embed_dim
+        return net
+    elif G_netG == "hat":
+        net = HAT(
+            img_size=data_crop_size,
+            patch_size=1,  # 2,  # 1 for 64
+            window_size=16,  # ,6, # 7
+            in_chans=model_input_nc,
+            out_chans=model_output_nc,
+            upsampler="pixelshuffle",
+        )
         return net
     elif G_netG == "img2img_turbo":
         net = Img2ImgTurbo(
