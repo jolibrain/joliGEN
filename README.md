@@ -6,7 +6,7 @@
 [![Docs](https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-doc-options-update.yml/badge.svg)](https://github.com/jolibrain/joliGEN/actions/workflows/github-actions-doc-options-update.yml)
 [![Website](https://img.shields.io/website-up-down-green-red/http/joligen.com/doc.svg)](https://www.joligen.com/doc)
 
-<h1 align="center">Generative AI Image Toolset with GANs, Diffusion and Consistency Models for Real-World Applications</h1>
+<h1 align="center">Generative AI Image & Video Toolset with GANs, Diffusion and Consistency Models for Real-World Applications</h1>
 
 **JoliGEN** is an integrated framework for training custom generative AI image-to-image models
 
