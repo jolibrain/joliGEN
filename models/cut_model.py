@@ -202,29 +202,6 @@ class CUTModel(BaseGanModel):
                     [temp + str(k) for temp in self.gen_visual_names]
                 )
 
-        if "segformer" in self.opt.G_netG:
-            self.opt.alg_cut_nce_layers = "0,1,2,3"
-            self.opt.alg_cut_nce_T = 0.2  # default 0.07 is too low, https://openaccess.thecvf.com/content/CVPR2021/papers/Wang_Understanding_the_Behaviour_of_Contrastive_Loss_CVPR_2021_paper.pdf for a related study
-            warnings.warn(
-                "cut with segformer requires nce_layers 0,1,2,3 and nce_T set to 0.2, these values are enforced"
-            )
-        elif "ittr" in self.opt.G_netG:
-            self.opt.alg_cut_nce_layers = ",".join(
-                [str(k) for k in range(self.opt.G_nblocks)]
-            )
-        elif "unet" in self.opt.G_netG:
-            self.opt.alg_cut_nce_layers = ",".join(
-                str(self.opt.G_nblocks * i - 1)
-                for i in range(1, len(self.opt.G_unet_mha_channel_mults) + 1)
-            )
-        elif "uvit" in self.opt.G_netG:
-            self.opt.alg_cut_nce_layers = ",".join(
-                str(self.opt.G_nblocks * i - 1)
-                for i in range(1, len(self.opt.G_unet_mha_channel_mults) + 1)
-            )
-
-        self.nce_layers = [int(i) for i in self.opt.alg_cut_nce_layers.split(",")]
-
         if opt.alg_cut_nce_idt and self.isTrain:
             visual_names_B += ["idt_B"]
         self.visual_names.insert(0, visual_names_A)
@@ -263,6 +240,27 @@ class CUTModel(BaseGanModel):
             tmp_model_input_nc = self.opt.model_input_nc
             self.opt.model_input_nc += self.opt.train_mm_nz
         self.netG_A = gan_networks.define_G(**vars(opt))
+
+        # print('netG_A=', self.netG_A)
+
+        # set NCE layers
+        if "segformer" in self.opt.G_netG:
+            self.opt.alg_cut_nce_layers = "0,1,2,3"
+            self.opt.alg_cut_nce_T = 0.2  # default 0.07 is too low, https://openaccess.thecvf.com/content/CVPR2021/papers/Wang_Understanding_the_Behaviour_of_Contrastive_Loss_CVPR_2021_paper.pdf for a related study
+            warnings.warn(
+                "cut with segformer requires nce_layers 0,1,2,3 and nce_T set to 0.2, these values are enforced"
+            )
+        elif "ittr" in self.opt.G_netG:
+            self.opt.alg_cut_nce_layers = ",".join(
+                [str(k) for k in range(self.opt.G_nblocks)]
+            )
+        elif "unet_mha" in self.opt.G_netG or "uvit" in self.opt.G_netG:
+            ninput_blocks = len(self.netG_A.input_blocks)
+            self.opt.alg_cut_nce_layers = ",".join(
+                [str(k) for k in range(ninput_blocks - 4, ninput_blocks)]
+            )
+        self.nce_layers = [int(i) for i in self.opt.alg_cut_nce_layers.split(",")]
+        print("Setting nce_layers: {}".format(self.nce_layers))
 
         self.netG_A.lora_rank_unet = self.opt.G_lora_unet
         self.netG_A.lora_rank_vae = self.opt.G_lora_vae
@@ -524,8 +522,16 @@ class CUTModel(BaseGanModel):
             else:
                 real_A_with_z = self.real_A
 
+            print("nce_layers=", self.nce_layers)
             feat_temp = self.netG_A.get_feats(real_A_with_z.cpu(), self.nce_layers)
+
+            # print('feat_temp=', feat_temp)
+            # print('feat_temp len=', len(feat_temp))
+
             self.netF.data_dependent_initialize(feat_temp)
+
+            # print('netF=', self.netF)
+            # print('netF parameters=', self.netF.parameters())
 
             if (
                 self.opt.alg_cut_lambda_NCE > 0.0
