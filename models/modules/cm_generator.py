@@ -268,7 +268,10 @@ class CMGenerator(nn.Module):
 
         embed_noise_level = self.embed_sigmas(sigma)
         if not x_cond is None:
-            x_with_cond = torch.cat([x_cond, x], dim=1)
+            if len(x.shape) != 5:
+                x_with_cond = torch.cat([x_cond, x], dim=1)
+            else:
+                x_with_cond = torch.cat([x_cond, x], dim=2)
         else:
             x_with_cond = x
         return c_skip * x + c_out * self.cm_model(
@@ -282,7 +285,6 @@ class CMGenerator(nn.Module):
         mask=None,
         x_cond=None,
     ):
-
         num_timesteps = improved_timesteps_schedule(
             self.current_t,
             total_training_steps,

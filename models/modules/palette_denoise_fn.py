@@ -94,7 +94,6 @@ class PaletteDenoiseFn(nn.Module):
 
     def forward(self, input, embed_noise_level, cls, mask, ref):
         cls_embed, mask_embed, ref_embed = self.compute_cond(input, cls, mask, ref)
-
         if "class" in self.conditioning:
             embedding = torch.cat((embed_noise_level, cls_embed), dim=1)
         else:
@@ -113,7 +112,6 @@ class PaletteDenoiseFn(nn.Module):
             out = self.model(input, embedding, ref)
         else:
             out = self.model(input, embedding)
-
         return out
 
     def compute_cond(self, input, cls, mask, ref):
