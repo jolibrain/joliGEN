@@ -123,16 +123,20 @@ class CMModel(BaseDiffusionModel):
             self.gen_visual_names.append("cond_image_")
         if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
-            
+
         if self.opt.G_netG == "unet_vid":
-            max_visual_outputs = (self.opt.train_batch_size * self.opt.data_temporal_number_frames )
+            max_visual_outputs = (
+                self.opt.train_batch_size * self.opt.data_temporal_number_frames
+            )
             for k in range(max_visual_outputs):
                 self.visual_names.append(
-                        [temp + str(k) for temp in self.gen_visual_names]
-                        )
+                    [temp + str(k) for temp in self.gen_visual_names]
+                )
         else:
             for k in range(self.opt.train_batch_size):
-                self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
+                self.visual_names.append(
+                    [temp + str(k) for temp in self.gen_visual_names]
+                )
             self.visual_names.append(visual_outputs)
 
         # Define network
@@ -145,7 +149,6 @@ class CMModel(BaseDiffusionModel):
         else:
             self.netG_A.current_t = 0  # placeholder
         print("Setting CM current_iter to", self.netG_A.current_t)
-
 
         self.model_names = ["G_A"]
         self.model_names_export = ["G_A"]
@@ -358,7 +361,6 @@ class CMModel(BaseDiffusionModel):
 
         self.fake_B = self.output
         self.visuals = self.output
-
 
         if not self.opt.G_netG == "unet_vid":
             for name in self.gen_visual_names:
