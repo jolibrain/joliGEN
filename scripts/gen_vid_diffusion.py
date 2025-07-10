@@ -84,6 +84,12 @@ def load_model(
     if opt.model_type in ["cm", "cm_gan"]:
         opt.alg_palette_sampling_method = sampling_method
         opt.alg_diffusion_cond_embed_dim = 256
+        if (
+            opt.alg_diffusion_cond_image_creation == "computed_sketch"
+            and opt.G_netG == "unet_vid"
+        ):
+            opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
+
     model = diffusion_networks.define_G(**vars(opt))
     model.eval()
 
@@ -258,7 +264,6 @@ def generate(
         parts = line.strip().split()
         image_bbox_pairs.append((parts[0], parts[1]))
     image_bbox_pairs.sort(key=lambda x: natural_keys(x[0]))
-
     startframe = random.randint(
         0,
         len(image_bbox_pairs)
@@ -281,7 +286,7 @@ def generate(
     img_tensor_list = []
     out_img_list = []
     sequence_count = 0
-    select_canny_list = [0] * (
+    select_canny_list = [1] * (
         opt.data_temporal_number_frames - 1 + vid_frame_extension_number
     ) + [1]
     for img_path, bbox_path in zip(limited_paths_img, limited_paths_bbox):
@@ -628,8 +633,8 @@ def generate(
                     mask_canny.unsqueeze(0),
                     low_threshold=alg_diffusion_sketch_canny_thresholds[0],
                     high_threshold=alg_diffusion_sketch_canny_thresholds[1],
-                    low_threshold_random=-1,
-                    high_threshold_random=-1,
+                    low_threshold_random=alg_diffusion_sketch_canny_thresholds[0],
+                    high_threshold_random=alg_diffusion_sketch_canny_thresholds[1],
                     select_canny=[select_canny_list[sequence_count]],
                 )
             if cond_in:

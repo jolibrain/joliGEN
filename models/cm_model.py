@@ -11,6 +11,7 @@ from torch import nn
 
 from util.network_group import NetworkGroup
 from util.iter_calculator import IterCalculator
+from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
 
 from util.mask_generation import random_edge_mask
 
@@ -109,24 +110,52 @@ class CMModel(BaseDiffusionModel):
             self.opt.alg_cm_num_steps * self.opt.train_batch_size
         )  # scaled with bs
 
+        if (
+            self.opt.alg_diffusion_cond_embed != ""
+            and self.opt.alg_diffusion_generate_per_class
+        ):
+            self.nb_classes_inference = (
+                max(self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses) - 1
+            )
+
         # Visuals
         visual_outputs = []
         self.gen_visual_names = [
             "gt_image_",
             "y_t_",
-            "output_",
             "next_noisy_x_",
             "current_noisy_x_",
+            "mask_",
         ]
+
+        if (
+            self.opt.alg_diffusion_cond_embed != ""
+            and self.opt.alg_diffusion_generate_per_class
+        ):
+            for i in range(self.nb_classes_inference):
+                self.gen_visual_names.append("output_" + str(i + 1) + "_")
+        else:
+            self.gen_visual_names.append("output_")
 
         if opt.alg_diffusion_cond_image_creation != "y_t":
             self.gen_visual_names.append("cond_image_")
         if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
 
-        for k in range(self.opt.train_batch_size):
-            self.visual_names.append([temp + str(k) for temp in self.gen_visual_names])
-        self.visual_names.append(visual_outputs)
+        if self.opt.G_netG == "unet_vid":
+            max_visual_outputs = (
+                self.opt.train_batch_size * self.opt.data_temporal_number_frames
+            )
+            for k in range(max_visual_outputs):
+                self.visual_names.append(
+                    [temp + str(k) for temp in self.gen_visual_names]
+                )
+        else:
+            for k in range(self.opt.train_batch_size):
+                self.visual_names.append(
+                    [temp + str(k) for temp in self.gen_visual_names]
+                )
+            self.visual_names.append(visual_outputs)
 
         # Define network
         opt.alg_palette_sampling_method = ""
@@ -197,7 +226,7 @@ class CMModel(BaseDiffusionModel):
     def set_input(self, data):
         if (
             len(data["A"].to(self.device).shape) == 5
-        ):  # we're using temporal successive frames
+        ) and self.opt.G_netG != "unet_vid":  # we're using temporal successive frames
             self.previous_frame = data["A"].to(self.device)[:, 0]
             self.y_t = data["A"].to(self.device)[:, 1]
             self.gt_image = data["B"].to(self.device)[:, 1]
@@ -239,12 +268,39 @@ class CMModel(BaseDiffusionModel):
             if "canny" in fill_img_with_random_sketch.__name__:
                 low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
                 high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
-                self.cond_image = fill_img_with_random_sketch(
-                    self.gt_image,
-                    self.mask,
-                    low_threshold_random=low,
-                    high_threshold_random=high,
-                )
+                if self.opt.G_netG != "unet_vid":
+                    self.cond_image = fill_img_with_random_sketch(
+                        self.gt_image,
+                        self.mask,
+                        low_threshold_random=low,
+                        high_threshold_random=high,
+                    )
+                else:
+                    self.mask, self.gt_image = rearrange_5dto4d_bf(
+                        self.mask, self.gt_image
+                    )
+
+                    random_num = torch.rand(self.gt_image.shape[0])
+                    dropout_pro = torch.empty(self.gt_image.shape[0]).uniform_(
+                        self.opt.alg_diffusion_vid_canny_dropout[0][0],
+                        self.opt.alg_diffusion_vid_canny_dropout[1][0],
+                    )
+                    canny_frame = (random_num > dropout_pro).int()  # binary canny_frame
+                    self.cond_image = fill_img_with_random_sketch(
+                        self.gt_image,
+                        self.mask,
+                        low_threshold_random=low,
+                        high_threshold_random=high,
+                        select_canny=canny_frame,
+                    )
+
+                    self.mask, self.gt_image, self.cond_image = rearrange_4dto5d_bf(
+                        self.opt.data_temporal_number_frames,
+                        self.mask,
+                        self.gt_image,
+                        self.cond_image,
+                    )
+
         elif self.task == "pix2pix":
             self.cond_image = self.y_t
         else:  # y_t
@@ -259,6 +315,7 @@ class CMModel(BaseDiffusionModel):
         y_0 = self.gt_image  # ground truth
         y_cond = self.cond_image  # conditioning
         mask = self.mask
+
         (
             self.pred_x,
             target_x,
@@ -345,19 +402,52 @@ class CMModel(BaseDiffusionModel):
             y_t = torch.zeros(out_shape, device=y_cond.device, dtype=y_cond.dtype)
         else:  # e.g. inpainting
             y_t = self.y_t[:nb_imgs]
-        self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
+
+        if self.task in ["inpainting"]:
+            if (
+                self.opt.alg_diffusion_cond_embed != ""
+                and self.opt.alg_diffusion_generate_per_class
+            ):
+
+                for i in range(self.nb_classes_inference):
+                    if "mask" in self.opt.alg_diffusion_cond_embed:
+                        cur_mask = self.mask[:nb_imgs].clone().clamp(min=0, max=1) * (
+                            i + 1
+                        )
+                    else:
+                        cur_mask = self.mask[:nb_imgs]
+                    self.output = netG.restoration(
+                        y_t, y_cond, sampling_sigmas, cur_mask
+                    )
+                    name = "output_" + str(i + 1)
+                    setattr(self, name, self.output)
+        else:
+            self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
+
         self.fake_B = self.output
         self.visuals = self.output
 
-        # set visual names
-        for name in self.gen_visual_names:
-            whole_tensor = getattr(self, name[:-1])
-            for k in range(min(nb_imgs, self.get_current_batch_size())):
-                cur_name = name + str(offset + k)
-                cur_tensor = whole_tensor[k : k + 1]
-                if "mask" in name:
-                    cur_tensor = cur_tensor.squeeze(0)
-                setattr(self, cur_name, cur_tensor)
+        if not self.opt.G_netG == "unet_vid":
+            for name in self.gen_visual_names:
+                whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
+                for k in range(min(nb_imgs, self.get_current_batch_size())):
+                    cur_name = name + str(offset + k)
+                    cur_tensor = whole_tensor[k : k + 1]
+                    if "mask" in name:
+                        cur_tensor = cur_tensor.squeeze(0)
+                    setattr(self, cur_name, cur_tensor)
+        else:
+            for name in self.gen_visual_names:
+                whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
+                for bs in range(min(nb_imgs, self.get_current_batch_size())):
+                    for k in range(self.opt.data_temporal_number_frames):
+                        cur_name = name + str(
+                            offset + bs * (self.opt.data_temporal_number_frames) + k
+                        )
+                        cur_tensor = whole_tensor[bs, k, :, :, :].unsqueeze(0)
+                        if "mask" in name:
+                            cur_tensor = cur_tensor.squeeze(0)
+                        setattr(self, cur_name, cur_tensor)
 
     def compute_visuals(self, nb_imgs):
         super().compute_visuals(nb_imgs)
