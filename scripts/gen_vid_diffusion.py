@@ -84,6 +84,12 @@ def load_model(
     if opt.model_type in ["cm", "cm_gan"]:
         opt.alg_palette_sampling_method = sampling_method
         opt.alg_diffusion_cond_embed_dim = 256
+        if (
+            opt.alg_diffusion_cond_image_creation == "computed_sketch"
+            and opt.G_netG == "unet_vid"
+        ):
+            opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
+
     model = diffusion_networks.define_G(**vars(opt))
     model.eval()
 
