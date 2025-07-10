@@ -359,18 +359,7 @@ class CMModel(BaseDiffusionModel):
         self.fake_B = self.output
         self.visuals = self.output
 
-#        # set visual names
-#        if self.opt.isTrain:
-#            for name in self.gen_visual_names:
-#                print("  name ",  name , nb_imgs, self.get_current_batch_size())
-#                whole_tensor = getattr(self, name[:-1])
-#                for k in range(min(nb_imgs, self.get_current_batch_size())):
-#                    cur_name = name + str(offset + k)
-#                    cur_tensor = whole_tensor[k : k + 1]
-#                    if "mask" in name:
-#                        cur_tensor = cur_tensor.squeeze(0)
-#                    setattr(self, cur_name, cur_tensor)
-#
+
         if not self.opt.G_netG == "unet_vid":
             for name in self.gen_visual_names:
                 whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
@@ -397,3 +386,15 @@ class CMModel(BaseDiffusionModel):
         super().compute_visuals(nb_imgs)
         with torch.no_grad():
             self.inference(nb_imgs)
+
+    def get_current_visuals(self, nb_imgs, phase="train", test_name=""):
+        # hide noisy columns in test mode
+        old_visual_names = self.visual_names.copy()
+        if phase == "test":
+            self.visual_names = [
+                [x for x in visual_name if "noisy" not in x]
+                for visual_name in self.visual_names
+            ]
+        x = super().get_current_visuals(nb_imgs, phase, test_name)
+        self.visual_names = old_visual_names
+        return x
