@@ -11,6 +11,7 @@ from torch import nn
 
 from util.network_group import NetworkGroup
 from util.iter_calculator import IterCalculator
+from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
 
 from util.mask_generation import random_edge_mask
 
@@ -250,12 +251,39 @@ class CMModel(BaseDiffusionModel):
             if "canny" in fill_img_with_random_sketch.__name__:
                 low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
                 high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
-                self.cond_image = fill_img_with_random_sketch(
-                    self.gt_image,
-                    self.mask,
-                    low_threshold_random=low,
-                    high_threshold_random=high,
-                )
+                if self.opt.G_netG != "unet_vid":
+                    self.cond_image = fill_img_with_random_sketch(
+                        self.gt_image,
+                        self.mask,
+                        low_threshold_random=low,
+                        high_threshold_random=high,
+                    )
+                else:
+                    self.mask, self.gt_image = rearrange_5dto4d_bf(
+                        self.mask, self.gt_image
+                    )
+
+                    random_num = torch.rand(self.gt_image.shape[0])
+                    dropout_pro = torch.empty(self.gt_image.shape[0]).uniform_(
+                        self.opt.alg_diffusion_vid_canny_dropout[0][0],
+                        self.opt.alg_diffusion_vid_canny_dropout[1][0],
+                    )
+                    canny_frame = (random_num > dropout_pro).int()  # binary canny_frame
+                    self.cond_image = fill_img_with_random_sketch(
+                        self.gt_image,
+                        self.mask,
+                        low_threshold_random=low,
+                        high_threshold_random=high,
+                        select_canny=canny_frame,
+                    )
+
+                    self.mask, self.gt_image, self.cond_image = rearrange_4dto5d_bf(
+                        self.opt.data_temporal_number_frames,
+                        self.mask,
+                        self.gt_image,
+                        self.cond_image,
+                    )
+
         elif self.task == "pix2pix":
             self.cond_image = self.y_t
         else:  # y_t
