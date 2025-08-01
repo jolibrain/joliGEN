@@ -59,7 +59,7 @@ def launch_testing(opt, main_opt):
             model.netG_A.denoise_fn.model.beta_schedule["test"][
                 "n_timestep"
             ] = main_opt.sampling_steps
-            if main.opt.model_type == "palette":
+            if opt.model_type == "palette":
                 set_new_noise_schedule(model.netG_A.denoise_fn.model, "test")
         if main_opt.sampling_method is not None:
             model.netG_A.set_new_sampling_method(main_opt.sampling_method)
