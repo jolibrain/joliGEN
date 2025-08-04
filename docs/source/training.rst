@@ -197,9 +197,9 @@ Trains a consistency model to insert glasses onto faces.
 
    python3 train.py --dataroot /path/to/data/noglasses2glasses_ffhq --checkpoints_dir /path/to/checkpoints --name noglasses2glasses --config_json examples/example_cm_noglasses2glasses.json
 
-*************************************************************
+***************************************************
  DDPM training for video generation with inpainting
-*************************************************************
+***************************************************
 
 Dataset: https://joligen.com/datasets/online_mario2sonic_full.tar
 
@@ -208,4 +208,44 @@ Train a DDPM model to generate a sequence of frame images for inpainting, ensuri
 .. code:: bash
 
    python3 train.py --dataroot /path/to/data/online_mario2sonic_full  --checkpoints_dir /path/to/checkpoints  --name mario_vid  --config_json examples/example_ddpm_vid_mario.json
+
+***********************************************************************
+ Fine-tuning image-trained DDPM with motion module for video inpainting
+***********************************************************************
+Starts from a DDPM model pretrained on image data using a U-Net backbone (e.g., single-frame inpainting with Canny sketch conditioning). The pretrained U-Net weights are transferred into a new architecture, `unet_vid`, which extends the original U-Net with a motion-aware module.
+
+While image-level DDPM models (such as those using `unet_mha`) process each frame independently, they often fail to maintain temporal coherence when applied to video sequences. To address this, we fine-tune the model on sequential video frames using the `unet_vid` architecture, which incorporates temporal modeling through motion modules.
+
+This fine-tuning process results in a video-aware DDPM model capable of producing temporally consistent inpainting results across entire video sequences.
+
+Dataset: https://joligen.com/datasets/online_mario2sonic_lite2.zip
+
+.. code:: bash
+
+   python3 train.py \
+     --dataroot /path/to/data/online_mario2sonic_full \
+     --checkpoints_dir /path/to/checkpoints \
+     --name mario_vid_ft_vid_from_img \
+     --config_json examples/example_ddpm_vid_mario_ft_from_image.json \
+     --train_epoch specifie/starting/epoch/number/for/fine-tuning \
+     --train_continue \
+
+*************************************************************
+ Fine-tuning DDPM video model on domain-similar video dataset
+*************************************************************
+Fine-tunes a pretrained video-based DDPM model on a target dataset from a related domain. This method leverages existing spatiotemporal representations to accelerate convergence and improve generalization, especially when labeled data is limited or there is a domain shift.
+
+Dataset: https://joligen.com/datasets/online_mario2sonic_lite2.zip
+
+.. code:: bash
+
+   python3 train.py \
+     --dataroot /path/to/data/online_mario2sonic_full \
+     --checkpoints_dir /path/to/checkpoints \
+     --name mario_vid_ft_vid \
+     --config_json examples/example_ddpm_vid_mario_ft.json \
+     --train_epoch specifie/starting/epoch/number/for/fine-tuning \
+     --train_continue \
+
+.. image:: _static/ddpm_vid_ft_ref_visdom.png
 
