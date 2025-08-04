@@ -1,0 +1,349 @@
+{
+    "checkpoints_dir": "checkpoints",
+    "dataroot": "online_mario2sonic_full/mario",
+    "ddp_port": "12355",
+    "gpu_ids": "3",
+    "model_type": "palette",
+    "name": "mario_vid_ft_img",
+    "phase": "train",
+    "suffix": "",
+    "test_batch_size": 1,
+    "warning_mode": false,
+    "with_amp": true,
+    "with_tf32": true,
+    "with_torch_compile": true,
+    "D": {
+        "dropout": false,
+        "n_layers": 3,
+        "ndf": 64,
+        "netDs": [
+            "projected_d",
+            "basic"
+        ],
+        "no_antialias": false,
+        "no_antialias_up": false,
+        "norm": "instance",
+        "proj_config_segformer": "models/configs/segformer/segformer_config_b0.json",
+        "proj_interp": -1,
+        "proj_network_type": "efficientnet",
+        "proj_weight_segformer": "models/configs/segformer/pretrain/segformer_mit-b0.pth",
+        "spectral": false,
+        "temporal_every": 4,
+        "vision_aided_backbones": "clip+dino+swin",
+        "weight_sam": ""
+    },
+    "G": {
+        "attn_nb_mask_attn": 10,
+        "attn_nb_mask_input": 1,
+        "backward_compatibility_twice_resnet_blocks": false,
+        "config_segformer": "models/configs/segformer/segformer_config_b0.json",
+        "diff_n_timestep_test": 1000,
+        "diff_n_timestep_train": 2000,
+        "dropout": false,
+        "hdit_depths": [
+            2,
+            2,
+            4
+        ],
+        "hdit_patch_size": 4,
+        "hdit_widths": [
+            192,
+            384,
+            768
+        ],
+        "lora_unet": 8,
+        "lora_vae": 8,
+        "nblocks": 9,
+        "netE": "resnet_256",
+        "netG": "unet_vid",
+        "ngf": 64,
+        "norm": "instance",
+        "padding_type": "reflect",
+        "spectral": false,
+        "unet_mha_attn_res": [
+            16
+        ],
+        "unet_mha_channel_mults": [
+            1,
+            2,
+            4,
+            8
+        ],
+        "unet_mha_group_norm_size": 32,
+        "unet_mha_norm_layer": "groupnorm",
+        "unet_mha_num_head_channels": 32,
+        "unet_mha_num_heads": 1,
+        "unet_mha_res_blocks": [
+            2,
+            2,
+            8,
+            8
+        ],
+        "unet_mha_vit_efficient": false,
+        "unet_vid_cross_attention_dim": 384,
+        "unet_vid_max_sequence_length": 25,
+        "unet_vid_num_attention_heads": 8,
+        "unet_vid_num_transformer_blocks": 1,
+        "uvit_num_transformer_blocks": 6
+    },
+    "alg": {
+        "diffusion_cond_computed_sketch_list": [
+            "canny"
+        ],
+        "diffusion_cond_embed": "",
+        "diffusion_cond_embed_dim": 32,
+        "diffusion_cond_image_creation": "computed_sketch",
+        "diffusion_cond_prob_use_previous_frame": 0.5,
+        "diffusion_cond_sam_crop_delta": true,
+        "diffusion_cond_sam_final_canny": false,
+        "diffusion_cond_sam_max_mask_area": 0.99,
+        "diffusion_cond_sam_min_mask_area": 0.001,
+        "diffusion_cond_sam_no_output_binary_sam": true,
+        "diffusion_cond_sam_no_sample_points_in_ellipse": true,
+        "diffusion_cond_sam_no_sobel_filter": true,
+        "diffusion_cond_sam_points_per_side": 16,
+        "diffusion_cond_sam_redundancy_threshold": 0.62,
+        "diffusion_cond_sam_sobel_threshold": 0.7,
+        "diffusion_cond_sam_use_gaussian_filter": false,
+        "diffusion_cond_sketch_canny_range": [
+            300,
+            700
+        ],
+        "diffusion_dropout_prob": 0.0,
+        "diffusion_generate_per_class": false,
+        "diffusion_lambda_G": 1.0,
+        "diffusion_ref_embed_net": "clip",
+        "diffusion_super_resolution_scale": 2.0,
+        "diffusion_task": "inpainting",
+        "diffusion_vid_canny_dropout": [
+            [
+                0.3
+            ],
+            [
+                0.5
+            ]
+        ],
+        "re": {
+            "P_lr": 0.0002,
+            "adversarial_loss_p": false,
+            "netP": "unet_128",
+            "no_train_P_fake_images": false,
+            "nuplet_size": 3,
+            "projection_threshold": 1.0
+        },
+        "palette": {
+            "ddim_eta": 0.5,
+            "ddim_num_steps": 10,
+            "loss": "MSE",
+            "minsnr": false,
+            "sampling_method": "ddpm"
+        }
+    },
+    "data": {
+        "crop_size": 128,
+        "dataset_mode": "self_supervised_vid_mask_online",
+        "direction": "AtoB",
+        "image_bits": 8,
+        "inverted_mask": false,
+        "load_size": 128,
+        "max_dataset_size": 1000000000,
+        "num_threads": 8,
+        "online_context_pixels": 0,
+        "online_fixed_mask_size": -1,
+        "online_random_bbox": false,
+        "online_select_category": -1,
+        "online_single_bbox": false,
+        "preprocess": "resize_and_crop",
+        "refined_mask": false,
+        "relative_paths": true,
+        "sanitize_paths": false,
+        "serial_batches": false,
+        "temporal_frame_step": 1,
+        "temporal_num_common_char": -1,
+        "temporal_number_frames": 6,
+        "online_creation": {
+            "color_mask_A": false,
+            "crop_delta_A": 50,
+            "crop_delta_B": 50,
+            "crop_size_A": 128,
+            "crop_size_B": 128,
+            "load_size_A": [],
+            "load_size_B": [],
+            "mask_delta_A": [
+                []
+            ],
+            "mask_delta_A_ratio": [
+                []
+            ],
+            "mask_delta_B": [
+                []
+            ],
+            "mask_delta_B_ratio": [
+                []
+            ],
+            "mask_random_offset_A": [
+                0.0
+            ],
+            "mask_random_offset_B": [
+                0.0
+            ],
+            "mask_square_A": false,
+            "mask_square_B": false,
+            "rand_mask_A": true
+        }
+    },
+    "f_s": {
+        "all_classes_as_one": false,
+        "class_weights": [],
+        "config_segformer": "models/configs/segformer/segformer_config_b0.json",
+        "dropout": false,
+        "net": "vgg",
+        "nf": 64,
+        "semantic_nclasses": 2,
+        "semantic_threshold": 1.0,
+        "weight_sam": "",
+        "weight_segformer": ""
+    },
+    "cls": {
+        "all_classes_as_one": false,
+        "class_weights": [],
+        "config_segformer": "models/configs/segformer/segformer_config_b0.json",
+        "dropout": false,
+        "net": "vgg",
+        "nf": 64,
+        "semantic_nclasses": 2,
+        "semantic_threshold": 1.0,
+        "weight_segformer": ""
+    },
+    "output": {
+        "no_html": false,
+        "num_images": 20,
+        "print_freq": 8,
+        "update_html_freq": 1000,
+        "verbose": false,
+        "display": {
+            "G_attention_masks": false,
+            "aim_port": 53800,
+            "aim_server": "http://localhost",
+            "diff_fake_real": false,
+            "env": "",
+            "freq": 4000,
+            "id": 1,
+            "ncols": 0,
+            "networks": false,
+            "type": [
+                "visdom"
+            ],
+            "visdom_autostart": false,
+            "visdom_port": 8097,
+            "visdom_server": "http://localhost",
+            "winsize": 256
+        }
+    },
+    "model": {
+        "depth_network": "DPT_Large",
+        "init_gain": 0.02,
+        "init_type": "normal",
+        "input_nc": 3,
+        "load_no_strictness": false,
+        "multimodal": false,
+        "output_nc": 3,
+        "prior_321_backwardcompatibility": false,
+        "type_sam": "mobile_sam"
+    },
+    "train": {
+        "D_accuracy_every": 1000,
+        "D_lr": 0.0001,
+        "G_ema": true,
+        "G_ema_beta": 0.999,
+        "G_lr": 1e-05,
+        "batch_size": 1,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "cls_l1_regression": false,
+        "cls_regression": false,
+        "compute_D_accuracy": false,
+        "compute_metrics_test": true,
+        "continue": true,
+        "epoch": "latest",
+        "epoch_count": 1,
+        "export_jit": false,
+        "feat_wavelet": false,
+        "finetune": false,
+        "gan_mode": "lsgan",
+        "iter_size": 8,
+        "load_iter": 0,
+        "lr_decay_iters": 50,
+        "lr_policy": "linear",
+        "lr_steps": [],
+        "metrics_every": 4000,
+        "metrics_list": [
+            "PSNR",
+            "LPIPS",
+            "SSIM"
+        ],
+        "metrics_save_images": false,
+        "mm_lambda_z": 0.5,
+        "mm_nz": 8,
+        "n_epochs": 100,
+        "n_epochs_decay": 0,
+        "nb_img_max_fid": 1000000000,
+        "optim": "adamw",
+        "optim_eps": 1e-08,
+        "optim_weight_decay": 0.0,
+        "pool_size": 50,
+        "save_by_iter": false,
+        "save_epoch_freq": 5,
+        "save_latest_freq": 5000,
+        "semantic_cls": false,
+        "semantic_mask": false,
+        "temporal_criterion": false,
+        "temporal_criterion_lambda": 1.0,
+        "use_contrastive_loss_D": false,
+        "sem": {
+            "cls_B": false,
+            "cls_lambda": 1.0,
+            "cls_pretrained": false,
+            "cls_template": "basic",
+            "idt": false,
+            "lr_cls": 0.0002,
+            "lr_f_s": 0.0002,
+            "mask_lambda": 1.0,
+            "net_output": false,
+            "use_label_B": false
+        },
+        "mask": {
+            "charbonnier_eps": 1e-06,
+            "compute_miou": false,
+            "disjoint_f_s": false,
+            "f_s_B": false,
+            "for_removal": false,
+            "lambda_out_mask": 10.0,
+            "loss_out_mask": "L1",
+            "miou_every": 1000,
+            "no_train_f_s_A": false,
+            "out_mask": false
+        }
+    },
+    "dataaug": {
+        "APA": false,
+        "APA_every": 4,
+        "APA_nimg": 50,
+        "APA_p": 0,
+        "APA_target": 0.6,
+        "D_diffusion": false,
+        "D_diffusion_every": 4,
+        "D_label_smooth": false,
+        "D_noise": 0.0,
+        "affine": 0.0,
+        "affine_scale_max": 1.2,
+        "affine_scale_min": 0.8,
+        "affine_shear": 45,
+        "affine_translate": 0.2,
+        "diff_aug_policy": "",
+        "diff_aug_proba": 0.5,
+        "flip": "horizontal",
+        "imgaug": false,
+        "no_rotate": true
+    }
+}
