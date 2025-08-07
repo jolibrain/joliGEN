@@ -58,7 +58,6 @@ class BaseOptions:
 
         # get the basic options
         opt = self._parse_args(parser, None, args, flat_json)
-
         # get specific options
         opt, parser = self._gather_specific_options(opt, parser, args, flat_json)
 
@@ -94,7 +93,10 @@ class BaseOptions:
                     )  # it's not an error anymore because server launching is done with all of the options even those from other models, raising an error will lead to a server crash
         else:
             # do not ignore unknown options here, they are actual errors in the command line
-            opt = parser.parse_args(args)
+            if only_known:
+                opt, _ = parser.parse_known_args(args)
+            else:
+                opt = parser.parse_args(args)
         return opt
 
     def _json_parse_known_args(self, parser, opt, json_args):
