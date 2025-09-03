@@ -265,6 +265,7 @@ class PaletteModel(BaseDiffusionModel):
             if self.opt.G_netG == "unet_vid":
                 self.y_t = data["A"].to(self.device)
                 self.gt_image = data["B"].to(self.device)
+
             else:
                 self.y_t = data["A"].to(self.device)[:, 1]
                 self.gt_image = data["B"].to(self.device)[:, 1]
@@ -423,17 +424,38 @@ class PaletteModel(BaseDiffusionModel):
                         high_threshold_random=high,
                         select_canny=canny_frame,
                     )
-
+                    self.cond_image_black = fill_img_with_random_sketch(
+                        self.gt_image,
+                        self.mask,
+                        low_threshold_random=low,
+                        high_threshold_random=high,
+                        select_canny=len(canny_frame) * [0],
+                    )
                     if (
                         self.opt.G_netG == "unet_vid"
                         and self.opt.alg_diffusion_cond_image_creation
                         == "computed_sketch"
                     ):
-                        self.mask, self.gt_image, self.cond_image = rearrange_4dto5d_bf(
+                        (
+                            self.mask,
+                            self.gt_image,
+                            self.cond_image,
+                            self.cond_image_black,
+                        ) = rearrange_4dto5d_bf(
                             self.opt.data_temporal_number_frames,
                             self.mask,
                             self.gt_image,
                             self.cond_image,
+                            self.cond_image_black,
+                        )
+                        B, T = self.cond_image.size(0), self.cond_image.size(1)
+                        mask = torch.rand(B, T, 1, 1, 1, device=self.device) < 0.07
+                        self.gt_image_mix = torch.where(
+                            mask, self.gt_image, self.cond_image_black
+                        )
+                        mask_f = torch.rand(B, 1, 1, 1, 1, device=self.device) < 0.07
+                        self.cond_image = torch.where(
+                            mask_f, self.gt_image_mix, self.cond_image
                         )
 
                 elif "sam" in fill_img_with_random_sketch.__name__:
