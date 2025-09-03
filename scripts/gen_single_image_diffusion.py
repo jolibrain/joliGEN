@@ -582,6 +582,7 @@ def generate(
             high_threshold=alg_diffusion_sketch_canny_thresholds[1],
             low_threshold_random=-1,
             high_threshold_random=-1,
+            select_canny=[1],
         )
         if cond_in:
             # restore background
