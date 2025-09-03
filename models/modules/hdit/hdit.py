@@ -274,6 +274,7 @@ class AxialRoPE(nn.Module):
 
 def window(window_size, x):
     *b, h, w, c = x.shape
+
     x = torch.reshape(
         x,
         (*b, h // window_size, window_size, w // window_size, window_size, c),
