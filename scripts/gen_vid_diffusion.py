@@ -84,6 +84,12 @@ def load_model(
     if opt.model_type in ["cm", "cm_gan"]:
         opt.alg_palette_sampling_method = sampling_method
         opt.alg_diffusion_cond_embed_dim = 256
+        if (
+            opt.alg_diffusion_cond_image_creation == "computed_sketch"
+            and opt.G_netG == "unet_vid"
+        ):
+            opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
+
     model = diffusion_networks.define_G(**vars(opt))
     model.eval()
 
@@ -704,11 +710,8 @@ def generate(
         else:
             ref_tensor = None
 
-        if opt.alg_diffusion_cond_image_creation in ["computed_sketch", "y_t"]:
-            if sequence_count == 0:
-                y_t_list.append(y_t)
-            else:
-                y_t_list.append(y_t_list[0])
+        if opt.alg_diffusion_cond_image_creation in ["computed_sketch"]:
+            y_t_list.append(y_t)
 
         sequence_count = sequence_count + 1
         cond_image_list.append(cond_image)
