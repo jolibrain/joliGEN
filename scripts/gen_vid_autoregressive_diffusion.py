@@ -274,7 +274,7 @@ def generate(
         parts = line.strip().split()
         image_bbox_pairs.append((parts[0], parts[1]))
     image_bbox_pairs.sort(
-        key=lambda x: natural_keys(x[0]), reverse=True
+        key=lambda x: natural_keys(x[0]), reverse=False
     )  # the biggest traffic sign is the first frame for better canny condition
     paths_length = len(image_bbox_pairs)
 
@@ -294,7 +294,7 @@ def generate(
     out_img_list = []
     sequence_count = 0
     slide_window = paths_length // 4 - 1
-    select_canny_list = [1] + [0] * (len(limited_paths_img) - 1)
+    select_canny_list = [0] * (len(limited_paths_img) - 1) + [1]
     slide_count = 0
     # step 1 prepare all frames
     for img_path, bbox_path in zip(limited_paths_img, limited_paths_bbox):
@@ -706,7 +706,7 @@ def generate(
         else:
             ref_tensor = None
 
-        y_t_list.append(y_t if not y_t_list else y_t_list[0])
+        y_t_list.append(y_t)
         cond_image_list.append(cond_image)
         y0_tensor_list.append(y0_tensor)
         mask_list.append(mask)
@@ -717,40 +717,39 @@ def generate(
 
     # step2 Loop through the sliding window
     new_cond_list = []
+    out_img_temp_list = []
+    out_img_tensor_list = []
 
     for slide in range(
         slide_window
     ):  # slide_window is paths_length // 4 - 1, note that the first frame is the largest traffic sign image.
         if slide == 0:
             # Initialize tensors for the first iteration
-            y_t = prepare_tensors(y_t_list[:8][::-1])
-            cond_image = prepare_tensors(cond_image_list[:8][::-1])
-            y0_tensor = prepare_tensors(y0_tensor_list[:8][::-1])
-            mask = prepare_tensors(mask_list[:8][::-1])
+            y_t = prepare_tensors(y_t_list[-8:])
+            cond_image = prepare_tensors(cond_image_list[-8:])
+            y0_tensor = prepare_tensors(y0_tensor_list[-8:])
+            mask = prepare_tensors(mask_list[-8:])
         else:
             # Calculate the starting frame for subsequent slides
-            start_frame = slide * 4
+            N = len(limited_paths_img)
+            window_start = N - 8 - slide * 4
+            window_end = window_start + 8
+            new_start = window_start
+            new_end = window_start + 4  # 4 new frames
             # Prepare inputs for the model
-            input_y_t = (
-                last_4_frame_y_t + y_t_list[start_frame + 4 : start_frame + 8][::-1]
-            )
+            input_y_t = y_t_list[new_start:new_end] + last_4_frame_y_t
             input_cond_image = (
-                last_4_frame_cond_image
-                + cond_image_list[start_frame + 4 : start_frame + 8][::-1]
+                cond_image_list[new_start:new_end] + last_4_frame_cond_image
             )
-            input_y0_tensor = (
-                last_4_frame_y0_tensor
-                + y0_tensor_list[start_frame + 4 : start_frame + 8][::-1]
-            )
-            input_mask = (
-                last_4_frame_mask + mask_list[start_frame + 4 : start_frame + 8][::-1]
-            )
+            input_y0_tensor = y0_tensor_list[new_start:new_end] + last_4_frame_y0_tensor
+            input_mask = mask_list[new_start:new_end] + last_4_frame_mask
 
             # Stack tensors for model input
             cond_image = prepare_tensors(input_cond_image)
             y0_tensor = prepare_tensors(input_y0_tensor)
             mask = prepare_tensors(input_mask)
             y_t = prepare_tensors(input_y_t)
+
         # Run through the model
         with torch.no_grad():
             if opt.model_type == "palette":
@@ -772,22 +771,24 @@ def generate(
 
         # Process output tensor
         out_tensor = out_tensor.squeeze(0)  # Remove batch dimension
-        out_img_temp_list = []
-        out_img_tensor_list = []
+        out_img_temp_list_batch = []
+        out_img_tensor_list_batch = []
 
         for i in range(out_tensor.shape[0]):
             out_img = to_np(out_tensor[i : i + 1, :, :, :])
-            out_img_tensor_list.append(out_tensor[i : i + 1, :, :, :])
-            out_img_temp_list.append(out_img)
+            out_img_tensor_list_batch.append(out_tensor[i : i + 1, :, :, :])
+            out_img_temp_list_batch.append(out_img)
+
+        out_img_tensor_list = out_img_tensor_list_batch + out_img_tensor_list
+        out_img_temp_list = out_img_temp_list_batch + out_img_temp_list
 
         if slide == 0:
-            last_4_frame_y_t = y_t_list[4:8][::-1]
+            last_4_frame_y_t = y_t_list[-8:-4]
             last_4_frame_cond_image = out_img_tensor_list[:4]
-            last_4_frame_y0_tensor = y0_tensor_list[4:8][::-1]
-            last_4_frame_mask = mask_list[4:8][::-1]
-            out_img_list = out_img_temp_list[-4:][::-1]
-            new_cond_list = cond_image_list[:4]
-            new_cond_list.extend(out_img_tensor_list[:4][::-1])
+            last_4_frame_y0_tensor = y0_tensor_list[-8:-4]
+            last_4_frame_mask = mask_list[-8:-4]
+            new_cond_list = out_img_tensor_list_batch[:4] + cond_image_list[-4:]
+            out_img_list = out_img_temp_list_batch[-4:]
 
         else:
             y_t_temp_list = separate_tensors(y_t)
@@ -800,10 +801,10 @@ def generate(
             mask_temp_list = separate_tensors(mask)
             last_4_frame_mask = mask_temp_list[:4]
 
-            out_img_list.extend(out_img_temp_list[-4:][::-1])
-            new_cond_list.extend(out_img_tensor_list[:4][::-1])
+            new_cond_list = (out_img_tensor_list[:4]) + new_cond_list
+            out_img_list = out_img_temp_list_batch[-4:] + out_img_list
 
-    out_img_list.extend(out_img_temp_list[:4][::-1])
+    out_img_list = out_img_temp_list_batch[:4] + out_img_list
 
     if logger:
         logger.info(
@@ -817,18 +818,14 @@ def generate(
         out_img = (np.transpose(out_img, (1, 2, 0)) + 1) / 2.0 * 255.0
         out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)"""
 
-    print("list len ")
-    print("out_img_list", len(out_img_list))
-    print("out_img_list", len(img_orig_list))
-    print("out_img_list", len(y_t_list))
-    print("new_cond_img_list", len(new_cond_list))
-    print("out_img_list", len(y0_tensor_list))
-    print("out_img_list", len(mask_list))
-    print("out_img_list", len(bbox_select_list))
-    print("out_img_list", len(bbox_select_list))
-    print("out_img_list", len(img_tensor_list))
+    img_orig_list = img_orig_list[-len(out_img_list) :]
+    y_t_list = y_t_list[-len(out_img_list) :]
+    y0_tensor_list = y0_tensor_list[-len(out_img_list) :]
+    mask_list = mask_list[-len(out_img_list) :]
+    bbox_select_list = bbox_select_list[-len(out_img_list) :]
+    img_tensor_list = img_tensor_list[-len(out_img_list) :]
 
-    for i in range(len(out_img_list) - 1, -1, -1):
+    for i in range(len(out_img_list)):
         out_img = out_img_list[i]
         img_orig = img_orig_list[i]
         y_t = y_t_list[i]
@@ -861,9 +858,7 @@ def generate(
         if cond_image is not None:
             cond_image = new_cond_list[i]  # y_t_list[i]
             cond_img = to_np(cond_image)
-        print("before name ", name)
-        name = str(i) + name
-        print("after name ", name)
+        name = str(len(out_img_list) - i)
         if write:
             if opt.data_image_bits > 8:
                 img_tensor = [i]
@@ -972,74 +967,49 @@ def inference(args):
 
 
 def extract_number(filename):
-    number = ""
-    for char in filename:
-        if char.isdigit():
-            number += char
-        else:
-            break
-    return int(number)
+    m = re.search(r"(\d+)", filename)
+    return int(m.group(1)) if m else -1
 
 
-def img2video(args):
+def img2video(args, fps=1, ext=".avi", fourcc="MJPG"):
     image_folder = args.dir_out
     video_base_name = "conti_video"
 
-    # Regular expression pattern to capture the number before "_generated.png"
-    patterns = {
-        "generated": re.compile(r"(\d+)_generated\.png$"),
-        "orig": re.compile(r"(\d+)_orig\.png$"),
-    }
+    for suffix in ["generated", "orig"]:
+        # all files ending with this suffix
+        files = [f for f in os.listdir(image_folder) if f.endswith(f"{suffix}.png")]
+        if not files:
+            continue
 
-    for suffix, pattern in patterns.items():
-        generated_files = defaultdict(list)
-        images = [img for img in os.listdir(image_folder) if img.endswith(".png")]
+        # filenames start with a number: "1_generated.png" → 1
+        files.sort(key=lambda x: int(x.split("_")[0]))
+        files = files[::-1]
 
-        for image in images:
-            match = pattern.search(image)
-            if match:
-                number = match.group(1)
-                generated_files[number].append(image)
+        # read first frame for size
+        first_path = os.path.join(image_folder, files[0])
+        first = cv2.imread(first_path)
+        if first is None:
+            print(f"Error reading {first_path}")
+            continue
+        H, W = first.shape[:2]
 
-        # Process each category and create a video
-        for number, file_list in sorted(generated_files.items()):
-            sorted_list = sorted(file_list, key=extract_number)
+        # setup AVI writer
+        out_name = f"{video_base_name}_{suffix}{ext}"
+        out_path = os.path.join(image_folder, out_name)
+        vw = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*fourcc), fps, (W, H))
 
-            if not sorted_list:
-                logging.warning(
-                    f"No sorted images to process for number {number} with suffix {suffix}."
-                )
-                continue
-
-            first_image_path = os.path.join(image_folder, sorted_list[0])
-            frame = cv2.imread(first_image_path)
+        for fname in files:
+            frame = cv2.imread(os.path.join(image_folder, fname))
             if frame is None:
-                print(f"Error reading the first image: {first_image_path}")
                 continue
-            height, width, layers = frame.shape
-            print(" ")
-            video_name = f"{video_base_name}_{number}_{suffix}.avi"
-            video_path = os.path.join(image_folder, video_name)
+            if frame.shape[:2] != (H, W):
+                frame = cv2.resize(frame, (W, H))
+            vw.write(frame)
 
-            video = cv2.VideoWriter(
-                video_path,
-                cv2.VideoWriter_fourcc("M", "J", "P", "G"),
-                1,
-                (width, height),
-            )
-            for image in sorted_list:
-                image_path = os.path.join(image_folder, image)
-                frame = cv2.imread(image_path)
-                if frame is not None:
-                    video.write(frame)
-                else:
-                    print(f"Error reading image: {image_path}")
-
-            # Release the video writer object
-            cv2.destroyAllWindows()
-            video.release()
-            logging.info(f"Video created: {video_path}")
-            print(f"Video created: {video_path}")
+        vw.release()
+        cv2.destroyAllWindows()
+        logging.info(f"Video created: {out_path}")
+        print(f"Video created: {out_path}")
 
 
 if __name__ == "__main__":
