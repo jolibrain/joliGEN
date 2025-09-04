@@ -219,6 +219,19 @@ class BaseDiffusionModel(BaseModel):
             help="the range of probabilities for dropping the canny for each frame",
         )
 
+        parser.add_argument(
+            "--alg_diffusion_latent_dc_ae_path",
+            type=str,
+            default="",
+            help="Path to the pretrained DC-AE model for latent space encoding. If empty, this feature is disabled.",
+        )
+        parser.add_argument(
+            "--alg_diffusion_latent_dc_ae_torch_dtype",
+            type=str,
+            default="float32",
+            help="Torch dtype for the DC-AE model.",
+        )
+
         return parser
 
     def __init__(self, opt, rank):
