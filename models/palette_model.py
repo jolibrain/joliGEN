@@ -513,6 +513,11 @@ class PaletteModel(BaseDiffusionModel):
         self.real_B = self.gt_image
 
     def compute_palette_loss(self):
+        netG = self.netG_A.module if hasattr(self.netG_A, "module") else self.netG_A
+        if isinstance(netG, diffusion_networks.LatentWrapper):
+            netG.compute_palette_loss(self)
+            return
+
         y_0 = self.gt_image
         y_cond = self.cond_image
         mask = self.mask
@@ -693,7 +698,7 @@ class PaletteModel(BaseDiffusionModel):
                 self.fake_B = self.output_1
                 self.visuals = self.visuals_1
 
-            # no class conditioning
+            # conditioning
             else:
                 if self.cls is not None:
                     cls = self.cls[:nb_imgs]
@@ -705,6 +710,7 @@ class PaletteModel(BaseDiffusionModel):
                 else:
                     mask = self.mask
 
+                print('restoration for conditioning')
                 self.output, self.visuals = netG.restoration(
                     y_cond=self.cond_image[:nb_imgs],
                     y_t=self.y_t[:nb_imgs],
