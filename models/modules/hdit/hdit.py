@@ -931,7 +931,7 @@ class HDiTConfig:
         self_attns = []
         for i in range(len(depths) - 1):
             self_attns.append(
-                {"type": "shifted-window", "d_head": 64, "window_size": 8}
+                {"type": "shifted-window", "d_head": 64, "window_size": 2}
             )
         self_attns.append({"type": "global", "d_head": 64})
         # self_attns = [

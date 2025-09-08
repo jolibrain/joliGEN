@@ -1,7 +1,7 @@
 import sys
 import torch
 import torch.nn as nn
-from diffusers import AutoencoderDC
+from diffusers import AutoencoderDC, AutoencoderKL
 from .modules.utils import get_norm_layer
 from .modules.diffusion_generator import DiffusionGenerator
 from .modules.resnet_architecture.resnet_generator_diff import ResnetGenerator_attn_diff
@@ -50,48 +50,47 @@ class LatentWrapper(nn.Module):
         """Returns the named parameters of the wrapped model, excluding the frozen autoencoder."""
         return self.model.named_parameters(prefix=prefix, recurse=recurse)
 
-    def forward(self, *args, **kwargs):
-        # Determine input images from args and kwargs
-        y = kwargs.get("y_0", kwargs.get("y"))
-        x = kwargs.get("y_cond", kwargs.get("x"))
+    def compute_palette_loss(self, palette_model):
+        y_0 = palette_model.gt_image
+        y_cond = palette_model.cond_image
+        mask = palette_model.mask
+        noise = None
+        cls = palette_model.cls
 
-        if y is None:
-            if len(args) > 1:
-                y = args[1]
-            elif len(args) > 0:
-                y = args[0]
+        # debug
+        mask = None
+        
+        # if palette_model.opt.alg_diffusion_dropout_prob > 0.0:
+        #     drop_ids = (
+        #         torch.rand(mask.shape[0], device=mask.device)
+        #         < palette_model.opt.alg_diffusion_dropout_prob
+        #     )
+        # else:
+        #     drop_ids = None
 
-        if x is None:
-            if len(args) > 0:
-                x = args[0]
+        # if drop_ids is not None:
+        #     if mask is not None:
+        #         mask = torch.where(
+        #             drop_ids.reshape(-1, 1, 1, 1).expand(mask.shape),
+        #             palette_model.num_classes - 1,
+        #             mask,
+        #         )
+        #     if cls is not None:
+        #         cls = torch.where(drop_ids, palette_model.num_classes - 1, cls)
 
-        if y is None:
-            raise ValueError(
-                "LatentWrapper: could not determine the main image to process."
-            )
+        # if palette_model.use_ref:
+        #     ref = palette_model.ref_A
+        # else:
+        ref = None
 
-        self.dc_ae.to(y.device)
-
-        # Encode images to latent space
-        mask = kwargs.get("mask")
-        y_to_encode = y
+        self.dc_ae.to(y_0.device)
+        y_latent = self.dc_ae.encode(y_0.float()).latent
+        #if mask is not None:
+        #    y_cond = y_cond * (1 - mask.float())
+        x_latent = self.dc_ae.encode(y_cond.float()).latent
+        
+        downsampled_mask = None
         if mask is not None:
-            y_to_encode = y * (1 - mask.float())
-
-        y_latent = self.dc_ae.encode(y_to_encode.float()).latent
-
-        if x is not None and x.dim() == 4 and x is not y:
-            x_to_encode = x
-            if mask is not None:
-                x_to_encode = x * (1 - mask.float())
-            x_latent = self.dc_ae.encode(x_to_encode.float()).latent
-        else:
-            x_latent = x
-
-        # print('x_latent shape=', x_latent.shape)
-
-        if mask is not None:
-            # Downsize the mask using nearest neighbors
             downsampled_mask = torch.nn.functional.interpolate(
                 mask.float(),
                 size=(
@@ -100,47 +99,39 @@ class LatentWrapper(nn.Module):
                 ),
                 mode="nearest",
             )
-            # Convert to single channel if necessary
-            # if downsampled_mask.shape[1] > 1:
-            #    downsampled_mask = downsampled_mask.mean(dim=1, keepdim=True)
-            # Repeat across channels to match latent_dim
-            kwargs["mask"] = downsampled_mask  # .repeat(1, self.latent_dim, 1, 1)
-            # print('downsampled mask size=', kwargs['mask'].shape)
+            downsampled_mask = downsampled_mask.repeat(1, self.latent_dim, 1, 1)
 
-        # Reconstruct arguments for the wrapped model
-        new_kwargs = kwargs.copy()
-        if "y_0" in new_kwargs:
-            new_kwargs["y_0"] = y_latent
-        if "y" in new_kwargs:
-            new_kwargs["y"] = y_latent
-        if "y_cond" in new_kwargs:
-            new_kwargs["y_cond"] = x_latent
-        if "x" in new_kwargs:
-            new_kwargs["x"] = x_latent
+        noise, noise_hat, min_snr_loss_weight = self.model(
+            y_0=y_latent, y_cond=x_latent, noise=noise, mask=downsampled_mask, cls=cls, ref=ref
+        )
 
-        new_args = list(args)
-        if len(new_args) > 1:
-            new_args[0] = y_latent
-            new_args[1] = x_latent
-        elif len(new_args) > 0:
-            new_args[0] = y_latent  # Assuming single image is the main image
+        #if not palette_model.opt.alg_palette_minsnr:
+        min_snr_loss_weight = 1.0
 
-        # Call the wrapped model
-        output = self.model(*new_args, **new_kwargs)
-
-        if self.training:
-            if isinstance(output, tuple) and len(output) == 3:
-                noise, noise_hat, weight = output
-                decoded_noise = self.dc_ae.decode(noise).sample
-                decoded_noise_hat = self.dc_ae.decode(noise_hat).sample
-                return decoded_noise, decoded_noise_hat, weight
+        if downsampled_mask is not None:
+            mask_binary = torch.clamp(downsampled_mask, min=0, max=1)
+            loss = palette_model.loss_fn(
+                min_snr_loss_weight * mask_binary * noise,
+                min_snr_loss_weight * mask_binary * noise_hat,
+            )
         else:
-            with torch.no_grad():
-                output = self.dc_ae.decode(output).sample
-                if self.orig_model_output_nc == 1:
-                    output = output.mean(dim=1, keepdim=True)
 
-        return output
+            # debug for restoration
+            self.loss_fn = palette_model.loss_fn 
+
+            loss = palette_model.loss_fn(
+                min_snr_loss_weight * noise, min_snr_loss_weight * noise_hat
+            )
+
+        if isinstance(loss, dict):
+            loss_tot = torch.zeros(size=(), device=noise.device)
+            for cur_size, cur_loss in loss.items():
+                setattr(palette_model, "loss_G_" + cur_size, cur_loss)
+                loss_tot += cur_loss
+            loss = loss_tot
+
+        palette_model.loss_G_tot = palette_model.opt.alg_diffusion_lambda_G * loss
+
 
     @property
     def beta_schedule(self):
@@ -166,39 +157,46 @@ class LatentWrapper(nn.Module):
         y_t=None,
         y_0=None,
         mask=None,
-        sample_num=8,
+        sample_num=2,
         cls=None,
         ref=None,
         guidance_scale=0.0,
         ddim_num_steps=10,
         ddim_eta=0.5,
     ):
+
+        print('latent restoration')
+        
+        # debug
+        mask = None
+        
         self.dc_ae.to(y_cond.device)
 
         # Encode image-like inputs
-        if y_cond is not None and y_cond.dim() == 4:
-            y_cond_to_encode = y_cond
-            if mask is not None:
-                y_cond_to_encode = y_cond * (1 - mask.float())
-            y_cond_latent = self.dc_ae.encode(y_cond_to_encode.float()).latent
-        else:
-            y_cond_latent = y_cond
+        #if y_cond is not None and y_cond.dim() == 4:
+        #    y_cond_to_encode = y_cond
+        #if mask is not None:
+        #    y_cond = y_cond * (1 - mask.float())
+        y_cond_latent = self.dc_ae.encode(y_cond).latent
+        #else:
+        #    y_cond_latent = y_cond
 
-        if y_t is not None and y_t.dim() == 4:
-            y_t_to_encode = y_t
-            if mask is not None:
-                y_t_to_encode = y_t * (1 - mask.float())
-            y_t_latent = self.dc_ae.encode(y_t_to_encode.float()).latent
-        else:
-            y_t_latent = y_t
-
-        if y_0 is not None and y_0.dim() == 4:
-            y_0_to_encode = y_0
-            if mask is not None:
-                y_0_to_encode = y_0 * (1 - mask.float())
-            y_0_latent = self.dc_ae.encode(y_0_to_encode.float()).latent
-        else:
-            y_0_latent = y_0
+        #if y_t is not None and y_t.dim() == 4:
+            #y_t_to_encode = y_t
+            #if mask is not None:
+            #    y_t_to_encode = y_t * (1 - mask.float())
+        y_t_latent = self.dc_ae.encode(y_t).latent
+        #else:
+        #    y_t_latent = y_t
+        
+        # Encode image-like inputs
+        #if y_0 is not None and y_0.dim() == 4:
+        #    y_0_to_encode = y_0
+            #if mask is not None:
+            #    y_0_to_encode = y_0 * (1 - mask.float())
+        y_0_latent = self.dc_ae.encode(y_0).latent
+        #else:
+        #    y_0_latent = y_0
 
         if mask is not None and mask.dim() == 4:
             # Downsize the mask using nearest neighbors
@@ -210,10 +208,6 @@ class LatentWrapper(nn.Module):
                 ),
                 mode="nearest",
             )
-            # Convert to single channel if necessary (e.g., take mean across channels)
-            # if downsampled_mask.shape[1] > 1:
-            #    downsampled_mask = downsampled_mask.mean(dim=1, keepdim=True) # Take mean across channels
-            # Repeat across channels to match latent_dim
             mask_latent = downsampled_mask.repeat(1, self.latent_dim, 1, 1)
             # print('mask latent size=', mask_latent.size())
         else:
@@ -238,13 +232,18 @@ class LatentWrapper(nn.Module):
             output = self.dc_ae.decode(latent_output).sample
             visuals = self.dc_ae.decode(latent_visuals).sample
 
-            if self.orig_model_output_nc == 1:
-                output = output.mean(dim=1, keepdim=True)
-                visuals = visuals.mean(dim=1, keepdim=True)
+            #if self.orig_model_output_nc == 1:
+            #    output = output.mean(dim=1, keepdim=True)
+            #    visuals = visuals.mean(dim=1, keepdim=True)
 
-            if mask is not None and y_cond is not None:
-                output = output * mask.float() + y_cond * (1 - mask.float())
+            ##TODO: reactivate
+            #if mask is not None and y_cond is not None:
+            #    output = output * mask.float() + y_cond * (1 - mask.float())
 
+        pixel_space_loss = self.loss_fn(output, y_cond) # debug: since y_cond is the full image
+        latent_space_loss = self.loss_fn(latent_output, y_cond_latent)
+        print('pixel_space_loss=', pixel_space_loss, ' / latent_space_loss=', latent_space_loss)
+        
         return output, visuals
 
 
