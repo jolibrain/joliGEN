@@ -921,8 +921,9 @@ class HDiT(nn.Module):
 
 # Config
 class HDiTConfig:
-    def __init__(self, G_hdit_depths, G_hdit_widths, G_hdit_patch_size):
+    def __init__(self, G_hdit_depths, G_hdit_widths, G_hdit_patch_size, G_hdit_window_size):
         self.patch_size = [G_hdit_patch_size, G_hdit_patch_size]
+        self.window_size = G_hdit_window_size  # 8
         depths = G_hdit_depths  # [2, 2, 4]
         widths = G_hdit_widths  # [192, 384, 768]
         d_ffs = []
@@ -931,7 +932,7 @@ class HDiTConfig:
         self_attns = []
         for i in range(len(depths) - 1):
             self_attns.append(
-                {"type": "shifted-window", "d_head": 64, "window_size": 2}
+                {"type": "shifted-window", "d_head": 64, "window_size": self.window_size}
             )
         self_attns.append({"type": "global", "d_head": 64})
         # self_attns = [
