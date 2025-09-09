@@ -118,6 +118,7 @@ class CMModel(BaseDiffusionModel):
             "output_",
             "next_noisy_x_",
             "current_noisy_x_",
+            "mask_",
         ]
 
         if opt.alg_diffusion_cond_image_creation != "y_t":
