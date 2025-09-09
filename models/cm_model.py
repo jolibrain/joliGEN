@@ -110,16 +110,32 @@ class CMModel(BaseDiffusionModel):
             self.opt.alg_cm_num_steps * self.opt.train_batch_size
         )  # scaled with bs
 
+        if (
+            self.opt.alg_diffusion_cond_embed != ""
+            and self.opt.alg_diffusion_generate_per_class
+        ):
+            self.nb_classes_inference = (
+                max(self.opt.f_s_semantic_nclasses, self.opt.cls_semantic_nclasses) - 1
+            )
+
         # Visuals
         visual_outputs = []
         self.gen_visual_names = [
             "gt_image_",
             "y_t_",
-            "output_",
             "next_noisy_x_",
             "current_noisy_x_",
             "mask_",
         ]
+
+        if (
+            self.opt.alg_diffusion_cond_embed != ""
+            and self.opt.alg_diffusion_generate_per_class
+        ):
+            for i in range(self.nb_classes_inference):
+                self.gen_visual_names.append("output_" + str(i + 1) + "_")
+        else:
+            self.gen_visual_names.append("output_")
 
         if opt.alg_diffusion_cond_image_creation != "y_t":
             self.gen_visual_names.append("cond_image_")
@@ -386,7 +402,27 @@ class CMModel(BaseDiffusionModel):
             y_t = torch.zeros(out_shape, device=y_cond.device, dtype=y_cond.dtype)
         else:  # e.g. inpainting
             y_t = self.y_t[:nb_imgs]
-        self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
+
+        if self.task in ["inpainting"]:
+            if (
+                self.opt.alg_diffusion_cond_embed != ""
+                and self.opt.alg_diffusion_generate_per_class
+            ):
+
+                for i in range(self.nb_classes_inference):
+                    if "mask" in self.opt.alg_diffusion_cond_embed:
+                        cur_mask = self.mask[:nb_imgs].clone().clamp(min=0, max=1) * (
+                            i + 1
+                        )
+                    else:
+                        cur_mask = self.mask[:nb_imgs]
+                    self.output = netG.restoration(
+                        y_t, y_cond, sampling_sigmas, cur_mask
+                    )
+                    name = "output_" + str(i + 1)
+                    setattr(self, name, self.output)
+        else:
+            self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
 
         self.fake_B = self.output
         self.visuals = self.output
