@@ -17,6 +17,24 @@ from .modules.hdit.hdit import HDiT, HDiTConfig
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
+from torchvision.utils import save_image
+
+
+class AutoencoderWrapper(AutoencoderDC):
+    # max y_latent max tensor(12.7458, device='cuda:0')
+    # std_mean (tensor(2.3453, device='cuda:0'), tensor(0.2006, device='cuda:0'))
+    # min tensor(-9.0943, device='cuda:0')
+    # max tensor(8.5529, device='cuda:0')
+    scale = 6  # TODO find better value based on more examples / set it as an option
+
+    def encode(self, x):
+        x = super().encode(x)
+        x.latent /= self.scale
+        return x
+
+    def decode(self, x):
+        x *= self.scale
+        return super().decode(x)
 
 
 class LatentWrapper(nn.Module):
@@ -37,7 +55,7 @@ class LatentWrapper(nn.Module):
         self.latent_dim = latent_dim
         self.downsampling_factor = downsampling_factor
 
-        self.dc_ae = AutoencoderDC.from_pretrained(
+        self.dc_ae = AutoencoderWrapper.from_pretrained(
             dc_ae_path, torch_dtype=getattr(torch, dc_ae_torch_dtype)
         ).eval()
         self.dc_ae.requires_grad_(False)
@@ -58,7 +76,7 @@ class LatentWrapper(nn.Module):
         cls = palette_model.cls
 
         # debug
-        mask = None
+        #mask = None
         
         # if palette_model.opt.alg_diffusion_dropout_prob > 0.0:
         #     drop_ids = (
@@ -84,10 +102,21 @@ class LatentWrapper(nn.Module):
         ref = None
 
         self.dc_ae.to(y_0.device)
+        if 0:
+            print("y_0 std_mean", torch.std_mean(y_0))
+            print("y_0 min", torch.min(y_0))
+            print("y_0 max", torch.max(y_0))
+            save_image(y_0 * 0.5 + 0.5, "orig.png")
         y_latent = self.dc_ae.encode(y_0.float()).latent
-        #if mask is not None:
-        #    y_cond = y_cond * (1 - mask.float())
+        if mask is not None:
+            y_cond = y_cond * (1 - mask.float())
         x_latent = self.dc_ae.encode(y_cond.float()).latent
+        if 0:
+            print("x_latent std_mean", torch.std_mean(x_latent))
+            print("x_latent min", torch.min(x_latent))
+            print("x_latent max", torch.max(x_latent))
+            y = self.dc_ae.decode(x_latent).sample
+            save_image(y * 0.5 + 0.5, "encode_decode.png")
         
         downsampled_mask = None
         if mask is not None:
@@ -168,15 +197,15 @@ class LatentWrapper(nn.Module):
         print('latent restoration')
         
         # debug
-        mask = None
+        #mask = None
         
         self.dc_ae.to(y_cond.device)
 
         # Encode image-like inputs
         #if y_cond is not None and y_cond.dim() == 4:
         #    y_cond_to_encode = y_cond
-        #if mask is not None:
-        #    y_cond = y_cond * (1 - mask.float())
+        if mask is not None:
+            y_cond = y_cond * (1 - mask.float())
         y_cond_latent = self.dc_ae.encode(y_cond).latent
         #else:
         #    y_cond_latent = y_cond
@@ -237,12 +266,12 @@ class LatentWrapper(nn.Module):
             #    visuals = visuals.mean(dim=1, keepdim=True)
 
             ##TODO: reactivate
-            #if mask is not None and y_cond is not None:
-            #    output = output * mask.float() + y_cond * (1 - mask.float())
+            if mask is not None and y_cond is not None:
+                output = output * mask.float() + y_cond * (1 - mask.float())
 
-        pixel_space_loss = self.loss_fn(output, y_cond) # debug: since y_cond is the full image
-        latent_space_loss = self.loss_fn(latent_output, y_cond_latent)
-        print('pixel_space_loss=', pixel_space_loss, ' / latent_space_loss=', latent_space_loss)
+        #pixel_space_loss = self.loss_fn(output, y_cond) # debug: since y_cond is the full image
+        #latent_space_loss = self.loss_fn(latent_output, y_cond_latent)
+        #print('pixel_space_loss=', pixel_space_loss, ' / latent_space_loss=', latent_space_loss)
         
         return output, visuals
 
@@ -267,6 +296,7 @@ def define_G(
     G_hdit_depths,
     G_hdit_widths,
     G_hdit_patch_size,
+    G_hdit_window_size,
     G_attn_nb_mask_attn,
     G_attn_nb_mask_input,
     G_spectral,
@@ -487,7 +517,7 @@ def define_G(
         )
         cond_embed_dim = alg_diffusion_cond_embed_dim
     elif G_netG == "hdit":
-        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths, G_hdit_patch_size)
+        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths, G_hdit_patch_size, G_hdit_window_size)
         model = HDiT(
             levels=hdit_config.levels,
             mapping=hdit_config.mapping,
