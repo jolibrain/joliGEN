@@ -143,6 +143,15 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+###### diffusion process in latent space test
+echo "Running diffusion process test"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_diffusion_latent.py" --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 ###### consistency model process test
 echo "Running consistency model process test"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_cm.py" --dataroot "$TARGET_MASK_SEM_DIR"
