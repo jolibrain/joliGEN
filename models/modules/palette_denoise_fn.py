@@ -8,6 +8,7 @@ from .image_bind.imagebind_model import ModalityType
 import clip
 
 from inspect import signature
+from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
 
 
 class LabelEmbedder(nn.Module):
@@ -103,7 +104,10 @@ class PaletteDenoiseFn(nn.Module):
             embedding = torch.cat((embedding, ref_embed), dim=1)
 
         if "mask" in self.conditioning:
-            input = torch.cat([input, mask_embed], dim=1)
+            if len(input.shape) == 5:  # video input
+                input = torch.cat([input, mask_embed], dim=2)
+            else:
+                input = torch.cat([input, mask_embed], dim=1)
 
         if self.model_nargs == 3:  # ref from dataloader with reference image
             out = self.model(input, embedding, ref)
@@ -119,11 +123,19 @@ class PaletteDenoiseFn(nn.Module):
             cls_embed = None
 
         if "mask" in self.conditioning and mask is not None:
+            video_input = False
+            if len(input.shape) == 5:  # video input (b,f,1,h,w)
+                video_input = True
+                b, f = mask.shape[:2]
+                mask = rearrange_5dto4d_bf(mask)[0]
+
             data_crop_size = mask.shape[-1]
             mask_embed = mask.to(torch.int32).squeeze(1)
             mask_embed = rearrange(mask_embed, "b h w -> b (h w)")
             mask_embed = self.netl_embedder_mask(mask_embed)
             mask_embed = rearrange(mask_embed, "b (h w) c -> b c h w", h=data_crop_size)
+            if video_input:
+                mask_embed = rearrange_4dto5d_bf(f, mask_embed)[0]
 
         else:
             mask_embed = None
