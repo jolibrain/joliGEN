@@ -78,45 +78,38 @@ class LatentWrapper(nn.Module):
         # debug
         #mask = None
         
-        # if palette_model.opt.alg_diffusion_dropout_prob > 0.0:
-        #     drop_ids = (
-        #         torch.rand(mask.shape[0], device=mask.device)
-        #         < palette_model.opt.alg_diffusion_dropout_prob
-        #     )
-        # else:
-        #     drop_ids = None
+        if palette_model.opt.alg_diffusion_dropout_prob > 0.0:
+            drop_ids = (
+                torch.rand(mask.shape[0], device=mask.device)
+                < palette_model.opt.alg_diffusion_dropout_prob
+            )
+        else:
+            drop_ids = None
 
-        # if drop_ids is not None:
-        #     if mask is not None:
-        #         mask = torch.where(
-        #             drop_ids.reshape(-1, 1, 1, 1).expand(mask.shape),
-        #             palette_model.num_classes - 1,
-        #             mask,
-        #         )
-        #     if cls is not None:
-        #         cls = torch.where(drop_ids, palette_model.num_classes - 1, cls)
+        if drop_ids is not None:
+            if mask is not None:
+                mask = torch.where(
+                    drop_ids.reshape(-1, 1, 1, 1).expand(mask.shape),
+                    palette_model.num_classes - 1,
+                    mask,
+                )
+            if cls is not None:
+                cls = torch.where(drop_ids, palette_model.num_classes - 1, cls)
 
-        # if palette_model.use_ref:
-        #     ref = palette_model.ref_A
-        # else:
-        ref = None
+        if palette_model.use_ref:
+            ref = palette_model.ref_A
+        else:
+            ref = None
 
         self.dc_ae.to(y_0.device)
-        if 0:
-            print("y_0 std_mean", torch.std_mean(y_0))
-            print("y_0 min", torch.min(y_0))
-            print("y_0 max", torch.max(y_0))
-            save_image(y_0 * 0.5 + 0.5, "orig.png")
+        if mask is not None:
+            noise_for_mask = torch.randn_like(y_0)
+            y_0 = y_0 * (1 - mask.float()) + noise_for_mask * mask.float()
         y_latent = self.dc_ae.encode(y_0.float()).latent
         if mask is not None:
-            y_cond = y_cond * (1 - mask.float())
+            noise_for_mask = torch.randn_like(y_cond)
+            y_cond = y_cond * (1 - mask.float()) + noise_for_mask * mask.float()
         x_latent = self.dc_ae.encode(y_cond.float()).latent
-        if 0:
-            print("x_latent std_mean", torch.std_mean(x_latent))
-            print("x_latent min", torch.min(x_latent))
-            print("x_latent max", torch.max(x_latent))
-            y = self.dc_ae.decode(x_latent).sample
-            save_image(y * 0.5 + 0.5, "encode_decode.png")
         
         downsampled_mask = None
         if mask is not None:
@@ -134,8 +127,8 @@ class LatentWrapper(nn.Module):
             y_0=y_latent, y_cond=x_latent, noise=noise, mask=downsampled_mask, cls=cls, ref=ref
         )
 
-        #if not palette_model.opt.alg_palette_minsnr:
-        min_snr_loss_weight = 1.0
+        if not palette_model.opt.alg_palette_minsnr:
+            min_snr_loss_weight = 1.0
 
         if downsampled_mask is not None:
             mask_binary = torch.clamp(downsampled_mask, min=0, max=1)
@@ -205,25 +198,28 @@ class LatentWrapper(nn.Module):
         #if y_cond is not None and y_cond.dim() == 4:
         #    y_cond_to_encode = y_cond
         if mask is not None:
-            y_cond = y_cond * (1 - mask.float())
+            noise_for_mask = torch.randn_like(y_cond)
+            y_cond = y_cond * (1 - mask.float()) + noise_for_mask * mask.float()
         y_cond_latent = self.dc_ae.encode(y_cond).latent
         #else:
         #    y_cond_latent = y_cond
 
         #if y_t is not None and y_t.dim() == 4:
-            #y_t_to_encode = y_t
-            #if mask is not None:
-            #    y_t_to_encode = y_t * (1 - mask.float())
-        y_t_latent = self.dc_ae.encode(y_t).latent
+        y_t_to_encode = y_t
+        if mask is not None:
+            noise_for_mask = torch.randn_like(y_t)
+            y_t_to_encode = y_t * (1 - mask.float()) + noise_for_mask * mask.float()
+        y_t_latent = self.dc_ae.encode(y_t_to_encode).latent
         #else:
         #    y_t_latent = y_t
         
         # Encode image-like inputs
         #if y_0 is not None and y_0.dim() == 4:
-        #    y_0_to_encode = y_0
-            #if mask is not None:
-            #    y_0_to_encode = y_0 * (1 - mask.float())
-        y_0_latent = self.dc_ae.encode(y_0).latent
+        y_0_to_encode = y_0
+        if mask is not None: # 
+            noise_for_mask = torch.randn_like(y_0)
+            y_0_to_encode = y_0 * (1 - mask.float()) + noise_for_mask * mask.float()
+        y_0_latent = self.dc_ae.encode(y_0_to_encode).latent
         #else:
         #    y_0_latent = y_0
 
