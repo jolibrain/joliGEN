@@ -477,8 +477,6 @@ class DiffusionGenerator(nn.Module):
         embed_sample_gammas = self.compute_gammas(sample_gammas)
 
         if mask is not None:
-            #print("mask size=", mask.shape)
-            #print("y0 size=", y_0.shape)
             temp_mask = torch.clamp(mask, min=0.0, max=1.0)
             y_noisy = y_noisy * temp_mask + (1.0 - temp_mask) * y_0
         
