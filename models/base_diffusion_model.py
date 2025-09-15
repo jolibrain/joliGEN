@@ -55,6 +55,13 @@ class BaseDiffusionModel(BaseModel):
         )
 
         parser.add_argument(
+            "--alg_diffusion_lambda_G_pixel",
+            type=float,
+            default=0.0,
+            help="weight for pixel loss, when using latent space",
+        )
+        
+        parser.add_argument(
             "--alg_diffusion_dropout_prob",
             type=float,
             default=0.0,

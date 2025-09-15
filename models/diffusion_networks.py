@@ -18,7 +18,7 @@ from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 from torchvision.utils import save_image
-
+from .modules.diffusion_utils import predict_start_from_noise
 
 class AutoencoderWrapper(AutoencoderDC):
     # max y_latent max tensor(12.7458, device='cuda:0')
@@ -102,9 +102,9 @@ class LatentWrapper(nn.Module):
             ref = None
 
         self.dc_ae.to(y_0.device)
-        if mask is not None:
-            noise_for_mask = torch.randn_like(y_0)
-            y_0 = y_0 * (1 - mask.float()) + noise_for_mask * mask.float()
+        #if mask is not None:
+            #noise_for_mask = torch.randn_like(y_0)
+            #y_0 = y_0 * (1 - mask.float()) + noise_for_mask * mask.float()
         y_latent = self.dc_ae.encode(y_0.float()).latent
         if mask is not None:
             noise_for_mask = torch.randn_like(y_cond)
@@ -124,7 +124,10 @@ class LatentWrapper(nn.Module):
             downsampled_mask = downsampled_mask.repeat(1, self.latent_dim, 1, 1)
 
         noise, noise_hat, min_snr_loss_weight = self.model(
-            y_0=y_latent, y_cond=x_latent, noise=noise, mask=downsampled_mask, cls=cls, ref=ref
+            y_0=y_latent, y_cond=x_latent, noise=noise,
+            #mask=downsampled_mask,
+            mask=None,
+            cls=cls, ref=ref
         )
 
         if not palette_model.opt.alg_palette_minsnr:
@@ -153,6 +156,13 @@ class LatentWrapper(nn.Module):
             loss = loss_tot
 
         palette_model.loss_G_tot = palette_model.opt.alg_diffusion_lambda_G * loss
+
+        if hasattr(palette_model.opt, 'alg_diffusion_lambda_G_pixel') and palette_model.opt.alg_diffusion_lambda_G_pixel > 0:
+            y_0_hat_latent = predict_start_from_noise(self.model.denoise_fn.model, self.model.y_t, self.model.t, noise_hat, phase='train')
+            y_0_hat_image = self.dc_ae.decode(y_0_hat_latent).sample
+            loss_pixel = palette_model.loss_fn(palette_model.gt_image, y_0_hat_image)
+            setattr(palette_model, "loss_G_pixel", loss_pixel)
+            palette_model.loss_G_tot += palette_model.opt.alg_diffusion_lambda_G_pixel * loss_pixel
 
 
     @property
@@ -243,7 +253,8 @@ class LatentWrapper(nn.Module):
             y_cond=y_cond_latent,
             y_t=y_t_latent,
             y_0=y_0_latent,
-            mask=mask_latent,
+            #mask=mask_latent,
+            mask=None,
             sample_num=sample_num,
             cls=cls,
             ref=ref,
