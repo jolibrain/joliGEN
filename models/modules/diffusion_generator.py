@@ -393,6 +393,11 @@ class DiffusionGenerator(nn.Module):
         num_steps=10,
         eta=0.5,
     ):
+        sequence_length = 0
+        if len(y_t.shape) == 5:
+            sequence_length = y_t.shape[1]
+            y_t, y_cond, mask = rearrange_5dto4d_fh(y_t, y_cond, mask)
+
         noise_level = self.extract(
             getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
@@ -400,6 +405,9 @@ class DiffusionGenerator(nn.Module):
         embed_noise_level = self.compute_gammas(noise_level)
 
         input = torch.cat([y_cond, y_t], dim=1)
+
+        if sequence_length != 0:
+            input, y_t, mask = rearrange_4dto5d_fh(sequence_length, input, y_t, mask)
 
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = self.denoise_fn(
