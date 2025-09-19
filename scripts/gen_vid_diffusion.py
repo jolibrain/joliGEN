@@ -705,10 +705,7 @@ def generate(
             ref_tensor = None
 
         if opt.alg_diffusion_cond_image_creation in ["computed_sketch", "y_t"]:
-            if sequence_count == 0:
-                y_t_list.append(y_t)
-            else:
-                y_t_list.append(y_t_list[0])
+            y_t_list.append(y_t)
 
         sequence_count = sequence_count + 1
         cond_image_list.append(cond_image)
@@ -797,7 +794,7 @@ def generate(
         if cond_image is not None:
             cond_image = cond_image_list[i]
             cond_img = to_np(cond_image)
-        name = str(i) + name
+        name = str(len(out_img_list) - i)
         if write:
             if opt.data_image_bits > 8:
                 img_tensor = img_tensor_list[i]
@@ -906,74 +903,49 @@ def inference(args):
 
 
 def extract_number(filename):
-    number = ""
-    for char in filename:
-        if char.isdigit():
-            number += char
-        else:
-            break
-    return int(number)
+    m = re.search(r"(\d+)", filename)
+    return int(m.group(1)) if m else -1
 
 
-def img2video(args):
+def img2video(args, fps=1, ext=".avi", fourcc="MJPG"):
     image_folder = args.dir_out
     video_base_name = "video"
 
-    # Regular expression pattern to capture the number before "_generated.png"
-    patterns = {
-        "generated": re.compile(r"(\d+)_generated\.png$"),
-        "orig": re.compile(r"(\d+)_orig\.png$"),
-    }
+    for suffix in ["generated", "orig"]:
+        # all files ending with this suffix
+        files = [f for f in os.listdir(image_folder) if f.endswith(f"{suffix}.png")]
+        if not files:
+            continue
 
-    for suffix, pattern in patterns.items():
-        generated_files = defaultdict(list)
-        images = [img for img in os.listdir(image_folder) if img.endswith(".png")]
+        # filenames start with a number: "1_generated.png" → 1
+        files.sort(key=lambda x: int(x.split("_")[0]))
+        files = files[::-1]
 
-        for image in images:
-            match = pattern.search(image)
-            if match:
-                number = match.group(1)
-                generated_files[number].append(image)
+        # read first frame for size
+        first_path = os.path.join(image_folder, files[0])
+        first = cv2.imread(first_path)
+        if first is None:
+            print(f"Error reading {first_path}")
+            continue
+        H, W = first.shape[:2]
 
-        # Process each category and create a video
-        for number, file_list in sorted(generated_files.items()):
-            sorted_list = sorted(file_list, key=extract_number)
+        # setup AVI writer
+        out_name = f"{video_base_name}_{suffix}{ext}"
+        out_path = os.path.join(image_folder, out_name)
+        vw = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*fourcc), fps, (W, H))
 
-            if not sorted_list:
-                logging.warning(
-                    f"No sorted images to process for number {number} with suffix {suffix}."
-                )
-                continue
-
-            first_image_path = os.path.join(image_folder, sorted_list[0])
-            frame = cv2.imread(first_image_path)
+        for fname in files:
+            frame = cv2.imread(os.path.join(image_folder, fname))
             if frame is None:
-                print(f"Error reading the first image: {first_image_path}")
                 continue
-            height, width, layers = frame.shape
+            if frame.shape[:2] != (H, W):
+                frame = cv2.resize(frame, (W, H))
+            vw.write(frame)
 
-            video_name = f"{video_base_name}_{number}_{suffix}.avi"
-            video_path = os.path.join(image_folder, video_name)
-
-            video = cv2.VideoWriter(
-                video_path,
-                cv2.VideoWriter_fourcc("M", "J", "P", "G"),
-                args.vid_fps,
-                (width, height),
-            )
-            for image in sorted_list:
-                image_path = os.path.join(image_folder, image)
-                frame = cv2.imread(image_path)
-                if frame is not None:
-                    video.write(frame)
-                else:
-                    print(f"Error reading image: {image_path}")
-
-            # Release the video writer object
-            cv2.destroyAllWindows()
-            video.release()
-            logging.info(f"Video created: {video_path}")
-            print(f"Video created: {video_path}")
+        vw.release()
+        cv2.destroyAllWindows()
+        logging.info(f"Video created: {out_path}")
+        print(f"Video created: {out_path}")
 
 
 if __name__ == "__main__":
