@@ -32,7 +32,7 @@ class DiffusionGenerator(nn.Module):
 
         self.denoise_fn = denoise_fn
         self.sampling_method = sampling_method
-        #self.image_size = image_size
+        # self.image_size = image_size
 
         cond_embed_dim = self.denoise_fn.cond_embed_dim
 
@@ -69,7 +69,7 @@ class DiffusionGenerator(nn.Module):
                 self.cond_embed_gammas = self.cond_embed_dim // 2
             else:
                 self.cond_embed_gammas = self.cond_embed_dim
-                
+
             self.cond_embed = nn.Sequential(
                 nn.Linear(self.cond_embed_gammas, self.cond_embed_gammas),
                 torch.nn.SiLU(),
@@ -173,9 +173,8 @@ class DiffusionGenerator(nn.Module):
             if i % sample_inter == 0:
                 ret_arr = torch.cat([ret_arr, y_t], dim=0)
 
-
         return y_t, ret_arr
-                
+
     def exists(self, x):
         return x is not None
 
@@ -481,9 +480,9 @@ class DiffusionGenerator(nn.Module):
         if mask is not None:
             temp_mask = torch.clamp(mask, min=0.0, max=1.0)
             y_noisy = y_noisy * temp_mask + (1.0 - temp_mask) * y_0
-        
+
         input = torch.cat([y_cond, y_noisy], dim=1)
-                
+
         if sequence_length != 0:
             input, mask, noise = rearrange_4dto5d_fh(
                 sequence_length, input, mask, noise
@@ -513,7 +512,7 @@ class DiffusionGenerator(nn.Module):
         min_snr_loss_weight = min_snr_loss_weight.view(-1, 1, 1, 1)
 
         return noise, noise_hat, min_snr_loss_weight
-        
+
     def set_new_sampling_method(self, sampling_method):
         self.sampling_method = sampling_method
 
