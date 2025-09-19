@@ -60,6 +60,13 @@ class BaseDiffusionModel(BaseModel):
             default=0.0,
             help="weight for pixel loss, when using latent space",
         )
+
+        parser.add_argument(
+            "--alg_diffusion_finetune_decoder",
+            action="store_true",
+            default=False,
+            help="whether to finetune latent AE decoder",
+        )
         
         parser.add_argument(
             "--alg_diffusion_dropout_prob",

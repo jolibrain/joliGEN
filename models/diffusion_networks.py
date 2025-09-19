@@ -34,7 +34,10 @@ class AutoencoderWrapper(AutoencoderDC):
 
     def decode(self, x):
         x *= self.scale
-        return super().decode(x)
+        decoded_x = super().decode(x)
+        #x = torch.clamp(127.5 * decoded_x + 128.0, 0, 255).to(dtype=torch.uint8)
+        #return x
+        return decoded_x
 
 
 class LatentWrapper(nn.Module):
@@ -47,6 +50,7 @@ class LatentWrapper(nn.Module):
         orig_model_output_nc,
         latent_dim,
         downsampling_factor,
+        finetune_decoder=False,
     ):
         super().__init__()
         self.model = model
@@ -55,17 +59,28 @@ class LatentWrapper(nn.Module):
         self.latent_dim = latent_dim
         self.downsampling_factor = downsampling_factor
 
+        self.finetune_decoder = finetune_decoder
         self.dc_ae = AutoencoderWrapper.from_pretrained(
             dc_ae_path, torch_dtype=getattr(torch, dc_ae_torch_dtype)
         ).eval()
+
         self.dc_ae.requires_grad_(False)
+        if self.finetune_decoder:
+            self.model.requires_grad_(False)
+            self.dc_ae.decoder.requires_grad_(True)
+        else:
+            self.model.requires_grad_(True)
 
     def parameters(self, recurse: bool = True):
         """Returns the parameters of the wrapped model, excluding the frozen autoencoder."""
+        if hasattr(self, 'finetune_decoder') and self.finetune_decoder:
+            return self.dc_ae.decoder.parameters(recurse=recurse)
         return self.model.parameters(recurse=recurse)
 
     def named_parameters(self, prefix: str = "", recurse: bool = True):
         """Returns the named parameters of the wrapped model, excluding the frozen autoencoder."""
+        if hasattr(self, 'finetune_decoder') and self.finetune_decoder:
+            return self.dc_ae.decoder.named_parameters(prefix=prefix, recurse=recurse)
         return self.model.named_parameters(prefix=prefix, recurse=recurse)
 
     def compute_palette_loss(self, palette_model):
@@ -77,6 +92,9 @@ class LatentWrapper(nn.Module):
 
         # debug
         #mask = None
+
+        if self.finetune_decoder:
+            palette_model.opt.alg_diffusion_lambda_G_pixel = 1.0
         
         if palette_model.opt.alg_diffusion_dropout_prob > 0.0:
             drop_ids = (
@@ -337,6 +355,7 @@ def define_G(
     train_feat_wavelet=False,
     alg_diffusion_latent_dc_ae_path="",
     alg_diffusion_latent_dc_ae_torch_dtype="float32",
+    alg_diffusion_finetune_decoder=False,
     **unused_options,
 ):
     """Create a generator
@@ -585,6 +604,7 @@ def define_G(
             model_output_nc,
             latent_dim,
             downsampling_factor,
+            finetune_decoder=alg_diffusion_finetune_decoder,
         )
 
     return net
