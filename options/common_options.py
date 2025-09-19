@@ -399,7 +399,7 @@ class CommonOptions(BaseOptions):
             type=int,
             help="Window size for HDIT, e.g. 2 for latent",
         )
-        
+
         parser.add_argument(
             "--G_unet_vid_max_sequence_length",
             default=25,

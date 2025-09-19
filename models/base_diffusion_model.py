@@ -67,7 +67,7 @@ class BaseDiffusionModel(BaseModel):
             default=False,
             help="whether to finetune latent AE decoder",
         )
-        
+
         parser.add_argument(
             "--alg_diffusion_dropout_prob",
             type=float,

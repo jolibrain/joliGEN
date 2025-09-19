@@ -20,6 +20,7 @@ from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 from torchvision.utils import save_image
 from .modules.diffusion_utils import predict_start_from_noise
 
+
 class AutoencoderWrapper(AutoencoderDC):
     # max y_latent max tensor(12.7458, device='cuda:0')
     # std_mean (tensor(2.3453, device='cuda:0'), tensor(0.2006, device='cuda:0'))
@@ -35,8 +36,8 @@ class AutoencoderWrapper(AutoencoderDC):
     def decode(self, x):
         x *= self.scale
         decoded_x = super().decode(x)
-        #x = torch.clamp(127.5 * decoded_x + 128.0, 0, 255).to(dtype=torch.uint8)
-        #return x
+        # x = torch.clamp(127.5 * decoded_x + 128.0, 0, 255).to(dtype=torch.uint8)
+        # return x
         return decoded_x
 
 
@@ -73,13 +74,13 @@ class LatentWrapper(nn.Module):
 
     def parameters(self, recurse: bool = True):
         """Returns the parameters of the wrapped model, excluding the frozen autoencoder."""
-        if hasattr(self, 'finetune_decoder') and self.finetune_decoder:
+        if hasattr(self, "finetune_decoder") and self.finetune_decoder:
             return self.dc_ae.decoder.parameters(recurse=recurse)
         return self.model.parameters(recurse=recurse)
 
     def named_parameters(self, prefix: str = "", recurse: bool = True):
         """Returns the named parameters of the wrapped model, excluding the frozen autoencoder."""
-        if hasattr(self, 'finetune_decoder') and self.finetune_decoder:
+        if hasattr(self, "finetune_decoder") and self.finetune_decoder:
             return self.dc_ae.decoder.named_parameters(prefix=prefix, recurse=recurse)
         return self.model.named_parameters(prefix=prefix, recurse=recurse)
 
@@ -91,11 +92,11 @@ class LatentWrapper(nn.Module):
         cls = palette_model.cls
 
         # debug
-        #mask = None
+        # mask = None
 
         if self.finetune_decoder:
             palette_model.opt.alg_diffusion_lambda_G_pixel = 1.0
-        
+
         if palette_model.opt.alg_diffusion_dropout_prob > 0.0:
             drop_ids = (
                 torch.rand(mask.shape[0], device=mask.device)
@@ -120,15 +121,15 @@ class LatentWrapper(nn.Module):
             ref = None
 
         self.dc_ae.to(y_0.device)
-        #if mask is not None:
-            #noise_for_mask = torch.randn_like(y_0)
-            #y_0 = y_0 * (1 - mask.float()) + noise_for_mask * mask.float()
+        # if mask is not None:
+        # noise_for_mask = torch.randn_like(y_0)
+        # y_0 = y_0 * (1 - mask.float()) + noise_for_mask * mask.float()
         y_latent = self.dc_ae.encode(y_0.float()).latent
         if mask is not None:
             noise_for_mask = torch.randn_like(y_cond)
             y_cond = y_cond * (1 - mask.float()) + noise_for_mask * mask.float()
         x_latent = self.dc_ae.encode(y_cond.float()).latent
-        
+
         downsampled_mask = None
         if mask is not None:
             downsampled_mask = torch.nn.functional.interpolate(
@@ -142,10 +143,13 @@ class LatentWrapper(nn.Module):
             downsampled_mask = downsampled_mask.repeat(1, self.latent_dim, 1, 1)
 
         noise, noise_hat, min_snr_loss_weight = self.model(
-            y_0=y_latent, y_cond=x_latent, noise=noise,
-            #mask=downsampled_mask,
+            y_0=y_latent,
+            y_cond=x_latent,
+            noise=noise,
+            # mask=downsampled_mask,
             mask=None,
-            cls=cls, ref=ref
+            cls=cls,
+            ref=ref,
         )
 
         if not palette_model.opt.alg_palette_minsnr:
@@ -160,7 +164,7 @@ class LatentWrapper(nn.Module):
         else:
 
             # debug for restoration
-            self.loss_fn = palette_model.loss_fn 
+            self.loss_fn = palette_model.loss_fn
 
             loss = palette_model.loss_fn(
                 min_snr_loss_weight * noise, min_snr_loss_weight * noise_hat
@@ -175,13 +179,23 @@ class LatentWrapper(nn.Module):
 
         palette_model.loss_G_tot = palette_model.opt.alg_diffusion_lambda_G * loss
 
-        if hasattr(palette_model.opt, 'alg_diffusion_lambda_G_pixel') and palette_model.opt.alg_diffusion_lambda_G_pixel > 0:
-            y_0_hat_latent = predict_start_from_noise(self.model.denoise_fn.model, self.model.y_t, self.model.t, noise_hat, phase='train')
+        if (
+            hasattr(palette_model.opt, "alg_diffusion_lambda_G_pixel")
+            and palette_model.opt.alg_diffusion_lambda_G_pixel > 0
+        ):
+            y_0_hat_latent = predict_start_from_noise(
+                self.model.denoise_fn.model,
+                self.model.y_t,
+                self.model.t,
+                noise_hat,
+                phase="train",
+            )
             y_0_hat_image = self.dc_ae.decode(y_0_hat_latent).sample
             loss_pixel = palette_model.loss_fn(palette_model.gt_image, y_0_hat_image)
             setattr(palette_model, "loss_G_pixel", loss_pixel)
-            palette_model.loss_G_tot += palette_model.opt.alg_diffusion_lambda_G_pixel * loss_pixel
-
+            palette_model.loss_G_tot += (
+                palette_model.opt.alg_diffusion_lambda_G_pixel * loss_pixel
+            )
 
     @property
     def beta_schedule(self):
@@ -215,40 +229,40 @@ class LatentWrapper(nn.Module):
         ddim_eta=0.5,
     ):
 
-        print('latent restoration')
-        
+        print("latent restoration")
+
         # debug
-        #mask = None
-        
+        # mask = None
+
         self.dc_ae.to(y_cond.device)
 
         # Encode image-like inputs
-        #if y_cond is not None and y_cond.dim() == 4:
+        # if y_cond is not None and y_cond.dim() == 4:
         #    y_cond_to_encode = y_cond
         if mask is not None:
             noise_for_mask = torch.randn_like(y_cond)
             y_cond = y_cond * (1 - mask.float()) + noise_for_mask * mask.float()
         y_cond_latent = self.dc_ae.encode(y_cond).latent
-        #else:
+        # else:
         #    y_cond_latent = y_cond
 
-        #if y_t is not None and y_t.dim() == 4:
+        # if y_t is not None and y_t.dim() == 4:
         y_t_to_encode = y_t
         if mask is not None:
             noise_for_mask = torch.randn_like(y_t)
             y_t_to_encode = y_t * (1 - mask.float()) + noise_for_mask * mask.float()
         y_t_latent = self.dc_ae.encode(y_t_to_encode).latent
-        #else:
+        # else:
         #    y_t_latent = y_t
-        
+
         # Encode image-like inputs
-        #if y_0 is not None and y_0.dim() == 4:
+        # if y_0 is not None and y_0.dim() == 4:
         y_0_to_encode = y_0
-        if mask is not None: # 
+        if mask is not None:  #
             noise_for_mask = torch.randn_like(y_0)
             y_0_to_encode = y_0 * (1 - mask.float()) + noise_for_mask * mask.float()
         y_0_latent = self.dc_ae.encode(y_0_to_encode).latent
-        #else:
+        # else:
         #    y_0_latent = y_0
 
         if mask is not None and mask.dim() == 4:
@@ -271,7 +285,7 @@ class LatentWrapper(nn.Module):
             y_cond=y_cond_latent,
             y_t=y_t_latent,
             y_0=y_0_latent,
-            #mask=mask_latent,
+            # mask=mask_latent,
             mask=None,
             sample_num=sample_num,
             cls=cls,
@@ -286,7 +300,7 @@ class LatentWrapper(nn.Module):
             output = self.dc_ae.decode(latent_output).sample
             visuals = self.dc_ae.decode(latent_visuals).sample
 
-            #if self.orig_model_output_nc == 1:
+            # if self.orig_model_output_nc == 1:
             #    output = output.mean(dim=1, keepdim=True)
             #    visuals = visuals.mean(dim=1, keepdim=True)
 
@@ -294,10 +308,10 @@ class LatentWrapper(nn.Module):
             if mask is not None and y_cond is not None:
                 output = output * mask.float() + y_cond * (1 - mask.float())
 
-        #pixel_space_loss = self.loss_fn(output, y_cond) # debug: since y_cond is the full image
-        #latent_space_loss = self.loss_fn(latent_output, y_cond_latent)
-        #print('pixel_space_loss=', pixel_space_loss, ' / latent_space_loss=', latent_space_loss)
-        
+        # pixel_space_loss = self.loss_fn(output, y_cond) # debug: since y_cond is the full image
+        # latent_space_loss = self.loss_fn(latent_output, y_cond_latent)
+        # print('pixel_space_loss=', pixel_space_loss, ' / latent_space_loss=', latent_space_loss)
+
         return output, visuals
 
 
@@ -543,7 +557,9 @@ def define_G(
         )
         cond_embed_dim = alg_diffusion_cond_embed_dim
     elif G_netG == "hdit":
-        hdit_config = HDiTConfig(G_hdit_depths, G_hdit_widths, G_hdit_patch_size, G_hdit_window_size)
+        hdit_config = HDiTConfig(
+            G_hdit_depths, G_hdit_widths, G_hdit_patch_size, G_hdit_window_size
+        )
         model = HDiT(
             levels=hdit_config.levels,
             mapping=hdit_config.mapping,
