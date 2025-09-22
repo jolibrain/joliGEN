@@ -159,3 +159,10 @@ def rearrange_4dto5d_bf(frame, *tensors):
     return [
         rearrange(tensor, "(b f) c h w -> b f c h w", f=frame) for tensor in tensors
     ]
+
+
+def expand_for_video(coeff, y_t):
+    B, T, C, H, W = y_t.shape
+    coeff = coeff.view(B, 1, 1, 1, 1)  # start as per-batch scalar
+    coeff = coeff.expand(B, T, 1, 1, 1)  # repeat along time
+    return coeff
