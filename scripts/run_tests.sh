@@ -253,6 +253,20 @@ fi
 ####### cm_vid diffusion tests
 echo "Running cm_vid diffusion training tests"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_cm_vid_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+=======
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_ddpm_infer_ddim_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+###### test vid palette
+echo "Running test vid palette train and ddim infer"
+python3 "${current_dir}/../test.py" \
+        --save_config \
+        --test_model_dir $DIR/joligen_utest_vid_palette/ \
+        --test_metrics_list SSIM PSNR LPIPS
 OUT=$?
 
 if [ $OUT != 0 ]; then
