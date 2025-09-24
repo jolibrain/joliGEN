@@ -55,6 +55,20 @@ class BaseDiffusionModel(BaseModel):
         )
 
         parser.add_argument(
+            "--alg_diffusion_lambda_G_pixel",
+            type=float,
+            default=0.0,
+            help="weight for pixel loss, when using latent space",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_finetune_decoder",
+            action="store_true",
+            default=False,
+            help="whether to finetune latent AE decoder",
+        )
+
+        parser.add_argument(
             "--alg_diffusion_dropout_prob",
             type=float,
             default=0.0,
@@ -217,6 +231,19 @@ class BaseDiffusionModel(BaseModel):
             default=[[]],
             nargs="+",
             help="the range of probabilities for dropping the canny for each frame",
+        )
+
+        parser.add_argument(
+            "--alg_diffusion_latent_dc_ae_path",
+            type=str,
+            default="",
+            help="Path to the pretrained DC-AE model for latent space encoding. If empty, this feature is disabled.",
+        )
+        parser.add_argument(
+            "--alg_diffusion_latent_dc_ae_torch_dtype",
+            type=str,
+            default="float32",
+            help="Torch dtype for the DC-AE model.",
         )
 
         return parser
