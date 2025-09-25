@@ -57,11 +57,18 @@ class PaletteModel(BaseDiffusionModel):
             default=-1,
             help="Number of sampling steps to use during the test phase in training. This functions the same as 'sampling_steps' used for DDIM inference.",
         )
+
         parser.add_argument(
             "--alg_palette_sampling_method_test",
             type=str,
             default="ddpm",
             help="Sampling method to use during the test phase in training. Equivalent to 'sampling_method' in inference.",
+        )
+        # train with long inference video generation
+        parser.add_argument(
+            "--alg_palette_autoregressive",
+            action="store_true",
+            help="Autoregressive training: each batch is either all canny edges or one full image with others black.",
         )
 
         if is_train:
@@ -464,15 +471,21 @@ class PaletteModel(BaseDiffusionModel):
                             self.cond_image_black,
                         )
                         B, T = self.cond_image.size(0), self.cond_image.size(1)
-                        mask = torch.rand(B, T, 1, 1, 1, device=self.device) < 0.07
-                        self.gt_image_mix = torch.where(
-                            mask, self.gt_image, self.cond_image_black
-                        )
-                        mask_f = torch.rand(B, 1, 1, 1, 1, device=self.device) < 0.07
-                        self.cond_image = torch.where(
-                            mask_f, self.gt_image_mix, self.cond_image
-                        )
+                        if self.opt.alg_palette_autoregressive:
+                            gt_image_mix = self.cond_image_black.clone()
+                            idx = torch.randint(
+                                0, T, (B,), device=self.device
+                            )  # one frame per batch
+                            batch_idx = torch.arange(B, device=self.device)
+                            gt_image_mix[batch_idx, idx] = self.gt_image[batch_idx, idx]
 
+                            use_gt_mix = (
+                                torch.rand(B, 1, 1, 1, 1, device=self.device) < 0.07
+                            )
+
+                            self.cond_image = torch.where(
+                                use_gt_mix, gt_image_mix, self.cond_image
+                            )
                 elif "sam" in fill_img_with_random_sketch.__name__:
                     self.cond_image = fill_img_with_random_sketch(
                         self.gt_image,
