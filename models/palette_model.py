@@ -449,14 +449,17 @@ class PaletteModel(BaseDiffusionModel):
                             self.cond_image_black,
                         )
                         B, T = self.cond_image.size(0), self.cond_image.size(1)
-                        mask = torch.rand(B, T, 1, 1, 1, device=self.device) < 0.07
-                        self.gt_image_mix = torch.where(
-                            mask, self.gt_image, self.cond_image_black
-                        )
-                        mask_f = torch.rand(B, 1, 1, 1, 1, device=self.device) < 0.07
-                        self.cond_image = torch.where(
-                            mask_f, self.gt_image_mix, self.cond_image
-                        )
+                        if self.opt.train_for_autoregressive:
+                            mask = torch.rand(B, T, 1, 1, 1, device=self.device) < 0.07
+                            self.gt_image_mix = torch.where(
+                                mask, self.gt_image, self.cond_image_black
+                            )
+                            mask_f = (
+                                torch.rand(B, 1, 1, 1, 1, device=self.device) < 0.07
+                            )
+                            self.cond_image = torch.where(
+                                mask_f, self.gt_image_mix, self.cond_image
+                            )
 
                 elif "sam" in fill_img_with_random_sketch.__name__:
                     self.cond_image = fill_img_with_random_sketch(
