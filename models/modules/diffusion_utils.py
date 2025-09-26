@@ -77,14 +77,20 @@ def make_beta_schedule(
 
 
 def set_new_noise_schedule(model, phase):
-    to_torch = partial(torch.tensor, dtype=torch.float32)
+    param = next(model.parameters(), None)
+    if param is not None:
+        device = param.device
+    else:
+        buf = next(model.buffers(), None)
+        device = buf.device if buf is not None else torch.device("cpu")
+
+    to_torch = partial(torch.tensor, dtype=torch.float32, device=device)
     betas = make_beta_schedule(**model.beta_schedule[phase])
     betas = betas.detach().cpu().numpy() if isinstance(betas, torch.Tensor) else betas
     alphas = 1.0 - betas
 
     (timesteps,) = betas.shape
     setattr(model, "num_timesteps_" + phase, int(timesteps))
-
     gammas = np.cumprod(alphas, axis=0)
     gammas_prev = np.append(1.0, gammas[:-1])
 
@@ -159,3 +165,10 @@ def rearrange_4dto5d_bf(frame, *tensors):
     return [
         rearrange(tensor, "(b f) c h w -> b f c h w", f=frame) for tensor in tensors
     ]
+
+
+def expand_for_video(coeff, y_t):
+    B, T, C, H, W = y_t.shape
+    coeff = coeff.view(B, 1, 1, 1, 1)  # start as per-batch scalar
+    coeff = coeff.expand(B, T, 1, 1, 1)  # repeat along time
+    return coeff

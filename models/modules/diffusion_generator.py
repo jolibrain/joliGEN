@@ -16,6 +16,7 @@ from models.modules.diffusion_utils import (
     extract,
     rearrange_5dto4d_fh,
     rearrange_4dto5d_fh,
+    expand_for_video,
 )
 
 
@@ -204,7 +205,6 @@ class DiffusionGenerator(nn.Module):
         if len(y_t.shape) == 5:
             sequence_length = y_t.shape[1]
             y_t, y_cond, mask = rearrange_5dto4d_fh(y_t, y_cond, mask)
-
         noise_level = self.extract(
             getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
@@ -214,7 +214,6 @@ class DiffusionGenerator(nn.Module):
         input = torch.cat([y_cond, y_t], dim=1)
         if sequence_length != 0:
             input, y_t, mask = rearrange_4dto5d_fh(sequence_length, input, y_t, mask)
-
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = predict_start_from_noise(
                 self.denoise_fn.model,
@@ -397,7 +396,6 @@ class DiffusionGenerator(nn.Module):
         if len(y_t.shape) == 5:
             sequence_length = y_t.shape[1]
             y_t, y_cond, mask = rearrange_5dto4d_fh(y_t, y_cond, mask)
-
         noise_level = self.extract(
             getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1)
         ).to(y_t.device)
@@ -408,7 +406,6 @@ class DiffusionGenerator(nn.Module):
 
         if sequence_length != 0:
             input, y_t, mask = rearrange_4dto5d_fh(sequence_length, input, y_t, mask)
-
         if guidance_scale > 0.0 and phase == "test":
             y_0_hat_uncond = self.denoise_fn(
                 input, embed_noise_level, cls=None, mask=None
@@ -420,7 +417,6 @@ class DiffusionGenerator(nn.Module):
 
         if clip_denoised:
             y_0_hat.clamp_(-1.0, 1.0)
-
         gamma_t = self.extract(
             getattr(self.denoise_fn.model, "gammas_" + phase), t, x_shape=(1, 1, 1, 1)
         ).to(y_t.device)
@@ -429,7 +425,6 @@ class DiffusionGenerator(nn.Module):
             prevt + 1,
             x_shape=(1, 1, 1, 1),
         ).to(y_t.device)
-
         ## denoising formula for model_mean witih DDIM
         sigma = eta * torch.sqrt(
             (1 - gamma_prevt) / (1 - gamma_t) * (1 - gamma_t / gamma_prevt)
@@ -440,6 +435,13 @@ class DiffusionGenerator(nn.Module):
         coef_eps = 1 - gamma_prevt - p_var
         coef_eps[coef_eps < 0] = 0
         coef_eps = torch.sqrt(coef_eps)
+        if (
+            len(y_t.shape) == 5 and y_t.shape[0] > 1
+        ):  # ddpm training and ddim inference for vid
+            gamma_t = expand_for_video(gamma_t, y_t)
+            gamma_prevt = expand_for_video(gamma_prevt, y_t)
+            sigma = expand_for_video(sigma, y_t)
+            coef_eps = expand_for_video(coef_eps, y_t)
 
         model_mean = (
             torch.sqrt(gamma_prevt)
@@ -450,7 +452,6 @@ class DiffusionGenerator(nn.Module):
 
         if clip_denoised:
             model_mean.clamp_(-1.0, 1.0)
-
         return model_mean, posterior_log_variance
 
     def forward(self, y_0, y_cond, mask, noise, cls, ref, dropout_prob=0.0):

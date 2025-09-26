@@ -16,9 +16,11 @@ from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
 from .modules.loss import MultiScaleDiffusionLoss
 from .modules.unet_generator_attn.unet_attn_utils import revert_sync_batchnorm
-from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
-
-from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
+from models.modules.diffusion_utils import (
+    rearrange_5dto4d_bf,
+    rearrange_4dto5d_bf,
+    set_new_noise_schedule,
+)
 
 
 class PaletteModel(BaseDiffusionModel):
@@ -47,6 +49,19 @@ class PaletteModel(BaseDiffusionModel):
             "--alg_palette_minsnr",
             action="store_true",
             help="use min-SNR weighting",
+        )
+
+        parser.add_argument(
+            "--alg_palette_sampling_steps_test",
+            type=int,
+            default=-1,
+            help="Number of sampling steps to use during the test phase in training. This functions the same as 'sampling_steps' used for DDIM inference.",
+        )
+        parser.add_argument(
+            "--alg_palette_sampling_method_test",
+            type=str,
+            default="ddim",
+            help="Sampling method to use during the test phase in training. Equivalent to 'sampling_method' in inference.",
         )
 
         if is_train:
@@ -555,6 +570,26 @@ class PaletteModel(BaseDiffusionModel):
         else:
             netG = self.netG_A
 
+        original_sampling_method = netG.sampling_method
+        original_timestep = netG.denoise_fn.model.num_timesteps_test
+        schedule_changed = False
+        if (
+            hasattr(self.opt, "alg_palette_sampling_steps_test")
+            and self.opt.alg_palette_sampling_steps_test > 0
+        ):
+            if (
+                netG.denoise_fn.model.num_timesteps_test
+                != self.opt.alg_palette_sampling_steps_test
+            ):
+                netG.denoise_fn.model.beta_schedule["test"][
+                    "n_timestep"
+                ] = self.opt.alg_palette_sampling_steps_test
+                set_new_noise_schedule(netG.denoise_fn.model, "test")
+                schedule_changed = True
+
+        if hasattr(self.opt, "alg_palette_sampling_method_test"):
+            netG.set_new_sampling_method(self.opt.alg_palette_sampling_method_test)
+
         if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = revert_sync_batchnorm(netG)
 
@@ -679,7 +714,6 @@ class PaletteModel(BaseDiffusionModel):
 
         # other tasks
         else:
-            print("canny task inference nb_imgs , sample_num", nb_imgs, self.sample_num)
             self.output, self.visuals = netG.restoration(
                 y_cond=self.cond_image[:nb_imgs], sample_num=self.sample_num
             )
@@ -711,6 +745,15 @@ class PaletteModel(BaseDiffusionModel):
                 self.fake_B_pool.query(self.visuals[k : k + 1, :, :, :, :])
         if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = torch.nn.SyncBatchNorm.convert_sync_batchnorm(netG)
+
+        if hasattr(self.opt, "alg_palette_sampling_method_test"):
+            netG.set_new_sampling_method(original_sampling_method)
+
+        if schedule_changed:
+            netG.denoise_fn.model.beta_schedule["test"][
+                "n_timestep"
+            ] = original_timestep
+            set_new_noise_schedule(netG.denoise_fn.model, "test")
 
     def compute_visuals(self, nb_imgs):
         super().compute_visuals(nb_imgs)
