@@ -492,6 +492,12 @@ class TrainOptions(CommonOptions):
             help="compute mIoU every n iterations",
         )
 
+        # train with long inference video generation
+        parser.add_argument(
+            "--train_for_autoregressive",
+            action="store_true",
+            help="Autoregressive training: each batch is either all canny edges or one full image with others black.",
+        )
         # train with temporal criterion loss
         parser.add_argument(
             "--train_temporal_criterion",
