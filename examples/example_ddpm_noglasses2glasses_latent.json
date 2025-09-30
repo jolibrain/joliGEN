@@ -169,7 +169,7 @@
             "aim_server": "http://localhost",
             "diff_fake_real": false,
             "env": "noglasses2glasses_hdit_latent",
-            "freq": 100,
+            "freq": 1000,
             "id": 1,
             "ncols": 0,
             "networks": false,

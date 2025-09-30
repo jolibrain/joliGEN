@@ -22,17 +22,9 @@ from .modules.diffusion_utils import predict_start_from_noise
 
 
 class AutoencoderWrapper(AutoencoderDC):
-    #def __init__(self, *args, scaling_factor=1.0, **kwargs):
-    #    super().__init__(*args, **kwargs)
-    #    self.scaling_factor = scaling_factor
 
-    #@classmethod
-    # def from_pretrained(cls, *args, **kwargs):
-    #     scaling_factor = kwargs.pop("scaling_factor", 1.0)
-    #     model = super().from_pretrained(*args)#, **kwargs)
-    #     model.scaling_factor = scaling_factor
-    #     return model
-    scaling_factor = 10
+    def set_scaling_factor(self, scaling_factor):
+        self.scaling_factor = scaling_factor
     
     def encode(self, x):
         x = super().encode(x)
@@ -71,8 +63,8 @@ class LatentWrapper(nn.Module):
         self.dc_ae = AutoencoderWrapper.from_pretrained(
             dc_ae_path,
             torch_dtype=getattr(torch, dc_ae_torch_dtype),
-            #scaling_factor=dc_ae_scaling,
         ).eval()
+        self.dc_ae.set_scaling_factor(dc_ae_scaling)
 
         self.dc_ae.requires_grad_(False)
         if self.finetune_decoder:
@@ -94,12 +86,12 @@ class LatentWrapper(nn.Module):
         return self.model.named_parameters(prefix=prefix, recurse=recurse)
 
     def compute_palette_loss(self, palette_model):
-        self.alg_diffusion_latent_mask = palette_model.opt.alg_diffusion_latent_mask
         y_0 = palette_model.gt_image
         y_cond = palette_model.cond_image
         mask = palette_model.mask
         noise = None
         cls = palette_model.cls
+        self.alg_diffusion_latent_mask = palette_model.opt.alg_diffusion_latent_mask
         
         if self.finetune_decoder:
             palette_model.opt.alg_diffusion_lambda_G_pixel = 1.0
