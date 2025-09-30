@@ -245,6 +245,17 @@ class BaseDiffusionModel(BaseModel):
             default="float32",
             help="Torch dtype for the DC-AE model.",
         )
+        parser.add_argument(
+            "--alg_diffusion_latent_dc_ae_scaling",
+            type=float,
+            default=10,
+            help="Scaling value for dc AE latent",
+        )
+        parser.add_argument(
+            "--alg_diffusion_latent_mask",
+            action="store_true",
+            help="whether to apply masking in latent space"
+        )
 
         return parser
 
