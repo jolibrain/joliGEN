@@ -53,6 +53,7 @@ Here are all the available options to call with `train.py`
 | --G_hdit_depths | array | [2, 2, 4] | distribution of depth blocks across the HDiT stages, should have same size as --G_hdit_widths |
 | --G_hdit_patch_size | int | 4 | Patch size for HDIT, e.g. 4 for 4x4 patches |
 | --G_hdit_widths | array | [192, 384, 768] | width multiplier for each level of the HDiT |
+| --G_hdit_window_size | int | 8 | Window size for HDIT, e.g. 2 for latent |
 | --G_lora_unet | int | 8 | lora unet rank for G |
 | --G_lora_vae | int | 8 | lora vae rank for G |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
@@ -103,8 +104,12 @@ Here are all the available options to call with `train.py`
 | --alg_diffusion_cond_sam_use_gaussian_filter | flag |  | whether to apply a Gaussian blur to each SAM masks |
 | --alg_diffusion_cond_sketch_canny_range | array | [0, 765] | range of randomized canny sketch thresholds |
 | --alg_diffusion_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
+| --alg_diffusion_finetune_decoder | flag |  | whether to finetune latent AE decoder |
 | --alg_diffusion_generate_per_class | flag |  | whether to generate samples of each images |
 | --alg_diffusion_lambda_G | float | 1.0 | weight for supervised loss |
+| --alg_diffusion_lambda_G_pixel | float | 0.0 | weight for pixel loss, when using latent space |
+| --alg_diffusion_latent_dc_ae_path | string |  | Path to the pretrained DC-AE model for latent space encoding. If empty, this feature is disabled. |
+| --alg_diffusion_latent_dc_ae_torch_dtype | string | float32 | Torch dtype for the DC-AE model. |
 | --alg_diffusion_ref_embed_net | string | clip | embedding network to use for ref conditioning<br/><br/> **Values:** clip, imagebind |
 | --alg_diffusion_super_resolution_scale | float | 2.0 | scale for super resolution |
 | --alg_diffusion_task | string | inpainting | Whether to perform inpainting, super resolution or pix2pix<br/><br/> **Values:** inpainting, super_resolution, pix2pix |

@@ -22,19 +22,25 @@ from .modules.diffusion_utils import predict_start_from_noise
 
 
 class AutoencoderWrapper(AutoencoderDC):
-    # max y_latent max tensor(12.7458, device='cuda:0')
-    # std_mean (tensor(2.3453, device='cuda:0'), tensor(0.2006, device='cuda:0'))
-    # min tensor(-9.0943, device='cuda:0')
-    # max tensor(8.5529, device='cuda:0')
-    scale = 6  # TODO find better value based on more examples / set it as an option
+    #def __init__(self, *args, scaling_factor=1.0, **kwargs):
+    #    super().__init__(*args, **kwargs)
+    #    self.scaling_factor = scaling_factor
 
+    #@classmethod
+    # def from_pretrained(cls, *args, **kwargs):
+    #     scaling_factor = kwargs.pop("scaling_factor", 1.0)
+    #     model = super().from_pretrained(*args)#, **kwargs)
+    #     model.scaling_factor = scaling_factor
+    #     return model
+    scaling_factor = 10
+    
     def encode(self, x):
         x = super().encode(x)
-        x.latent /= self.scale
+        x.latent /= self.scaling_factor
         return x
 
     def decode(self, x):
-        x *= self.scale
+        x *= self.scaling_factor
         decoded_x = super().decode(x)
         # x = torch.clamp(127.5 * decoded_x + 128.0, 0, 255).to(dtype=torch.uint8)
         # return x
@@ -52,6 +58,7 @@ class LatentWrapper(nn.Module):
         latent_dim,
         downsampling_factor,
         finetune_decoder=False,
+        dc_ae_scaling=1.0,
     ):
         super().__init__()
         self.model = model
@@ -62,7 +69,9 @@ class LatentWrapper(nn.Module):
 
         self.finetune_decoder = finetune_decoder
         self.dc_ae = AutoencoderWrapper.from_pretrained(
-            dc_ae_path, torch_dtype=getattr(torch, dc_ae_torch_dtype)
+            dc_ae_path,
+            torch_dtype=getattr(torch, dc_ae_torch_dtype),
+            #scaling_factor=dc_ae_scaling,
         ).eval()
 
         self.dc_ae.requires_grad_(False)
@@ -85,15 +94,13 @@ class LatentWrapper(nn.Module):
         return self.model.named_parameters(prefix=prefix, recurse=recurse)
 
     def compute_palette_loss(self, palette_model):
+        self.alg_diffusion_latent_mask = palette_model.opt.alg_diffusion_latent_mask
         y_0 = palette_model.gt_image
         y_cond = palette_model.cond_image
         mask = palette_model.mask
         noise = None
         cls = palette_model.cls
-
-        # debug
-        # mask = None
-
+        
         if self.finetune_decoder:
             palette_model.opt.alg_diffusion_lambda_G_pixel = 1.0
 
@@ -131,7 +138,7 @@ class LatentWrapper(nn.Module):
         x_latent = self.dc_ae.encode(y_cond.float()).latent
 
         downsampled_mask = None
-        if mask is not None:
+        if mask is not None and self.alg_diffusion_latent_mask:
             downsampled_mask = torch.nn.functional.interpolate(
                 mask.float(),
                 size=(
@@ -141,13 +148,14 @@ class LatentWrapper(nn.Module):
                 mode="nearest",
             )
             downsampled_mask = downsampled_mask.repeat(1, self.latent_dim, 1, 1)
-
+        else:
+            downsampled_mask = None
+            
         noise, noise_hat, min_snr_loss_weight = self.model(
             y_0=y_latent,
             y_cond=x_latent,
             noise=noise,
-            # mask=downsampled_mask,
-            mask=None,
+            mask=downsampled_mask,
             cls=cls,
             ref=ref,
         )
@@ -228,12 +236,6 @@ class LatentWrapper(nn.Module):
         ddim_num_steps=10,
         ddim_eta=0.5,
     ):
-
-        print("latent restoration")
-
-        # debug
-        # mask = None
-
         self.dc_ae.to(y_cond.device)
 
         # Encode image-like inputs
@@ -265,7 +267,7 @@ class LatentWrapper(nn.Module):
         # else:
         #    y_0_latent = y_0
 
-        if mask is not None and mask.dim() == 4:
+        if mask is not None and mask.dim() == 4 and self.alg_diffusion_latent_mask:
             # Downsize the mask using nearest neighbors
             downsampled_mask = torch.nn.functional.interpolate(
                 mask.float(),
@@ -278,15 +280,14 @@ class LatentWrapper(nn.Module):
             mask_latent = downsampled_mask.repeat(1, self.latent_dim, 1, 1)
             # print('mask latent size=', mask_latent.size())
         else:
-            mask_latent = mask
+            mask_latent = None
 
         # Call the wrapped model's restoration method
         latent_output, latent_visuals = self.model.restoration(
             y_cond=y_cond_latent,
             y_t=y_t_latent,
             y_0=y_0_latent,
-            # mask=mask_latent,
-            mask=None,
+            mask=mask_latent,
             sample_num=sample_num,
             cls=cls,
             ref=ref,
@@ -369,6 +370,7 @@ def define_G(
     train_feat_wavelet=False,
     alg_diffusion_latent_dc_ae_path="",
     alg_diffusion_latent_dc_ae_torch_dtype="float32",
+    alg_diffusion_latent_dc_ae_scaling=1.0,
     alg_diffusion_finetune_decoder=False,
     **unused_options,
 ):
@@ -621,6 +623,7 @@ def define_G(
             latent_dim,
             downsampling_factor,
             finetune_decoder=alg_diffusion_finetune_decoder,
+            dc_ae_scaling=alg_diffusion_latent_dc_ae_scaling,
         )
 
     return net
