@@ -60,7 +60,7 @@ class PaletteModel(BaseDiffusionModel):
         parser.add_argument(
             "--alg_palette_sampling_method_test",
             type=str,
-            default="ddim",
+            default="ddpm",
             help="Sampling method to use during the test phase in training. Equivalent to 'sampling_method' in inference.",
         )
 
