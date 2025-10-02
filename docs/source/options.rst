@@ -316,7 +316,7 @@ Diffusion model
 +------------------------------------+-----------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------+
 | --alg_palette_sampling_method      | string          | ddpm            | choose the sampling method between ddpm and ddim **Values:** ddpm, ddim                                                                 |
 +------------------------------------+-----------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------+
-| --alg_palette_sampling_method_test | string          | ddim            | Sampling method to use during the test phase in training. Equivalent to ‘sampling_method’ in inference.                                 |
+| --alg_palette_sampling_method_test | string          | ddpm            | Sampling method to use during the test phase in training. Equivalent to ‘sampling_method’ in inference.                                 |
 +------------------------------------+-----------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------+
 | --alg_palette_sampling_steps_test  | int             | -1              | Number of sampling steps to use during the test phase in training. This functions the same as ‘sampling_steps’ used for DDIM inference. |
 +------------------------------------+-----------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------+
