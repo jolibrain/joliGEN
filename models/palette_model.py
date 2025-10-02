@@ -64,11 +64,11 @@ class PaletteModel(BaseDiffusionModel):
             default="ddpm",
             help="Sampling method to use during the test phase in training. Equivalent to 'sampling_method' in inference.",
         )
-        # train with long inference video generation
+
         parser.add_argument(
             "--alg_palette_autoregressive",
             action="store_true",
-            help="Autoregressive training: each batch is either all canny edges or one full image with others black.",
+            help="Autoregressive training: each batch is either all canny edges(noisy image) or one full image with others black.",
         )
 
         if is_train:
@@ -367,6 +367,15 @@ class PaletteModel(BaseDiffusionModel):
             self.ref_A = data["ref_A"].to(self.device)
         if self.opt.alg_diffusion_cond_image_creation == "y_t":
             self.cond_image = self.y_t
+            if self.opt.alg_palette_autoregressive and self.opt.G_netG == "unet_vid":
+                B, T = self.cond_image.size(0), self.cond_image.size(1)
+                use_gt = torch.rand(B, device=self.device) < 0.07
+                idx = torch.randint(0, T, (B,), device=self.device)
+                batch_idx = torch.arange(B, device=self.device)
+                cond_image_mix = self.cond_image.clone()
+                cond_image_mix[use_gt, idx[use_gt]] = self.gt_image[use_gt, idx[use_gt]]
+                self.cond_image = cond_image_mix
+
         elif self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             cond_image_list = []
 
