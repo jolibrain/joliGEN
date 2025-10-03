@@ -421,8 +421,8 @@ class CMModel(BaseDiffusionModel):
                     )
                     name = "output_" + str(i + 1)
                     setattr(self, name, self.output)
-        else:
-            self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
+            else:
+                self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
 
         self.fake_B = self.output
         self.visuals = self.output
