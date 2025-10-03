@@ -209,6 +209,7 @@ class CMModel(BaseDiffusionModel):
         losses_G = []
         if opt.alg_cm_perceptual_loss != [""]:
             losses_G += ["G_perceptual"]
+            losses_G += ["G_cm"]
         self.loss_names_G += losses_G
         self.loss_names = self.loss_names_G.copy()
 
@@ -375,6 +376,7 @@ class CMModel(BaseDiffusionModel):
             self.loss_G_perceptual = self.opt.alg_cm_lambda_perceptual * (
                 self.loss_G_perceptual_lpips + self.loss_G_perceptual_dists
             )
+            self.loss_G_cm = self.loss_G_tot.clone()
             self.loss_G_tot += self.loss_G_perceptual
 
     def inference(self, nb_imgs, offset=0):

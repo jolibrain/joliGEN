@@ -710,7 +710,7 @@ class PaletteModel(BaseDiffusionModel):
                 else:
                     mask = self.mask
 
-                print("restoration for conditioning")
+                #print("restoration for conditioning")
                 self.output, self.visuals = netG.restoration(
                     y_cond=self.cond_image[:nb_imgs],
                     y_t=self.y_t[:nb_imgs],

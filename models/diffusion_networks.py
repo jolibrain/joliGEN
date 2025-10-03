@@ -101,6 +101,33 @@ class LatentWrapper(nn.Module):
         if hasattr(self.model, "current_t"):
             self.model.current_t = value
 
+    @property
+    def sampling_method(self):
+        return self.model.sampling_method
+
+    @sampling_method.setter
+    def sampling_method(self, value):
+        self.model.sampling_method = value
+
+    @property
+    def denoise_fn(self):
+        return self.model.denoise_fn
+
+    @denoise_fn.setter
+    def denoise_fn(self, value):
+        self.model.denoise_fn = value
+
+    def set_new_sampling_method(self, sampling_method):
+        self.model.set_new_sampling_method(sampling_method)
+
+    @property
+    def ddim_num_steps(self):
+        return self.model.ddim_num_steps
+
+    @ddim_num_steps.setter
+    def ddim_num_steps(self, value):
+        self.model.ddim_num_steps = value
+
     def _resize_mask_to_latent(self, mask, latent_tensor):
         if mask is None:
             return None
@@ -333,6 +360,7 @@ class LatentWrapper(nn.Module):
                 cm_model.opt.alg_cm_lambda_perceptual
                 * (cm_model.loss_G_perceptual_lpips + cm_model.loss_G_perceptual_dists)
             )
+            cm_model.loss_G_cm = cm_model.loss_G_tot.clone()
             cm_model.loss_G_tot += cm_model.loss_G_perceptual
 
     def restoration_cm(

@@ -32,7 +32,9 @@ class DiffusionGenerator(nn.Module):
         super().__init__()
 
         self.denoise_fn = denoise_fn
+
         self.sampling_method = sampling_method
+        self.ddim_num_steps = 10
         # self.image_size = image_size
 
         cond_embed_dim = self.denoise_fn.cond_embed_dim
