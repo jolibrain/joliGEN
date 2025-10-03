@@ -167,6 +167,7 @@ Here are all the available options to call with `train.py`
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
+| --alg_palette_autoregressive | flag |  | Autoregressive training: each batch is either all canny edges or one full image with others black. |
 | --alg_palette_ddim_eta | float | 0.5 | eta for ddim sampling variance |
 | --alg_palette_ddim_num_steps | int | 10 | number of steps for ddim sampling |
 | --alg_palette_loss | string | MSE | loss type of the denoising model<br/><br/> **Values:** L1, MSE, multiscale_L1, multiscale_MSE |
