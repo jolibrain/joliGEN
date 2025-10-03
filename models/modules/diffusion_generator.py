@@ -33,7 +33,7 @@ class DiffusionGenerator(nn.Module):
 
         self.denoise_fn = denoise_fn
         self.sampling_method = sampling_method
-        self.image_size = image_size
+        # self.image_size = image_size
 
         cond_embed_dim = self.denoise_fn.cond_embed_dim
 
@@ -481,6 +481,8 @@ class DiffusionGenerator(nn.Module):
         y_noisy = self.q_sample(
             y_0=y_0, sample_gammas=sample_gammas.view(-1, 1, 1, 1), noise=noise
         )
+        self.y_t = y_noisy
+        self.t = t
 
         embed_sample_gammas = self.compute_gammas(sample_gammas)
 
