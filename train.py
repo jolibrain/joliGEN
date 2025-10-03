@@ -18,6 +18,8 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
+#torch.autograd.set_detect_anomaly(True)
+
 import bitsandbytes as bnb
 
 from data import (

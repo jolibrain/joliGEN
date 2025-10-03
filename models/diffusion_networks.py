@@ -1,3 +1,4 @@
+import math
 import sys
 import torch
 import torch.nn as nn
@@ -73,6 +74,9 @@ class LatentWrapper(nn.Module):
         else:
             self.model.requires_grad_(True)
 
+        self.alg_diffusion_latent_mask = False
+        self._current_t = getattr(self.model, "current_t", None)
+
     def parameters(self, recurse: bool = True):
         """Returns the parameters of the wrapped model, excluding the frozen autoencoder."""
         if hasattr(self, "finetune_decoder") and self.finetune_decoder:
@@ -84,6 +88,41 @@ class LatentWrapper(nn.Module):
         if hasattr(self, "finetune_decoder") and self.finetune_decoder:
             return self.dc_ae.decoder.named_parameters(prefix=prefix, recurse=recurse)
         return self.model.named_parameters(prefix=prefix, recurse=recurse)
+
+    @property
+    def current_t(self):
+        if hasattr(self.model, "current_t"):
+            return self.model.current_t
+        return self._current_t
+
+    @current_t.setter
+    def current_t(self, value):
+        self._current_t = value
+        if hasattr(self.model, "current_t"):
+            self.model.current_t = value
+
+    def _resize_mask_to_latent(self, mask, latent_tensor):
+        if mask is None:
+            return None
+
+        mask_latent = torch.nn.functional.interpolate(
+            mask.float(),
+            size=(latent_tensor.shape[2], latent_tensor.shape[3]),
+            mode="nearest",
+        )
+
+        latent_channels = latent_tensor.shape[1]
+        mask_channels = mask_latent.shape[1]
+
+        if mask_channels == 1 and latent_channels > 1:
+            mask_latent = mask_latent.expand(-1, latent_channels, -1, -1)
+        elif mask_channels != latent_channels:
+            repeat_factor = math.ceil(latent_channels / mask_channels)
+            mask_latent = mask_latent.repeat(1, repeat_factor, 1, 1)[
+                :, :latent_channels, :, :
+            ]
+
+        return mask_latent
 
     def compute_palette_loss(self, palette_model):
         y_0 = palette_model.gt_image
@@ -125,24 +164,14 @@ class LatentWrapper(nn.Module):
         # y_0 = y_0 * (1 - mask.float()) + noise_for_mask * mask.float()
         y_latent = self.dc_ae.encode(y_0.float()).latent
         if mask is not None:
-            noise_for_mask = torch.randn_like(y_cond)
-            y_cond = y_cond * (1 - mask.float()) + noise_for_mask * mask.float()
+            #noise_for_mask = torch.randn_like(y_cond)
+            y_cond = y_cond * (1 - mask.float()) + 0.5 * mask.float()
         x_latent = self.dc_ae.encode(y_cond.float()).latent
 
         downsampled_mask = None
         if mask is not None and self.alg_diffusion_latent_mask:
-            downsampled_mask = torch.nn.functional.interpolate(
-                mask.float(),
-                size=(
-                    mask.shape[2] // self.downsampling_factor,
-                    mask.shape[3] // self.downsampling_factor,
-                ),
-                mode="nearest",
-            )
-            downsampled_mask = downsampled_mask.repeat(1, self.latent_dim, 1, 1)
-        else:
-            downsampled_mask = None
-            
+            downsampled_mask = self._resize_mask_to_latent(mask, y_latent)
+        
         noise, noise_hat, min_snr_loss_weight = self.model(
             y_0=y_latent,
             y_cond=x_latent,
@@ -197,6 +226,154 @@ class LatentWrapper(nn.Module):
                 palette_model.opt.alg_diffusion_lambda_G_pixel * loss_pixel
             )
 
+    def compute_cm_loss(self, cm_model):
+        
+        def pseudo_huber_loss(input_tensor, target_tensor):
+            c = 0.00054 * math.sqrt(math.prod(input_tensor.shape[1:]))
+            return torch.sqrt((input_tensor - target_tensor) ** 2 + c**2) - c
+
+        y_0 = cm_model.gt_image
+        y_cond = cm_model.cond_image
+        mask = cm_model.mask
+
+        self.dc_ae.to(y_0.device)
+        self.alg_diffusion_latent_mask = getattr(
+            cm_model.opt, "alg_diffusion_latent_mask", False
+        )
+
+        y_latent = self.dc_ae.encode(y_0.float()).latent
+        if y_cond is not None:
+            x_cond_latent = self.dc_ae.encode(y_cond.float()).latent
+        else:
+            x_cond_latent = None
+
+        mask_latent = self._resize_mask_to_latent(mask, y_latent) if mask is not None else None
+
+        mask_for_model = mask_latent if self.alg_diffusion_latent_mask else None
+
+        (
+            pred_latent,
+            target_latent,
+            num_timesteps,
+            sigmas,
+            loss_weights,
+            next_noisy_latent,
+            current_noisy_latent,
+        ) = self.model(
+            y_latent,
+            cm_model.total_t,
+            mask_for_model,
+            x_cond_latent,
+        )
+
+        if mask_latent is not None:
+            mask_latent = torch.clamp(mask_latent, min=0.0, max=1.0)
+            pred_for_loss = mask_latent * pred_latent
+            target_for_loss = mask_latent * target_latent
+        else:
+            pred_for_loss = pred_latent
+            target_for_loss = target_latent
+
+        loss = (
+            pseudo_huber_loss(pred_for_loss, target_for_loss) * loss_weights
+        ).mean()
+
+        cm_model.loss_G_tot = cm_model.opt.alg_diffusion_lambda_G * loss
+
+        pred_x = self.dc_ae.decode(pred_latent.clone()).sample
+
+        with torch.no_grad():
+            cm_model.next_noisy_x = self.dc_ae.decode(next_noisy_latent.clone()).sample
+            cm_model.current_noisy_x = self.dc_ae.decode(current_noisy_latent.clone()).sample
+
+        cm_model.pred_x = pred_x
+
+        if mask is not None:
+            mask_pred_x = mask * pred_x
+        else:
+            mask_pred_x = pred_x
+
+        cm_model.loss_G_perceptual_lpips = 0
+        cm_model.loss_G_perceptual_dists = 0
+        cm_model.loss_G_perceptual = 0
+
+        if "LPIPS" in cm_model.opt.alg_cm_perceptual_loss:
+            if pred_x.size(1) > 3:
+                cm_model.loss_G_perceptual_lpips = 0.0
+                for channel in range(mask_pred_x.size(1)):
+                    y_0_channel = y_0[:, channel, :, :].unsqueeze(1)
+                    pred_channel = mask_pred_x[:, channel, :, :].unsqueeze(1)
+                    cm_model.loss_G_perceptual_lpips += cm_model.criterionLPIPS(
+                        y_0_channel, pred_channel
+                    )
+            else:
+                cm_model.loss_G_perceptual_lpips = torch.mean(
+                    cm_model.criterionLPIPS(y_0, mask_pred_x)
+                )
+
+        if "DISTS" in cm_model.opt.alg_cm_perceptual_loss:
+            if pred_x.size(1) > 3:
+                cm_model.loss_G_perceptual_dists = 0.0
+                for channel in range(mask_pred_x.size(1)):
+                    y_0_channel = y_0[:, channel, :, :].unsqueeze(1)
+                    pred_channel = mask_pred_x[:, channel, :, :].unsqueeze(1)
+                    cm_model.loss_G_perceptual_dists += cm_model.criterionDISTS(
+                        y_0_channel, pred_channel
+                    )
+            else:
+                cm_model.loss_G_perceptual_dists = cm_model.criterionDISTS(
+                    y_0, mask_pred_x
+                )
+
+        if (
+            cm_model.loss_G_perceptual_lpips > 0
+            or cm_model.loss_G_perceptual_dists > 0
+        ):
+            cm_model.loss_G_perceptual = (
+                cm_model.opt.alg_cm_lambda_perceptual
+                * (cm_model.loss_G_perceptual_lpips + cm_model.loss_G_perceptual_dists)
+            )
+            cm_model.loss_G_tot += cm_model.loss_G_perceptual
+
+    def restoration_cm(
+        self,
+        y,
+        y_cond,
+        sigmas,
+        mask=None,
+        clip_denoised=True,
+        latent_mask=False,
+    ):
+        self.dc_ae.to(y.device)
+        self.alg_diffusion_latent_mask = latent_mask
+
+        y_latent = self.dc_ae.encode(y.float()).latent
+        if y_cond is not None:
+            x_cond_latent = self.dc_ae.encode(y_cond.float()).latent
+        else:
+            x_cond_latent = None
+
+        mask_latent = self._resize_mask_to_latent(mask, y_latent) if mask is not None else None
+
+        mask_for_model = mask_latent if self.alg_diffusion_latent_mask else None
+
+        latent_output = self.model.restoration(
+            y=y_latent,
+            y_cond=x_cond_latent,
+            sigmas=sigmas,
+            mask=mask_for_model,
+            clip_denoised=clip_denoised,
+        )
+
+        with torch.no_grad():
+            output = self.dc_ae.decode(latent_output).sample
+
+        if mask is not None:
+            mask = torch.clamp(mask, min=0.0, max=1.0)
+            output = output * mask + (1 - mask) * y
+
+        return output
+
     @property
     def beta_schedule(self):
         if hasattr(self.model, "denoise_fn"):  # DiffusionGenerator
@@ -214,6 +391,10 @@ class LatentWrapper(nn.Module):
             self.model.cm_model.beta_schedule = value
         else:
             self.model.beta_schedule = value
+
+    @property
+    def cm_model(self):
+        return getattr(self.model, "cm_model", None)
 
     def restoration(
         self,
@@ -234,8 +415,8 @@ class LatentWrapper(nn.Module):
         # if y_cond is not None and y_cond.dim() == 4:
         #    y_cond_to_encode = y_cond
         if mask is not None:
-            noise_for_mask = torch.randn_like(y_cond)
-            y_cond = y_cond * (1 - mask.float()) + noise_for_mask * mask.float()
+            #noise_for_mask = torch.randn_like(y_cond)
+            y_cond = y_cond * (1 - mask.float()) + 0.5 * mask.float()
         y_cond_latent = self.dc_ae.encode(y_cond).latent
         # else:
         #    y_cond_latent = y_cond
@@ -243,8 +424,8 @@ class LatentWrapper(nn.Module):
         # if y_t is not None and y_t.dim() == 4:
         y_t_to_encode = y_t
         if mask is not None:
-            noise_for_mask = torch.randn_like(y_t)
-            y_t_to_encode = y_t * (1 - mask.float()) + noise_for_mask * mask.float()
+            #noise_for_mask = torch.randn_like(y_t)
+            y_t_to_encode = y_t * (1 - mask.float()) + 0.5 * mask.float()
         y_t_latent = self.dc_ae.encode(y_t_to_encode).latent
         # else:
         #    y_t_latent = y_t
@@ -405,14 +586,18 @@ def define_G(
             is_pix2pix = is_pix2pix or (
                 alg_diffusion_cond_embed != "" and alg_diffusion_cond_embed != "y_t"
             )
-
-        if is_pix2pix:
-            in_channel = latent_dim * 2
-        else:
-            in_channel = (
-                latent_dim * 2
-            )  # conditioning (akin to input_nc + output_nc in latent space)
-
+            
+        if model_type == "palette":
+            if is_pix2pix:
+                in_channel = latent_dim * 2
+            else:
+                in_channel = (
+                    latent_dim * 2
+                )  # conditioning (akin to input_nc + output_nc in latent space)
+        elif model_type == "cm":
+            in_channel = latent_dim
+            ##TODO: pix2pix case
+                
         latent_model_output_nc = latent_dim
         latent_data_crop_size = data_crop_size // downsampling_factor
     else:
@@ -617,5 +802,7 @@ def define_G(
             finetune_decoder=alg_diffusion_finetune_decoder,
             dc_ae_scaling=alg_diffusion_latent_dc_ae_scaling,
         )
+        if model_type in {"cm", "cm_gan"} and hasattr(net, "current_t"):
+            net.current_t = getattr(net.model, "current_t", net.current_t)
 
     return net

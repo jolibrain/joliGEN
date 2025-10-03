@@ -312,6 +312,11 @@ class CMModel(BaseDiffusionModel):
         self.real_B = self.gt_image
 
     def compute_cm_loss(self):
+        netG = self.netG_A.module if hasattr(self.netG_A, "module") else self.netG_A
+        if isinstance(netG, diffusion_networks.LatentWrapper):
+            netG.compute_cm_loss(self)
+            return
+
         y_0 = self.gt_image  # ground truth
         y_cond = self.cond_image  # conditioning
         mask = self.mask
@@ -382,6 +387,8 @@ class CMModel(BaseDiffusionModel):
         if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = revert_sync_batchnorm(netG)
 
+        is_latent_wrapper = isinstance(netG, diffusion_networks.LatentWrapper)
+
         # XXX: inpainting only for now
         if self.mask is not None:
             mask = self.mask[:nb_imgs]
@@ -398,31 +405,45 @@ class CMModel(BaseDiffusionModel):
             self.task == "pix2pix"
         ):  # y_t must be of output channel size, since we do not have y_0 (gt), we get it from the model
             out_shape = list(y_cond.shape)
-            out_shape[1] = netG.cm_model.out_channel
+            target_cm_model = getattr(netG, "cm_model", None)
+            if target_cm_model is not None:
+                out_shape[1] = target_cm_model.out_channel
             y_t = torch.zeros(out_shape, device=y_cond.device, dtype=y_cond.dtype)
         else:  # e.g. inpainting
             y_t = self.y_t[:nb_imgs]
 
-        if self.task in ["inpainting"]:
-            if (
-                self.opt.alg_diffusion_cond_embed != ""
-                and self.opt.alg_diffusion_generate_per_class
-            ):
 
-                for i in range(self.nb_classes_inference):
-                    if "mask" in self.opt.alg_diffusion_cond_embed:
-                        cur_mask = self.mask[:nb_imgs].clone().clamp(min=0, max=1) * (
-                            i + 1
-                        )
-                    else:
-                        cur_mask = self.mask[:nb_imgs]
-                    self.output = netG.restoration(
-                        y_t, y_cond, sampling_sigmas, cur_mask
-                    )
-                    name = "output_" + str(i + 1)
-                    setattr(self, name, self.output)
-            else:
-                self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
+        # if self.task in ["inpainting"]:
+        #     if (
+        #         self.opt.alg_diffusion_cond_embed != ""
+        #         and self.opt.alg_diffusion_generate_per_class
+        #     ):
+
+        #         for i in range(self.nb_classes_inference):
+        #             if "mask" in self.opt.alg_diffusion_cond_embed:
+        #                 cur_mask = self.mask[:nb_imgs].clone().clamp(min=0, max=1) * (
+        #                     i + 1
+        #                 )
+        #             else:
+        #                 cur_mask = self.mask[:nb_imgs]
+        #             self.output = netG.restoration(
+        #                 y_t, y_cond, sampling_sigmas, cur_mask
+        #             )
+        #             name = "output_" + str(i + 1)
+        #             setattr(self, name, self.output)
+        #     else:
+        #         self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
+
+        if is_latent_wrapper:
+            self.output = netG.restoration_cm(
+                y=y_t,
+                y_cond=y_cond,
+                sigmas=sampling_sigmas,
+                mask=mask,
+                latent_mask=self.opt.alg_diffusion_latent_mask,
+            )
+        else:
+            self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
 
         self.fake_B = self.output
         self.visuals = self.output
