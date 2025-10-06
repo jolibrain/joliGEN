@@ -392,6 +392,14 @@ class CommonOptions(BaseOptions):
             type=int,
             help="Patch size for HDIT, e.g. 4 for 4x4 patches",
         )
+
+        parser.add_argument(
+            "--G_hdit_window_size",
+            default=8,
+            type=int,
+            help="Window size for HDIT, e.g. 2 for latent",
+        )
+
         parser.add_argument(
             "--G_unet_vid_max_sequence_length",
             default=25,
