@@ -48,6 +48,7 @@ from . import base_networks, semantic_networks
 from .modules import loss
 from .modules.utils import get_scheduler
 from .modules.sam.sam_inference import predict_sam
+from .modules.diffusion_utils import rearrange_5dto4d_bf
 
 
 class BaseModel(ABC):
@@ -1633,9 +1634,7 @@ class BaseModel(ABC):
         real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
         if len(real_tensor.shape) == 5:  # temporal
-            real_tensor = real_tensor[:, 1]
-            fake_tensor = fake_tensor[:, 1]
-
+            real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
         else:
@@ -1648,8 +1647,7 @@ class BaseModel(ABC):
             real_tensor = torch.cat(real_list)
             fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)
             if len(real_tensor.shape) == 5:  # temporal
-                real_tensor = real_tensor[:, 1]
-                fake_tensor = fake_tensor[:, 1]
+                real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
                 lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
             elif real_tensor.shape[1] > 3:  # 3+ channels
                 real_tensor_3c = real_tensor[:, :-1, :, :]
