@@ -49,6 +49,7 @@ from .modules import loss
 from .modules.utils import get_scheduler
 from .modules.sam.sam_inference import predict_sam
 from .modules.diffusion_utils import rearrange_5dto4d_bf
+import logging
 
 
 class BaseModel(ABC):
@@ -1637,6 +1638,24 @@ class BaseModel(ABC):
             real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
+            if self.opt.alg_palette_metric_mask:
+                logging.warning(
+                    "LPIPS metric is not supported when using a dilated mask zone."
+                )
+                psnr_sum, ssim_sum, n = 0.0, 0.0, 0
+                for fake_seq, gt_seq in zip(self.fake_B_dilated, self.gt_image_dilated):
+                    for fake, gt in zip(fake_seq, gt_seq):
+                        if fake.shape != gt.shape:
+                            print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
+                            continue
+                        fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
+                        gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
+
+                        psnr_sum += psnr(fake, gt, data_range=1.0).item()
+                        ssim_sum += ssim(fake, gt).item()
+                        n += 1
+                psnr_test = psnr_sum / n if n else 0
+                ssim_test = ssim_sum / n if n else 0
         else:
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
