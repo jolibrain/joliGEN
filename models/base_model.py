@@ -1638,7 +1638,10 @@ class BaseModel(ABC):
             real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
-            if self.opt.alg_palette_metric_mask:
+            if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
+                self.opt, "alg_cm_metric_mask", False
+            ):
+                # if self.opt.alg_palette_metric_mask or self.opt.alg_cm_metric_mask:
                 logging.warning(
                     "LPIPS metric is not supported when using a dilated mask zone."
                 )
@@ -1656,6 +1659,7 @@ class BaseModel(ABC):
                         n += 1
                 psnr_test = psnr_sum / n if n else 0
                 ssim_test = ssim_sum / n if n else 0
+
         else:
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)

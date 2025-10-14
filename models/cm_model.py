@@ -19,6 +19,8 @@ from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
 
 from piq import DISTS, LPIPS
+from torchvision.ops import masks_to_boxes
+import torch.nn.functional as F
 
 
 def pseudo_huber_loss(input, target):
@@ -81,6 +83,12 @@ class CMModel(BaseDiffusionModel):
             nargs="*",
             type=float,
             help="std for DISTS perceptual loss",
+        )
+
+        parser.add_argument(
+            "--alg_cm_metric_mask",
+            action="store_true",
+            help="Evaluate the metric PSNR and SSIM on the dilated mask region instead of the cropped image.",
         )
 
         if is_train:
@@ -423,6 +431,43 @@ class CMModel(BaseDiffusionModel):
                     setattr(self, name, self.output)
             else:
                 self.output = netG.restoration(y_t, y_cond, sampling_sigmas, mask)
+                if self.opt.G_netG == "unet_vid" and self.opt.alg_cm_metric_mask:
+                    B, T, C, H, W = mask.shape
+                    (mask_4d,) = rearrange_5dto4d_bf(mask)
+                    dilation = 3
+                    dilated_mask_4d = F.max_pool2d(
+                        mask_4d.float(),
+                        kernel_size=2 * dilation + 1,
+                        stride=1,
+                        padding=dilation,
+                    )
+                    dilated_mask_4d = (dilated_mask_4d > 0.5).float()
+                    (dilated_mask,) = rearrange_4dto5d_bf(T, dilated_mask_4d)
+                    dilated_mask_expanded = dilated_mask.expand_as(self.output)
+                    self.fake_B_dilated = self.output * dilated_mask_expanded
+                    self.gt_image_dilated = self.gt_image * dilated_mask_expanded
+                    B, T, _, H, W = dilated_mask.shape
+                    boxes = masks_to_boxes(dilated_mask.view(-1, H, W)).int()
+                    fake_crops = [
+                        [
+                            self.fake_B_dilated[b, t, :, y0:y1, x0:x1]
+                            for t, (x0, y0, x1, y1) in enumerate(
+                                boxes[b * T : (b + 1) * T]
+                            )
+                        ]
+                        for b in range(B)
+                    ]
+                    gt_crops = [
+                        [
+                            self.gt_image_dilated[b, t, :, y0:y1, x0:x1]
+                            for t, (x0, y0, x1, y1) in enumerate(
+                                boxes[b * T : (b + 1) * T]
+                            )
+                        ]
+                        for b in range(B)
+                    ]
+                    self.fake_B_dilated = fake_crops
+                    self.gt_image_dilated = gt_crops
 
         self.fake_B = self.output
         self.visuals = self.output
