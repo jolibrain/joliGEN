@@ -171,6 +171,7 @@ Here are all the available options to call with `train.py`
 | --alg_palette_ddim_eta | float | 0.5 | eta for ddim sampling variance |
 | --alg_palette_ddim_num_steps | int | 10 | number of steps for ddim sampling |
 | --alg_palette_loss | string | MSE | loss type of the denoising model<br/><br/> **Values:** L1, MSE, multiscale_L1, multiscale_MSE |
+| --alg_palette_metric_mask | flag |  | Evaluate the metric PSNR and SSIM on the dilated mask region instead of the cropped image. |
 | --alg_palette_minsnr | flag |  | use min-SNR weighting |
 | --alg_palette_sampling_method | string | ddpm | choose the sampling method between ddpm and ddim<br/><br/> **Values:** ddpm, ddim |
 | --alg_palette_sampling_method_test | string | ddpm | Sampling method to use during the test phase in training. Equivalent to 'sampling_method' in inference. |
