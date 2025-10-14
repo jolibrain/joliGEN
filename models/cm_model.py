@@ -83,6 +83,12 @@ class CMModel(BaseDiffusionModel):
             help="std for DISTS perceptual loss",
         )
 
+        parser.add_argument(
+            "--alg_cm_autoregressive",
+            action="store_true",
+            help="Autoregressive training: each batch is either all noisy image or one full image with others black.",
+        )
+
         if is_train:
             parser = CMModel.modify_commandline_options_train(parser)
 
@@ -305,6 +311,14 @@ class CMModel(BaseDiffusionModel):
             self.cond_image = self.y_t
         else:  # y_t
             self.cond_image = None
+            if self.opt.alg_cm_autoregressive and self.opt.G_netG == "unet_vid":
+                B, T = self.y_t.size(0), self.y_t.size(1)
+                use_gt = torch.rand(B, device=self.device) < 0.07
+                idx = torch.randint(0, T, (B,), device=self.device)
+                batch_idx = torch.arange(B, device=self.device)
+                yt_image_mix = self.y_t.clone()
+                yt_image_mix[use_gt, idx[use_gt]] = self.gt_image[use_gt, idx[use_gt]]
+                self.y_t = yt_image_mix
 
         self.batch_size = self.y_t.shape[0]
 
