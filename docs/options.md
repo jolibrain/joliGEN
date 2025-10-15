@@ -83,6 +83,7 @@ Here are all the available options to call with `train.py`
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
 | --alg_cm_dists_std | array | [0.229, 0.224, 0.225] | std for DISTS perceptual loss |
 | --alg_cm_lambda_perceptual | float | 1.0 | weight for LPIPS and DISTS perceptual losses |
+| --alg_cm_metric_mask | flag |  | Evaluate the metric PSNR and SSIM on the dilated mask region instead of the cropped image. |
 | --alg_cm_num_steps | int | 1000000 | number of steps before reaching the fully discretized consistency model sampling schedule |
 | --alg_cm_perceptual_loss | array | [''] | optional supervised perceptual loss<br/><br/> **Values:** , LPIPS, DISTS |
 | --alg_diffusion_cond_computed_sketch_list | array | ['canny', 'hed'] | what primitives to use for random sketch |
