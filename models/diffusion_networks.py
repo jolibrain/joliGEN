@@ -317,6 +317,7 @@ class LatentWrapper(nn.Module):
 
         if mask is not None:
             mask_pred_x = mask * pred_x
+            #mask_y0 = mask * y_0
         else:
             mask_pred_x = pred_x
 
