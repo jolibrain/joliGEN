@@ -375,13 +375,40 @@ class PaletteModel(BaseDiffusionModel):
         if self.opt.alg_diffusion_cond_image_creation == "y_t":
             self.cond_image = self.y_t
             if self.opt.alg_palette_autoregressive and self.opt.G_netG == "unet_vid":
-                B, T = self.cond_image.size(0), self.cond_image.size(1)
-                use_gt = torch.rand(B, device=self.device) < 0.07
-                idx = torch.randint(0, T, (B,), device=self.device)
-                batch_idx = torch.arange(B, device=self.device)
-                cond_image_mix = self.cond_image.clone()
-                cond_image_mix[use_gt, idx[use_gt]] = self.gt_image[use_gt, idx[use_gt]]
-                self.cond_image = cond_image_mix
+                if (
+                    self.opt.alg_palette_autoregressive
+                    and self.opt.G_netG == "unet_vid"
+                ):
+                    B, T, C, H, W = self.cond_image.shape
+                    k_ctx = T // 2
+                    if k_ctx > 0:
+                        # Sample ONE noise level per sequence (applies to all context frames)
+                        num_buckets = 10
+                        max_sigma = 0.7
+                        bucket_idx = torch.randint(
+                            0, num_buckets, (B,), device=self.device
+                        )
+                        sigma_values = (
+                            bucket_idx.float() / (num_buckets - 1) * max_sigma
+                        )
+                        sigma = sigma_values.view(B, 1, 1, 1)
+                        eps_ctx = torch.randn(B, 1, C, H, W, device=self.device).expand(
+                            B, k_ctx, C, H, W
+                        )
+
+                        noise_prob = 0.9
+                        if torch.rand(1).item() < noise_prob:
+                            gt_ctx = self.gt_image[:, :k_ctx]
+                            mask_ctx = self.mask[:, :k_ctx]
+                            mask_ctx = mask_ctx > 0.5
+                            mask_ctx = mask_ctx.expand(-1, -1, gt_ctx.shape[2], -1, -1)
+                            noise = sigma.unsqueeze(1) * eps_ctx
+                            noisy_gt_ctx = gt_ctx + noise * mask_ctx
+                            cond_image_mix = self.cond_image.clone()
+                            cond_image_mix[:, :k_ctx] = noisy_gt_ctx
+                            self.cond_image = cond_image_mix
+                    else:
+                        pass
 
         elif self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             cond_image_list = []
