@@ -209,17 +209,25 @@ def skip_scaling(
 
 
 class NoiseLevelEmbedding(nn.Module):
-    def __init__(self, channels: int, scale: float = 0.02) -> None:
+    def __init__(self, channels: int, opt, scale: float = 0.02) -> None:
+
         super().__init__()
 
         self.W = nn.Parameter(torch.randn(channels // 2) * scale, requires_grad=False)
-
-        self.projection = nn.Sequential(
-            nn.Linear(channels, 4 * channels),
-            nn.SiLU(),
-            nn.Linear(4 * channels, channels),
-            Rearrange("b c -> b c () ()"),
-        )
+        if getattr(opt, "alg_diffusion_ddpm_cm_ft", False):
+            self.projection = nn.Sequential(
+                nn.Linear(channels, channels),
+                nn.SiLU(),
+                nn.Linear(channels, channels),
+                Rearrange("b c -> b c () ()"),
+            )
+        else:
+            self.projection = nn.Sequential(
+                nn.Linear(channels, 4 * channels),
+                nn.SiLU(),
+                nn.Linear(4 * channels, channels),
+                Rearrange("b c -> b c () ()"),
+            )
 
     def forward(self, x: Tensor) -> Tensor:
         h = x[:, None] * self.W[None, :] * 2 * torch.pi
@@ -235,12 +243,14 @@ class CMGenerator(nn.Module):
         sampling_method,
         image_size,
         G_ngf,
+        opt=None,
     ):
         super().__init__()
 
         self.cm_model = cm_model
         self.sampling_method = sampling_method
         self.image_size = image_size
+        self.opt = opt
 
         self.sigma_min = 0.002
         self.sigma_max = 80.0
@@ -254,7 +264,7 @@ class CMGenerator(nn.Module):
         self.lognormal_std = 2.0
 
         self.cond_embed_dim = self.cm_model.cond_embed_dim
-        self.cm_cond_embed = NoiseLevelEmbedding(self.cond_embed_dim)
+        self.cm_cond_embed = NoiseLevelEmbedding(self.cond_embed_dim, self.opt)
 
         self.current_t = 2  # default value, set from cm_model upon resume
 
@@ -273,7 +283,13 @@ class CMGenerator(nn.Module):
             else:
                 x_with_cond = torch.cat([x_cond, x], dim=2)
         else:
-            x_with_cond = x
+            if len(x.shape) != 5:
+                x_with_cond = x
+            elif self.opt.G_netG == "unet_vid" and self.opt.alg_diffusion_ddpm_cm_ft:
+                x_with_cond = torch.cat([x, x], dim=2)
+            else:
+                x_with_cond = x
+
         return c_skip * x + c_out * self.cm_model(
             x_with_cond, embed_noise_level
         )  # , **kwargs)

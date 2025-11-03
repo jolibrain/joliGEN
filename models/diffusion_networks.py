@@ -55,6 +55,7 @@ def define_G(
     alg_diffusion_cond_embed,
     alg_diffusion_cond_embed_dim,
     alg_diffusion_ref_embed_net,
+    alg_diffusion_ddpm_cm_ft,
     model_prior_321_backwardcompatibility,
     dropout=0,
     channel_mults=(1, 2, 4, 8),
@@ -67,6 +68,7 @@ def define_G(
     use_new_attention_order=False,
     f_s_semantic_nclasses=-1,
     train_feat_wavelet=False,
+    opt=None,
     **unused_options,
 ):
     """Create a generator
@@ -95,7 +97,10 @@ def define_G(
     if model_type == "palette":
         in_channel = model_input_nc + model_output_nc
     else:  # CM
-        in_channel = model_input_nc
+        if alg_diffusion_ddpm_cm_ft:
+            in_channel = model_input_nc + model_output_nc
+        else:
+            in_channel = model_input_nc
         if (
             alg_diffusion_cond_embed != "" and alg_diffusion_cond_embed != "y_t"
         ) or alg_diffusion_task == "pix2pix":
@@ -270,6 +275,7 @@ def define_G(
             sampling_method="",
             image_size=data_crop_size,
             G_ngf=G_ngf,
+            opt=opt,
         )
     else:
         raise NotImplementedError(model_type + " not implemented")

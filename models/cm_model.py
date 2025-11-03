@@ -168,8 +168,11 @@ class CMModel(BaseDiffusionModel):
         # Define network
         opt.alg_palette_sampling_method = ""
         opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
-        opt.alg_diffusion_cond_embed_dim = 256
-        self.netG_A = diffusion_networks.define_G(**vars(opt)).to(self.device)
+        if opt.alg_diffusion_ddpm_cm_ft and self.opt.G_netG == "unet_vid":
+            opt.alg_diffusion_cond_embed_dim = 32
+        else:
+            opt.alg_diffusion_cond_embed_dim = 256
+        self.netG_A = diffusion_networks.define_G(opt=opt, **vars(opt)).to(self.device)
         if opt.isTrain:
             self.netG_A.current_t = max(self.netG_A.current_t, opt.total_iters)
         else:
