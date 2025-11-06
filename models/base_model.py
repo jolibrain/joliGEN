@@ -969,32 +969,80 @@ class BaseModel(ABC):
                             state_dict[new_key] = state_dict[key].clone()
                             del state_dict[key]
 
-                state1 = list(state_dict.keys())
-                state2 = list(net.state_dict().keys())
-                state1.sort()
-                state2.sort()
+                if getattr(self.opt, "alg_diffusion_ddpm_cm_ft", False):
+                    model_dict = net.state_dict()
+                    filtered = {}
 
-                for key1, key2 in zip(state1, state2):
-                    if key1 != key2:
-                        print(key1 == key2, key1, key2)
+                    for k, v in state_dict.items():
+                        if "denoise_fn.model.cond_embed" in k:
+                            new_k = k.replace(
+                                "denoise_fn.model.cond_embed",
+                                "cm_cond_embed.projection",
+                            )
+                        elif k.startswith("cond_embed."):
+                            new_k = k.replace("cond_embed", "cm_cond_embed.projection")
+                        elif "denoise_fn.model." in k:
+                            new_k = k.replace("denoise_fn.model.", "cm_model.")
+                        else:
+                            new_k = k
 
-                if hasattr(state_dict, "_ema"):
-                    net.load_state_dict(
-                        state_dict["_ema"], strict=self.opt.model_load_no_strictness
+                        if new_k in model_dict and v.shape == model_dict[new_k].shape:
+                            filtered[new_k] = v
+                        else:
+                            if "cond_embed" in k:
+                                print(f"⚠️ unmatched cond_embed key {k} → {new_k}")
+                            else:
+                                print(
+                                    f"⚠️ skipping {new_k}: shape {v.shape if hasattr(v, 'shape') else 'N/A'}"
+                                )
+
+                    missing = set(model_dict.keys()) - set(filtered.keys())
+                    extra = set(state_dict.keys()) - set(model_dict.keys())
+
+                    print(
+                        f"Loaded {len(filtered)}/{len(model_dict)} params; {len(missing)} missing.",
+                        flush=True,
                     )
+
+                    if missing:
+                        print("\n⚠️ Missing keys:")
+                        for k in sorted(missing):
+                            print("   ", k)
+
+                    net.load_state_dict(filtered, strict=False)
+
+                    print(
+                        "✅ Loaded pretrained DDPM weights (with partial embedding transfer).",
+                        flush=True,
+                    )
+
                 else:
-                    if (
-                        name == "G_A"
-                        and hasattr(net, "unet")
-                        and hasattr(net, "vae")
-                        and any("lora" in n for n, _ in net.unet.named_parameters())
-                    ):
-                        net.load_lora_config(load_path)
-                        print("loading the lora")
-                    else:
+                    state1 = list(state_dict.keys())
+                    state2 = list(net.state_dict().keys())
+                    state1.sort()
+                    state2.sort()
+
+                    for key1, key2 in zip(state1, state2):
+                        if key1 != key2:
+                            print(key1 == key2, key1, key2)
+
+                    if hasattr(state_dict, "_ema"):
                         net.load_state_dict(
-                            state_dict, strict=self.opt.model_load_no_strictness
+                            state_dict["_ema"], strict=self.opt.model_load_no_strictness
                         )
+                    else:
+                        if (
+                            name == "G_A"
+                            and hasattr(net, "unet")
+                            and hasattr(net, "vae")
+                            and any("lora" in n for n, _ in net.unet.named_parameters())
+                        ):
+                            net.load_lora_config(load_path)
+                            print("loading the lora")
+                        else:
+                            net.load_state_dict(
+                                state_dict, strict=self.opt.model_load_no_strictness
+                            )
 
     def get_nets(self):
         return_nets = {}

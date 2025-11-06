@@ -218,6 +218,12 @@ class BaseDiffusionModel(BaseModel):
             nargs="+",
             help="the range of probabilities for dropping the canny for each frame",
         )
+        parser.add_argument(
+            "--alg_diffusion_ddpm_cm_ft",
+            action="store_true",
+            default=False,
+            help="whether to apply consistency model finetuning from pretrained DDPM",
+        )
 
         return parser
 
