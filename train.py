@@ -139,6 +139,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     if opt.train_continue:
         opt.train_epoch_count = visualizer.load_data()
         opt.total_iters = opt.train_epoch_count * trainset_size
+    # opt.total_iters = 0
+    print("total_iters ", opt.total_iters)
     opt.optim = optim  # set optimizer
     model = create_model(opt, rank)  # create a model given opt.model and other options
 
@@ -217,6 +219,11 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             batch_size = model.get_current_batch_size() * len(opt.gpu_ids)
             opt.total_iters += batch_size
             epoch_iter += batch_size
+            print(
+                "epoch_iter in train and option total iter ",
+                epoch_iter,
+                opt.total_iters,
+            )
 
             if (
                 opt.total_iters % opt.output_print_freq < batch_size

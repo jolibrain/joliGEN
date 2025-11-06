@@ -13,6 +13,7 @@ from .modules.hdit.hdit import HDiT, HDiTConfig
 
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
+from .modules.ect_generator import ECTGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 
 
@@ -95,7 +96,8 @@ def define_G(
     if model_type == "palette":
         in_channel = model_input_nc + model_output_nc
     else:  # CM
-        in_channel = model_input_nc
+        # in_channel = model_input_nc
+        in_channel = model_input_nc + model_output_nc
         if (
             alg_diffusion_cond_embed != "" and alg_diffusion_cond_embed != "y_t"
         ) or alg_diffusion_task == "pix2pix":
@@ -267,6 +269,13 @@ def define_G(
     elif model_type == "cm" or model_type == "cm_gan":
         net = CMGenerator(
             cm_model=model,
+            sampling_method="",
+            image_size=data_crop_size,
+            G_ngf=G_ngf,
+        )
+    elif model_type == "ect":
+        net = ECTGenerator(
+            ect_model=model,
             sampling_method="",
             image_size=data_crop_size,
             G_ngf=G_ngf,
