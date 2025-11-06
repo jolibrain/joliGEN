@@ -256,7 +256,7 @@ class CMGenerator(nn.Module):
         self.cond_embed_dim = self.cm_model.cond_embed_dim
         self.cm_cond_embed = NoiseLevelEmbedding(self.cond_embed_dim)
 
-        self.current_t = 2  # default value, set from cm_model upon resume
+        self.current_t = 0  # default value, set from cm_model upon resume
 
     def cm_forward(self, x, sigma, sigma_data, sigma_min, x_cond=None):
         c_skip = skip_scaling(sigma, sigma_data, sigma_min)
@@ -273,7 +273,10 @@ class CMGenerator(nn.Module):
             else:
                 x_with_cond = torch.cat([x_cond, x], dim=2)
         else:
-            x_with_cond = x
+            if len(x.shape) != 5:
+                x_with_cond = x
+            else:
+                 x_with_cond = torch.cat([x, x], dim=2)
         return c_skip * x + c_out * self.cm_model(
             x_with_cond, embed_noise_level
         )  # , **kwargs)
@@ -281,7 +284,7 @@ class CMGenerator(nn.Module):
     def forward(
         self,
         x,
-        total_training_steps=50000,
+        total_training_steps=500000,
         mask=None,
         x_cond=None,
     ):
@@ -291,6 +294,7 @@ class CMGenerator(nn.Module):
             self.initial_timesteps,
             self.final_timesteps,
         )
+        print("self.current_t ", self.current_t  )
         sigmas = karras_schedule(
             num_timesteps, self.sigma_min, self.sigma_max, self.rho, x.device
         )
