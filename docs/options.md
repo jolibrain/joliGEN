@@ -103,6 +103,7 @@ Here are all the available options to call with `train.py`
 | --alg_diffusion_cond_sam_sobel_threshold | float | 0.7 | sobel threshold in %% of gradient magnitude |
 | --alg_diffusion_cond_sam_use_gaussian_filter | flag |  | whether to apply a Gaussian blur to each SAM masks |
 | --alg_diffusion_cond_sketch_canny_range | array | [0, 765] | range of randomized canny sketch thresholds |
+| --alg_diffusion_ddpm_cm_ft | flag |  | whether to apply consistency model finetuning from pretrained DDPM |
 | --alg_diffusion_dropout_prob | float | 0.0 | dropout probability for classifier-free guidance |
 | --alg_diffusion_generate_per_class | flag |  | whether to generate samples of each images |
 | --alg_diffusion_lambda_G | float | 1.0 | weight for supervised loss |
