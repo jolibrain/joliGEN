@@ -13,6 +13,7 @@ from .modules.hdit.hdit import HDiT, HDiTConfig
 
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
+from .modules.sc_generator import SCGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 
 
@@ -271,6 +272,17 @@ def define_G(
             image_size=data_crop_size,
             G_ngf=G_ngf,
         )
+    elif model_type == "sc":
+        net = SCGenerator(
+            sc_model=model,
+            sampling_method="",
+            image_size=data_crop_size,
+            G_ngf=G_ngf,
+            num_timesteps=128,
+            bootstrap_ratio=0.25,
+            force_dt=-1.0,
+        )
+
     else:
         raise NotImplementedError(model_type + " not implemented")
 
