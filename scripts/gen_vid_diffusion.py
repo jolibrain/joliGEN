@@ -81,7 +81,7 @@ def load_model(
         opt.data_online_creation_mask_random_offset_A = [0.0]
 
     opt.model_prior_321_backwardcompatibility = model_prior_321_backwardcompatibility
-    if opt.model_type in ["cm", "cm_gan"]:
+    if opt.model_type in ["cm", "cm_gan", "sc"]:
         opt.alg_palette_sampling_method = sampling_method
         opt.alg_diffusion_cond_embed_dim = 256
         if (
@@ -178,6 +178,8 @@ def generate(
     img_in,
     mask_in,
     vid_frame_extension_number,
+    alg_sc_denoise_inferstep,
+    vid_fps,
     ref_in,
     bbox_in,
     cond_in,
@@ -270,6 +272,7 @@ def generate(
         - opt.data_temporal_number_frames
         - vid_frame_extension_number,
     )
+    # startframe = 66
     limited_image_bbox_pairs = image_bbox_pairs[
         startframe : startframe
         + opt.data_temporal_number_frames
@@ -745,8 +748,11 @@ def generate(
             )
         elif opt.model_type == "cm" or opt.model_type == "cm_gan":
             sampling_sigmas = (80.0, 24.4, 5.84, 0.9, 0.661)
-
-            out_tensor = model.restoration(y_t, cond_image, sampling_sigmas, mask)
+        elif opt.model_type == "sc":
+            print(" sc restoration ", alg_sc_denoise_inferstep)
+            out_tensor = model.restoration(
+                y_t, cond_image, alg_sc_denoise_inferstep, mask
+            )
 
         # XXX: !=8bit images are converted to 8bit RGB for now
         out_tensor = out_tensor.squeeze(0)  # since batchsize is 1 with form [b,f,c,h,w]
@@ -912,7 +918,7 @@ def extract_number(filename):
     return int(m.group(1)) if m else -1
 
 
-def img2video(args, fps=1, ext=".avi", fourcc="MJPG"):
+def img2video(args, fps=17, ext=".avi", fourcc="MJPG"):
     image_folder = args.dir_out
     video_base_name = "video"
 
@@ -937,7 +943,7 @@ def img2video(args, fps=1, ext=".avi", fourcc="MJPG"):
         # setup AVI writer
         out_name = f"{video_base_name}_{suffix}{ext}"
         out_path = os.path.join(image_folder, out_name)
-        vw = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*fourcc), fps, (W, H))
+        vw = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*fourcc), 17, (W, H))
 
         for fname in files:
             frame = cv2.imread(os.path.join(image_folder, fname))
