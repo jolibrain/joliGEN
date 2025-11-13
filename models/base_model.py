@@ -864,6 +864,7 @@ class BaseModel(ABC):
                     "palette",
                     "cm",
                     "cm_gan",
+                    "sc",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
