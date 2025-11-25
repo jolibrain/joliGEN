@@ -1011,11 +1011,6 @@ class BaseModel(ABC):
 
                     net.load_state_dict(filtered, strict=False)
 
-                    print(
-                        "✅ Loaded pretrained DDPM weights (with partial embedding transfer).",
-                        flush=True,
-                    )
-
                 else:
                     state1 = list(state_dict.keys())
                     state2 = list(net.state_dict().keys())

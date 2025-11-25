@@ -21,6 +21,7 @@ from .base_diffusion_model import BaseDiffusionModel
 from piq import DISTS, LPIPS
 from torchvision.ops import masks_to_boxes
 import torch.nn.functional as F
+import time
 
 
 def pseudo_huber_loss(input, target):
@@ -90,6 +91,13 @@ class CMModel(BaseDiffusionModel):
             action="store_true",
             help="Evaluate the metric PSNR and SSIM on the dilated mask region instead of the cropped image.",
         )
+        parser.add_argument(
+            "--alg_ddpm_ft_mode",
+            type=str,
+            default="cm",
+            choices=["cm", "ect"],
+            help="Fine-tuning mode for pretrained DDPM: 'cm' (consistency model) or 'ect' (easy consistency tuning).",
+        )
 
         if is_train:
             parser = CMModel.modify_commandline_options_train(parser)
@@ -108,6 +116,8 @@ class CMModel(BaseDiffusionModel):
         super().__init__(opt, rank)
 
         self.task = self.opt.alg_diffusion_task
+        self.ft_mode = self.opt.alg_ddpm_ft_mode
+        self.c = 0.000001
 
         if opt.isTrain:
             batch_size = self.opt.train_batch_size
@@ -128,13 +138,22 @@ class CMModel(BaseDiffusionModel):
 
         # Visuals
         visual_outputs = []
-        self.gen_visual_names = [
-            "gt_image_",
-            "y_t_",
-            "next_noisy_x_",
-            "current_noisy_x_",
-            "mask_",
-        ]
+        if self.ft_mode == "ect":
+            self.gen_visual_names = [
+                "gt_image_",
+                "y_t_",
+                "t_noisy_x_",
+                "r_noisy_x_",
+                "mask_",
+            ]
+        else:
+            self.gen_visual_names = [
+                "gt_image_",
+                "y_t_",
+                "next_noisy_x_",
+                "current_noisy_x_",
+                "mask_",
+            ]
 
         if (
             self.opt.alg_diffusion_cond_embed != ""
@@ -206,10 +225,11 @@ class CMModel(BaseDiffusionModel):
 
         losses_backward = ["loss_G_tot"]
 
+        backward_fn = "compute_ect_loss" if self.ft_mode == "ect" else "compute_cm_loss"
         self.group_G = NetworkGroup(
             networks_to_optimize=G_models,
             forward_functions=[],
-            backward_functions=["compute_cm_loss"],
+            backward_functions=[backward_fn],
             loss_names_list=["loss_names_G"],
             optimizer=["optimizer_G"],
             loss_backward=losses_backward,
@@ -233,6 +253,14 @@ class CMModel(BaseDiffusionModel):
             self.criterionDISTS = DISTS(
                 mean=self.opt.alg_cm_dists_mean, std=self.opt.alg_cm_dists_std
             ).to(self.device)
+
+        # tick counters (ECT only)
+        if self.ft_mode == "ect":
+            self.cur_tick = 0
+            self.cur_nimg = 0
+            self.tick_start_nimg = 0
+            self.kimg_per_tick = 50
+            self.tick_start_time = time.time()
 
     def set_input(self, data):
         if (
@@ -382,6 +410,99 @@ class CMModel(BaseDiffusionModel):
                 self.loss_G_perceptual_lpips + self.loss_G_perceptual_dists
             )
             self.loss_G_tot += self.loss_G_perceptual
+
+    def compute_ect_loss(self):
+        y_0 = self.gt_image  # ground truth
+        y_cond = self.cond_image  # conditioning
+        mask = self.mask
+
+        (
+            self.pred_x,  # D_yt
+            target_x,  # D_yr
+            self.t_noisy_x,
+            self.r_noisy_x,
+            t,
+            r,
+        ) = self.netG_A(y_0, self.total_t, mask, y_cond)
+
+        if mask is not None:
+            mask_pred_x = mask * self.pred_x
+            mask_target_x = mask * target_x
+        else:
+            mask_pred_x = self.pred_x
+            mask_target_x = target_x
+
+        loss = (mask_pred_x - mask_target_x) ** 2
+        loss = torch.sum(loss.reshape(loss.shape[0], -1), dim=-1)
+
+        if self.c > 0:
+            loss = torch.sqrt(loss + self.c**2) - self.c
+        else:
+            loss = torch.sqrt(loss)
+
+        loss = loss / (t - r).flatten()
+
+        self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
+
+        # perceptual losses, if any
+        if "LPIPS" in self.opt.alg_cm_perceptual_loss:
+            if mask_pred_x.size(1) > 3:  # more than 3 channels
+                self.loss_G_perceptual_lpips = 0.0
+                for c in range(4):  # per channel loss and sum
+                    y_0_Bc = y_0[:, c, :, :].unsqueeze(1)
+                    mask_pred_Bc = mask_pred_x[:, c, :, :].unsqueeze(1)
+                    self.loss_G_perceptual_lpips += self.criterionLPIPS(
+                        y_0_Bc, mask_pred_Bc
+                    )
+            else:
+                self.loss_G_perceptual_lpips = torch.mean(
+                    self.criterionLPIPS(y_0, mask_pred_x)
+                )
+        else:
+            self.loss_G_perceptual_lpips = 0
+        if "DISTS" in self.opt.alg_cm_perceptual_loss:
+            if mask_pred_x.size(1) > 3:  # more than 3 channels
+                self.loss_G_perceptual_dists = 0.0
+                for c in range(4):  # per channel loss and sum
+                    y_0_Bc = y_0[:, c, :, :].unsqueeze(1)
+                    mask_pred_Bc = mask_pred_x[:, c, :, :].unsqueeze(1)
+                    self.loss_G_perceptual_dists += self.criterionDISTS(
+                        y_0_Bc, mask_pred_Bc
+                    )
+            else:
+                self.loss_G_perceptual_dists = self.criterionDISTS(y_0, mask_pred_x)
+        else:
+            self.loss_G_perceptual_dists = 0
+
+        if self.loss_G_perceptual_lpips > 0 or self.loss_G_perceptual_dists > 0:
+            self.loss_G_perceptual = self.opt.alg_cm_lambda_perceptual * (
+                self.loss_G_perceptual_lpips + self.loss_G_perceptual_dists
+            )
+            self.loss_G_tot += self.loss_G_perceptual
+
+        # -------------------------------------
+        # Update internal tick / stage schedule
+        # -------------------------------------
+        batch_size = y_0.size(0)
+        self.cur_nimg += batch_size
+
+        # Check if one tick (50k images) passed
+        if self.cur_nimg >= self.tick_start_nimg + self.kimg_per_tick * 1000:
+            self.cur_tick += 1
+            elapsed = time.time() - self.tick_start_time
+            print(
+                f"[ECTModel] Tick {self.cur_tick} reached at {self.cur_nimg/1000:.1f} kimg (elapsed {elapsed:.1f}s)"
+            )
+            self.tick_start_nimg = self.cur_nimg
+            self.tick_start_time = time.time()
+
+            # Tell the generator to update its stage (matches ECM)
+            if hasattr(self.netG_A, "update_stage"):
+                self.netG_A.update_stage(self.cur_tick)
+            elif hasattr(self.netG_A, "module") and hasattr(
+                self.netG_A.module, "update_stage"
+            ):
+                self.netG_A.module.update_stage(self.cur_tick)
 
     def inference(self, nb_imgs, offset=0):
 
