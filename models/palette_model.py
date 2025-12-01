@@ -759,50 +759,81 @@ class PaletteModel(BaseDiffusionModel):
                     ddim_eta=self.ddim_eta,
                 )
                 ## dilated_mask metric
-                if self.opt.G_netG == "unet_vid" and self.opt.alg_palette_metric_mask:
-                    B, T, C, H, W = mask.shape
-                    (mask_4d,) = rearrange_5dto4d_bf(mask)
-                    dilation = 3
-                    dilated_mask_4d = F.max_pool2d(
-                        mask_4d.float(),
-                        kernel_size=2 * dilation + 1,
-                        stride=1,
-                        padding=dilation,
-                    )
-                    dilated_mask_4d = (dilated_mask_4d > 0.5).float()
-                    (dilated_mask,) = rearrange_4dto5d_bf(T, dilated_mask_4d)
+                if self.opt.alg_palette_metric_mask:
+                    if self.opt.G_netG == "unet_vid":
+                        B, T, C, H, W = mask.shape
+                        (mask_4d,) = rearrange_5dto4d_bf(mask)
+                        dilation = 3
+                        dilated_mask_4d = F.max_pool2d(
+                            mask_4d.float(),
+                            kernel_size=2 * dilation + 1,
+                            stride=1,
+                            padding=dilation,
+                        )
+                        dilated_mask_4d = (dilated_mask_4d > 0.5).float()
+                        (dilated_mask,) = rearrange_4dto5d_bf(T, dilated_mask_4d)
 
-                    dilated_mask_expanded = dilated_mask.expand_as(self.output)
-                    self.fake_B_dilated = self.output * dilated_mask_expanded
-                    self.gt_image_dilated = self.gt_image * dilated_mask_expanded
+                        dm = dilated_mask.expand_as(self.output)
+                        fake_B_dilated = self.output * dm
+                        gt_image_dilated = self.gt_image * dm
 
-                    B, T, _, H, W = dilated_mask.shape
-                    boxes = masks_to_boxes(dilated_mask.view(-1, H, W)).int()
+                        B, T, _, H, W = dilated_mask.shape
+                        boxes = masks_to_boxes(dilated_mask.view(-1, H, W)).int()
 
-                    fake_crops = [
-                        [
-                            self.fake_B_dilated[b, t, :, y0:y1, x0:x1]
-                            for t, (x0, y0, x1, y1) in enumerate(
-                                boxes[b * T : (b + 1) * T]
-                            )
+                        fake_crops = [
+                            [
+                                fake_B_dilated[b, t, :, y0:y1, x0:x1]
+                                for t, (x0, y0, x1, y1) in enumerate(
+                                    boxes[b * T : (b + 1) * T]
+                                )
+                            ]
+                            for b in range(B)
                         ]
-                        for b in range(B)
-                    ]
 
-                    gt_crops = [
-                        [
-                            self.gt_image_dilated[b, t, :, y0:y1, x0:x1]
-                            for t, (x0, y0, x1, y1) in enumerate(
-                                boxes[b * T : (b + 1) * T]
-                            )
+                        gt_crops = [
+                            [
+                                gt_image_dilated[b, t, :, y0:y1, x0:x1]
+                                for t, (x0, y0, x1, y1) in enumerate(
+                                    boxes[b * T : (b + 1) * T]
+                                )
+                            ]
+                            for b in range(B)
                         ]
-                        for b in range(B)
-                    ]
 
-                    self.fake_B_dilated = fake_crops
-                    self.gt_image_dilated = gt_crops
+                        self.fake_B_dilated = fake_crops
+                        self.gt_image_dilated = gt_crops
+                    else:
+                        B, C, H, W = mask.shape
+                        mask_4d = mask
+
+                        dilation = 3
+                        dilated_mask_4d = F.max_pool2d(
+                            mask_4d.float(),
+                            kernel_size=2 * dilation + 1,
+                            stride=1,
+                            padding=dilation,
+                        )
+                        dilated_mask_4d = (dilated_mask_4d > 0.5).float()
+
+                        dm = dilated_mask_4d.expand_as(self.output)
+                        fake_B_dilated = self.output * dm
+                        gt_image_dilated = self.gt_image * dm
+
+                        boxes = masks_to_boxes(dilated_mask_4d.squeeze(1)).int()
+                        fake_crops = [
+                            fake_B_dilated[b, :, y0:y1, x0:x1]
+                            for b, (x0, y0, x1, y1) in enumerate(boxes)
+                        ]
+                        gt_crops = [
+                            gt_image_dilated[b, :, y0:y1, x0:x1]
+                            for b, (x0, y0, x1, y1) in enumerate(boxes)
+                        ]
+
+                        self.fake_B_dilated = fake_crops
+                        self.gt_image_dilated = gt_crops
 
                 self.fake_B = self.output
+                self.visuals = self.output
         # task: super resolution, pix2pix
         elif self.task in ["super_resolution", "pix2pix"]:
             self.output, self.visuals = netG.restoration(

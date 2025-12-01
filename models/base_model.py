@@ -1677,7 +1677,7 @@ class BaseModel(ABC):
             setattr(self, "kidB_test_" + test_name, kidB_test)
         real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
-        if len(real_tensor.shape) == 5:  # temporal
+        if self.opt.G_netG == "unet_vid":  # temporal
             real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
@@ -1703,11 +1703,39 @@ class BaseModel(ABC):
                 psnr_test = psnr_sum / n if n else 0
                 ssim_test = ssim_sum / n if n else 0
 
-        else:
+            else:
+                ssim_test = ssim(real_tensor, fake_tensor)
+                psnr_test = psnr(real_tensor, fake_tensor)
+            setattr(self, "psnr_test_" + test_name, psnr_test)
+            setattr(self, "ssim_test_" + test_name, ssim_test)
+        else:  # image
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
-        setattr(self, "psnr_test_" + test_name, psnr_test)
-        setattr(self, "ssim_test_" + test_name, ssim_test)
+
+            if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
+                self.opt, "alg_cm_metric_mask", False
+            ):
+                logging.warning(
+                    "LPIPS metric is not supported when using a dilated mask zone."
+                )
+                psnr_sum, ssim_sum, n = 0.0, 0.0, 0
+                for fake_seq, gt_seq in zip(self.fake_B_dilated, self.gt_image_dilated):
+                    if fake_seq.shape != gt_seq.shape:
+                        print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
+                        continue
+                    fake = (fake_seq.clamp(-1, 1).unsqueeze(0) + 1) / 2
+                    gt = (gt_seq.clamp(-1, 1).unsqueeze(0) + 1) / 2
+                    psnr_sum += psnr(fake, gt, data_range=1.0).item()
+                    ssim_sum += ssim(fake, gt).item()
+                    n += 1
+                psnr_test = psnr_sum / n if n else 0
+                ssim_test = ssim_sum / n if n else 0
+            else:
+                ssim_test = ssim(real_tensor, fake_tensor)
+                psnr_test = psnr(real_tensor, fake_tensor)
+
+            setattr(self, "psnr_test_" + test_name, psnr_test)
+            setattr(self, "ssim_test_" + test_name, ssim_test)
 
         if "LPIPS" in self.opt.train_metrics_list:
             real_tensor = torch.cat(real_list)
