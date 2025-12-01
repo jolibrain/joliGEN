@@ -177,206 +177,235 @@ class Visualizer:
             epoch (int) - - the current epoch
             save_result (bool) - - if save the current results to an HTML file
         """
-        if self.display_id > 0:  # show images in the browser using visdom
-            ncols = self.ncols
-            if ncols >= 0:  # show all the images in one visdom panel
-                max_ncol = 0
-                for temp in visuals:
-                    if max_ncol < len(temp):
-                        max_ncol = len(temp)
 
-                if ncols == 0:
-                    ncols = max_ncol
-                # else:
-                #    ncols = min(ncols, max_ncol)
+        import re
 
-                h, w = next(iter(visuals[0].values())).shape[:2]
-                table_css = """<style>
-                        table {border-collapse: separate; border-spacing: 4px; white-space: nowrap; text-align: center}
-                        table td {width: % dpx; height: % dpx; padding: 4px; outline: 4px solid black}
-                        </style>""" % (
-                    w,
-                    h,
-                )  # create a table css
-                # create a table of images.
-                title = self.name
-                label_html = ""
-                label_html_row = ""
-                param_html = ""
-                param_html_row = ""
-                images = []
-                idx = 0
-                for param in params.items():
-                    param_html_row += "<td>%s</td>" % param[0]
-                    param_html_row += "<td>%s</td>" % param[1]
-                    param_html += "<tr>%s</tr>" % param_html_row
-                    param_html_row = ""
+        output_types = set()
+        for group in visuals:
+            for name in group.keys():
+                m = re.match(r"(output_\d+_steps)", name.split("_test_")[0])
+                if m:
+                    output_types.add(m.group(1))
 
-                for visual_group in visuals:
+        output_types = sorted(output_types)  # stable order
+
+        for oi, out_key in enumerate(output_types):
+
+            # Build filtered visuals (minimal change)
+            filtered_visuals = []
+            for group in visuals:
+                new_group = {}
+                for name, img in group.items():
+                    if ("gt_image" in name) or ("y_t" in name) or ("mask" in name):
+                        new_group[name] = img
+                    elif name.startswith(out_key):
+                        new_group["output"] = img
+                filtered_visuals.append(new_group)
+
+            if self.display_id > 0:  # show images in the browser using visdom
+                ncols = self.ncols
+                if ncols >= 0:  # show all the images in one visdom panel
+                    max_ncol = 0
+                    for temp in filtered_visuals:
+                        if max_ncol < len(temp):
+                            max_ncol = len(temp)
+
+                    if ncols == 0:
+                        ncols = max_ncol
+                    # else:
+                    #    ncols = min(ncols, max_ncol)
+
+                    h, w = next(iter(filtered_visuals[0].values())).shape[:2]
+                    table_css = """<style>
+                            table {border-collapse: separate; border-spacing: 4px; white-space: nowrap; text-align: center}
+                            table td {width: % dpx; height: % dpx; padding: 4px; outline: 4px solid black}
+                            </style>""" % (
+                        w,
+                        h,
+                    )  # create a table css
+                    # create a table of images.
+                    title = self.name
+                    label_html = ""
                     label_html_row = ""
-                    for label, image in visual_group.items():
-                        if image_bits == 8:
-                            imtype = np.uint8
-                        else:
-                            imtype = np.float32
-                        image_numpy = util.tensor2im(image, imtype=imtype)
-                        if image_numpy.shape[2] == 5:
-                            npos = 3
-                        elif image_numpy.shape[2] == 4:
-                            npos = 2
-                        else:
-                            npos = 1
-                        images.append(image_numpy.transpose([2, 0, 1]))
-                        pos = 0
-                        while pos < npos:
-                            label_html_row += "<td>%s</td>" % label_html_row
+                    param_html = ""
+                    param_html_row = ""
+                    images = []
+                    idx = 0
+                    for param in params.items():
+                        param_html_row += "<td>%s</td>" % param[0]
+                        param_html_row += "<td>%s</td>" % param[1]
+                        param_html += "<tr>%s</tr>" % param_html_row
+                        param_html_row = ""
+
+                    for visual_group in filtered_visuals:
+                        label_html_row = ""
+                        for label, image in visual_group.items():
+                            if image_bits == 8:
+                                imtype = np.uint8
+                            else:
+                                imtype = np.float32
+                            image_numpy = util.tensor2im(image, imtype=imtype)
+                            if image_numpy.shape[2] == 5:
+                                npos = 3
+                            elif image_numpy.shape[2] == 4:
+                                npos = 2
+                            else:
+                                npos = 1
+                            images.append(image_numpy.transpose([2, 0, 1]))
+                            pos = 0
+                            while pos < npos:
+                                label_html_row += "<td>%s</td>" % label_html_row
+                                idx += 1
+                                if idx % ncols == 0:
+                                    label_html += "<tr>%s</tr>" % label_html_row
+                                    label_html_row = ""
+                                pos += 1
+                        white_image = (
+                            np.ones_like(image_numpy.transpose([2, 0, 1])) * 255
+                        )
+                        while idx % ncols != 0:
+                            images.append(white_image)
+                            label_html_row += "<td></td>"
                             idx += 1
-                            if idx % ncols == 0:
-                                label_html += "<tr>%s</tr>" % label_html_row
-                                label_html_row = ""
-                            pos += 1
-                    white_image = np.ones_like(image_numpy.transpose([2, 0, 1])) * 255
-                    while idx % ncols != 0:
-                        images.append(white_image)
-                        label_html_row += "<td></td>"
-                        idx += 1
-                    if label_html_row != "":
-                        label_html += "<tr>%s</tr>" % label_html_row
-                try:
-                    if phase == "train":
-                        win_id = 1
-                    elif phase == "test":
-                        win_id = vwin_id
+                        if label_html_row != "":
+                            label_html += "<tr>%s</tr>" % label_html_row
+                    try:
+                        if phase == "train":
+                            win_id = 1 + oi
+                        elif phase == "test":
+                            win_id = 101 + oi
 
-                    if image_bits > 8:  # using matplotlib gray cmap
-                        import matplotlib
+                        if image_bits > 8:  # using matplotlib gray cmap
+                            import matplotlib
 
-                        gray_cm = matplotlib.cm.get_cmap("gray")
-                        mapped_images = []
-                        for im in images:
-                            if im.shape[0] == 3:
-                                mapped_images.append(im)
-                                continue
-                            elif im.shape[0] == 1:
-                                mapped_im = np.squeeze(gray_cm(im, bytes=True))
-                                mapped_im = mapped_im.transpose([2, 0, 1])
-                                # remove the alpha channel
-                                mapped_im = mapped_im[:3, :, :]
-                                mapped_images.append(mapped_im)
-                            elif im.shape[0] == 5:
-                                im = im.transpose([1, 2, 0])
-                                c_im = im[:, :, [1, 2, 3, 4]]
-                                rgb_im, nrg_im = rgbn_float_img_to_8bits_display(
-                                    c_im, gamma=0.7
-                                )
-                                rgb_im = rgb_im.transpose([2, 1, 0])
-                                nrg_im = nrg_im.transpose([2, 1, 0])
+                            gray_cm = matplotlib.cm.get_cmap("gray")
+                            mapped_images = []
+                            for im in images:
+                                if im.shape[0] == 3:
+                                    mapped_images.append(im)
+                                    continue
+                                elif im.shape[0] == 1:
+                                    mapped_im = np.squeeze(gray_cm(im, bytes=True))
+                                    mapped_im = mapped_im.transpose([2, 0, 1])
+                                    # remove the alpha channel
+                                    mapped_im = mapped_im[:3, :, :]
+                                    mapped_images.append(mapped_im)
+                                elif im.shape[0] == 5:
+                                    im = im.transpose([1, 2, 0])
+                                    c_im = im[:, :, [1, 2, 3, 4]]
+                                    rgb_im, nrg_im = rgbn_float_img_to_8bits_display(
+                                        c_im, gamma=0.7
+                                    )
+                                    rgb_im = rgb_im.transpose([2, 1, 0])
+                                    nrg_im = nrg_im.transpose([2, 1, 0])
 
-                                pan_c1_im = im[:, :, 0]
-                                pan_c1_im = np.squeeze(gray_cm(pan_c1_im, bytes=True))
-                                pan_c1_im = pan_c1_im.transpose([2, 1, 0])
-                                pan_c1_im = pan_c1_im[:3, :, :]
-                                mapped_images.append(pan_c1_im)
+                                    pan_c1_im = im[:, :, 0]
+                                    pan_c1_im = np.squeeze(
+                                        gray_cm(pan_c1_im, bytes=True)
+                                    )
+                                    pan_c1_im = pan_c1_im.transpose([2, 1, 0])
+                                    pan_c1_im = pan_c1_im[:3, :, :]
+                                    mapped_images.append(pan_c1_im)
 
-                                mapped_images.append(rgb_im)
-                                mapped_images.append(nrg_im)
-                            elif im.shape[0] == 4:
-                                im = im.transpose([1, 2, 0])
-                                rgb, ngr = rgbn_float_img_to_8bits_display(
-                                    im, gamma=0.7
-                                )
-                                rgb = rgb.transpose([2, 1, 0])
-                                ngr = ngr.transpose([2, 1, 0])
-                                mapped_images.append(rgb)
-                                mapped_images.append(ngr)
+                                    mapped_images.append(rgb_im)
+                                    mapped_images.append(nrg_im)
+                                elif im.shape[0] == 4:
+                                    im = im.transpose([1, 2, 0])
+                                    rgb, ngr = rgbn_float_img_to_8bits_display(
+                                        im, gamma=0.7
+                                    )
+                                    rgb = rgb.transpose([2, 1, 0])
+                                    ngr = ngr.transpose([2, 1, 0])
+                                    mapped_images.append(rgb)
+                                    mapped_images.append(ngr)
 
-                        images = mapped_images
+                            images = mapped_images
 
-                    self.vis.images(
-                        images,
-                        nrow=ncols,
-                        win=self.display_id + win_id,
-                        padding=2,
-                        opts=dict(
-                            title=title + " " + phase + " " + test_name + " images"
-                        ),
-                    )
-                    label_html = "<table>%s</table>" % label_html
-                    param_html = "<table>%s</table>" % param_html
-                    self.vis.text(
-                        table_css + label_html,
-                        win=self.display_id + win_id + 3,
-                        opts=dict(title=title + " labels"),
-                    )
-                    self.vis.text(
-                        table_css + param_html,
-                        win=self.display_id + win_id + 4,
-                        opts=dict(title=title + " params"),
-                    )
-
-                    if self.nets_arch is not None:
+                        self.vis.images(
+                            images,
+                            nrow=ncols,
+                            win=self.display_id + win_id,
+                            padding=2,
+                            opts=dict(
+                                title=title + " " + phase + " " + out_key + " images"
+                            ),
+                        )
+                        label_html_out = "<table>%s</table>" % label_html
+                        param_html_out = "<table>%s</table>" % param_html
                         self.vis.text(
-                            "<pre>" + self.nets_arch + "<pre>",
-                            win=self.display_id + win_id + 5,
-                            opts=dict(title=title + " architecture "),
+                            table_css + label_html_out,
+                            win=self.display_id + win_id + 3,
+                            opts=dict(title=title + " labels"),
+                        )
+                        self.vis.text(
+                            table_css + param_html_out,
+                            win=self.display_id + win_id + 4,
+                            opts=dict(title=title + " params"),
                         )
 
-                except VisdomExceptionBase:
-                    self.create_visdom_connections()
-
-            else:  # show each image in a separate visdom panel;
-                idx = 1
-                try:
-                    for visual_group in visuals:
-                        for label, image in visual_group.items():
-                            image_numpy = util.tensor2im(image)
-                            self.vis.image(
-                                image_numpy.transpose([2, 0, 1]),
-                                opts=dict(title=label),
-                                win=self.display_id + idx,
+                        if self.nets_arch is not None:
+                            self.vis.text(
+                                "<pre>" + self.nets_arch + "<pre>",
+                                win=self.display_id + win_id + 5,
+                                opts=dict(title=title + " architecture "),
                             )
-                            idx += 1
-                except VisdomExceptionBase:
-                    self.create_visdom_connections()
 
-        if self.use_html and (
-            save_result or not self.saved
-        ):  # save images to an HTML file if they haven't been saved.
-            self.saved = True
-            # save images to the disk
+                    except VisdomExceptionBase:
+                        self.create_visdom_connections()
+
+                else:  # show each image in a separate visdom panel;
+                    idx = 1
+                    try:
+                        for visual_group in visuals:
+                            for label, image in visual_group.items():
+                                image_numpy = util.tensor2im(image)
+                                self.vis.image(
+                                    image_numpy.transpose([2, 0, 1]),
+                                    opts=dict(title=label),
+                                    win=self.display_id + idx,
+                                )
+                                idx += 1
+                    except VisdomExceptionBase:
+                        self.create_visdom_connections()
+
+            if self.use_html and (
+                save_result or not self.saved
+            ):  # save images to an HTML file if they haven't been saved.
+                self.saved = True
+                # save images to the disk
+                for visual_group in visuals:
+                    for label, image in visual_group.items():
+                        image_numpy = util.tensor2im(image)
+                        img_path = os.path.join(
+                            self.img_dir, "epoch%.3d_%s.png" % (epoch, label)
+                        )
+                        # util.save_image(image_numpy, img_path)
+
+                # update website
+                webpage = html_util.HTML(
+                    self.web_dir, "Experiment name = %s" % self.name, refresh=0
+                )
+                for n in range(epoch, 0, -1):
+                    webpage.add_header("epoch [%d]" % n)
+                    ims, txts, links = [], [], []
+
+                    for visual_group in visuals:
+                        for label, image_numpy in visual_group.items():
+                            image_numpy = util.tensor2im(image)
+                            img_path = "epoch%.3d_%s.png" % (n, label)
+                            ims.append(img_path)
+                            txts.append(label)
+                            links.append(img_path)
+                    webpage.add_images(ims, txts, links, width=self.win_size)
+                webpage.save()
+
+            # Save latest images
+
             for visual_group in visuals:
                 for label, image in visual_group.items():
                     image_numpy = util.tensor2im(image)
-                    img_path = os.path.join(
-                        self.img_dir, "epoch%.3d_%s.png" % (epoch, label)
-                    )
+                    img_path = os.path.join(self.img_dir, "latest_%s.png" % label)
                     # util.save_image(image_numpy, img_path)
-
-            # update website
-            webpage = html_util.HTML(
-                self.web_dir, "Experiment name = %s" % self.name, refresh=0
-            )
-            for n in range(epoch, 0, -1):
-                webpage.add_header("epoch [%d]" % n)
-                ims, txts, links = [], [], []
-
-                for visual_group in visuals:
-                    for label, image_numpy in visual_group.items():
-                        image_numpy = util.tensor2im(image)
-                        img_path = "epoch%.3d_%s.png" % (n, label)
-                        ims.append(img_path)
-                        txts.append(label)
-                        links.append(img_path)
-                webpage.add_images(ims, txts, links, width=self.win_size)
-            webpage.save()
-
-        # Save latest images
-
-        for visual_group in visuals:
-            for label, image in visual_group.items():
-                image_numpy = util.tensor2im(image)
-                img_path = os.path.join(self.img_dir, "latest_%s.png" % label)
-                # util.save_image(image_numpy, img_path)
 
     def plot_current_losses(self, epoch, counter_ratio, losses):
         if "visdom" in self.display_type:
