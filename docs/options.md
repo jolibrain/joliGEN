@@ -70,7 +70,6 @@ Here are all the available options to call with `train.py`
 | --G_unet_mha_num_heads | int | 1 | number of heads in the mha architecture |
 | --G_unet_mha_res_blocks | array | [2, 2, 2, 2] | distribution of resnet blocks across the UNet stages, should have same size as --G_unet_mha_channel_mults |
 | --G_unet_mha_vit_efficient | flag |  | if true, use efficient attention in UNet and UViT |
-| --G_unet_vid_cross_attention_dim | int | 768 | cross attention inner dim for unet_vid motion module , 768, 384, ... |
 | --G_unet_vid_max_sequence_length | int | 25 | max frame number(sequence length) for unet_vid in the PositionalEncoding |
 | --G_unet_vid_num_attention_heads | int | 8 | number of attention heads for unet_vid motion module, 8, 4, ... |
 | --G_unet_vid_num_transformer_blocks | int | 2 | number of unet_vid motion module transformer blocks, 2, 1, ... |

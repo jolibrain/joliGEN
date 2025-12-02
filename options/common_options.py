@@ -399,12 +399,6 @@ class CommonOptions(BaseOptions):
             help="max frame number(sequence length) for unet_vid in the PositionalEncoding",
         )
         parser.add_argument(
-            "--G_unet_vid_cross_attention_dim",
-            default=768,
-            type=int,
-            help="cross attention inner dim for unet_vid motion module , 768, 384, ...",
-        )
-        parser.add_argument(
             "--G_unet_vid_num_attention_heads",
             default=8,
             type=int,
