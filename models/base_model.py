@@ -954,6 +954,98 @@ class BaseModel(ABC):
                 if hasattr(state_dict, "_metadata"):
                     del state_dict._metadata
 
+                # Patch InstanceNorm checkpoints prior to 0.4
+                if self.opt.model_prior_321_backwardcompatibility:
+                    for key in list(
+                        state_dict.keys()
+                    ):  # need to copy keys here because we mutate in loop
+                        if "cond_embed" in key:
+                            new_key = key.replace("denoise_fn.cond_embed", "cond_embed")
+                            state_dict[new_key] = state_dict[key].clone()
+                            del state_dict[key]
+
+                        elif "denoise_fn" in key:
+                            new_key = key.replace("denoise_fn", "denoise_fn.model")
+                            state_dict[new_key] = state_dict[key].clone()
+                            del state_dict[key]
+
+                state1 = list(state_dict.keys())
+                state2 = list(net.state_dict().keys())
+                state1.sort()
+                state2.sort()
+
+                for key1, key2 in zip(state1, state2):
+                    if key1 != key2:
+                        print(key1 == key2, key1, key2)
+
+                if hasattr(state_dict, "_ema"):
+                    net.load_state_dict(
+                        state_dict["_ema"], strict=self.opt.model_load_no_strictness
+                    )
+                else:
+                    if (
+                        name == "G_A"
+                        and hasattr(net, "unet")
+                        and hasattr(net, "vae")
+                        and any("lora" in n for n, _ in net.unet.named_parameters())
+                    ):
+                        net.load_lora_config(load_path)
+                        print("loading the lora")
+
+                    else:
+                        # ==================================================================
+                        #   *** MINIMAL MODIFICATION: SHAPE-SAFE WEIGHT LOADING ***
+                        # ==================================================================
+                        model_sd = net.state_dict()
+                        filtered_sd = {}
+
+                        for k, v in state_dict.items():
+                            if k in model_sd and model_sd[k].shape == v.shape:
+                                filtered_sd[k] = v
+                            else:
+                                print(
+                                    f"[skip weight] {k}: ckpt={getattr(v, 'shape', '?')} "
+                                    f"model={model_sd[k].shape if k in model_sd else 'missing'}"
+                                )
+
+                        print(
+                            f"[load] Using {len(filtered_sd)} / {len(state_dict)} params"
+                        )
+                        # ==================================================================
+
+                        # Load filtered weights strictly
+                        net.load_state_dict(filtered_sd, strict=False)
+                        total_params = sum(p.numel() for p in net.parameters())
+                        print(f"[net size] Total parameters in model: {total_params:,}")
+
+                        loaded_params = sum(v.numel() for v in filtered_sd.values())
+                        print(
+                            f"[net size] Parameters successfully loaded: {loaded_params:,}"
+                        )
+
+    def load_networksi1(self, epoch):
+        """Load all the networks from the disk.
+
+        Parameters:
+            epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
+        """
+        for name in self.model_names:
+            if isinstance(name, str):
+                load_filename = "%s_net_%s.pth" % (epoch, name)
+                load_path = os.path.join(self.save_dir, load_filename)
+                net = getattr(self, "net" + name)
+                if isinstance(net, torch.nn.DataParallel):
+                    net = net.module
+                if not os.path.isfile(load_path) and "temporal" in load_path:
+                    print("Skipping missing temporal discriminator pre-trained weights")
+                    continue
+                print("loading the model from %s" % load_path)
+                # if you are using PyTorch newer than 0.4 (e.g., built from
+                # GitHub source), you can remove str() on self.device
+                state_dict = torch.load(load_path, map_location=str(self.device))
+                if hasattr(state_dict, "_metadata"):
+                    del state_dict._metadata
+
                 # patch InstanceNorm checkpoints prior to 0.4
 
                 if self.opt.model_prior_321_backwardcompatibility:
