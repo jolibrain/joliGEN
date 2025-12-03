@@ -864,6 +864,7 @@ class BaseModel(ABC):
                     "palette",
                     "cm",
                     "cm_gan",
+                    "sc",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
@@ -931,6 +932,98 @@ class BaseModel(ABC):
         return dummy_input
 
     def load_networks(self, epoch):
+        """Load all the networks from the disk.
+
+        Parameters:
+            epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
+        """
+        for name in self.model_names:
+            if isinstance(name, str):
+                load_filename = "%s_net_%s.pth" % (epoch, name)
+                load_path = os.path.join(self.save_dir, load_filename)
+                net = getattr(self, "net" + name)
+                if isinstance(net, torch.nn.DataParallel):
+                    net = net.module
+                if not os.path.isfile(load_path) and "temporal" in load_path:
+                    print("Skipping missing temporal discriminator pre-trained weights")
+                    continue
+                print("loading the model from %s" % load_path)
+                # if you are using PyTorch newer than 0.4 (e.g., built from
+                # GitHub source), you can remove str() on self.device
+                state_dict = torch.load(load_path, map_location=str(self.device))
+                if hasattr(state_dict, "_metadata"):
+                    del state_dict._metadata
+
+                # Patch InstanceNorm checkpoints prior to 0.4
+                if self.opt.model_prior_321_backwardcompatibility:
+                    for key in list(
+                        state_dict.keys()
+                    ):  # need to copy keys here because we mutate in loop
+                        if "cond_embed" in key:
+                            new_key = key.replace("denoise_fn.cond_embed", "cond_embed")
+                            state_dict[new_key] = state_dict[key].clone()
+                            del state_dict[key]
+
+                        elif "denoise_fn" in key:
+                            new_key = key.replace("denoise_fn", "denoise_fn.model")
+                            state_dict[new_key] = state_dict[key].clone()
+                            del state_dict[key]
+
+                state1 = list(state_dict.keys())
+                state2 = list(net.state_dict().keys())
+                state1.sort()
+                state2.sort()
+
+                for key1, key2 in zip(state1, state2):
+                    if key1 != key2:
+                        print(key1 == key2, key1, key2)
+
+                if hasattr(state_dict, "_ema"):
+                    net.load_state_dict(
+                        state_dict["_ema"], strict=self.opt.model_load_no_strictness
+                    )
+                else:
+                    if (
+                        name == "G_A"
+                        and hasattr(net, "unet")
+                        and hasattr(net, "vae")
+                        and any("lora" in n for n, _ in net.unet.named_parameters())
+                    ):
+                        net.load_lora_config(load_path)
+                        print("loading the lora")
+
+                    else:
+                        # ==================================================================
+                        #   *** MINIMAL MODIFICATION: SHAPE-SAFE WEIGHT LOADING ***
+                        # ==================================================================
+                        model_sd = net.state_dict()
+                        filtered_sd = {}
+
+                        for k, v in state_dict.items():
+                            if k in model_sd and model_sd[k].shape == v.shape:
+                                filtered_sd[k] = v
+                            else:
+                                print(
+                                    f"[skip weight] {k}: ckpt={getattr(v, 'shape', '?')} "
+                                    f"model={model_sd[k].shape if k in model_sd else 'missing'}"
+                                )
+
+                        print(
+                            f"[load] Using {len(filtered_sd)} / {len(state_dict)} params"
+                        )
+                        # ==================================================================
+
+                        # Load filtered weights strictly
+                        net.load_state_dict(filtered_sd, strict=False)
+                        total_params = sum(p.numel() for p in net.parameters())
+                        print(f"[net size] Total parameters in model: {total_params:,}")
+
+                        loaded_params = sum(v.numel() for v in filtered_sd.values())
+                        print(
+                            f"[net size] Parameters successfully loaded: {loaded_params:,}"
+                        )
+
+    def load_networksi1(self, epoch):
         """Load all the networks from the disk.
 
         Parameters:
@@ -1534,6 +1627,24 @@ class BaseModel(ABC):
                         getattr(self, name)
                     )  # float(...) works for both scalar tensor and float number
 
+            if (
+                hasattr(self, "psnr_step_results")
+                and "PSNR" in self.opt.train_metrics_list
+            ):
+                for test_name in test_names:
+                    per_step_psnr = self.psnr_step_results.get(test_name, {})
+                    for step, value in sorted(per_step_psnr.items()):
+                        metrics[f"psnr_step_{step}_{test_name}"] = float(value)
+
+            if (
+                hasattr(self, "ssim_step_results")
+                and "SSIM" in self.opt.train_metrics_list
+            ):
+                for test_name in test_names:
+                    per_step_ssim = self.ssim_step_results.get(test_name, {})
+                    for step, value in sorted(per_step_ssim.items()):
+                        metrics[f"ssim_step_{step}_{test_name}"] = float(value)
+
         return metrics
 
     def compute_metrics_test(
@@ -1677,14 +1788,13 @@ class BaseModel(ABC):
             setattr(self, "kidB_test_" + test_name, kidB_test)
         real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
-        if len(real_tensor.shape) == 5:  # temporal
+        if self.opt.G_netG == "unet_vid":  # temporal
             real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
             if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
                 self.opt, "alg_cm_metric_mask", False
             ):
-                # if self.opt.alg_palette_metric_mask or self.opt.alg_cm_metric_mask:
                 logging.warning(
                     "LPIPS metric is not supported when using a dilated mask zone."
                 )
@@ -1702,12 +1812,129 @@ class BaseModel(ABC):
                         n += 1
                 psnr_test = psnr_sum / n if n else 0
                 ssim_test = ssim_sum / n if n else 0
+                setattr(self, "psnr_test_" + test_name, psnr_test)
+                setattr(self, "ssim_test_" + test_name, ssim_test)
 
-        else:
+            elif getattr(self.opt, "alg_sc_metric_mask", False):
+
+                self.psnr_step = {}
+                self.ssim_step = {}
+
+                steps = sorted(self.fake_B_dilated_per_step.keys())
+                for step in steps:
+
+                    fake_crops = self.fake_B_dilated_per_step[step]
+                    gt_crops = self.gt_image_dilated_per_step[step]
+
+                    psnr_sum, ssim_sum, n = 0.0, 0.0, 0
+                    for fake_seq, gt_seq in zip(fake_crops, gt_crops):
+                        for fake, gt in zip(fake_seq, gt_seq):
+                            if fake.shape != gt.shape:
+                                print(
+                                    f"Skip mismatched shapes: {fake.shape} vs {gt.shape}"
+                                )
+                                continue
+                            fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
+                            gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
+                            psnr_sum += psnr(fake, gt, data_range=1.0).item()
+                            ssim_sum += ssim(fake, gt).item()
+                            n += 1
+                    # Per-step average
+                    self.psnr_step[step] = psnr_sum / n if n else 0.0
+                    self.ssim_step[step] = ssim_sum / n if n else 0.0
+
+                if not hasattr(self, "psnr_step_results"):
+                    self.psnr_step_results = {}
+                if not hasattr(self, "ssim_step_results"):
+                    self.ssim_step_results = {}
+
+                self.psnr_step_results[test_name] = {
+                    step: float(val) for step, val in self.psnr_step.items()
+                }
+                self.ssim_step_results[test_name] = {
+                    step: float(val) for step, val in self.ssim_step.items()
+                }
+
+                psnr_test = sum(self.psnr_step.values()) / len(self.psnr_step)
+                ssim_test = sum(self.ssim_step.values()) / len(self.ssim_step)
+
+                setattr(self, "psnr_test_" + test_name, psnr_test)
+                setattr(self, "ssim_test_" + test_name, ssim_test)
+
+            else:
+                setattr(self, "psnr_test_" + test_name, psnr_test)
+                setattr(self, "ssim_test_" + test_name, ssim_test)
+        else:  # image
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
-        setattr(self, "psnr_test_" + test_name, psnr_test)
-        setattr(self, "ssim_test_" + test_name, ssim_test)
+
+            if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
+                self.opt, "alg_cm_metric_mask", False
+            ):
+                logging.warning(
+                    "LPIPS metric is not supported when using a dilated mask zone."
+                )
+                psnr_sum, ssim_sum, n = 0.0, 0.0, 0
+                for fake_seq, gt_seq in zip(self.fake_B_dilated, self.gt_image_dilated):
+                    for fake, gt in zip(fake_seq, gt_seq):
+                        if fake.shape != gt.shape:
+                            print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
+                            continue
+                        fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
+                        gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
+
+                        psnr_sum += psnr(fake, gt, data_range=1.0).item()
+                        ssim_sum += ssim(fake, gt).item()
+                        n += 1
+                psnr_test = psnr_sum / n if n else 0
+                ssim_test = ssim_sum / n if n else 0
+                setattr(self, "psnr_test_" + test_name, psnr_test)
+                setattr(self, "ssim_test_" + test_name, ssim_test)
+
+            elif getattr(self.opt, "alg_sc_metric_mask", False):
+
+                self.psnr_step = {}
+                self.ssim_step = {}
+                steps = sorted(self.fake_B_dilated_per_step.keys())
+                for step in steps:
+                    fake_crops = self.fake_B_dilated_per_step[step]
+                    gt_crops = self.gt_image_dilated_per_step[step]
+                    psnr_sum, ssim_sum, n = 0.0, 0.0, 0
+                    for fake, gt in zip(fake_crops, gt_crops):
+                        if fake.shape != gt.shape:
+                            print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
+                            continue
+                        fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
+                        gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
+                        psnr_sum += psnr(fake, gt, data_range=1.0).item()
+                        ssim_sum += ssim(fake, gt).item()
+                        n += 1
+
+                    # Per-step average
+                    self.psnr_step[step] = psnr_sum / n if n else 0.0
+                    self.ssim_step[step] = ssim_sum / n if n else 0.0
+
+                if not hasattr(self, "psnr_step_results"):
+                    self.psnr_step_results = {}
+                if not hasattr(self, "ssim_step_results"):
+                    self.ssim_step_results = {}
+
+                self.psnr_step_results[test_name] = {
+                    step: float(val) for step, val in self.psnr_step.items()
+                }
+                self.ssim_step_results[test_name] = {
+                    step: float(val) for step, val in self.ssim_step.items()
+                }
+
+                # Global average across steps (same logic as palette/cm)
+                psnr_test = sum(self.psnr_step.values()) / len(self.psnr_step)
+                ssim_test = sum(self.ssim_step.values()) / len(self.ssim_step)
+                setattr(self, "psnr_test_" + test_name, psnr_test)
+                setattr(self, "ssim_test_" + test_name, ssim_test)
+
+            else:
+                setattr(self, "psnr_test_" + test_name, psnr_test)
+                setattr(self, "ssim_test_" + test_name, ssim_test)
 
         if "LPIPS" in self.opt.train_metrics_list:
             real_tensor = torch.cat(real_list)

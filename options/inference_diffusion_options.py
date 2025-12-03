@@ -286,9 +286,16 @@ class InferenceDiffusionOptions(BaseOptions):
             help="additional sequence number added during the inference",
         )
         parser.add_argument(
+            "--alg_sc_denoise_inferstep",
+            type=int,
+            default=1,
+            help="denoise steps during the inference time",
+        )
+
+        parser.add_argument(
             "--vid_fps",
             type=float,
-            default=1.0,
+            default=18,
             help="fps during the inference video generation",
         )
 
