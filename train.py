@@ -74,6 +74,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     if opt.use_cuda:
         torch.cuda.set_device(opt.gpu_ids[rank])
+        print("using CUDA on device: %d" % opt.gpu_ids[rank])
 
     signal.signal(signal.SIGINT, signal_handler)  # to really kill the process
     signal.signal(signal.SIGTERM, signal_handler)
@@ -444,6 +445,9 @@ def launch_training(opt):
         torch.backends.cudnn.allow_tf32 = True
 
     opt.use_cuda = torch.cuda.is_available() and opt.gpu_ids and opt.gpu_ids[0] >= 0
+
+    print("CUDA status:", torch.cuda.is_available())
+
     if opt.use_cuda:
         mp.spawn(
             train_gpu,
