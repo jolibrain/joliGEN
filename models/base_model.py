@@ -26,7 +26,7 @@ from piq import MSID, KID, FID, psnr, ssim
 from lpips import LPIPS
 
 from util.util import save_image, tensor2im, delete_flop_param
-
+from util.util import pad_to_lpips_safe
 
 from util.diff_aug import DiffAugment
 from util.discriminator import DiscriminatorInfo
@@ -1552,8 +1552,44 @@ class BaseModel(ABC):
                     per_step_ssim = self.ssim_step_results.get(test_name, {})
                     for step, value in sorted(per_step_ssim.items()):
                         metrics[f"ssim_step_{step}_{test_name}"] = float(value)
+            if (
+                hasattr(self, "lpips_step_results")
+                and "LPIPS" in self.opt.train_metrics_list
+            ):
+                for test_name in test_names:
+                    per_step_lpips = self.lpips_step_results.get(test_name, {})
+                    for step, value in sorted(per_step_lpips.items()):
+                        metrics[f"lpips_step_{step}_{test_name}"] = float(value)
 
         return metrics
+
+    def _compute_metrics(self, fake_images, gt_images):
+        psnr_sum, ssim_sum, lpips_sum, n = 0.0, 0.0, 0.0, 0
+        for fake, gt in zip(fake_images, gt_images):
+            if fake.shape != gt.shape:
+                print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
+                continue
+            fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
+            gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
+            min_lpips_size = 64
+            h, w = fake.shape[-2:]
+
+            if h < min_lpips_size or w < min_lpips_size:
+                fake_lpips = pad_to_lpips_safe(fake, min_lpips_size)
+                gt_lpips = pad_to_lpips_safe(gt, min_lpips_size)
+            else:
+                fake_lpips = fake
+                gt_lpips = gt
+
+            psnr_sum += psnr(fake, gt, data_range=1.0).item()
+            ssim_sum += ssim(fake, gt).item()
+            lpips_sum += self.lpips_metric(fake_lpips, gt_lpips).item()
+            n += 1
+
+        psnr_val = psnr_sum / n if n else 0.0
+        ssim_val = ssim_sum / n if n else 0.0
+        lpips_val = lpips_sum / n if n else 0.0
+        return psnr_val, ssim_val, lpips_val
 
     def compute_metrics_test(
         self, dataloaders_test, n_epoch, n_iter, save_images=False, test_name=""
@@ -1703,58 +1739,45 @@ class BaseModel(ABC):
             if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
                 self.opt, "alg_cm_metric_mask", False
             ):
-                logging.warning(
-                    "LPIPS metric is not supported when using a dilated mask zone."
+                fake_images = [img for seq in self.fake_B_dilated for img in seq]
+                gt_images = [img for seq in self.gt_image_dilated for img in seq]
+                psnr_test, ssim_test, lpips_test = self._compute_metrics(
+                    fake_images, gt_images
                 )
-                psnr_sum, ssim_sum, n = 0.0, 0.0, 0
-                for fake_seq, gt_seq in zip(self.fake_B_dilated, self.gt_image_dilated):
-                    for fake, gt in zip(fake_seq, gt_seq):
-                        if fake.shape != gt.shape:
-                            print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
-                            continue
-                        fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
-                        gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
-
-                        psnr_sum += psnr(fake, gt, data_range=1.0).item()
-                        ssim_sum += ssim(fake, gt).item()
-                        n += 1
-                psnr_test = psnr_sum / n if n else 0
-                ssim_test = ssim_sum / n if n else 0
                 setattr(self, "psnr_test_" + test_name, psnr_test)
                 setattr(self, "ssim_test_" + test_name, ssim_test)
+                setattr(self, "lpips_test_" + test_name, lpips_test)
 
             elif getattr(self.opt, "alg_sc_metric_mask", False):
 
                 self.psnr_step = {}
                 self.ssim_step = {}
+                self.lpips_step = {}
 
                 steps = sorted(self.fake_B_dilated_per_step.keys())
                 for step in steps:
+                    fake_crops = [
+                        img for seq in self.fake_B_dilated_per_step[step] for img in seq
+                    ]
+                    gt_crops = [
+                        img
+                        for seq in self.gt_image_dilated_per_step[step]
+                        for img in seq
+                    ]
 
-                    fake_crops = self.fake_B_dilated_per_step[step]
-                    gt_crops = self.gt_image_dilated_per_step[step]
-
-                    psnr_sum, ssim_sum, n = 0.0, 0.0, 0
-                    for fake_seq, gt_seq in zip(fake_crops, gt_crops):
-                        for fake, gt in zip(fake_seq, gt_seq):
-                            if fake.shape != gt.shape:
-                                print(
-                                    f"Skip mismatched shapes: {fake.shape} vs {gt.shape}"
-                                )
-                                continue
-                            fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
-                            gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
-                            psnr_sum += psnr(fake, gt, data_range=1.0).item()
-                            ssim_sum += ssim(fake, gt).item()
-                            n += 1
-                    # Per-step average
-                    self.psnr_step[step] = psnr_sum / n if n else 0.0
-                    self.ssim_step[step] = ssim_sum / n if n else 0.0
+                    psnr_val, ssim_val, lpips_val = self._compute_metrics(
+                        fake_crops, gt_crops
+                    )
+                    self.psnr_step[step] = psnr_val
+                    self.ssim_step[step] = ssim_val
+                    self.lpips_step[step] = lpips_val
 
                 if not hasattr(self, "psnr_step_results"):
                     self.psnr_step_results = {}
                 if not hasattr(self, "ssim_step_results"):
                     self.ssim_step_results = {}
+                if not hasattr(self, "lpips_step_results"):
+                    self.lpips_step_results = {}
 
                 self.psnr_step_results[test_name] = {
                     step: float(val) for step, val in self.psnr_step.items()
@@ -1762,12 +1785,16 @@ class BaseModel(ABC):
                 self.ssim_step_results[test_name] = {
                     step: float(val) for step, val in self.ssim_step.items()
                 }
-
+                self.lpips_step_results[test_name] = {
+                    step: float(val) for step, val in self.lpips_step.items()
+                }
                 psnr_test = sum(self.psnr_step.values()) / len(self.psnr_step)
                 ssim_test = sum(self.ssim_step.values()) / len(self.ssim_step)
+                lpips_test = sum(self.lpips_step.values()) / len(self.lpips_step)
 
                 setattr(self, "psnr_test_" + test_name, psnr_test)
                 setattr(self, "ssim_test_" + test_name, ssim_test)
+                setattr(self, "lpips_test_" + test_name, lpips_test)
 
             else:
                 setattr(self, "psnr_test_" + test_name, psnr_test)
@@ -1780,51 +1807,36 @@ class BaseModel(ABC):
             if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
                 self.opt, "alg_cm_metric_mask", False
             ):
-                logging.warning(
-                    "LPIPS metric is not supported when using a dilated mask zone."
+                psnr_test, ssim_test, lpips_test = self._compute_metrics(
+                    self.fake_B_dilated, self.gt_image_dilated
                 )
-                psnr_sum, ssim_sum, n = 0.0, 0.0, 0
-                for fake_seq, gt_seq in zip(self.fake_B_dilated, self.gt_image_dilated):
-                    if fake_seq.shape != gt_seq.shape:
-                        print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
-                        continue
-                    fake = (fake_seq.clamp(-1, 1).unsqueeze(0) + 1) / 2
-                    gt = (gt_seq.clamp(-1, 1).unsqueeze(0) + 1) / 2
-                    psnr_sum += psnr(fake, gt, data_range=1.0).item()
-                    ssim_sum += ssim(fake, gt).item()
-                    n += 1
-                psnr_test = psnr_sum / n if n else 0
-                ssim_test = ssim_sum / n if n else 0
                 setattr(self, "psnr_test_" + test_name, psnr_test)
                 setattr(self, "ssim_test_" + test_name, ssim_test)
+                setattr(self, "lpips_test_" + test_name, lpips_test)
 
             elif getattr(self.opt, "alg_sc_metric_mask", False):
 
                 self.psnr_step = {}
                 self.ssim_step = {}
+                self.lpips_step = {}
                 steps = sorted(self.fake_B_dilated_per_step.keys())
                 for step in steps:
                     fake_crops = self.fake_B_dilated_per_step[step]
                     gt_crops = self.gt_image_dilated_per_step[step]
-                    psnr_sum, ssim_sum, n = 0.0, 0.0, 0
-                    for fake, gt in zip(fake_crops, gt_crops):
-                        if fake.shape != gt.shape:
-                            print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
-                            continue
-                        fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
-                        gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
-                        psnr_sum += psnr(fake, gt, data_range=1.0).item()
-                        ssim_sum += ssim(fake, gt).item()
-                        n += 1
 
-                    # Per-step average
-                    self.psnr_step[step] = psnr_sum / n if n else 0.0
-                    self.ssim_step[step] = ssim_sum / n if n else 0.0
+                    psnr_val, ssim_val, lpips_val = self._compute_metrics(
+                        fake_crops, gt_crops
+                    )
+                    self.psnr_step[step] = psnr_val
+                    self.ssim_step[step] = ssim_val
+                    self.lpips_step[step] = lpips_val
 
                 if not hasattr(self, "psnr_step_results"):
                     self.psnr_step_results = {}
                 if not hasattr(self, "ssim_step_results"):
                     self.ssim_step_results = {}
+                if not hasattr(self, "lpips_step_results"):
+                    self.lpips_step_results = {}
 
                 self.psnr_step_results[test_name] = {
                     step: float(val) for step, val in self.psnr_step.items()
@@ -1832,12 +1844,17 @@ class BaseModel(ABC):
                 self.ssim_step_results[test_name] = {
                     step: float(val) for step, val in self.ssim_step.items()
                 }
+                self.lpips_step_results[test_name] = {
+                    step: float(val) for step, val in self.lpips_step.items()
+                }
 
                 # Global average across steps (same logic as palette/cm)
                 psnr_test = sum(self.psnr_step.values()) / len(self.psnr_step)
                 ssim_test = sum(self.ssim_step.values()) / len(self.ssim_step)
+                lpips_test = sum(self.lpips_step.values()) / len(self.lpips_step)
                 setattr(self, "psnr_test_" + test_name, psnr_test)
                 setattr(self, "ssim_test_" + test_name, ssim_test)
+                setattr(self, "lpips_test_" + test_name, lpips_test)
 
             else:
                 setattr(self, "psnr_test_" + test_name, psnr_test)

@@ -183,15 +183,24 @@ class Visualizer:
         output_types = set()
         for group in visuals:
             for name in group.keys():
-                m = re.match(r"(output_\d+_steps)", name.split("_test_")[0])
+                base_name = name.split("_test_")[0]
+                m = re.match(r"(output_\d+_steps)", base_name)
                 if m:
                     output_types.add(m.group(1))
+                    continue
+                m = re.match(r"(output_\d+_)", base_name)
+                if m:
+                    output_types.add(m.group(1))
+                    continue
+                if base_name.startswith("output_"):
+                    output_types.add("output_")
 
         output_types = sorted(output_types)  # stable order
+        if not output_types:
+            output_types = ["output_"]
 
         for oi, out_key in enumerate(output_types):
 
-            # Build filtered visuals (minimal change)
             filtered_visuals = []
             for group in visuals:
                 new_group = {}

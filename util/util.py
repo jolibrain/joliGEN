@@ -8,8 +8,10 @@ import sys
 import numpy as np
 import requests
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
+from piq import psnr, ssim
 
 
 def display_mask(mask):
@@ -379,3 +381,19 @@ def pan_float_img_to_8bits_display(img, gamma=0.7):
         img = img**gamma
 
     return (img.clip(0.0, 1.0) * 255.0).astype(np.uint8)
+
+
+def pad_to_lpips_safe(img, min_size=64):
+    h, w = img.shape[-2:]
+
+    pad_h_needed = max(0, min_size - h)
+    pad_w_needed = max(0, min_size - w)
+
+    pad_h_top = pad_h_needed // 2
+    pad_h_bottom = pad_h_needed - pad_h_top
+
+    pad_w_left = pad_w_needed // 2
+    pad_w_right = pad_w_needed - pad_w_left
+
+    pad = (pad_w_left, pad_w_right, pad_h_top, pad_h_bottom)
+    return F.pad(img, pad, mode="constant", value=0)
