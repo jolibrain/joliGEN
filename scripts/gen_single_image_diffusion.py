@@ -61,7 +61,7 @@ def load_model(
     train_json_path = model_in_dir + "/train_config.json"
     with open(train_json_path, "r") as jsonf:
         train_json = json.load(jsonf)
-
+    train_json["gpu_ids"] = str(device.index)
     opt = TrainOptions().parse_json(train_json)
     opt.jg_dir = jg_dir
 
