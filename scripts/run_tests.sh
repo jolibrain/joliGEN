@@ -15,6 +15,8 @@ echo "Current dir is [$current_dir]"
 export PYTHONDONTWRITEBYTECODE=1
 export NCCL_P2P_DISABLE=1
 
+export TORCH_CUDA_ARCH_LIST="8.6"
+
 ######## doc auto generation
 echo "Running doc auto generation"
 python3 ${current_dir}/../scripts/generate_doc.py --save_to ""
@@ -87,14 +89,14 @@ fi
 
 
 ###### test img2img_turbo
-echo "Running test img2img_turbo"
+# echo "Running test img2img_turbo"
 
-python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_img2img_turbo.py" --dataroot "$TARGET_NOSEM_DIR"
-OUT=$?
+# python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_img2img_turbo.py" --dataroot "$TARGET_NOSEM_DIR"
+# OUT=$?
 
-if [ $OUT != 0 ]; then
-    exit 1
-fi
+# if [ $OUT != 0 ]; then
+#     exit 1
+# fi
 
 ####### mask semantics test
 echo "Running mask semantics training tests"

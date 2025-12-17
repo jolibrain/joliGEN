@@ -54,9 +54,13 @@ def load_model(modelpath, model_in_file, cpu, gpuid):
     ):
         model.load_lora_config(modelpath + "/" + model_in_file)
     else:
-        model.load_state_dict(
-            torch.load(modelpath + "/" + model_in_file, map_location=device)
-        )
+        model.load_state_dict(torch.load(modelpath + "/" + model_in_file))
+
+    print("cuda is_available=", torch.cuda.is_available())
+    print("device_count=", torch.cuda.device_count())
+    print("device=", torch.cuda.current_device())
+    print("cuda device name=", torch.cuda.get_device_name(0))
+    print("cuda device=", torch.cuda.device(0))
 
     model = model.to(device)
     return model, opt, device
