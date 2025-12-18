@@ -43,7 +43,8 @@ from .modules.unet_generator_attn.unet_generator_attn import (
 )
 
 from .modules.hdit.hdit import HDiT, HDiTConfig
-from .modules.img2img_turbo.img2img_turbo import Img2ImgTurbo
+
+# from .modules.img2img_turbo.img2img_turbo import Img2ImgTurbo
 from .modules.hat.hat import HAT
 
 
@@ -270,14 +271,14 @@ def define_G(
             upsampler="pixelshuffle",
         )
         return net
-    elif G_netG == "img2img_turbo":
-        net = Img2ImgTurbo(
-            in_channel=model_input_nc,
-            out_channel=model_output_nc,
-            lora_rank_unet=G_lora_unet,
-            lora_rank_vae=G_lora_vae,
-        )
-        return net
+    #   elif G_netG == "img2img_turbo":
+    #       net = Img2ImgTurbo(
+    #           in_channel=model_input_nc,
+    #           out_channel=model_output_nc,
+    #           lora_rank_unet=G_lora_unet,
+    #           lora_rank_vae=G_lora_vae,
+    #       )
+    #       return net
     else:
         raise NotImplementedError(
             "Generator model name [%s] is not recognized" % G_netG
