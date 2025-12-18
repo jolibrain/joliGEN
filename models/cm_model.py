@@ -187,7 +187,7 @@ class CMModel(BaseDiffusionModel):
         # Define network
         opt.alg_palette_sampling_method = ""
         opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
-        if opt.alg_diffusion_ddpm_cm_ft and self.opt.G_netG == "unet_vid":
+        if opt.alg_diffusion_ddpm_cm_ft:
             opt.alg_diffusion_cond_embed_dim = 32
         else:
             opt.alg_diffusion_cond_embed_dim = 256
@@ -372,9 +372,7 @@ class CMModel(BaseDiffusionModel):
             mask_pred_x = self.pred_x
             mask_target_x = target_x
         loss = (pseudo_huber_loss(mask_pred_x, mask_target_x) * loss_weights).mean()
-
         self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
-
         # perceptual losses, if any
         if "LPIPS" in self.opt.alg_cm_perceptual_loss:
             if mask_pred_x.size(1) > 3:  # more than 3 channels
@@ -441,8 +439,7 @@ class CMModel(BaseDiffusionModel):
             loss = torch.sqrt(loss)
 
         loss = loss / (t - r).flatten()
-
-        self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
+        self.loss_G_tot = loss.mean() * self.opt.alg_diffusion_lambda_G
 
         # perceptual losses, if any
         if "LPIPS" in self.opt.alg_cm_perceptual_loss:
