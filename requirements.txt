@@ -33,6 +33,6 @@ dists-pytorch
 huggingface-hub==0.25.2
 transformers
 diffusers==0.25.1
-peft==0.17.1
+peft
 bitsandbytes
 tifffile

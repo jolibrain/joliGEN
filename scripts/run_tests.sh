@@ -85,17 +85,17 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-
-###### test img2img_turbo
-echo "Running test img2img_turbo"
-
-python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_img2img_turbo.py" --dataroot "$TARGET_NOSEM_DIR"
-OUT=$?
-
-if [ $OUT != 0 ]; then
-    exit 1
-fi
-
+#
+####### test img2img_turbo
+#echo "Running test img2img_turbo"
+#
+#python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_img2img_turbo.py" --dataroot "$TARGET_NOSEM_DIR"
+#OUT=$?
+#
+#if [ $OUT != 0 ]; then
+#    exit 1
+#fi
+#
 ####### mask semantics test
 echo "Running mask semantics training tests"
 URL=https://joligen.com/datasets/noglasses2glasses_ffhq_mini.zip

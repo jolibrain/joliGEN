@@ -4,7 +4,8 @@ from transformers import AutoTokenizer, CLIPTextModel
 from diffusers import DDPMScheduler
 from diffusers import AutoencoderKL, UNet2DConditionModel
 from diffusers.utils.peft_utils import set_weights_and_activate_adapters
-from peft import LoraConfig
+
+# from peft import LoraConfig
 
 
 def make_1step_sched():
