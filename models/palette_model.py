@@ -587,7 +587,7 @@ class PaletteModel(BaseDiffusionModel):
             ref = self.ref_A
         else:
             ref = None
-        noise, noise_hat, min_snr_loss_weight = self.netG_A(
+        y_0_target, y_0_hat, min_snr_loss_weight = self.netG_A(
             y_0=y_0, y_cond=y_cond, noise=noise, mask=mask, cls=cls, ref=ref
         )
         frame = 0
@@ -600,16 +600,17 @@ class PaletteModel(BaseDiffusionModel):
         if mask is not None:
             mask_binary = torch.clamp(mask, min=0, max=1)
             loss = self.loss_fn(
-                min_snr_loss_weight * mask_binary * noise,
-                min_snr_loss_weight * mask_binary * noise_hat,
+                min_snr_loss_weight * mask_binary * y_0_target,
+                min_snr_loss_weight * mask_binary * y_0_hat,
             )
         else:
             loss = self.loss_fn(
-                min_snr_loss_weight * noise, min_snr_loss_weight * noise_hat
+                min_snr_loss_weight * y_0_target,
+                min_snr_loss_weight * y_0_hat,
             )
 
         if isinstance(loss, dict):
-            loss_tot = torch.zeros(size=(), device=noise.device)
+            loss_tot = torch.zeros(size=(), device=y_0_target.device)
 
             for cur_size, cur_loss in loss.items():
                 setattr(self, "loss_G_" + cur_size, cur_loss)

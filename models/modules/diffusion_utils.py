@@ -119,13 +119,6 @@ def set_new_noise_schedule(model, phase):
     )
 
 
-def predict_start_from_noise(model, y_t, t, noise, phase):
-    return (
-        extract(getattr(model, "sqrt_recip_gammas_" + phase), t, y_t.shape) * y_t
-        - extract(getattr(model, "sqrt_recipm1_gammas_" + phase), t, y_t.shape) * noise
-    )
-
-
 def q_posterior(model, y_0_hat, y_t, t, phase):
     posterior_mean = (
         extract(getattr(model, "posterior_mean_coef1_" + phase), t, y_t.shape) * y_0_hat

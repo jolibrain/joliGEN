@@ -10,7 +10,6 @@ from einops import rearrange, repeat
 
 from models.modules.diffusion_utils import (
     set_new_noise_schedule,
-    predict_start_from_noise,
     q_posterior,
     gamma_embedding,
     extract,
@@ -214,31 +213,16 @@ class DiffusionGenerator(nn.Module):
         input = torch.cat([y_cond, y_t], dim=1)
         if sequence_length != 0:
             input, y_t, mask = rearrange_4dto5d_fh(sequence_length, input, y_t, mask)
-        if guidance_scale > 0.0 and phase == "test":
-            y_0_hat_uncond = predict_start_from_noise(
-                self.denoise_fn.model,
-                y_t,
-                t=t,
-                noise=self.denoise_fn(
-                    input,
-                    torch.zeros_like(embed_noise_level),
-                    cls=None,
-                    mask=None,
-                    ref=ref,
-                ),
-                phase=phase,
-            )
-        y_0_hat = predict_start_from_noise(
-            self.denoise_fn.model,
-            y_t,
-            t=t,
-            noise=self.denoise_fn(
-                input, embed_noise_level, cls=cls, mask=mask, ref=ref
-            ),
-            phase=phase,
-        )
+        y_0_hat = self.denoise_fn(input, embed_noise_level, cls=cls, mask=mask, ref=ref)
 
         if guidance_scale > 0.0 and phase == "test":
+            y_0_hat_uncond = self.denoise_fn(
+                input,
+                torch.zeros_like(embed_noise_level),
+                cls=None,
+                mask=None,
+                ref=ref,
+            )
             y_0_hat = (1 + guidance_scale) * y_0_hat - guidance_scale * y_0_hat_uncond
 
         if clip_denoised:
@@ -491,11 +475,9 @@ class DiffusionGenerator(nn.Module):
         input = torch.cat([y_cond, y_noisy], dim=1)
 
         if sequence_length != 0:
-            input, mask, noise = rearrange_4dto5d_fh(
-                sequence_length, input, mask, noise
-            )
+            input, mask = rearrange_4dto5d_fh(sequence_length, input, mask)
 
-        noise_hat = self.denoise_fn(
+        y_0_hat = self.denoise_fn(
             input, embed_sample_gammas, cls=cls, mask=mask, ref=ref
         )
 
@@ -515,10 +497,13 @@ class DiffusionGenerator(nn.Module):
         min_snr_loss_weight = (
             torch.stack([snr, ksnr * torch.ones_like(t)], dim=1).min(dim=1)[0] / snr
         )
-        # reshape min_snr_loss_weight to match noise_hat
+        # reshape min_snr_loss_weight to match predictions
         min_snr_loss_weight = min_snr_loss_weight.view(-1, 1, 1, 1)
 
-        return noise, noise_hat, min_snr_loss_weight
+        if sequence_length != 0:
+            (y_0,) = rearrange_4dto5d_fh(sequence_length, y_0)
+
+        return y_0, y_0_hat, min_snr_loss_weight
 
     def set_new_sampling_method(self, sampling_method):
         self.sampling_method = sampling_method
