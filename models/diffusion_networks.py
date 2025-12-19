@@ -15,6 +15,7 @@ from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
 from .modules.sc_generator import SCGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
+from .modules.vit import JiT, JiT_models, JiT_VARIANT_CONFIGS
 
 
 def define_G(
@@ -245,6 +246,44 @@ def define_G(
             n_timestep_test=G_diff_n_timestep_test,
         )
         cond_embed_dim = hdit_config.mapping.width
+        model.cond_embed_dim = cond_embed_dim
+    elif G_netG == "vit":
+        variant = getattr(opt, "G_vit_variant", "")
+        base = JiT_VARIANT_CONFIGS.get(variant, {})
+        cfg = {
+            "depth": getattr(opt, "G_vit_depth", base.get("depth", 12)),
+            "hidden_size": getattr(
+                opt, "G_vit_hidden_size", base.get("hidden_size", 768)
+            ),
+            "num_heads": getattr(opt, "G_vit_num_heads", base.get("num_heads", 12)),
+            "patch_size": getattr(opt, "G_vit_patch_size", base.get("patch_size", 16)),
+            "bottleneck_dim": getattr(
+                opt, "G_vit_bottleneck_dim", base.get("bottleneck_dim", 128)
+            ),
+            "in_context_len": getattr(
+                opt, "G_vit_in_context_len", base.get("in_context_len", 32)
+            ),
+            "in_context_start": getattr(
+                opt, "G_vit_in_context_start", base.get("in_context_start", 4)
+            ),
+        }
+        #        model = JiT(
+        #                input_size=data_crop_size,
+        #                in_channels=in_channel,
+        #                num_classes=getattr(opt, "G_vit_num_classes", base.get("num_classes", 1)),
+        #                **cfg,
+        #                )
+        cond_embed_dim = getattr(
+            opt, "alg_diffusion_cond_embed_dim", cfg.get("hidden_size", 768)
+        )
+        model = JiT(
+            input_size=data_crop_size,
+            in_channels=in_channel,
+            num_classes=getattr(opt, "G_vit_num_classes", base.get("num_classes", 1)),
+            cond_embed_dim=cond_embed_dim,
+            **cfg,
+        )
+        # Ensure SC/CM wrappers can query the conditioning width.
         model.cond_embed_dim = cond_embed_dim
 
     else:
