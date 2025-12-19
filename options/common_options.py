@@ -216,6 +216,7 @@ class CommonOptions(BaseOptions):
                 "img2img_turbo",
                 "unet_vid",
                 "hat",
+                "vit",
             ],
             help="specify generator architecture",
         )
@@ -421,6 +422,47 @@ class CommonOptions(BaseOptions):
             type=int,
             default=8,
             help="lora vae rank for G",
+        )
+        parser.add_argument(
+            "--G_vit_variant",
+            type=str,
+            default="JiT-B/16",
+            help="Selects the ViT backbone when --G_netG vit",
+        )
+        parser.add_argument(
+            "--G_vit_depth", type=int, default=12, help="JiT transformer depth"
+        )
+
+        parser.add_argument(
+            "--G_vit_num_classes",
+            type=int,
+            default=1,
+            help="Number of class embeddings for vit",
+        )
+
+        parser.add_argument(
+            "--G_vit_bottleneck_dim",
+            type=int,
+            default=128,
+            help="Numbe embeddings for vit",
+        )
+        parser.add_argument(
+            "--G_vit_hidden_size",
+            type=int,
+            default=728,
+            help="Numbe embeddings for vit",
+        )
+        parser.add_argument(
+            "--G_vit_num_heads",
+            type=int,
+            default=12,
+            help="Numbe heads for vit",
+        )
+        parser.add_argument(
+            "--G_vit_patch_size",
+            type=int,
+            default=16,
+            help="Numbe patch for vit",
         )
 
         # discriminator
