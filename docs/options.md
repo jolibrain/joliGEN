@@ -9,7 +9,7 @@ Here are all the available options to call with `train.py`
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
-| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette, cm, cm_gan |
+| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette, cm, cm_gan, sc |
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
@@ -85,6 +85,7 @@ Here are all the available options to call with `train.py`
 | --alg_cm_metric_mask | flag |  | Evaluate the metric PSNR and SSIM on the dilated mask region instead of the cropped image. |
 | --alg_cm_num_steps | int | 1000000 | number of steps before reaching the fully discretized consistency model sampling schedule |
 | --alg_cm_perceptual_loss | array | [''] | optional supervised perceptual loss<br/><br/> **Values:** , LPIPS, DISTS |
+| --alg_ddpm_ft_mode | string | cm | Fine-tuning mode for pretrained DDPM: 'cm' (consistency model) or 'ect' (easy consistency tuning).<br/><br/> **Values:** cm, ect |
 | --alg_diffusion_cond_computed_sketch_list | array | ['canny', 'hed'] | what primitives to use for random sketch |
 | --alg_diffusion_cond_embed | string |  | whether to use conditioning embeddings to the generator layers, and what type<br/><br/> **Values:** , mask, class, mask_and_class, ref |
 | --alg_diffusion_cond_embed_dim | int | 32 | nb of examples processed for inference |
@@ -110,6 +111,13 @@ Here are all the available options to call with `train.py`
 | --alg_diffusion_super_resolution_scale | float | 2.0 | scale for super resolution |
 | --alg_diffusion_task | string | inpainting | Whether to perform inpainting, super resolution or pix2pix<br/><br/> **Values:** inpainting, super_resolution, pix2pix |
 | --alg_diffusion_vid_canny_dropout | array | [[]] | the range of probabilities for dropping the canny for each frame |
+| --alg_sc_denoise_timesteps | array | [16] | number of denoise steps |
+| --alg_sc_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
+| --alg_sc_dists_std | array | [0.229, 0.224, 0.225] | std for DISTS perceptual loss |
+| --alg_sc_lambda_perceptual | float | 1.0 | weight for LPIPS and DISTS perceptual losses |
+| --alg_sc_metric_mask | flag |  | Evaluate the metric PSNR and SSIM on the dilated mask region instead of the cropped image. |
+| --alg_sc_num_steps | int | 1000000 | number of steps before reaching the fully discretized consistency model sampling schedule |
+| --alg_sc_perceptual_loss | array | [''] | optional supervised perceptual loss<br/><br/> **Values:** , LPIPS, DISTS |
 
 ### GAN model
 
