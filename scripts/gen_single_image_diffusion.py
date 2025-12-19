@@ -647,7 +647,12 @@ def generate(
 
     if opt.model_type == "palette":
         if "class" in model.denoise_fn.conditioning:
-            cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls
+            if len(cls_value) > 1:
+                cls_tensor = torch.tensor(
+                    cls_value, dtype=torch.int64, device=device
+                ).unsqueeze(0)
+            else:
+                cls_tensor = torch.ones(1, dtype=torch.int64, device=device) * cls_value
         else:
             cls_tensor = None
     if ref is not None:
