@@ -358,7 +358,9 @@ class CMGenerator(nn.Module):
             else:
                 x_with_cond = torch.cat([x_cond, x], dim=2)
         else:
-            if len(x.shape) != 5:
+            if len(x.shape) != 5 and not self.opt.alg_diffusion_ddpm_cm_ft:
+                x_with_cond = torch.cat([x, x], dim=1)
+            elif self.opt.alg_ddpm_ft_mode == "ect":
                 x_with_cond = torch.cat([x, x], dim=1)
             else:
                 x_with_cond = torch.cat([x, x], dim=2)
@@ -383,7 +385,7 @@ class CMGenerator(nn.Module):
                 x_with_cond = torch.cat([x_cond, x], dim=2)
         else:
             if len(x.shape) != 5:
-                x_with_cond = x
+                x_with_cond = torch.cat([x, x], dim=1)
             elif self.opt.G_netG == "unet_vid" and self.opt.alg_diffusion_ddpm_cm_ft:
                 x_with_cond = torch.cat([x, x], dim=2)
             else:
@@ -405,15 +407,11 @@ class CMGenerator(nn.Module):
             rnd_normal = torch.randn(x.shape[0], device=x.device)
             t = (rnd_normal * self.P_std + self.P_mean).exp()
             r = self.t_to_r(self.k, self.b, self.q, t, self.stage)
-
             eps = torch.randn_like(x)
-            eps_t = eps * t
-            eps_r = eps * r
-
             if mask is not None:
                 mask = torch.clamp(mask, min=0.0, max=1.0)
 
-            t_noisy_x = x + pad_dims_like(eps_t, x)
+            t_noisy_x = x + pad_dims_like(t, x) * eps
             if mask is not None:
                 t_noisy_x = t_noisy_x * mask + (1 - mask) * x
 
@@ -425,7 +423,7 @@ class CMGenerator(nn.Module):
                 x_cond,
             )
             with torch.no_grad():
-                r_noisy_x = x + pad_dims_like(eps_r, x)
+                r_noisy_x = x + pad_dims_like(r, x) * eps
                 if mask is not None:
                     r_noisy_x = r_noisy_x * mask + (1 - mask) * x
 
@@ -463,7 +461,6 @@ class CMGenerator(nn.Module):
             num_timesteps, self.sigma_min, self.sigma_max, self.rho, x.device
         )
         noise = torch.randn_like(x)
-
         timesteps = lognormal_timestep_distribution(
             x.shape[0], sigmas, self.lognormal_mean, self.lognormal_std
         )
