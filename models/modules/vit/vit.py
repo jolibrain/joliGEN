@@ -104,6 +104,7 @@ class LabelEmbedder(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, labels):
+        labels = labels.clamp(0, self.num_classes)
         embeddings = self.embedding_table(labels)
         return embeddings
 

@@ -14,6 +14,7 @@ from .modules.hdit.hdit import HDiT, HDiTConfig
 from .modules.palette_denoise_fn import PaletteDenoiseFn
 from .modules.cm_generator import CMGenerator
 from .modules.sc_generator import SCGenerator
+from .modules.b2b_generator import B2BGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 from .modules.vit import JiT, JiT_models, JiT_VARIANT_CONFIGS
 
@@ -106,7 +107,6 @@ def define_G(
 
     if "mask" in alg_diffusion_cond_embed:
         in_channel += alg_diffusion_cond_embed_dim
-
     if G_netG == "unet_mha":
         if model_prior_321_backwardcompatibility:
             cond_embed_dim = G_ngf * 4
@@ -312,6 +312,15 @@ def define_G(
             G_ngf=G_ngf,
             opt=opt,
         )
+    elif model_type == "b2b":
+        net = B2BGenerator(
+            b2b_model=model,
+            sampling_method="",
+            image_size=data_crop_size,
+            G_ngf=G_ngf,
+            opt=opt,
+        )
+
     elif model_type == "sc":
         net = SCGenerator(
             sc_model=model,
