@@ -104,7 +104,7 @@ class LabelEmbedder(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, labels):
-        labels = labels.clamp(0, self.num_classes)
+        # labels = labels.clamp(0, self.num_classes)
         embeddings = self.embedding_table(labels)
         return embeddings
 
@@ -206,10 +206,7 @@ class FinalLayer(nn.Module):
 
     @torch.compile
     def forward(self, x, c):
-        y = self.adaLN_modulation(c)
-        half = y.shape[1] // 2  # still static to compiler
-        shift, scale = y.split(half, dim=1)
-
+        shift, scale = self.adaLN_modulation(c).chunk(2, dim=1)
         x = self.norm_final(x)
         x = modulate(x, shift, scale)
         x = self.linear(x)

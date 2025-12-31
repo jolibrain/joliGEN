@@ -264,12 +264,6 @@ def define_G(
                 opt, "G_vit_in_context_start", base.get("in_context_start", 4)
             ),
         }
-        #        model = JiT(
-        #                input_size=data_crop_size,
-        #                in_channels=in_channel,
-        #                num_classes=getattr(opt, "G_vit_num_classes", base.get("num_classes", 1)),
-        #                **cfg,
-        #                )
         cond_embed_dim = getattr(
             opt, "alg_diffusion_cond_embed_dim", cfg.get("hidden_size", 768)
         )
