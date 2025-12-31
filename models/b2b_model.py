@@ -76,7 +76,7 @@ class B2BModel(BaseDiffusionModel):
             type=int,
             nargs="+",
             default=[50],
-            choices=[1, 2, 4, 8, 16, 32, 64, 128],
+            choices=[1, 2, 4, 8, 16, 32, 50, 64, 128],
             help="number of denoise steps",
         )
         if is_train:
@@ -154,7 +154,7 @@ class B2BModel(BaseDiffusionModel):
 
         # Define network
         opt.alg_palette_sampling_method = ""
-
+        opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
         opt.alg_diffusion_cond_embed_dim = 256
         self.netG_A = diffusion_networks.define_G(**vars(opt)).to(self.device)
         if opt.isTrain:
@@ -315,8 +315,7 @@ class B2BModel(BaseDiffusionModel):
         y_0 = self.gt_image  # ground truth
         y_cond = self.cond_image  # conditioning
         mask = self.mask
-
-        v_pred, v = self.netG_A(y_0, mask, y_cond, y=self.label_cls)
+        v_pred, v = self.netG_A(y_0, mask, y_cond, label=self.label_cls)
 
         # Compute loss (l2 loss)
         loss = ((v_pred - v) ** 2).mean(dim=(1, 2, 3)).mean()
@@ -358,7 +357,6 @@ class B2BModel(BaseDiffusionModel):
             )
             self.loss_G_tot += self.loss_G_perceptual
 
-    ###########it is not correct for inference !!!!
     def inference(self, nb_imgs, offset=0):
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
@@ -409,7 +407,9 @@ class B2BModel(BaseDiffusionModel):
                 self.gt_image_dilated_per_step = {}
 
                 for steps in self.opt.alg_b2b_denoise_timesteps:
-                    self.output = netG.restoration(y_t, y_cond, steps, mask)
+                    self.output = netG.restoration(
+                        y_t, y_cond, steps, mask, self.label_cls
+                    )
                     self.outputs_per_step[steps] = self.output
                     name = "output_" + str(steps) + "_steps"
                     setattr(self, name, self.output)
