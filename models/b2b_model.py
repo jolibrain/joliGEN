@@ -79,6 +79,7 @@ class B2BModel(BaseDiffusionModel):
             choices=[1, 2, 4, 8, 16, 32, 50, 64, 128],
             help="number of denoise steps",
         )
+
         if is_train:
             parser = B2BModel.modify_commandline_options_train(parser)
 
@@ -304,20 +305,30 @@ class B2BModel(BaseDiffusionModel):
 
         self.real_A = self.y_t
         self.real_B = self.gt_image
-        self.label_cls = data.get("A_label_cls", None)
-        if self.label_cls is not None:
-            self.label_cls = self.label_cls.to(self.device)
+        self.num_classes = getattr(self.opt, "G_vit_num_classes", 1) if self.opt else 1
+
+        if self.num_classes > 0:
+            self.label_cls = torch.zeros(
+                self.batch_size, dtype=torch.long, device=self.device
+            )
+        else:
+            self.label_cls = None
 
     def compute_b2b_loss(self):
-        """
-        Calls netG_A.forward(), which already runs the model internally.
-        """
-        y_0 = self.gt_image  # ground truth
-        y_cond = self.cond_image  # conditioning
+        y_0 = self.gt_image
+        y_cond = self.cond_image
         mask = self.mask
-        v_pred, v = self.netG_A(y_0, mask, y_cond, label=self.label_cls)
 
-        # Compute loss (l2 loss)
+        B = y_0.shape[0]
+
+        # base "real" labels in [0 .. num_classes-1]
+        if self.num_classes > 0:
+            labels = torch.zeros(B, dtype=torch.long, device=self.device)  # class 0
+        else:
+            labels = None
+
+        v_pred, v = self.netG_A(y_0, mask, y_cond, label=labels)
+
         loss = ((v_pred - v) ** 2).mean(dim=(1, 2, 3)).mean()
         self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
 
