@@ -104,7 +104,6 @@ class LabelEmbedder(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, labels):
-        # labels = labels.clamp(0, self.num_classes)
         embeddings = self.embedding_table(labels)
         return embeddings
 
@@ -286,11 +285,6 @@ class JiT(nn.Module):
         # time and class embed
         self.t_embedder = TimestepEmbedder(hidden_size)
         self.y_embedder = LabelEmbedder(num_classes, hidden_size)
-        #################cond_embed ???
-        if self.cond_embed_dim == hidden_size:
-            self.cond_proj = nn.Identity()
-        else:
-            self.cond_proj = nn.Linear(self.cond_embed_dim, hidden_size)
         ################### check
         # linear embed
         self.x_embedder = BottleneckPatchEmbed(
@@ -395,47 +389,17 @@ class JiT(nn.Module):
         return imgs
 
     # def forward(self, x, t, y):
-    def forward(self, x, t=None, y=None, cond_embed=None):
+    def forward(self, x, t=None, y=None):
         """
         x: (N, C, H, W)
         t: (N,)
         y: (N,)
         """
-        #        # class and time embeddings
-        #        t_emb = self.t_embedder(t)
-        #        y_emb = self.y_embedder(y)
-        #        c = t_emb + y_emb
-        #
-        #        if cond_embed is not None:
-        #            c = self.cond_proj(cond_embed)
-        #            y_emb = c  # reuse conditioning for in-context tokens
-        #        else:
-        #            if t is None or y is None:
-        #                raise ValueError("JiT forward requires cond_embed or both t and y")
-        #            t_emb = self.t_embedder(t)
-        #            y_emb = self.y_embedder(y)
-        #            c = t_emb + y_emb
 
-        # Accept cond_embed as either keyword or legacy positional argument (2nd arg).
-        if (
-            cond_embed is None
-            and y is None
-            and t is not None
-            and hasattr(t, "dim")
-            and t.dim() > 1
-        ):
-            cond_embed = t
-            t = None
-
-        if cond_embed is not None:
-            c = self.cond_proj(cond_embed)
-            y_emb = c  # reuse conditioning for in-context tokens
-        else:
-            if t is None or y is None:
-                raise ValueError("JiT forward requires cond_embed or both t and y")
-            t_emb = self.t_embedder(t)
-            y_emb = self.y_embedder(y)
-            c = t_emb + y_emb
+        # class and time embeddings
+        t_emb = self.t_embedder(t)
+        y_emb = self.y_embedder(y)
+        c = t_emb + y_emb
 
         # forward JiT
         x = self.x_embedder(x)
@@ -465,83 +429,84 @@ class JiT(nn.Module):
         return output
 
 
-def JiT_B_16(**kwargs):
-    return JiT(
-        depth=12,
-        hidden_size=768,
-        num_heads=12,
-        bottleneck_dim=128,
-        in_context_len=32,
-        in_context_start=4,
-        patch_size=16,
-        **kwargs,
-    )
-
-
-def JiT_B_32(**kwargs):
-    return JiT(
-        depth=12,
-        hidden_size=768,
-        num_heads=12,
-        bottleneck_dim=128,
-        in_context_len=32,
-        in_context_start=4,
-        patch_size=32,
-        **kwargs,
-    )
-
-
-def JiT_L_16(**kwargs):
-    return JiT(
-        depth=24,
-        hidden_size=1024,
-        num_heads=16,
-        bottleneck_dim=128,
-        in_context_len=32,
-        in_context_start=8,
-        patch_size=16,
-        **kwargs,
-    )
-
-
-def JiT_L_32(**kwargs):
-    return JiT(
-        depth=24,
-        hidden_size=1024,
-        num_heads=16,
-        bottleneck_dim=128,
-        in_context_len=32,
-        in_context_start=8,
-        patch_size=32,
-        **kwargs,
-    )
-
-
-def JiT_H_16(**kwargs):
-    return JiT(
-        depth=32,
-        hidden_size=1280,
-        num_heads=16,
-        bottleneck_dim=256,
-        in_context_len=32,
-        in_context_start=10,
-        patch_size=16,
-        **kwargs,
-    )
-
-
-def JiT_H_32(**kwargs):
-    return JiT(
-        depth=32,
-        hidden_size=1280,
-        num_heads=16,
-        bottleneck_dim=256,
-        in_context_len=32,
-        in_context_start=10,
-        patch_size=32,
-        **kwargs,
-    )
-
+#
+# def JiT_B_16(**kwargs):
+#    return JiT(
+#        depth=12,
+#        hidden_size=768,
+#        num_heads=12,
+#        bottleneck_dim=128,
+#        in_context_len=32,
+#        in_context_start=4,
+#        patch_size=16,
+#        **kwargs,
+#    )
+#
+#
+# def JiT_B_32(**kwargs):
+#    return JiT(
+#        depth=12,
+#        hidden_size=768,
+#        num_heads=12,
+#        bottleneck_dim=128,
+#        in_context_len=32,
+#        in_context_start=4,
+#        patch_size=32,
+#        **kwargs,
+#    )
+#
+#
+# def JiT_L_16(**kwargs):
+#    return JiT(
+#        depth=24,
+#        hidden_size=1024,
+#        num_heads=16,
+#        bottleneck_dim=128,
+#        in_context_len=32,
+#        in_context_start=8,
+#        patch_size=16,
+#        **kwargs,
+#    )
+#
+#
+# def JiT_L_32(**kwargs):
+#    return JiT(
+#        depth=24,
+#        hidden_size=1024,
+#        num_heads=16,
+#        bottleneck_dim=128,
+#        in_context_len=32,
+#        in_context_start=8,
+#        patch_size=32,
+#        **kwargs,
+#    )
+#
+#
+# def JiT_H_16(**kwargs):
+#    return JiT(
+#        depth=32,
+#        hidden_size=1280,
+#        num_heads=16,
+#        bottleneck_dim=256,
+#        in_context_len=32,
+#        in_context_start=10,
+#        patch_size=16,
+#        **kwargs,
+#    )
+#
+#
+# def JiT_H_32(**kwargs):
+#    return JiT(
+#        depth=32,
+#        hidden_size=1280,
+#        num_heads=16,
+#        bottleneck_dim=256,
+#        in_context_len=32,
+#        in_context_start=10,
+#        patch_size=32,
+#        **kwargs,
+#    )
+#
 
 JiT_VARIANT_CONFIGS = {
     "JiT-B/16": dict(
@@ -600,11 +565,11 @@ JiT_VARIANT_CONFIGS = {
     ),
 }
 
-JiT_models = {
-    "JiT-B/16": JiT_B_16,
-    "JiT-B/32": JiT_B_32,
-    "JiT-L/16": JiT_L_16,
-    "JiT-L/32": JiT_L_32,
-    "JiT-H/16": JiT_H_16,
-    "JiT-H/32": JiT_H_32,
-}
+# JiT_models = {
+#    "JiT-B/16": JiT_B_16,
+#    "JiT-B/32": JiT_B_32,
+#    "JiT-L/16": JiT_L_16,
+#    "JiT-L/32": JiT_L_32,
+#    "JiT-H/16": JiT_H_16,
+#    "JiT-H/32": JiT_H_32,
+# }
