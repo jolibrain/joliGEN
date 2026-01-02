@@ -16,7 +16,7 @@ from .modules.cm_generator import CMGenerator
 from .modules.sc_generator import SCGenerator
 from .modules.b2b_generator import B2BGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
-from .modules.vit import JiT, JiT_models, JiT_VARIANT_CONFIGS
+from .modules.vit import JiT, JiT_VARIANT_CONFIGS
 
 
 def define_G(
