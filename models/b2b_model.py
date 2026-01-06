@@ -307,12 +307,14 @@ class B2BModel(BaseDiffusionModel):
         self.real_B = self.gt_image
         self.num_classes = getattr(self.opt, "G_vit_num_classes", 1) if self.opt else 1
 
-        if self.num_classes > 0:
-            self.label_cls = torch.zeros(
-                self.batch_size, dtype=torch.long, device=self.device
+        if self.num_classes != 1:
+            raise RuntimeError(
+                f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
+                "Stopping because this run only supports num_classes=1."
             )
-        else:
-            self.label_cls = None
+        self.label_cls = torch.zeros(
+            self.batch_size, dtype=torch.long, device=self.device
+        )
 
     def compute_b2b_loss(self):
         y_0 = self.gt_image
@@ -323,7 +325,9 @@ class B2BModel(BaseDiffusionModel):
 
         # base "real" labels in [0 .. num_classes-1]
         if self.num_classes > 0:
-            labels = torch.zeros(B, dtype=torch.long, device=self.device)  # class 0
+            labels = torch.zeros(
+                B, dtype=torch.long, device=self.device
+            )  # class 1 start from 0, need discuss
         else:
             labels = None
 
