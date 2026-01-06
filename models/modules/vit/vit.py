@@ -279,9 +279,6 @@ class JiT(nn.Module):
         self.in_context_len = in_context_len
         self.in_context_start = in_context_start
         self.num_classes = num_classes
-        self.cond_embed_dim = (
-            cond_embed_dim if cond_embed_dim is not None else hidden_size
-        )
         # time and class embed
         self.t_embedder = TimestepEmbedder(hidden_size)
         self.y_embedder = LabelEmbedder(num_classes, hidden_size)
@@ -388,8 +385,7 @@ class JiT(nn.Module):
         imgs = x.reshape(shape=(x.shape[0], c, h * p, h * p))
         return imgs
 
-    # def forward(self, x, t, y):
-    def forward(self, x, t=None, y=None):
+    def forward(self, x, t, y):
         """
         x: (N, C, H, W)
         t: (N,)
