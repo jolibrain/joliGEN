@@ -98,13 +98,14 @@ def define_G(
 
     if model_type == "palette":
         in_channel = model_input_nc + model_output_nc
+    elif model_type == "b2b":
+        in_channel = model_input_nc
     else:  # CM
         in_channel = model_input_nc
         if (
             alg_diffusion_cond_embed != "" and alg_diffusion_cond_embed != "y_t"
         ) or alg_diffusion_task == "pix2pix":
             in_channel = model_input_nc + model_output_nc
-
     if "mask" in alg_diffusion_cond_embed:
         in_channel += alg_diffusion_cond_embed_dim
     if G_netG == "unet_mha":

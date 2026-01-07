@@ -293,6 +293,13 @@ class InferenceDiffusionOptions(BaseOptions):
         )
 
         parser.add_argument(
+            "--alg_b2b_denoise_inferstep",
+            type=int,
+            default=1,
+            help="denoise steps during the inference time",
+        )
+
+        parser.add_argument(
             "--vid_fps",
             type=float,
             default=18,
