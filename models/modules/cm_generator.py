@@ -358,12 +358,7 @@ class CMGenerator(nn.Module):
             else:
                 x_with_cond = torch.cat([x_cond, x], dim=2)
         else:
-            if len(x.shape) != 5 and not self.opt.alg_diffusion_ddpm_cm_ft:
-                x_with_cond = torch.cat([x, x], dim=1)
-            elif self.opt.alg_ddpm_ft_mode == "ect":
-                x_with_cond = torch.cat([x, x], dim=1)
-            else:
-                x_with_cond = torch.cat([x, x], dim=2)
+            x_with_cond = x
 
         return c_skip * x + c_out * self.cm_model(
             x_with_cond, embed_noise_level
@@ -384,12 +379,7 @@ class CMGenerator(nn.Module):
             else:
                 x_with_cond = torch.cat([x_cond, x], dim=2)
         else:
-            if len(x.shape) != 5:
-                x_with_cond = torch.cat([x, x], dim=1)
-            elif self.opt.G_netG == "unet_vid" and self.opt.alg_diffusion_ddpm_cm_ft:
-                x_with_cond = torch.cat([x, x], dim=2)
-            else:
-                x_with_cond = x
+            x_with_cond = x
 
         return c_skip * x + c_out * self.cm_model(
             x_with_cond, embed_noise_level
