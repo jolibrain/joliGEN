@@ -865,6 +865,7 @@ class BaseModel(ABC):
                     "cm",
                     "cm_gan",
                     "sc",
+                    "b2b",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
