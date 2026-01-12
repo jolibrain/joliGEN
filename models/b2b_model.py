@@ -24,60 +24,75 @@ import torch.nn.functional as F
 
 
 class B2BModel(BaseDiffusionModel):
+
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
-        """Configures options specific to the shortcut model"""
+        # Base diffusion options
         parser = BaseDiffusionModel.modify_commandline_options(
             parser, is_train=is_train
         )
-        parser.add_argument(
-            "--alg_b2b_num_steps",
-            type=int,
-            default=1000000,
-            help="number of steps before reaching the fully discretized consistency model sampling schedule",
-        )
+
+        # -------------------------
+        # B2B diffusion parameters
+        # -------------------------
 
         parser.add_argument(
-            "--alg_b2b_perceptual_loss",
-            type=str,
-            default=[""],
-            nargs="*",
-            choices=["", "LPIPS", "DISTS"],
-            help="optional supervised perceptual loss",
-        )
-        parser.add_argument(
-            "--alg_b2b_lambda_perceptual",
-            type=float,
-            default=1.0,
-            help="weight for LPIPS and DISTS perceptual losses",
-        )
-        parser.add_argument(
-            "--alg_b2b_dists_mean",
-            default=[0.485, 0.456, 0.406],  # Imagenet default
-            nargs="*",
-            type=float,
-            help="mean for DISTS perceptual loss",
-        )
-        parser.add_argument(
-            "--alg_b2b_dists_std",
-            default=[0.229, 0.224, 0.225],  # Imagenet default
-            nargs="*",
-            type=float,
-            help="std for DISTS perceptual loss",
-        )
-
-        parser.add_argument(
-            "--alg_b2b_metric_mask",
+            "--alg_palette_minsnr",
             action="store_true",
-            help="Evaluate the metric PSNR and SSIM on the dilated mask region instead of the cropped image.",
+            help="use min-SNR weighting",
         )
+
         parser.add_argument(
             "--alg_b2b_denoise_timesteps",
             type=int,
             nargs="+",
             default=[50],
             choices=[1, 2, 4, 8, 16, 32, 50, 64, 128],
-            help="number of denoise steps",
+            help="Number of denoising steps at inference",
+        )
+
+        # -------------------------
+        # Perceptual losses
+        # -------------------------
+        parser.add_argument(
+            "--alg_b2b_perceptual_loss",
+            type=str,
+            nargs="*",
+            default=[""],
+            choices=["", "LPIPS", "DISTS"],
+            help="Optional perceptual losses",
+        )
+
+        parser.add_argument(
+            "--alg_b2b_lambda_perceptual",
+            type=float,
+            default=1.0,
+            help="Weight for perceptual loss",
+        )
+
+        parser.add_argument(
+            "--alg_b2b_dists_mean",
+            type=float,
+            nargs="*",
+            default=[0.485, 0.456, 0.406],
+            help="Mean normalization for DISTS",
+        )
+
+        parser.add_argument(
+            "--alg_b2b_dists_std",
+            type=float,
+            nargs="*",
+            default=[0.229, 0.224, 0.225],
+            help="Std normalization for DISTS",
+        )
+
+        # -------------------------
+        # Evaluation options
+        # -------------------------
+        parser.add_argument(
+            "--alg_b2b_metric_mask",
+            action="store_true",
+            help="Evaluate metrics only on dilated mask region",
         )
 
         if is_train:
@@ -88,9 +103,20 @@ class B2BModel(BaseDiffusionModel):
     @staticmethod
     def modify_commandline_options_train(parser):
         parser = BaseDiffusionModel.modify_commandline_options_train(parser)
+
+        parser.add_argument(
+            "--alg_b2b_loss",
+            type=str,
+            default="MSE",
+            choices=["L1", "MSE", "multiscale_L1", "multiscale_MSE"],
+            help="Loss type for B2B denoising",
+        )
+
         return parser
 
+    @staticmethod
     def after_parse(opt):
+        # Example: validate incompatible options here
         return opt
 
     def __init__(self, opt, rank):
@@ -102,10 +128,6 @@ class B2BModel(BaseDiffusionModel):
             batch_size = self.opt.train_batch_size
         else:
             batch_size = self.opt.test_batch_size
-
-        self.total_t = (
-            self.opt.alg_b2b_num_steps * self.opt.train_batch_size
-        )  # scaled with bs
 
         if (
             self.opt.alg_diffusion_cond_embed != ""
@@ -157,7 +179,7 @@ class B2BModel(BaseDiffusionModel):
         opt.alg_palette_sampling_method = ""
         opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
         opt.alg_diffusion_cond_embed_dim = 256
-        self.netG_A = diffusion_networks.define_G(**vars(opt)).to(self.device)
+        self.netG_A = diffusion_networks.define_G(opt=opt, **vars(opt)).to(self.device)
         if opt.isTrain:
             self.netG_A.current_t = max(self.netG_A.current_t, opt.total_iters)
         else:
@@ -183,7 +205,33 @@ class B2BModel(BaseDiffusionModel):
             )
             self.optimizers.append(self.optimizer_G)
 
-        self.loss_names_G = ["G_tot"]
+        # Define loss functions
+        losses_G = ["G_tot"]
+
+        if "multiscale" in self.opt.alg_b2b_loss:
+            img_size = self.opt.data_crop_size
+            img_size_log = math.floor(math.log2(img_size))
+            min_size = 32
+            min_size_log = math.floor(math.log2(min_size))
+
+            scales = []
+            for k in range(min_size_log, img_size_log + 1):
+                scales.append(2**k)
+                losses_G.append("G_" + str(2**k))
+            losses_G.append("G_" + str(img_size))
+
+            self.loss_fn = MultiScaleDiffusionLoss(
+                self.opt.alg_b2b_loss,
+                img_size=self.opt.data_crop_size,
+                scales=scales,
+            )
+        elif self.opt.alg_b2b_loss == "MSE":
+            print(" !!!MSE loss")
+            self.loss_fn = torch.nn.MSELoss()
+        elif self.opt.alg_b2b_loss == "L1":
+            self.loss_fn = torch.nn.L1Loss()
+
+        self.loss_names_G = losses_G
         self.loss_names = self.loss_names_G
 
         # Make group
@@ -333,8 +381,28 @@ class B2BModel(BaseDiffusionModel):
 
         v_pred, v = self.netG_A(y_0, mask, y_cond, label=labels)
 
-        loss = ((v_pred - v) ** 2).mean(dim=(1, 2, 3)).mean()
-        self.loss_G_tot = loss * self.opt.alg_diffusion_lambda_G
+        if not self.opt.alg_palette_minsnr:
+            min_snr_loss_weight = 1.0
+
+        if mask is not None:
+            mask_binary = torch.clamp(mask, min=0, max=1)
+            loss = self.loss_fn(
+                min_snr_loss_weight * mask_binary * v_pred,
+                min_snr_loss_weight * mask_binary * v,
+            )
+        else:
+            loss = self.loss_fn(min_snr_loss_weight * v_pred, min_snr_loss_weight * v)
+
+        if isinstance(loss, dict):
+            loss_tot = torch.zeros(size=(), device=noise.device)
+
+            for cur_size, cur_loss in loss.items():
+                setattr(self, "loss_G_" + cur_size, cur_loss)
+                loss_tot += cur_loss
+
+            loss = loss_tot
+
+        self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
 
         # perceptual losses, if any
         if "LPIPS" in self.opt.alg_b2b_perceptual_loss:
@@ -429,85 +497,6 @@ class B2BModel(BaseDiffusionModel):
                     name = "output_" + str(steps) + "_steps"
                     setattr(self, name, self.output)
 
-                if self.opt.alg_b2b_metric_mask:
-                    if self.opt.G_netG == "unet_vid":
-                        B, T, C, H, W = mask.shape
-                        (mask_4d,) = rearrange_5dto4d_bf(mask)
-                        dilation = 3
-                        dilated_mask_4d = F.max_pool2d(
-                            mask_4d.float(),
-                            kernel_size=2 * dilation + 1,
-                            stride=1,
-                            padding=dilation,
-                        )
-                        dilated_mask_4d = (dilated_mask_4d > 0.5).float()
-                        (dilated_mask,) = rearrange_4dto5d_bf(T, dilated_mask_4d)
-                        dilated_mask_expanded = dilated_mask.expand_as(self.output)
-                        for steps, out in self.outputs_per_step.items():
-                            dm = dilated_mask.expand_as(out)
-                            fake_B_dilated = out * dm
-                            gt_image_dilated = self.gt_image * dm
-                            B, T, _, H, W = dilated_mask.shape
-                            boxes = masks_to_boxes(dilated_mask.view(-1, H, W)).int()
-                            fake_crops = [
-                                [
-                                    fake_B_dilated[b, t, :, y0:y1, x0:x1]
-                                    for t, (x0, y0, x1, y1) in enumerate(
-                                        boxes[b * T : (b + 1) * T]
-                                    )
-                                ]
-                                for b in range(B)
-                            ]
-                            gt_crops = [
-                                [
-                                    gt_image_dilated[b, t, :, y0:y1, x0:x1]
-                                    for t, (x0, y0, x1, y1) in enumerate(
-                                        boxes[b * T : (b + 1) * T]
-                                    )
-                                ]
-                                for b in range(B)
-                            ]
-                            self.fake_B_dilated_per_step[steps] = fake_crops
-                            self.gt_image_dilated_per_step[steps] = gt_crops
-                        self.fake_B = torch.cat(
-                            list(self.outputs_per_step.values()), dim=0
-                        )
-                    else:
-                        # image mask: (B, C, H, W)
-                        B, C, H, W = mask.shape
-                        mask_4d = mask
-                        # dilate mask in 4D
-                        dilation = 3
-                        dilated_mask_4d = F.max_pool2d(
-                            mask_4d.float(),
-                            kernel_size=2 * dilation + 1,
-                            stride=1,
-                            padding=dilation,
-                        )
-                        dilated_mask_4d = (dilated_mask_4d > 0.5).float()  # binarize
-                        dilated_mask_expanded = dilated_mask_4d.expand_as(
-                            self.output
-                        )  # output: (B, C, H, W)
-                        for steps, out in self.outputs_per_step.items():
-                            dm = dilated_mask_4d.expand_as(out)  # out: (B, C, H, W)
-                            fake_B_dilated = out * dm
-                            gt_image_dilated = self.gt_image * dm
-                            boxes = masks_to_boxes(dilated_mask_4d.squeeze(1)).int()
-                            # crop fake
-                            fake_crops = [
-                                fake_B_dilated[b, :, y0:y1, x0:x1]
-                                for b, (x0, y0, x1, y1) in enumerate(boxes)
-                            ]
-                            # crop gt
-                            gt_crops = [
-                                gt_image_dilated[b, :, y0:y1, x0:x1]
-                                for b, (x0, y0, x1, y1) in enumerate(boxes)
-                            ]
-                            self.fake_B_dilated_per_step[steps] = fake_crops
-                            self.gt_image_dilated_per_step[steps] = gt_crops
-                        self.fake_B = torch.cat(
-                            list(self.outputs_per_step.values()), dim=0
-                        )
         num_steps = len(self.outputs_per_step)
         if num_steps > 0:
             self.fake_B = torch.cat(list(self.outputs_per_step.values()), dim=0)
