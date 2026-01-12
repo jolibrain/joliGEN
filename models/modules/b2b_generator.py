@@ -56,6 +56,11 @@ class B2BGenerator(nn.Module):
     def b2b_forward(self, x, mask, x_cond=None, label=None, use_gt=None, ref_idx=None):
         labels_dropped = self.drop_labels(label) if self.training else label
 
+        # 2) sample_t timestep
+        t_z = torch.randn(x.size(0), device=x.device) * self.P_std + self.P_mean
+        t_cont = torch.sigmoid(t_z)
+        t = t_cont.view(-1, *([1] * (x.ndim - 1)))
+
         if not x_cond is None:
             if len(x.shape) != 5:
                 x_with_cond = torch.cat([x_cond, x], dim=1)
