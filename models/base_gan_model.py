@@ -542,7 +542,7 @@ class BaseGanModel(BaseModel):
             loss_calculator_name = "D_" + discriminator_name + "_loss_calculator"
 
             if "temporal" in discriminator_name or "projected" in discriminator_name:
-                train_gan_mode = "projected"
+                train_gan_mode = self.opt.train_gan_mode_proj
             elif "vision_aided" in discriminator_name:
                 train_gan_mode = "vanilla"
             else:
