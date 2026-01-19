@@ -784,10 +784,11 @@ class BaseModel(ABC):
                 self.opt.model_type != "cut"
                 and self.opt.model_type != "cycle_gan"
                 and not self.opt.G_netG == "unet_vid"
+                and not self.opt.G_netG == "vit_vid"
             ):  # GANs have more outputs in practice, including semantics
                 if i == nb_imgs - 1:
                     break
-        if phase == "test" and self.opt.G_netG == "unet_vid":
+        if phase == "test" and self.opt.G_netG in ["unet_vid", "vit_vid"]:
             visual_ret = visual_ret[
                 : self.opt.test_batch_size * (self.opt.data_temporal_number_frames)
             ]
@@ -865,6 +866,7 @@ class BaseModel(ABC):
                     "cm",
                     "cm_gan",
                     "sc",
+                    "b2b",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
@@ -1663,7 +1665,7 @@ class BaseModel(ABC):
 
             i = 0
             for sub_list in self.visual_names:
-                if self.opt.G_netG == "unet_vid":
+                if self.opt.G_netG in ["unet_vid", "vit_vid"]:
                     for name in sub_list:
                         if hasattr(self, name):
                             setattr(
@@ -1689,7 +1691,10 @@ class BaseModel(ABC):
 
             if len(fake_list) >= self.opt.train_nb_img_max_fid:
                 break
-            if self.opt.G_netG == "unet_vid" and i < self.opt.test_batch_size:
+            if (
+                self.opt.G_netG in ["unet_vid", "vit_vid"]
+                and i < self.opt.test_batch_size
+            ):
                 break
 
         fake_list = fake_list[: self.opt.train_nb_img_max_fid]
@@ -1732,7 +1737,7 @@ class BaseModel(ABC):
             setattr(self, "kidB_test_" + test_name, kidB_test)
         real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
-        if self.opt.G_netG == "unet_vid":  # temporal
+        if self.opt.G_netG in ["unet_vid", "vit_vid"]:  # temporal
             real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
