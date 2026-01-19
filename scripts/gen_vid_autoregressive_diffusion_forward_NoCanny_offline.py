@@ -98,7 +98,7 @@ def load_model(
         opt.data_online_creation_mask_random_offset_A = [0.0]
 
     opt.model_prior_321_backwardcompatibility = model_prior_321_backwardcompatibility
-    if opt.model_type in ["cm", "cm_gan"]:
+    if opt.model_type in ["cm", "cm_gan", "b2b"]:
         opt.alg_palette_sampling_method = sampling_method
         opt.alg_diffusion_cond_embed_dim = 256
     model = diffusion_networks.define_G(**vars(opt))
@@ -218,6 +218,7 @@ def generate(
     data_refined_mask,
     min_crop_bbox_ratio,
     alg_palette_ddim_num_steps,
+    alg_b2b_denoise_inferstep,
     alg_palette_ddim_eta,
     model_prior_321_backwardcompatibility,
     logger,
@@ -819,6 +820,14 @@ def generate(
             elif opt.model_type in ["cm", "cm_gan"]:
                 sampling_sigmas = (80.0, 24.4, 5.84, 0.9, 0.661)
                 out_tensor = model.restoration(y_t, cond_image, sampling_sigmas, mask)
+
+            elif opt.model_type == "b2b":
+                B = y_t.size(0)
+                labels = torch.zeros(B, device=y_t.device, dtype=torch.long)
+                out_tensor = model.restoration(
+                    y_t, cond_image, alg_b2b_denoise_inferstep, mask, labels
+                )
+
         # --------------------------------
         # Convert outputs to numpy images
         # --------------------------------
