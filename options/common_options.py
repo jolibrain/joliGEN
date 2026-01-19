@@ -118,7 +118,7 @@ class CommonOptions(BaseOptions):
             "--model_type",
             type=str,
             default="cut",
-            choices=["cut", "cycle_gan", "palette", "cm", "cm_gan", "sc"],
+            choices=["cut", "cycle_gan", "palette", "cm", "cm_gan", "sc", "b2b"],
             help="chooses which model to use.",
         )
         parser.add_argument(
@@ -216,6 +216,7 @@ class CommonOptions(BaseOptions):
                 "img2img_turbo",
                 "unet_vid",
                 "hat",
+                "vit",
             ],
             help="specify generator architecture",
         )
@@ -421,6 +422,12 @@ class CommonOptions(BaseOptions):
             type=int,
             default=8,
             help="lora vae rank for G",
+        )
+        parser.add_argument(
+            "--G_vit_variant",
+            type=str,
+            default="JiT-B/16",
+            help="Selects the ViT backbone when --G_netG vit",
         )
 
         # discriminator
