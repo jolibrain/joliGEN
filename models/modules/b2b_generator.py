@@ -114,7 +114,7 @@ class B2BGenerator(nn.Module):
         timesteps = (
             torch.linspace(0.0, 1.0, steps + 1, device=device)
             .view(steps + 1, 1, *([1] * (x.ndim - 1)))
-            .expand(steps + 1, x.shape[0], *([1] * (x / ndim - 1)))
+            .expand(steps + 1, x.shape[0], *([1] * (x.ndim - 1)))
         )
 
         # ODE integration
