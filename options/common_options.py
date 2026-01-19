@@ -215,6 +215,7 @@ class CommonOptions(BaseOptions):
                 "hdit",
                 "img2img_turbo",
                 "unet_vid",
+                "vit_vid",
                 "hat",
                 "vit",
             ],

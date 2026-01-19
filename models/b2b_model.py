@@ -160,10 +160,8 @@ class B2BModel(BaseDiffusionModel):
         if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
             self.gen_visual_names.insert(0, "previous_frame_")
 
-        if self.opt.G_netG == "unet_vid":
-            max_visual_outputs = (
-                self.opt.train_batch_size * self.opt.data_temporal_number_frames
-            )
+        if self.opt.G_netG == "vit_vid":
+            max_visual_outputs = batch_size * self.opt.data_temporal_number_frames
             for k in range(max_visual_outputs):
                 self.visual_names.append(
                     [temp + str(k) for temp in self.gen_visual_names]
@@ -269,7 +267,7 @@ class B2BModel(BaseDiffusionModel):
     def set_input(self, data):
         if (
             len(data["A"].to(self.device).shape) == 5
-        ) and self.opt.G_netG != "unet_vid":  # we're using temporal successive frames
+        ) and self.opt.G_netG != "vit_vid":  # we're using temporal successive frames
             self.previous_frame = data["A"].to(self.device)[:, 0]
             self.y_t = data["A"].to(self.device)[:, 1]
             self.gt_image = data["B"].to(self.device)[:, 1]
@@ -311,7 +309,7 @@ class B2BModel(BaseDiffusionModel):
             if "canny" in fill_img_with_random_sketch.__name__:
                 low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
                 high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
-                if self.opt.G_netG != "unet_vid":
+                if self.opt.G_netG != "vit_vid":
                     self.cond_image = fill_img_with_random_sketch(
                         self.gt_image,
                         self.mask,
@@ -441,6 +439,7 @@ class B2BModel(BaseDiffusionModel):
             self.loss_G_tot += self.loss_G_perceptual
 
     def inference(self, nb_imgs, offset=0):
+        offset = 0
         if hasattr(self.netG_A, "module"):
             netG = self.netG_A.module
         else:
@@ -508,7 +507,7 @@ class B2BModel(BaseDiffusionModel):
 
         self.visuals = self.fake_B  # self.output
 
-        if not self.opt.G_netG == "unet_vid":
+        if not self.opt.G_netG == "vit_vid":
             for name in self.gen_visual_names:
                 whole_tensor = getattr(self, name[:-1])  # i.e. self.output, ...
                 for k in range(min(nb_imgs, self.get_current_batch_size())):
