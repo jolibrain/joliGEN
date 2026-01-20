@@ -128,7 +128,7 @@ class B2BModel(BaseDiffusionModel):
         super().__init__(opt, rank)
 
         self.task = self.opt.alg_diffusion_task
-
+        self.gt_frame_idx = 0
         if opt.isTrain:
             batch_size = self.opt.train_batch_size
         else:
@@ -355,7 +355,7 @@ class B2BModel(BaseDiffusionModel):
             ref_idx=getattr(self, "ref_idx", None),
         )
 
-        if not self.opt.alg_palette_minsnr:
+        if not self.opt.alg_b2b_minsnr:
             min_snr_loss_weight = 1.0
 
         if mask is not None:
