@@ -37,11 +37,15 @@ class B2BModel(BaseDiffusionModel):
         # -------------------------
 
         parser.add_argument(
-            "--alg_palette_minsnr",
+            "--alg_b2b_minsnr",
             action="store_true",
             help="use min-SNR weighting",
         )
-
+        parser.add_argument(
+            "--alg_b2b_autoregressive",
+            action="store_true",
+            help="Autoregressive training: each batch is with one GT and the other is noisy image ",
+        )
         parser.add_argument(
             "--alg_b2b_denoise_timesteps",
             type=int,
@@ -123,7 +127,7 @@ class B2BModel(BaseDiffusionModel):
         super().__init__(opt, rank)
 
         self.task = self.opt.alg_diffusion_task
-
+        self.gt_frame_idx = 0
         if opt.isTrain:
             batch_size = self.opt.train_batch_size
         else:
@@ -224,7 +228,6 @@ class B2BModel(BaseDiffusionModel):
                 scales=scales,
             )
         elif self.opt.alg_b2b_loss == "MSE":
-            print(" !!!MSE loss")
             self.loss_fn = torch.nn.MSELoss()
         elif self.opt.alg_b2b_loss == "L1":
             self.loss_fn = torch.nn.L1Loss()
@@ -284,68 +287,23 @@ class B2BModel(BaseDiffusionModel):
                 self.gt_image = data["B"].to(self.device)
                 self.mask = None
 
-        if self.opt.alg_diffusion_cond_image_creation == "previous_frame":
-            cond_image_list = []
-            for cur_frame, cur_mask in zip(
-                self.previous_frame.cpu(),
-                self.previous_frame_mask.cpu(),
-            ):
-                if (
-                    random.random()
-                    < self.opt.alg_diffusion_cond_prob_use_previous_frame
-                ):
-                    cond_image_list.append(cur_frame.to(self.device))
-                else:
-                    cond_image_list.append(
-                        -1 * torch.ones_like(cur_frame, device=self.device)
-                    )
-
-                self.cond_image = torch.stack(cond_image_list)
-                self.cond_image = self.cond_image.to(self.device)
-        elif self.opt.alg_diffusion_cond_image_creation == "computed_sketch":
-            fill_img_with_random_sketch = random_edge_mask(
-                fn_list=self.opt.alg_diffusion_cond_computed_sketch_list
-            )
-            if "canny" in fill_img_with_random_sketch.__name__:
-                low = min(self.opt.alg_diffusion_cond_sketch_canny_range)
-                high = max(self.opt.alg_diffusion_cond_sketch_canny_range)
-                if self.opt.G_netG != "vit_vid":
-                    self.cond_image = fill_img_with_random_sketch(
-                        self.gt_image,
-                        self.mask,
-                        low_threshold_random=low,
-                        high_threshold_random=high,
-                    )
-                else:
-                    self.mask, self.gt_image = rearrange_5dto4d_bf(
-                        self.mask, self.gt_image
-                    )
-
-                    random_num = torch.rand(self.gt_image.shape[0])
-                    dropout_pro = torch.empty(self.gt_image.shape[0]).uniform_(
-                        self.opt.alg_diffusion_vid_canny_dropout[0][0],
-                        self.opt.alg_diffusion_vid_canny_dropout[1][0],
-                    )
-                    canny_frame = (random_num > dropout_pro).int()  # binary canny_frame
-                    self.cond_image = fill_img_with_random_sketch(
-                        self.gt_image,
-                        self.mask,
-                        low_threshold_random=low,
-                        high_threshold_random=high,
-                        select_canny=canny_frame,
-                    )
-
-                    self.mask, self.gt_image, self.cond_image = rearrange_4dto5d_bf(
-                        self.opt.data_temporal_number_frames,
-                        self.mask,
-                        self.gt_image,
-                        self.cond_image,
-                    )
-
-        elif self.task == "pix2pix":
-            self.cond_image = self.y_t
-        else:  # y_t
-            self.cond_image = None
+        if self.opt.alg_diffusion_cond_image_creation == "y_t":
+            if self.opt.alg_b2b_autoregressive and self.opt.G_netG == "vit_vid":
+                B, T, C, H, W = self.gt_image.shape
+                gt_image_mix = self.y_t.clone()
+                idx = torch.randint(
+                    0, T, (B,), device=self.device
+                )  # one frame per batch
+                batch_idx = torch.arange(B, device=self.device)
+                gt_image_mix[batch_idx, idx] = self.gt_image[batch_idx, idx]
+                self.y_t = gt_image_mix
+                self.cond_image = None
+                # build a diffusion mask that keeps that frame clean
+                mask_ar = torch.ones((B, T, 1, 1, 1), device=self.device)
+                mask_ar[batch_idx, idx] = 0.0  # 0 = keep clean, 1 = diffuse
+                self.mask = self.mask * mask_ar
+            else:
+                self.cond_image = None
 
         self.batch_size = self.y_t.shape[0]
 
@@ -366,7 +324,6 @@ class B2BModel(BaseDiffusionModel):
         y_0 = self.gt_image
         y_cond = self.cond_image
         mask = self.mask
-
         B = y_0.shape[0]
 
         # base "real" labels in [0 .. num_classes-1]
@@ -379,7 +336,7 @@ class B2BModel(BaseDiffusionModel):
 
         v_pred, v = self.netG_A(y_0, mask, y_cond, label=labels)
 
-        if not self.opt.alg_palette_minsnr:
+        if not self.opt.alg_b2b_minsnr:
             min_snr_loss_weight = 1.0
 
         if mask is not None:
