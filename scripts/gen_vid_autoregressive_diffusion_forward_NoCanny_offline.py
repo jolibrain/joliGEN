@@ -292,8 +292,8 @@ def generate(
     out_img_list = []
     sequence_count = 0
     slide_count = 0
-    start_idx = 0  # to be defined
-    frame_count = 30
+    start_idx = 200  # to be defined
+    frame_count = 160
     N = limited_paths_img[start_idx : start_idx + frame_count]
     N_bbox = limited_paths_bbox[start_idx : start_idx + frame_count]
     seq_half = 3
@@ -1026,7 +1026,7 @@ def extract_number(filename):
     return int(m.group(1)) if m else -1
 
 
-def img2video(args, fps=1, ext=".avi", fourcc="MJPG"):
+def img2video(args, fps=10, ext=".avi", fourcc="MJPG"):
     image_folder = args.dir_out
     video_base_name = "video"
 
