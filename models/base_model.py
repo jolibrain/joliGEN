@@ -1041,6 +1041,23 @@ class BaseModel(ABC):
                             net.load_state_dict(
                                 state_dict, strict=self.opt.model_load_no_strictness
                             )
+                    model_keys = set(net.state_dict().keys())
+                    ckpt_keys = set(state_dict.keys())
+
+                    matched = model_keys & ckpt_keys
+                    missing = model_keys - ckpt_keys
+                    extra = ckpt_keys - model_keys
+
+                    pct_matched = 100.0 * len(matched) / len(model_keys)
+                    pct_missing = 100.0 * len(missing) / len(model_keys)
+
+                    print(f"\n===== Load report for {name} =====")
+                    print(f"Model params keys: {len(model_keys)}")
+                    print(f"Checkpoint keys:   {len(ckpt_keys)}")
+                    print(f"Matched keys:      {len(matched)} ({pct_matched:.2f}%)")
+                    print(f"Missing keys:      {len(missing)} ({pct_missing:.2f}%)")
+                    print(f"Extra ckpt keys:   {len(extra)}")
+                    print("=================================\n")
 
     def get_nets(self):
         return_nets = {}
