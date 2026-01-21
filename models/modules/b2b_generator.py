@@ -39,7 +39,6 @@ class B2BGenerator(nn.Module):
                 "Stopping because this run only supports num_classes=1."
             )
         self.label_drop_prob = 0.1  # default  value used in paper
-        self.gt_frame_idx = None
 
     def drop_labels(self, labels: torch.Tensor) -> torch.Tensor:
         drop = torch.rand(labels.shape[0], device=labels.device) < self.label_drop_prob
