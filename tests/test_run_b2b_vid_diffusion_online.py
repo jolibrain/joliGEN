@@ -10,31 +10,39 @@ from options.train_options import TrainOptions
 from data import create_dataset
 from itertools import product
 import torch
+from scripts.gen_vid_diffusion import InferenceDiffusionOptions, inference
 
-from scripts.gen_single_image_diffusion import InferenceDiffusionOptions, inference
 
 json_like_dict = {
-    "name": "joligen_utest_b2b",
-    "output_display_env": "joligen_utest",
+    "name": "joligen_utest_vid",
+    "output_display_env": "joligen_utest_vid",
     "output_display_id": 0,
     "gpu_ids": "0",
-    "data_dataset_mode": "self_supervised_labeled_mask",
     "data_load_size": 256,
     "data_crop_size": 256,
+    "data_online_creation_crop_size_A": 300,
+    "data_online_creation_crop_delta_A": 30,
+    "data_online_creation_mask_delta_A_ratio": [[0.2, 0.2]],
     "train_n_epochs": 1,
     "train_n_epochs_decay": 0,
     "data_max_dataset_size": 10,
     "data_relative_paths": True,
     "train_G_ema": True,
     "dataaug_no_rotate": True,
-    "G_diff_n_timestep_train": 50000,
     "data_online_creation_rand_mask_A": True,
-    "alg_b2b_denoise_timesteps": [1],
+    "train_export_jit": False,
+    "train_save_latest_freq": 10,
+    "train_batch_size": 1,
+    "data_temporal_number_frames": 8,
+    "data_temporal_frame_step": 1,
+    "alg_b2b_denoise_timestep": [1],
 }
 
-G_netG = ["vit"]
+
+G_netG = ["vit_vid"]
 alg_diffusion_cond_embed = ["y_t"]
 models_diffusion = ["b2b"]
+data_dataset_mode = ["self_supervised_vid_mask_online"]
 
 infer_options = {
     "gpu_ids": "0",

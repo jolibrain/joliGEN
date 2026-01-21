@@ -807,6 +807,11 @@ class JiTViD(nn.Module):
 
         self.apply(_basic_init)
 
+        # restore identity-like start for motion module
+        self.motion_module.temporal_transformer.proj_out = zero_module(
+            self.motion_module.temporal_transformer.proj_out
+        )
+
         # Initialize (and freeze) pos_embed by sin-cos embedding:
         pos_embed = get_2d_sincos_pos_embed(
             self.pos_embed.shape[-1], int(self.x_embedder.num_patches**0.5)
