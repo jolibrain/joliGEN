@@ -293,7 +293,7 @@ class InferenceDiffusionOptions(BaseOptions):
         )
 
         parser.add_argument(
-            "--alg_b2b_denoise_inferstep",
+            "--alg_b2b_denoise_timesteps",
             type=int,
             default=1,
             help="denoise steps during the inference time",
