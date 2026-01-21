@@ -196,7 +196,7 @@ def generate(
     alg_diffusion_super_resolution_downsample,
     alg_diffusion_guidance_scale,
     alg_sc_denoise_inferstep,
-    alg_b2b_denoise_inferstep,
+    alg_b2b_denoise_timestep,
     data_refined_mask,
     min_crop_bbox_ratio,
     alg_palette_ddim_num_steps,
