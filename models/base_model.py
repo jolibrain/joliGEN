@@ -1758,6 +1758,16 @@ class BaseModel(ABC):
             real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
+
+            psnr_each = psnr(real_tensor, fake_tensor, reduction="none")  # [B]
+            psnr_list = psnr_each[
+                psnr_each < 78
+            ]  # with this PIQ code, identical images give 80
+            if psnr_list.numel() > 0:
+                psnr_test = psnr_list.mean()
+            else:
+                psnr_test = psnr_each.mean()
+
             if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
                 self.opt, "alg_cm_metric_mask", False
             ):

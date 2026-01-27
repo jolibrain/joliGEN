@@ -291,17 +291,27 @@ class B2BModel(BaseDiffusionModel):
             if self.opt.alg_b2b_autoregressive and self.opt.G_netG == "vit_vid":
                 B, T, C, H, W = self.gt_image.shape
                 gt_image_mix = self.y_t.clone()
-                idx = torch.randint(
-                    0, T, (B,), device=self.device
-                )  # one frame per batch
-                batch_idx = torch.arange(B, device=self.device)
-                gt_image_mix[batch_idx, idx] = self.gt_image[batch_idx, idx]
-                self.y_t = gt_image_mix
                 self.cond_image = None
-                # build a diffusion mask that keeps that frame clean
-                mask_ar = torch.ones((B, T, 1, 1, 1), device=self.device)
-                mask_ar[batch_idx, idx] = 0.0  # 0 = keep clean, 1 = diffuse
-                self.mask = self.mask * mask_ar
+
+                # per-sample decision: True for ~10% of samples in the batch
+                use_gt = torch.rand((B,), device=self.device) < 0.1
+
+                if use_gt.any():
+                    batch_idx = torch.arange(B, device=self.device)
+                    sel = batch_idx[use_gt]  # selected samples only
+
+                    # one random frame index per sample (we'll only use those for sel)
+                    idx = torch.randint(0, T, (B,), device=self.device)
+
+                    # replace y_t frame by GT for selected samples
+                    gt_image_mix[sel, idx[use_gt]] = self.gt_image[sel, idx[use_gt]]
+                    self.y_t = gt_image_mix
+
+                    # mask: keep that GT frame clean (0), diffuse the rest (1)
+                    mask_ar = torch.ones((B, T, 1, 1, 1), device=self.device)
+                    mask_ar[sel, idx[use_gt]] = 0.0
+                    self.mask = self.mask * mask_ar
+                # else: nobody selected -> do nothing
             else:
                 self.cond_image = None
 
