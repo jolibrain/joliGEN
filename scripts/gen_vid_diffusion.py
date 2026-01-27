@@ -749,8 +749,8 @@ def generate(
             )
         elif opt.model_type == "cm" or opt.model_type == "cm_gan":
             sampling_sigmas = (80.0, 24.4, 5.84, 0.9, 0.661)
+            out_tensor = model.restoration(y_t, cond_image, sampling_sigmas, mask)
         elif opt.model_type == "sc":
-            print(" sc restoration ", alg_sc_denoise_inferstep)
             out_tensor = model.restoration(
                 y_t, cond_image, alg_sc_denoise_inferstep, mask
             )
@@ -758,7 +758,7 @@ def generate(
             B = y_t.size(0)
             labels = torch.zeros(B, device=y_t.device, dtype=torch.long)
             out_tensor = model.restoration(
-                y_t, cond_image, alg_b2b_denoise_timestep, mask, labels
+                y_t, cond_image, alg_b2b_denoise_timesteps, mask, labels
             )
 
         # XXX: !=8bit images are converted to 8bit RGB for now
