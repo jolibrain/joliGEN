@@ -196,7 +196,7 @@ def generate(
     alg_diffusion_super_resolution_downsample,
     alg_diffusion_guidance_scale,
     alg_sc_denoise_inferstep,
-    alg_b2b_denoise_timestep,
+    alg_b2b_denoise_timesteps,
     data_refined_mask,
     min_crop_bbox_ratio,
     alg_palette_ddim_num_steps,
@@ -686,7 +686,7 @@ def generate(
             B = y_t.size(0)
             labels = torch.zeros(B, device=y_t.device, dtype=torch.long)
             out_tensor = model.restoration(
-                y_t, cond_image, alg_b2b_denoise_inferstep, mask, labels
+                y_t, cond_image, alg_b2b_denoise_timesteps, mask, labels
             )
 
         # XXX: !=8bit images are converted to 8bit RGB for now

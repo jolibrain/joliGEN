@@ -35,7 +35,7 @@ json_like_dict = {
     "train_batch_size": 1,
     "data_temporal_number_frames": 8,
     "data_temporal_frame_step": 1,
-    "alg_b2b_denoise_timestep": [1],
+    "alg_b2b_denoise_timesteps": [1],
 }
 
 
