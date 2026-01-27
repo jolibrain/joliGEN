@@ -218,7 +218,7 @@ def generate(
     data_refined_mask,
     min_crop_bbox_ratio,
     alg_palette_ddim_num_steps,
-    alg_b2b_denoise_timestep,
+    alg_b2b_denoise_timesteps,
     alg_palette_ddim_eta,
     model_prior_321_backwardcompatibility,
     logger,
@@ -825,7 +825,7 @@ def generate(
                 B = y_t.size(0)
                 labels = torch.zeros(B, device=y_t.device, dtype=torch.long)
                 out_tensor = model.restoration(
-                    y_t, cond_image, alg_b2b_denoise_timestep, mask, labels
+                    y_t, cond_image, alg_b2b_denoise_timesteps, mask, labels
                 )
 
         # --------------------------------
