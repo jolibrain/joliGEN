@@ -20,7 +20,9 @@ json_like_dict = {
     "gpu_ids": "0",
     "data_load_size": 256,
     "data_crop_size": 256,
-    "data_online_creation_crop_size_A": 300,
+    "data_online_creation_crop_size_B": 256,
+    "data_online_creation_crop_delta_B": 30,
+    "data_online_creation_crop_size_A": 256,
     "data_online_creation_crop_delta_A": 30,
     "data_online_creation_mask_delta_A_ratio": [[0.2, 0.2]],
     "train_n_epochs": 1,
@@ -33,14 +35,14 @@ json_like_dict = {
     "train_export_jit": False,
     "train_save_latest_freq": 10,
     "train_batch_size": 1,
-    "data_temporal_number_frames": 8,
+    "data_temporal_number_frames": 2,
     "data_temporal_frame_step": 1,
     "alg_b2b_denoise_timesteps": [1],
+    "train_batch_size": 1,
 }
 
 
 G_netG = ["vit_vid"]
-alg_diffusion_cond_embed = ["y_t"]
 models_diffusion = ["b2b"]
 data_dataset_mode = ["self_supervised_vid_mask_online"]
 
@@ -48,20 +50,22 @@ infer_options = {
     "gpu_ids": "0",
     "img_width": 256,
     "img_height": 256,
+    "alg_diffusion_cond_image_creation": "y_t",
 }
-product_list = product(
-    models_diffusion,
-    G_netG,
-    alg_diffusion_cond_embed,
-)
+product_list = product(models_diffusion, G_netG, data_dataset_mode)
 
 
-def test_sc_model(dataroot):
+def test_vid_diffusion_online(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 
     with open(
-        os.path.join(json_like_dict["dataroot"], "trainA", "paths.txt")
+        os.path.join(
+            json_like_dict["checkpoints_dir"],
+            dataroot.split("/")[-1],
+            "trainA",
+            "paths.txt",
+        )
     ) as paths_file:
         line = paths_file.readline().strip().split(" ")
         infer_options["img_in"] = os.path.join(json_like_dict["dataroot"], line[0])
@@ -70,13 +74,12 @@ def test_sc_model(dataroot):
     for (
         model,
         Gtype,
-        alg_diffusion_cond_embed,
+        dataset_mode,
     ) in product_list:
         json_like_dict_c = json_like_dict.copy()
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
-        json_like_dict_c["alg_diffusion_cond_embed"] = alg_diffusion_cond_embed
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
@@ -88,13 +91,12 @@ def test_sc_model(dataroot):
             json_like_dict_c["name"],
             "latest_net_G_A.pth",
         )
+        infer_options_c["paths_in_file"] = os.path.join(
+            json_like_dict_c["dataroot"], "trainA", "paths.txt"
+        )
         infer_options_c["dir_out"] = os.path.join(
             json_like_dict_c["checkpoints_dir"], json_like_dict_c["name"]
         )
-
-        # cuda is available
-        if not torch.cuda.is_available():
-            infer_options_c["cpu"] = True
 
         opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=False)
         inference(opt)
