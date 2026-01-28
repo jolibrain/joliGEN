@@ -278,7 +278,7 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-###### test vid palette
+###### test vid palette   ################# ??????????????ask ?????????????
 echo "Running test vid palette train and ddim infer"
 python3 "${current_dir}/../test.py" \
         --save_config \
