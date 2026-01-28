@@ -161,6 +161,16 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+###### b2b model process test
+echo "Running b2b model process test"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_b2b.py" --dataroot "$TARGET_MASK_SEM_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
+
 ###### GAN+supervised super-resolution process test
 echo "Running GAN+supervised super-resolution process test"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_sr_gan.py" --dataroot "$TARGET_MASK_SEM_DIR"
@@ -262,15 +272,13 @@ fi
 ####### cm_vid diffusion tests
 echo "Running cm_vid diffusion training tests"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_cm_vid_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
-=======
-python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_ddpm_infer_ddim_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
 OUT=$?
 
 if [ $OUT != 0 ]; then
     exit 1
 fi
 
-###### test vid palette
+###### test vid palette   ################# ??????????????ask ?????????????
 echo "Running test vid palette train and ddim infer"
 python3 "${current_dir}/../test.py" \
         --save_config \
@@ -281,6 +289,16 @@ OUT=$?
 if [ $OUT != 0 ]; then
     exit 1
 fi
+
+####### b2b_vid diffusion tests
+echo "Running b2b_vid diffusion training tests"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_b2b_vid_diffusion_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 
 ###### test cycle_gan
 # echo "Running test cycle_gan"

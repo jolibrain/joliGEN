@@ -784,10 +784,11 @@ class BaseModel(ABC):
                 self.opt.model_type != "cut"
                 and self.opt.model_type != "cycle_gan"
                 and not self.opt.G_netG == "unet_vid"
+                and not self.opt.G_netG == "vit_vid"
             ):  # GANs have more outputs in practice, including semantics
                 if i == nb_imgs - 1:
                     break
-        if phase == "test" and self.opt.G_netG == "unet_vid":
+        if phase == "test" and self.opt.G_netG in ["unet_vid", "vit_vid"]:
             visual_ret = visual_ret[
                 : self.opt.test_batch_size * (self.opt.data_temporal_number_frames)
             ]
@@ -865,6 +866,7 @@ class BaseModel(ABC):
                     "cm",
                     "cm_gan",
                     "sc",
+                    "b2b",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
@@ -1039,6 +1041,23 @@ class BaseModel(ABC):
                             net.load_state_dict(
                                 state_dict, strict=self.opt.model_load_no_strictness
                             )
+                    model_keys = set(net.state_dict().keys())
+                    ckpt_keys = set(state_dict.keys())
+
+                    matched = model_keys & ckpt_keys
+                    missing = model_keys - ckpt_keys
+                    extra = ckpt_keys - model_keys
+
+                    pct_matched = 100.0 * len(matched) / len(model_keys)
+                    pct_missing = 100.0 * len(missing) / len(model_keys)
+
+                    print(f"\n===== Load report for {name} =====")
+                    print(f"Model params keys: {len(model_keys)}")
+                    print(f"Checkpoint keys:   {len(ckpt_keys)}")
+                    print(f"Matched keys:      {len(matched)} ({pct_matched:.2f}%)")
+                    print(f"Missing keys:      {len(missing)} ({pct_missing:.2f}%)")
+                    print(f"Extra ckpt keys:   {len(extra)}")
+                    print("=================================\n")
 
     def get_nets(self):
         return_nets = {}
@@ -1663,7 +1682,7 @@ class BaseModel(ABC):
 
             i = 0
             for sub_list in self.visual_names:
-                if self.opt.G_netG == "unet_vid":
+                if self.opt.G_netG in ["unet_vid", "vit_vid"]:
                     for name in sub_list:
                         if hasattr(self, name):
                             setattr(
@@ -1689,7 +1708,10 @@ class BaseModel(ABC):
 
             if len(fake_list) >= self.opt.train_nb_img_max_fid:
                 break
-            if self.opt.G_netG == "unet_vid" and i < self.opt.test_batch_size:
+            if (
+                self.opt.G_netG in ["unet_vid", "vit_vid"]
+                and i < self.opt.test_batch_size
+            ):
                 break
 
         fake_list = fake_list[: self.opt.train_nb_img_max_fid]
@@ -1732,10 +1754,20 @@ class BaseModel(ABC):
             setattr(self, "kidB_test_" + test_name, kidB_test)
         real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
-        if self.opt.G_netG == "unet_vid":  # temporal
+        if self.opt.G_netG in ["unet_vid", "vit_vid"]:  # temporal
             real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
             ssim_test = ssim(real_tensor, fake_tensor)
             psnr_test = psnr(real_tensor, fake_tensor)
+
+            psnr_each = psnr(real_tensor, fake_tensor, reduction="none")  # [B]
+            psnr_list = psnr_each[
+                psnr_each < 78
+            ]  # with this PIQ code, identical images give 80
+            if psnr_list.numel() > 0:
+                psnr_test = psnr_list.mean()
+            else:
+                psnr_test = psnr_each.mean()
+
             if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
                 self.opt, "alg_cm_metric_mask", False
             ):
