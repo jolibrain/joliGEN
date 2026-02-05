@@ -127,7 +127,7 @@ class B2BModel(BaseDiffusionModel):
         super().__init__(opt, rank)
 
         self.task = self.opt.alg_diffusion_task
-        self.gt_frame_idx = 0
+
         if opt.isTrain:
             batch_size = self.opt.train_batch_size
         else:
@@ -295,13 +295,13 @@ class B2BModel(BaseDiffusionModel):
 
                 # per-sample decision: True for ~10% of samples in the batch
                 use_gt = torch.rand((B,), device=self.device) < 0.1
-
+                # one random frame index per sample (we'll only use those for sel)
+                idx = torch.randint(0, T, (B,), device=self.device)
+                self.use_gt = use_gt  # (B,) bool
+                self.ref_idx = idx  # (B,) long, valid even if use_gt False
                 if use_gt.any():
                     batch_idx = torch.arange(B, device=self.device)
                     sel = batch_idx[use_gt]  # selected samples only
-
-                    # one random frame index per sample (we'll only use those for sel)
-                    idx = torch.randint(0, T, (B,), device=self.device)
 
                     # replace y_t frame by GT for selected samples
                     gt_image_mix[sel, idx[use_gt]] = self.gt_image[sel, idx[use_gt]]
@@ -311,6 +311,7 @@ class B2BModel(BaseDiffusionModel):
                     mask_ar = torch.ones((B, T, 1, 1, 1), device=self.device)
                     mask_ar[sel, idx[use_gt]] = 0.0
                     self.mask = self.mask * mask_ar
+
                 # else: nobody selected -> do nothing
             else:
                 self.cond_image = None
@@ -344,7 +345,14 @@ class B2BModel(BaseDiffusionModel):
         else:
             labels = None
 
-        v_pred, v = self.netG_A(y_0, mask, y_cond, label=labels)
+        v_pred, v = self.netG_A(
+            y_0,
+            mask,
+            y_cond,
+            label=labels,
+            use_gt=getattr(self, "use_gt", None),
+            ref_idx=getattr(self, "ref_idx", None),
+        )
 
         if not self.opt.alg_b2b_minsnr:
             min_snr_loss_weight = 1.0
@@ -454,10 +462,17 @@ class B2BModel(BaseDiffusionModel):
                 self.outputs_per_step = {}
                 self.fake_B_dilated_per_step = {}
                 self.gt_image_dilated_per_step = {}
-
+                use_gt = getattr(self, "use_gt", None)
+                ref_idx = getattr(self, "ref_idx", None)
                 for steps in self.opt.alg_b2b_denoise_timesteps:
                     self.output = netG.restoration(
-                        y_t, y_cond, steps, mask, self.label_cls
+                        y_t,
+                        y_cond,
+                        steps,
+                        mask,
+                        self.label_cls,
+                        use_gt=use_gt,
+                        ref_idx=ref_idx,
                     )
                     self.outputs_per_step[steps] = self.output
                     name = "output_" + str(steps) + "_steps"
