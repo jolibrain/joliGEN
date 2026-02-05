@@ -26,7 +26,7 @@ class B2BGenerator(nn.Module):
         self.noise_scale = 1.0  # 2.0 when image size 512
         self.t_eps = 5e-2
         self.current_t = 1
-        self.cfg_scale = 2.9  # guidance strength as indicated in paper
+        self.cfg_scale = 2.9  # guidance strength as indicated in paper 2.9
         self.cfg_interval = (0.1, 1.0)  # value used in paper training examples
 
         self.denoise_timesteps = (
@@ -38,19 +38,23 @@ class B2BGenerator(nn.Module):
                 f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
                 "Stopping because this run only supports num_classes=1."
             )
-        self.label_drop_prob = 0.1  # default  value used in paper
+        self.label_drop_prob = 0.1  # default  value used in paper 0.1
+
+    def sample_t(self, B: int, device, F=None):
+        # returns t_cont in [0,1]
+        if F is None:
+            t_z = torch.randn(B, device=device) * self.P_std + self.P_mean
+            return torch.sigmoid(t_z)  # (B,)
+        else:
+            t_z = torch.randn(B, F, device=device) * self.P_std + self.P_mean
+            return torch.sigmoid(t_z)  # (B,F)
 
     def drop_labels(self, labels: torch.Tensor) -> torch.Tensor:
         drop = torch.rand(labels.shape[0], device=labels.device) < self.label_drop_prob
         return torch.where(drop, torch.full_like(labels, self.num_classes), labels)
 
-    def b2b_forward(self, x, mask, x_cond=None, label=None):
+    def b2b_forward(self, x, mask, x_cond=None, label=None, use_gt=None, ref_idx=None):
         labels_dropped = self.drop_labels(label) if self.training else label
-
-        # 2) sample_t timestep
-        t_z = torch.randn(x.size(0), device=x.device) * self.P_std + self.P_mean
-        t_cont = torch.sigmoid(t_z)
-        t = t_cont.view(-1, *([1] * (x.ndim - 1)))
 
         if not x_cond is None:
             if len(x.shape) != 5:
@@ -59,6 +63,26 @@ class B2BGenerator(nn.Module):
                 x_with_cond = torch.cat([x_cond, x], dim=2)
         else:
             x_with_cond = x
+
+        # 2) sample_t timestep
+        B = x.size(0)
+        is_video = x.ndim == 5
+
+        if not is_video:
+            t_cont = self.sample_t(B, device=x.device)  # (B,)
+            t = t_cont.view(B, *([1] * (x.ndim - 1)))  # (B,1,1,1) for images
+            t_flat = t_cont  # (B,)
+        else:
+            F = x.size(1)
+            t_base = self.sample_t(B, device=x.device)  # (B,)
+            t_cont = t_base[:, None].repeat(1, F)  # (B,F) same across frames
+
+            if use_gt is not None and ref_idx is not None and use_gt.any():
+                b_idx = torch.arange(B, device=x.device)
+                t_cont[b_idx[use_gt], ref_idx[use_gt]] = 1.0
+
+            t = t_cont.view(B, F, 1, 1, 1)  # (B,F,1,1,1) for mixing
+            t_flat = t_cont.reshape(B * F)  # (B*F,) for model
 
         # 3) noise + mixing
         if mask is not None:
@@ -73,13 +97,15 @@ class B2BGenerator(nn.Module):
         v = (x_with_cond - z) / (1 - t).clamp_min(self.t_eps)
 
         # 4) model predict img
-        x_pred = self.b2b_model(z, t.flatten(), labels_dropped)
+        x_pred = self.b2b_model(z, t_flat, labels_dropped)
 
         return x_pred, z, v, t, x_with_cond
 
-    def forward(self, x, mask=None, x_cond=None, label=None):
+    def forward(self, x, mask=None, x_cond=None, label=None, use_gt=None, ref_idx=None):
         device = x.device
-        x_pred, z, v, t, x_with_cond = self.b2b_forward(x, mask, x_cond, label)
+        x_pred, z, v, t, x_with_cond = self.b2b_forward(
+            x, mask, x_cond, label, use_gt, ref_idx
+        )
         if mask is not None:
             x_pred = x_pred * mask + (1 - mask) * x_with_cond
         v_pred = (x_pred - z) / (1 - t).clamp_min(self.t_eps)
@@ -94,6 +120,8 @@ class B2BGenerator(nn.Module):
         mask=None,
         labels=None,
         clip_denoised=True,
+        use_gt=None,
+        ref_idx=None,
     ):
         B = y.shape[0]
         device = y.device
@@ -162,6 +190,11 @@ class B2BGenerator(nn.Module):
         cfg_scale_interval = torch.where(interval_mask, self.cfg_scale, 1.0)
 
         return v_uncond + cfg_scale_interval * (v_cond - v_uncond)
+
+    #    @torch.no_grad()
+    #    def _forward_sample_restoration(self, x, t, y_cond, mask, labels):
+    #        x_pred = self.b2b_model(x, t.flatten(), labels)
+    #        return (x_pred - x) / (1.0 - t).clamp_min(self.t_eps)
 
     @torch.no_grad()
     def _euler_step_restoration(self, x, t, t_next, y_cond, mask, labels):
