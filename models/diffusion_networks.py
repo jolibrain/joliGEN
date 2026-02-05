@@ -18,8 +18,9 @@ from .modules.b2b_generator import B2BGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 from .modules.vit.vit import JiT, JiT_VARIANT_CONFIGS
 
-# from .modules.vit.vit_vid import JiTViD, JiTVid_VARIANT_CONFIGS
-from .modules.vit.vit_vid_per_layer_motion import JiTViD, JiTVid_VARIANT_CONFIGS
+from .modules.vit.vit_vid import JiTViD, JiTVid_VARIANT_CONFIGS
+
+# from .modules.vit.vit_vid_per_layer_motion import JiTViD, JiTVid_VARIANT_CONFIGS
 
 
 def define_G(

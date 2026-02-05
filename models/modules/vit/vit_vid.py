@@ -882,8 +882,27 @@ class JiTViD(nn.Module):
         x = self.x_embedder(x) + self.pos_embed
 
         # class and time embeddings
-        t2d = repeat(t, "b -> (b f)", f=F)
-        y2d = repeat(y, "b -> (b f)", f=F)
+        #        t2d = repeat(t, "b -> (b f)", f=F)
+        #        y2d = repeat(y, "b -> (b f)", f=F)
+
+        t = t.reshape(-1)
+        if t.shape[0] == B:
+            t2d = repeat(t, "b -> (b f)", f=F)
+        elif t.shape[0] == B * F:
+            t2d = t
+        else:
+            raise RuntimeError(
+                f"Unexpected timestep length {t.shape[0]} (expected {B} or  {B* F})."
+            )
+        y = y.reshape(-1)
+        if y.shape[0] == B:
+            y2d = repeat(y, "b -> (b f)", f=F)
+        elif y.shape[0] == B * F:
+            y2d = y
+        else:
+            raise RuntimeError(
+                f"Unexpected timestep length {y.shape[0]} (expected {B} or  {B* F})."
+            )
 
         t_emb = self.t_embedder(t2d)  # (B*F, D )
         y_emb = self.y_embedder(y2d)  # (B*F, D)
