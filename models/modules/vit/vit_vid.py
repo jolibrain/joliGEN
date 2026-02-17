@@ -233,7 +233,6 @@ class JiTBlock(nn.Module):
             nn.SiLU(), nn.Linear(hidden_size, 6 * hidden_size, bias=True)
         )
 
-    # @torch.compile
     def forward(self, x, c, feat_rope=None):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
             self.adaLN_modulation(c).chunk(6, dim=-1)
@@ -262,7 +261,6 @@ class FinalLayer(nn.Module):
             nn.SiLU(), nn.Linear(hidden_size, 2 * hidden_size, bias=True)
         )
 
-    @torch.compile
     def forward(self, x, c):
         shift, scale = self.adaLN_modulation(c).chunk(2, dim=1)
         x = self.norm_final(x)

@@ -17,7 +17,7 @@ from util.mask_generation import random_edge_mask
 
 from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
-
+from .modules.loss import MultiScaleDiffusionLoss
 from piq import DISTS, LPIPS
 from torchvision.ops import masks_to_boxes
 import torch.nn.functional as F
@@ -358,7 +358,7 @@ class B2BModel(BaseDiffusionModel):
             loss = self.loss_fn(min_snr_loss_weight * v_pred, min_snr_loss_weight * v)
 
         if isinstance(loss, dict):
-            loss_tot = torch.zeros(size=(), device=noise.device)
+            loss_tot = torch.zeros(size=(), device=y_0.device)
 
             for cur_size, cur_loss in loss.items():
                 setattr(self, "loss_G_" + cur_size, cur_loss)
@@ -367,42 +367,6 @@ class B2BModel(BaseDiffusionModel):
             loss = loss_tot
 
         self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
-
-        # perceptual losses, if any
-        if "LPIPS" in self.opt.alg_b2b_perceptual_loss:
-            if mask_pred_x.size(1) > 3:  # more than 3 channels
-                self.loss_G_perceptual_lpips = 0.0
-                for c in range(4):  # per channel loss and sum
-                    y_0_Bc = y_0[:, c, :, :].unsqueeze(1)
-                    mask_pred_Bc = mask_pred_x[:, c, :, :].unsqueeze(1)
-                    self.loss_G_perceptual_lpips += self.criterionLPIPS(
-                        y_0_Bc, mask_pred_Bc
-                    )
-            else:
-                self.loss_G_perceptual_lpips = torch.mean(
-                    self.criterionLPIPS(y_0, mask_pred_x)
-                )
-        else:
-            self.loss_G_perceptual_lpips = 0
-        if "DISTS" in self.opt.alg_b2b_perceptual_loss:
-            if mask_pred_x.size(1) > 3:  # more than 3 channels
-                self.loss_G_perceptual_dists = 0.0
-                for c in range(4):  # per channel loss and sum
-                    y_0_Bc = y_0[:, c, :, :].unsqueeze(1)
-                    mask_pred_Bc = mask_pred_x[:, c, :, :].unsqueeze(1)
-                    self.loss_G_perceptual_dists += self.criterionDISTS(
-                        y_0_Bc, mask_pred_Bc
-                    )
-            else:
-                self.loss_G_perceptual_dists = self.criterionDISTS(y_0, mask_pred_x)
-        else:
-            self.loss_G_perceptual_dists = 0
-
-        if self.loss_G_perceptual_lpips > 0 or self.loss_G_perceptual_dists > 0:
-            self.loss_G_perceptual = self.opt.alg_b2b_lambda_perceptual * (
-                self.loss_G_perceptual_lpips + self.loss_G_perceptual_dists
-            )
-            self.loss_G_tot += self.loss_G_perceptual
 
     def inference(self, nb_imgs, offset=0):
         offset = 0
