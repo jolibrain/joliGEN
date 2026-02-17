@@ -23,7 +23,7 @@ class B2BGenerator(nn.Module):
         self.opt = opt
         self.P_mean = -0.8
         self.P_std = 0.8
-        self.noise_scale = 1.0  # 2.0 when image size 512
+        self.noise_scale = 2.0  # 1.0 when image size 256
         self.t_eps = 5e-2
         self.current_t = 1
         self.cfg_scale = 2.9  # guidance strength as indicated in paper 2.9
@@ -191,7 +191,7 @@ class B2BGenerator(nn.Module):
 
         return v_uncond + cfg_scale_interval * (v_cond - v_uncond)
 
-    #    @torch.no_grad()
+    #    @torch.no_grad() # no use CFG
     #    def _forward_sample_restoration(self, x, t, y_cond, mask, labels):
     #        x_pred = self.b2b_model(x, t.flatten(), labels)
     #        return (x_pred - x) / (1.0 - t).clamp_min(self.t_eps)
