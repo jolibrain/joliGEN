@@ -80,6 +80,7 @@ def test_vid_diffusion_online(dataroot):
         json_like_dict_c["model_type"] = model
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
+        json_like_dict_c["data_dataset_mode"] = dataset_mode
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)

@@ -2,6 +2,7 @@ import cv2
 from util.fvd import FrechetVideoDistance
 import copy
 import os
+import math
 
 import torch
 
@@ -974,6 +975,7 @@ class BaseModel(ABC):
 
                 if getattr(self.opt, "alg_diffusion_ddpm_cm_ft", False):
                     model_dict = net.state_dict()
+                    #                    self._adjust_positional_embeddings(state_dict, model_dict, name)
                     filtered = {}
 
                     for k, v in state_dict.items():
@@ -1015,8 +1017,10 @@ class BaseModel(ABC):
                     net.load_state_dict(filtered, strict=False)
 
                 else:
+                    model_dict = net.state_dict()
+                    self._adjust_positional_embeddings(state_dict, model_dict, name)
                     state1 = list(state_dict.keys())
-                    state2 = list(net.state_dict().keys())
+                    state2 = list(model_dict.keys())
                     state1.sort()
                     state2.sort()
 
@@ -1058,6 +1062,90 @@ class BaseModel(ABC):
                     print(f"Missing keys:      {len(missing)} ({pct_missing:.2f}%)")
                     print(f"Extra ckpt keys:   {len(extra)}")
                     print("=================================\n")
+
+    def _adjust_positional_embeddings(self, loaded_state, model_state, net_name):
+        for key in list(loaded_state.keys()):
+            if "pos_embed" not in key:
+                continue
+            if key not in model_state:
+                continue
+            src_tensor = loaded_state[key]
+            tgt_tensor = model_state[key]
+            if not isinstance(src_tensor, torch.Tensor) or not isinstance(
+                tgt_tensor, torch.Tensor
+            ):
+                continue
+            if src_tensor.shape == tgt_tensor.shape:
+                continue
+
+            resized = self._resize_positional_tensor(src_tensor, tgt_tensor)
+            if resized is not None:
+                loaded_state[key] = resized.to(src_tensor.dtype)
+                print(
+                    f"Resized positional embedding {key} from {tuple(src_tensor.shape)} to {tuple(tgt_tensor.shape)} for {net_name}"
+                )
+            else:
+                del loaded_state[key]
+                print(
+                    f"Removed positional embedding {key} due to incompatible shapes {tuple(src_tensor.shape)} vs {tuple(tgt_tensor.shape)} for {net_name}"
+                )
+
+    @staticmethod
+    def _infer_pos_embed_hw(num_tokens, max_extra_tokens=512):
+        for extra in range(max_extra_tokens + 1):
+            spatial_tokens = num_tokens - extra
+            if spatial_tokens <= 0:
+                break
+            side = int(round(math.sqrt(spatial_tokens)))
+            if side * side == spatial_tokens:
+                return side, extra
+        return None, None
+
+    def _resize_positional_tensor(self, source, target):
+        if source.ndim != 3 or target.ndim != 3:
+            return None
+        if source.shape[0] != target.shape[0] or source.shape[-1] != target.shape[-1]:
+            return None
+
+        old_hw, old_extra = self._infer_pos_embed_hw(source.shape[1])
+        new_hw, new_extra = self._infer_pos_embed_hw(target.shape[1])
+
+        if old_hw is None or new_hw is None:
+            return None
+
+        dtype = source.dtype
+        device = source.device
+
+        old_special = source[:, :old_extra] if old_extra else None
+        spatial_tokens = source[:, old_extra:]
+
+        try:
+            spatial_tokens = spatial_tokens.reshape(
+                source.shape[0], old_hw, old_hw, source.shape[-1]
+            )
+        except RuntimeError:
+            return None
+
+        spatial_tokens = spatial_tokens.permute(0, 3, 1, 2).contiguous().float()
+        resized = F.interpolate(
+            spatial_tokens, size=(new_hw, new_hw), mode="bicubic", align_corners=False
+        )
+        resized = resized.to(device=device, dtype=dtype)
+        resized = resized.permute(0, 2, 3, 1).reshape(
+            source.shape[0], new_hw * new_hw, source.shape[-1]
+        )
+
+        if new_extra:
+            target_special = target[:, :new_extra].detach().clone()
+            target_special = target_special.to(device=device, dtype=dtype)
+            if old_special is not None:
+                copy_len = min(old_special.shape[1], target_special.shape[1])
+                target_special[:, :copy_len] = old_special[:, :copy_len].to(
+                    device=device, dtype=dtype
+                )
+            resized = torch.cat([target_special, resized], dim=1)
+
+        return resized
 
     def get_nets(self):
         return_nets = {}
@@ -1760,6 +1848,7 @@ class BaseModel(ABC):
             psnr_test = psnr(real_tensor, fake_tensor)
 
             psnr_each = psnr(real_tensor, fake_tensor, reduction="none")  # [B]
+
             psnr_list = psnr_each[
                 psnr_each < 78
             ]  # with this PIQ code, identical images give 80
