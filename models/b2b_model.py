@@ -86,15 +86,6 @@ class B2BModel(BaseDiffusionModel):
             help="Std normalization for DISTS",
         )
 
-        # -------------------------
-        # Evaluation options
-        # -------------------------
-        parser.add_argument(
-            "--alg_b2b_metric_mask",
-            action="store_true",
-            help="Evaluate metrics only on dilated mask region",
-        )
-
         if is_train:
             parser = B2BModel.modify_commandline_options_train(parser)
 
@@ -226,7 +217,6 @@ class B2BModel(BaseDiffusionModel):
                 scales=scales,
             )
         elif self.opt.alg_b2b_loss == "MSE":
-            print(" !!!MSE loss")
             self.loss_fn = torch.nn.MSELoss()
         elif self.opt.alg_b2b_loss == "L1":
             self.loss_fn = torch.nn.L1Loss()
