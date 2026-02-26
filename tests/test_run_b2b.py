@@ -48,7 +48,7 @@ product_list = product(
 )
 
 
-def test_sc_model(dataroot):
+def test_b2b_model(dataroot):
     json_like_dict["dataroot"] = dataroot
     json_like_dict["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
 

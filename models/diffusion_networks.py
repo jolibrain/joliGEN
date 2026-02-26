@@ -247,6 +247,11 @@ def define_G(
         model.cond_embed_dim = cond_embed_dim
     elif G_netG == "vit":
         variant = getattr(opt, "G_vit_variant", "")
+        if variant and variant not in JiT_VARIANT_CONFIGS:
+            raise ValueError(
+                f"Unknown G_vit_variant '{variant}'. "
+                f"Valid: {sorted(JiT_VARIANT_CONFIGS.keys())}"
+            )
         base = JiT_VARIANT_CONFIGS.get(variant, {})
         cfg = {
             "depth": getattr(opt, "G_vit_depth", base.get("depth", 12)),

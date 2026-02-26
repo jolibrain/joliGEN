@@ -1,4 +1,13 @@
 # --------------------------------------------------------
+# JiT implementation adapted for joliGEN.
+# Based on:
+# - "Back to Basics: Let Denoising Generative Models Denoise"
+#   https://arxiv.org/abs/2511.13720
+# - JiT reference code:
+#   https://github.com/LTH14/JiT/blob/main/model_jit.py
+# --------------------------------------------------------
+
+# --------------------------------------------------------
 # References:
 # SiT: https://github.com/willisma/SiT
 # Lightning-DiT: https://github.com/hustvl/LightningDiT
@@ -111,7 +120,9 @@ class LabelEmbedder(nn.Module):
 def scaled_dot_product_attention(query, key, value, dropout_p=0.0) -> torch.Tensor:
     L, S = query.size(-2), key.size(-2)
     scale_factor = 1 / math.sqrt(query.size(-1))
-    attn_bias = torch.zeros(query.size(0), 1, L, S, dtype=query.dtype).cuda()
+    attn_bias = torch.zeros(
+        query.size(0), 1, L, S, dtype=query.dtype, device=query.device
+    )
 
     with torch.cuda.amp.autocast(enabled=False):
         attn_weight = query.float() @ key.float().transpose(-2, -1) * scale_factor
