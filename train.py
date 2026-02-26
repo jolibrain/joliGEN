@@ -266,18 +266,24 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     opt.total_iters % opt.output_display_freq < batch_size
                 ):  # display images on visdom and save images to a HTML file
                     save_result = opt.total_iters % opt.output_update_html_freq == 0
-                    model.compute_visuals(opt.train_batch_size)
-                    if not "none" in opt.output_display_type:
-                        visualizer.display_current_results(
-                            model.get_current_visuals(opt.train_batch_size),
-                            epoch,
-                            save_result,
-                            params=model.get_display_param(),
-                            first=(opt.total_iters == batch_size),
-                            phase="train",
-                            image_bits=opt.data_image_bits,
-                            vwin_id=1,
-                        )
+                    saved_training_modes = capture_model_training_modes(model)
+                    model.eval()
+                    try:
+                        with torch.no_grad():
+                            model.compute_visuals(opt.train_batch_size)
+                            if not "none" in opt.output_display_type:
+                                visualizer.display_current_results(
+                                    model.get_current_visuals(opt.train_batch_size),
+                                    epoch,
+                                    save_result,
+                                    params=model.get_display_param(),
+                                    first=(opt.total_iters == batch_size),
+                                    phase="train",
+                                    image_bits=opt.data_image_bits,
+                                    vwin_id=1,
+                                )
+                    finally:
+                        restore_model_training_modes(saved_training_modes)
 
                 if (
                     opt.total_iters % opt.train_save_latest_freq < batch_size
