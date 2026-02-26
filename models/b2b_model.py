@@ -62,6 +62,12 @@ class B2BModel(BaseDiffusionModel):
             help="Noise scale for B2B. Use <=0 for automatic JiT-like defaults (1.0 at <=256px, else 2.0).",
         )
         parser.add_argument(
+            "--alg_b2b_cfg_scale",
+            type=float,
+            default=1.0,
+            help="Classifier-free guidance scale used at B2B inference time.",
+        )
+        parser.add_argument(
             "--alg_b2b_clip_denoised",
             action="store_true",
             help="Clip B2B denoised states to [-1, 1] during sampling (disabled by default to match JiT).",
