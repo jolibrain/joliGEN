@@ -129,6 +129,7 @@ class B2BGenerator(nn.Module):
         clip_denoised=None,
         use_gt=None,
         ref_idx=None,
+        init_noise=None,
     ):
         B = y.shape[0]
         device = y.device
@@ -139,7 +140,16 @@ class B2BGenerator(nn.Module):
         else:
             y_background = y
 
-        x = y_background + torch.randn_like(y) * self.noise_scale
+        if init_noise is None:
+            noise = torch.randn_like(y)
+        else:
+            if init_noise.shape != y.shape:
+                raise RuntimeError(
+                    f"init_noise shape {init_noise.shape} does not match input shape {y.shape}"
+                )
+            noise = init_noise.to(device=y.device, dtype=y.dtype)
+
+        x = y_background + noise * self.noise_scale
 
         if mask is not None:
             x = x * mask + y * (1.0 - mask)

@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import itertools
 import math
 import random
@@ -344,6 +345,7 @@ class B2BModel(BaseDiffusionModel):
                 self.cond_image = None
 
         self.batch_size = self.y_t.shape[0]
+        self.image_paths = data.get("A_img_paths", [])
 
         self.real_A = self.y_t
         self.real_B = self.gt_image
@@ -492,6 +494,13 @@ class B2BModel(BaseDiffusionModel):
                 self.gt_image_dilated_per_step = {}
                 use_gt = getattr(self, "use_gt", None)
                 ref_idx = getattr(self, "ref_idx", None)
+                shared_init_noise = None
+                if (
+                    not self.opt.isTrain
+                    and isinstance(self.opt.alg_b2b_denoise_timesteps, list)
+                    and len(self.opt.alg_b2b_denoise_timesteps) > 1
+                ):
+                    shared_init_noise = self._build_fixed_validation_noise(y_t)
                 for steps in self.opt.alg_b2b_denoise_timesteps:
                     self.output = netG.restoration(
                         y_t,
@@ -501,6 +510,7 @@ class B2BModel(BaseDiffusionModel):
                         self.label_cls,
                         use_gt=use_gt,
                         ref_idx=ref_idx,
+                        init_noise=shared_init_noise,
                     )
                     self.outputs_per_step[steps] = self.output
                     name = "output_" + str(steps) + "_steps"
@@ -555,3 +565,46 @@ class B2BModel(BaseDiffusionModel):
         x = super().get_current_visuals(nb_imgs, phase, test_name)
         self.visual_names = old_visual_names
         return x
+
+    def _normalize_image_paths_for_batch(self, batch_size):
+        paths = getattr(self, "image_paths", [])
+
+        if isinstance(paths, str):
+            paths_list = [paths]
+        elif isinstance(paths, (list, tuple)):
+            paths_list = list(paths)
+        else:
+            paths_list = []
+
+        if len(paths_list) == batch_size:
+            return [str(p) for p in paths_list]
+
+        if len(paths_list) == 1 and batch_size > 1:
+            base = str(paths_list[0])
+            return [f"{base}#b{i}" for i in range(batch_size)]
+
+        return [f"batch_item_{i}" for i in range(batch_size)]
+
+    def _stable_seed_from_path(self, path):
+        digest = hashlib.sha256(path.encode("utf-8")).digest()
+        return int.from_bytes(digest[:8], byteorder="little", signed=False)
+
+    def _build_fixed_validation_noise(self, y):
+        batch_size = y.shape[0]
+        paths = self._normalize_image_paths_for_batch(batch_size)
+
+        per_sample_noise = []
+        for i, path in enumerate(paths):
+            seed = self._stable_seed_from_path(path)
+            gen = torch.Generator(device="cpu")
+            gen.manual_seed(seed)
+            sample_noise = torch.randn(
+                tuple(y[i].shape),
+                generator=gen,
+                device="cpu",
+                dtype=y.dtype,
+            )
+            per_sample_noise.append(sample_noise)
+
+        noise = torch.stack(per_sample_noise, dim=0).to(device=y.device, dtype=y.dtype)
+        return noise
