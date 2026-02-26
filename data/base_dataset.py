@@ -25,6 +25,32 @@ from data.image_folder import make_dataset, make_dataset_path, make_labeled_path
 from data.online_creation import sanitize_paths, write_paths_file
 
 from abc import ABC, abstractmethod
+
+
+def _patch_numpy_for_imgaug():
+    """Provide attributes removed in NumPy 2 that imgaug 0.4.0 still expects."""
+    if "sctypes" not in np.__dict__:
+        np.sctypes = {
+            "int": [np.int8, np.int16, np.int32, np.int64],
+            "uint": [np.uint8, np.uint16, np.uint32, np.uint64],
+            "float": [np.float16, np.float32, np.float64],
+            "complex": [np.complex64, np.complex128],
+            "others": [np.bool_, np.bytes_, np.str_],
+        }
+
+    for name, value in (
+        ("float", float),
+        ("int", int),
+        ("bool", bool),
+        ("complex", complex),
+        ("object", object),
+        ("str", str),
+    ):
+        if name not in np.__dict__:
+            setattr(np, name, value)
+
+
+_patch_numpy_for_imgaug()
 import imgaug as ia
 import imgaug.augmenters as iaa
 import os

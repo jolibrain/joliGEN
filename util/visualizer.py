@@ -535,8 +535,17 @@ class Visualizer:
         if name not in self.metrics_dict:
             self.metrics_dict[name] = {"X": [], "Y": [], "legend": list(metrics.keys())}
         plot_metrics = self.metrics_dict[name]
+
+        for metric_name in metrics.keys():
+            if metric_name not in plot_metrics["legend"]:
+                plot_metrics["legend"].append(metric_name)
+                for row in plot_metrics["Y"]:
+                    row.append(np.nan)
+
         plot_metrics["X"].append(epoch + counter_ratio)
-        plot_metrics["Y"].append([metrics[k] for k in plot_metrics["legend"]])
+        plot_metrics["Y"].append(
+            [metrics.get(metric_name, np.nan) for metric_name in plot_metrics["legend"]]
+        )
         X = np.stack([np.array(plot_metrics["X"])] * len(plot_metrics["legend"]), 1)
         Y = np.array(plot_metrics["Y"])
         try:

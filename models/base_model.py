@@ -1671,6 +1671,7 @@ class BaseModel(ABC):
         return metrics
 
     def _compute_metrics(self, fake_images, gt_images):
+        compute_lpips = hasattr(self, "lpips_metric")
         psnr_sum, ssim_sum, lpips_sum, n = 0.0, 0.0, 0.0, 0
         for fake, gt in zip(fake_images, gt_images):
             if fake.shape != gt.shape:
@@ -1678,24 +1679,25 @@ class BaseModel(ABC):
                 continue
             fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
             gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
-            min_lpips_size = 64
-            h, w = fake.shape[-2:]
-
-            if h < min_lpips_size or w < min_lpips_size:
-                fake_lpips = pad_to_lpips_safe(fake, min_lpips_size)
-                gt_lpips = pad_to_lpips_safe(gt, min_lpips_size)
-            else:
-                fake_lpips = fake
-                gt_lpips = gt
 
             psnr_sum += psnr(fake, gt, data_range=1.0).item()
             ssim_sum += ssim(fake, gt).item()
-            lpips_sum += self.lpips_metric(fake_lpips, gt_lpips).item()
+
+            if compute_lpips:
+                min_lpips_size = 64
+                h, w = fake.shape[-2:]
+                if h < min_lpips_size or w < min_lpips_size:
+                    fake_lpips = pad_to_lpips_safe(fake, min_lpips_size)
+                    gt_lpips = pad_to_lpips_safe(gt, min_lpips_size)
+                else:
+                    fake_lpips = fake
+                    gt_lpips = gt
+                lpips_sum += self.lpips_metric(fake_lpips, gt_lpips).item()
             n += 1
 
         psnr_val = psnr_sum / n if n else 0.0
         ssim_val = ssim_sum / n if n else 0.0
-        lpips_val = lpips_sum / n if n else 0.0
+        lpips_val = lpips_sum / n if (n and compute_lpips) else 0.0
         return psnr_val, ssim_val, lpips_val
 
     def compute_metrics_test(
@@ -1711,6 +1713,8 @@ class BaseModel(ABC):
 
         fake_list = []
         real_list = []
+        fake_list_per_step = {}
+        real_list_per_step = {}
 
         if self.opt.train_nb_img_max_fid != MAX_INT:
             progress = tqdm(
@@ -1764,6 +1768,41 @@ class BaseModel(ABC):
                     batch_real_img = self.real_B
                 else:
                     batch_real_img = self.real_A
+
+            if (
+                getattr(self.opt, "model_type", "") == "b2b"
+                and hasattr(self, "outputs_per_step")
+                and isinstance(self.outputs_per_step, dict)
+                and len(self.outputs_per_step) > 0
+            ):
+                batch_real_img_per_step = getattr(self, "real_B", batch_real_img)
+
+                for step, step_fake in self.outputs_per_step.items():
+                    fake_list_per_step.setdefault(step, [])
+                    real_list_per_step.setdefault(step, [])
+
+                    max_batch = min(step_fake.shape[0], batch_real_img_per_step.shape[0])
+
+                    if step_fake.ndim == 5 and batch_real_img_per_step.ndim == 5:
+                        max_frames = min(
+                            step_fake.shape[1], batch_real_img_per_step.shape[1]
+                        )
+                        for b in range(max_batch):
+                            for f in range(max_frames):
+                                fake_list_per_step[step].append(
+                                    step_fake[b, f].detach().clone()
+                                )
+                                real_list_per_step[step].append(
+                                    batch_real_img_per_step[b, f].detach().clone()
+                                )
+                    else:
+                        for b in range(max_batch):
+                            fake_list_per_step[step].append(
+                                step_fake[b].detach().clone()
+                            )
+                            real_list_per_step[step].append(
+                                batch_real_img_per_step[b].detach().clone()
+                            )
 
             for i, cur_real in enumerate(batch_real_img):
                 real_list.append(cur_real.unsqueeze(0).clone())
@@ -1996,6 +2035,43 @@ class BaseModel(ABC):
             else:
                 lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
             setattr(self, "lpips_test_" + test_name, lpips_test)
+
+        if fake_list_per_step:
+            self.psnr_step = {}
+            self.ssim_step = {}
+            self.lpips_step = {}
+
+            for step in sorted(fake_list_per_step.keys()):
+                fake_images = fake_list_per_step[step]
+                gt_images = real_list_per_step.get(step, [])
+                if len(fake_images) == 0 or len(gt_images) == 0:
+                    continue
+
+                max_count = min(len(fake_images), len(gt_images))
+                psnr_val, ssim_val, lpips_val = self._compute_metrics(
+                    fake_images[:max_count], gt_images[:max_count]
+                )
+
+                self.psnr_step[step] = psnr_val
+                self.ssim_step[step] = ssim_val
+                self.lpips_step[step] = lpips_val
+
+            if not hasattr(self, "psnr_step_results"):
+                self.psnr_step_results = {}
+            if not hasattr(self, "ssim_step_results"):
+                self.ssim_step_results = {}
+            if not hasattr(self, "lpips_step_results"):
+                self.lpips_step_results = {}
+
+            self.psnr_step_results[test_name] = {
+                step: float(val) for step, val in self.psnr_step.items()
+            }
+            self.ssim_step_results[test_name] = {
+                step: float(val) for step, val in self.ssim_step.items()
+            }
+            self.lpips_step_results[test_name] = {
+                step: float(val) for step, val in self.lpips_step.items()
+            }
 
         if "FVD" in self.opt.train_metrics_list:
             real_tensor = torch.cat(real_list)
