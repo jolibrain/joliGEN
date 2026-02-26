@@ -32,6 +32,9 @@ class B2BGenerator(nn.Module):
         self.current_t = 1
         self.cfg_scale = 2.9  # guidance strength as indicated in paper 2.9
         self.cfg_interval = (0.1, 1.0)  # value used in paper training examples
+        self.clip_denoised_default = (
+            bool(getattr(opt, "alg_b2b_clip_denoised", False)) if opt else False
+        )
 
         self.denoise_timesteps = (
             getattr(opt, "alg_b2b_denoise_timesteps", 50) if opt else 50
@@ -128,7 +131,7 @@ class B2BGenerator(nn.Module):
         denoise_timesteps=None,
         mask=None,
         labels=None,
-        clip_denoised=True,
+        clip_denoised=None,
         use_gt=None,
         ref_idx=None,
     ):
@@ -147,6 +150,8 @@ class B2BGenerator(nn.Module):
             x = x * mask + y * (1.0 - mask)
 
         steps = int(denoise_timesteps)
+        if clip_denoised is None:
+            clip_denoised = self.clip_denoised_default
 
         timesteps = (
             torch.linspace(0.0, 1.0, steps + 1, device=device)
