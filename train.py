@@ -182,6 +182,20 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         for dataloader_test in all_dataloaders_test:
             model.init_metrics(dataloader_test, dataloader_test.dataset.name)
 
+    def capture_model_training_modes(model):
+        modes = []
+        for name in model.model_names:
+            if isinstance(name, str):
+                net_name = "net" + name
+                if hasattr(model, net_name):
+                    net = getattr(model, net_name)
+                    modes.append((net, net.training))
+        return modes
+
+    def restore_model_training_modes(modes):
+        for net, was_training in modes:
+            net.train(was_training)
+
     for epoch in range(
         opt.train_epoch_count, opt.train_n_epochs + opt.train_n_epochs_decay + 1
     ):  # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
@@ -284,8 +298,10 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                 if opt.total_iters % opt.train_metrics_every < batch_size and (
                     opt.train_compute_metrics_test
                 ):
-                    with torch.no_grad():
-                        if opt.train_compute_metrics_test:
+                    saved_training_modes = capture_model_training_modes(model)
+                    model.eval()
+                    try:
+                        with torch.no_grad():
                             ts = 2
                             for dataloader_test in all_dataloaders_test:
                                 if use_temporal:
@@ -319,6 +335,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                                     test_name=dataloader_test.dataset.name,
                                 )
                                 ts += 1
+                    finally:
+                        restore_model_training_modes(saved_training_modes)
 
                     if opt.output_display_id > 0:
                         metrics = model.get_current_metrics(all_test_sets)
@@ -387,20 +405,25 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
     ###Let's compute final FID
     if rank_0 and opt.train_compute_metrics_test:
-        with torch.no_grad():
-            for dataloader_test in all_dataloaders_test:
-                if use_temporal:
-                    dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
-                else:
-                    dataloaders_test = zip(dataloader_test)
-                model.compute_metrics_test(
-                    dataloaders_test,
-                    opt.train_epoch_count - 1,
-                    opt.total_iters,
-                    save_images=opt.train_metrics_save_images,
-                    test_name=dataloader_test.dataset.name,
-                )
-            cur_metrics = model.get_current_metrics(all_test_sets)
+        saved_training_modes = capture_model_training_modes(model)
+        model.eval()
+        try:
+            with torch.no_grad():
+                for dataloader_test in all_dataloaders_test:
+                    if use_temporal:
+                        dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
+                    else:
+                        dataloaders_test = zip(dataloader_test)
+                    model.compute_metrics_test(
+                        dataloaders_test,
+                        opt.train_epoch_count - 1,
+                        opt.total_iters,
+                        save_images=opt.train_metrics_save_images,
+                        test_name=dataloader_test.dataset.name,
+                    )
+                cur_metrics = model.get_current_metrics(all_test_sets)
+        finally:
+            restore_model_training_modes(saved_training_modes)
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")
         if os.path.exists(path_json):
             with open(path_json, "r") as loadfile:
