@@ -23,7 +23,11 @@ class B2BGenerator(nn.Module):
         self.opt = opt
         self.P_mean = -0.8
         self.P_std = 0.8
-        self.noise_scale = 2.0  # 1.0 when image size 256
+        requested_noise_scale = getattr(opt, "alg_b2b_noise_scale", -1.0) if opt else -1.0
+        if requested_noise_scale > 0:
+            self.noise_scale = float(requested_noise_scale)
+        else:
+            self.noise_scale = 1.0 if int(self.image_size) <= 256 else 2.0
         self.t_eps = 5e-2
         self.current_t = 1
         self.cfg_scale = 2.9  # guidance strength as indicated in paper 2.9

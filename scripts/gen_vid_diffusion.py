@@ -94,9 +94,14 @@ def load_model(
     model.eval()
 
     # handle old models
-    weights = torch.load(
-        os.path.join(model_in_dir, model_in_filename), map_location=torch.device(device)
-    )
+    weights_path = os.path.join(model_in_dir, model_in_filename)
+    if opt.model_type == "b2b" and weights_path.endswith(".pth"):
+        ema_weights_path = weights_path[:-4] + "_ema.pth"
+        if os.path.isfile(ema_weights_path):
+            weights_path = ema_weights_path
+    weights = torch.load(weights_path, map_location=torch.device(device))
+    if isinstance(weights, dict) and "_ema" in weights:
+        weights = weights["_ema"]
     if opt.model_prior_321_backwardcompatibility:
         weights = {
             k.replace("denoise_fn.cond_embed", "cond_embed"): v

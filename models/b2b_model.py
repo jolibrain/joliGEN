@@ -53,6 +53,12 @@ class B2BModel(BaseDiffusionModel):
             default=[50],
             help="One or more denoising step counts to evaluate at inference (positive integers)",
         )
+        parser.add_argument(
+            "--alg_b2b_noise_scale",
+            type=float,
+            default=-1.0,
+            help="Noise scale for B2B. Use <=0 for automatic JiT-like defaults (1.0 at <=256px, else 2.0).",
+        )
 
         # -------------------------
         # Perceptual losses
@@ -390,10 +396,17 @@ class B2BModel(BaseDiffusionModel):
 
     def inference(self, nb_imgs, offset=0):
         offset = 0
-        if hasattr(self.netG_A, "module"):
-            netG = self.netG_A.module
+        if (
+            not self.opt.isTrain
+            and getattr(self.opt, "train_G_ema", False)
+            and hasattr(self, "netG_A_ema")
+        ):
+            netG = self.netG_A_ema
         else:
             netG = self.netG_A
+
+        if hasattr(netG, "module"):
+            netG = netG.module
 
         if len(self.opt.gpu_ids) > 1 and self.opt.G_unet_mha_norm_layer == "batchnorm":
             netG = revert_sync_batchnorm(netG)
