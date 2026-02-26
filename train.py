@@ -55,8 +55,6 @@ def optim(opt, params, lr, betas, weight_decay, eps):
     elif opt.train_optim == "radam":
         return torch.optim.RAdam(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "adamw":
-        if weight_decay == 0.0:
-            weight_decay = 0.01  # default value
         return torch.optim.AdamW(params, lr, betas, weight_decay=weight_decay, eps=eps)
     elif opt.train_optim == "lion":
         return Lion(params, lr, betas, weight_decay)
