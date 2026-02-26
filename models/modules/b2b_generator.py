@@ -45,7 +45,7 @@ class B2BGenerator(nn.Module):
                 f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
                 "Stopping because this run only supports num_classes=1."
             )
-        self.label_drop_prob = 0.1  # default  value used in paper 0.1
+        self.label_drop_prob = 0.0  # default  value used in paper 0.1, set to 0.0 for single class
 
     def sample_t(self, B: int, device, F=None):
         # returns t_cont in [0,1]
