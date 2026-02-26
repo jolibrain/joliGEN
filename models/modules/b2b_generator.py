@@ -30,7 +30,7 @@ class B2BGenerator(nn.Module):
             self.noise_scale = 1.0 if int(self.image_size) <= 256 else 2.0
         self.t_eps = 5e-2
         self.current_t = 1
-        self.cfg_scale = 2.9  # guidance strength as indicated in paper 2.9
+        self.cfg_scale = float(getattr(opt, "alg_b2b_cfg_scale", 1.0)) if opt else 1.0
         self.cfg_interval = (0.1, 1.0)  # value used in paper training examples
         self.clip_denoised_default = (
             bool(getattr(opt, "alg_b2b_clip_denoised", False)) if opt else False
@@ -198,19 +198,25 @@ class B2BGenerator(nn.Module):
           v = v_uncond + scale(t) * (v_cond - v_uncond)
         """
 
-        num_classes = int(self.b2b_model.num_classes)
         # --- conditional ---
         x_cond = self.b2b_model(x, t.flatten(), labels)
 
         v_cond = (x_cond - x) / (1.0 - t).clamp_min(self.t_eps)
 
-        # --- unconditional ---
-        x_uncond = self.b2b_model(x, t.flatten(), torch.full_like(labels, num_classes))
-        v_uncond = (x_uncond - x) / (1.0 - t).clamp_min(self.t_eps)
-
         # cfg interval
         low, high = self.cfg_interval
         interval_mask = (t < high) & ((low == 0) | (t > low))
+        cfg_is_neutral = math.isclose(self.cfg_scale, 1.0, rel_tol=0.0, abs_tol=1e-12)
+
+        # When guidance is neutral (or inactive for this t), CFG exactly equals v_cond.
+        if cfg_is_neutral or not torch.any(interval_mask):
+            return v_cond
+
+        # --- unconditional ---
+        num_classes = int(self.b2b_model.num_classes)
+        x_uncond = self.b2b_model(x, t.flatten(), torch.full_like(labels, num_classes))
+        v_uncond = (x_uncond - x) / (1.0 - t).clamp_min(self.t_eps)
+
         cfg_scale_interval = torch.where(interval_mask, self.cfg_scale, 1.0)
 
         return v_uncond + cfg_scale_interval * (v_cond - v_uncond)
