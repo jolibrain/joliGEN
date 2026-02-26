@@ -52,8 +52,7 @@ class B2BModel(BaseDiffusionModel):
             type=int,
             nargs="+",
             default=[50],
-            choices=[1, 2, 4, 8, 16, 32, 50, 64, 128],
-            help="Number of denoising steps at inference",
+            help="One or more denoising step counts to evaluate at inference (positive integers)",
         )
 
         # -------------------------
@@ -121,7 +120,19 @@ class B2BModel(BaseDiffusionModel):
 
     @staticmethod
     def after_parse(opt):
-        # Example: validate incompatible options here
+        steps = getattr(opt, "alg_b2b_denoise_timesteps", [50])
+        if isinstance(steps, int):
+            steps = [steps]
+
+        if len(steps) == 0:
+            raise ValueError("--alg_b2b_denoise_timesteps must contain at least one value")
+
+        if any(step <= 0 for step in steps):
+            raise ValueError(
+                "--alg_b2b_denoise_timesteps values must be positive integers"
+            )
+
+        opt.alg_b2b_denoise_timesteps = steps
         return opt
 
     def __init__(self, opt, rank):
