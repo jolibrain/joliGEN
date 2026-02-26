@@ -402,6 +402,7 @@ class MultiScaleDiffusionLoss(nn.Module):
     def __init__(self, lossname, img_size, scales):
         super().__init__()
 
+        self.lossname = lossname
         self.min_res = 32
         self.scales = scales
         self.log_size = math.floor(math.log2(img_size))
@@ -412,13 +413,35 @@ class MultiScaleDiffusionLoss(nn.Module):
         else:
             raise NotImplementedError("lossname not implemented")
 
-    def forward(self, noise, noise_hat):
+    def _single_scale_loss(
+        self, pred, target, mask=None, masked_region_only=False, eps=1e-8
+    ):
+        if masked_region_only and mask is not None:
+            if "MSE" in self.lossname:
+                loss_elem = (pred - target) ** 2
+            elif "L1" in self.lossname:
+                loss_elem = torch.abs(pred - target)
+            else:
+                raise NotImplementedError("lossname not implemented")
+
+            reduce_dims = tuple(range(1, loss_elem.ndim))
+            num = (loss_elem * mask).sum(dim=reduce_dims)
+            den = mask.sum(dim=reduce_dims).clamp_min(eps)
+            return (num / den).mean()
+
+        return self.loss(pred, target)
+
+    def forward(self, noise, noise_hat, mask=None, masked_region_only=False):
         losses = {}
 
         # loss at target scale
         cur_res = noise.shape[-1]
         losses[str(cur_res)] = (
-            self.loss(noise, noise_hat) * self.min_res / (2 * cur_res)
+            self._single_scale_loss(
+                noise, noise_hat, mask=mask, masked_region_only=masked_region_only
+            )
+            * self.min_res
+            / (2 * cur_res)
         )
 
         for res in self.scales:
@@ -426,8 +449,19 @@ class MultiScaleDiffusionLoss(nn.Module):
             cur_noise_hat = nn.functional.interpolate(
                 noise_hat, size=res, mode="bilinear"
             )
+            if mask is not None:
+                cur_mask = nn.functional.interpolate(mask, size=res, mode="nearest")
+            else:
+                cur_mask = None
             losses[str(res)] = (
-                self.loss(cur_noise, cur_noise_hat) * self.min_res / (2 * res)
+                self._single_scale_loss(
+                    cur_noise,
+                    cur_noise_hat,
+                    mask=cur_mask,
+                    masked_region_only=masked_region_only,
+                )
+                * self.min_res
+                / (2 * res)
             )
 
         return losses

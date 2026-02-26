@@ -125,6 +125,11 @@ class B2BModel(BaseDiffusionModel):
             choices=["L1", "MSE", "multiscale_L1", "multiscale_MSE"],
             help="Loss type for B2B denoising",
         )
+        parser.add_argument(
+            "--alg_b2b_loss_masked_region_only",
+            action="store_true",
+            help="Normalize B2B loss over masked pixels only (instead of all image pixels).",
+        )
 
         return parser
 
@@ -381,10 +386,25 @@ class B2BModel(BaseDiffusionModel):
 
         if mask is not None:
             mask_binary = torch.clamp(mask, min=0, max=1)
-            loss = self.loss_fn(
-                min_snr_loss_weight * mask_binary * v_pred,
-                min_snr_loss_weight * mask_binary * v,
-            )
+            weighted_pred = min_snr_loss_weight * v_pred
+            weighted_target = min_snr_loss_weight * v
+            if self.opt.alg_b2b_loss_masked_region_only:
+                if isinstance(self.loss_fn, MultiScaleDiffusionLoss):
+                    loss = self.loss_fn(
+                        weighted_pred,
+                        weighted_target,
+                        mask=mask_binary,
+                        masked_region_only=True,
+                    )
+                else:
+                    loss = self._masked_region_loss(
+                        weighted_pred, weighted_target, mask_binary
+                    )
+            else:
+                loss = self.loss_fn(
+                    mask_binary * weighted_pred,
+                    mask_binary * weighted_target,
+                )
         else:
             loss = self.loss_fn(min_snr_loss_weight * v_pred, min_snr_loss_weight * v)
 
@@ -398,6 +418,21 @@ class B2BModel(BaseDiffusionModel):
             loss = loss_tot
 
         self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
+
+    def _masked_region_loss(self, pred, target, mask, eps=1e-8):
+        if self.opt.alg_b2b_loss in ["MSE", "multiscale_MSE"]:
+            loss_elem = (pred - target) ** 2
+        elif self.opt.alg_b2b_loss in ["L1", "multiscale_L1"]:
+            loss_elem = torch.abs(pred - target)
+        else:
+            raise NotImplementedError(
+                f"Unsupported alg_b2b_loss for masked-region loss: {self.opt.alg_b2b_loss}"
+            )
+
+        reduce_dims = tuple(range(1, loss_elem.ndim))
+        num = (loss_elem * mask).sum(dim=reduce_dims)
+        den = mask.sum(dim=reduce_dims).clamp_min(eps)
+        return (num / den).mean()
 
     def inference(self, nb_imgs, offset=0):
         offset = 0
