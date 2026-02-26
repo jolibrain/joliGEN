@@ -532,6 +532,9 @@ class Visualizer:
             ylabel (str)          -- y label
             window_id (int)       -- Visdom window id
         """
+        if not metrics:
+            return
+
         if name not in self.metrics_dict:
             self.metrics_dict[name] = {"X": [], "Y": [], "legend": list(metrics.keys())}
         plot_metrics = self.metrics_dict[name]

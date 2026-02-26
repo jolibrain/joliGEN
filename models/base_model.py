@@ -847,6 +847,17 @@ class BaseModel(ABC):
                     else:
                         torch.save(net.state_dict(), save_path)
 
+                if self.opt.train_G_ema:
+                    net_ema = getattr(self, "net" + name + "_ema", None)
+                    if net_ema is not None:
+                        ema_save_filename = "%s_net_%s_ema.pth" % (epoch, name)
+                        ema_save_path = os.path.join(self.save_dir, ema_save_filename)
+                        if hasattr(net_ema, "module"):
+                            net_ema_to_save = net_ema.module
+                        else:
+                            net_ema_to_save = net_ema
+                        torch.save(net_ema_to_save.state_dict(), ema_save_path)
+
     def export_networks(self, epoch):
         """Export chosen networks weights to the disk.
 
@@ -944,16 +955,29 @@ class BaseModel(ABC):
             if isinstance(name, str):
                 load_filename = "%s_net_%s.pth" % (epoch, name)
                 load_path = os.path.join(self.save_dir, load_filename)
+                ema_load_filename = "%s_net_%s_ema.pth" % (epoch, name)
+                ema_load_path = os.path.join(self.save_dir, ema_load_filename)
+
+                load_path_effective = load_path
+                if (
+                    not self.opt.isTrain
+                    and getattr(self.opt, "train_G_ema", False)
+                    and os.path.isfile(ema_load_path)
+                ):
+                    load_path_effective = ema_load_path
+
                 net = getattr(self, "net" + name)
                 if isinstance(net, torch.nn.DataParallel):
                     net = net.module
-                if not os.path.isfile(load_path) and "temporal" in load_path:
+                if not os.path.isfile(load_path_effective) and "temporal" in load_path_effective:
                     print("Skipping missing temporal discriminator pre-trained weights")
                     continue
-                print("loading the model from %s" % load_path)
+                print("loading the model from %s" % load_path_effective)
                 # if you are using PyTorch newer than 0.4 (e.g., built from
                 # GitHub source), you can remove str() on self.device
-                state_dict = torch.load(load_path, map_location=str(self.device))
+                state_dict = torch.load(
+                    load_path_effective, map_location=str(self.device)
+                )
                 if hasattr(state_dict, "_metadata"):
                     del state_dict._metadata
 
@@ -1028,7 +1052,7 @@ class BaseModel(ABC):
                         if key1 != key2:
                             print(key1 == key2, key1, key2)
 
-                    if hasattr(state_dict, "_ema"):
+                    if isinstance(state_dict, dict) and "_ema" in state_dict:
                         net.load_state_dict(
                             state_dict["_ema"], strict=self.opt.model_load_no_strictness
                         )
