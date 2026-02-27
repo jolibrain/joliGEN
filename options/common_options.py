@@ -430,6 +430,11 @@ class CommonOptions(BaseOptions):
             default="JiT-B/16",
             help="Selects the ViT backbone when --G_netG vit",
         )
+        parser.add_argument(
+            "--G_vit_disable_bottleneck",
+            action="store_true",
+            help="Disable JiT bottleneck by forcing bottleneck_dim=hidden_size for vit/vit_vid.",
+        )
 
         # discriminator
         parser.add_argument(
