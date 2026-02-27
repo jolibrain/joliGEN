@@ -26,8 +26,9 @@ def modulate(x, shift, scale):
 def scaled_dot_product_attention(query, key, value, dropout_p=0.0) -> torch.Tensor:
     L, S = query.size(-2), key.size(-2)
     scale_factor = 1 / math.sqrt(query.size(-1))
-    attn_bias = torch.zeros(query.size(0), 1, L, S, dtype=query.dtype).cuda()
-
+    attn_bias = torch.zeros(
+        query.size(0), 1, L, S, dtype=query.dtype, device=query.device
+    )
     with torch.cuda.amp.autocast(enabled=False):
         attn_weight = query.float() @ key.float().transpose(-2, -1) * scale_factor
     attn_weight += attn_bias
@@ -878,10 +879,6 @@ class JiTViD(nn.Module):
 
         x = rearrange(x, "b f c h w -> (b f) c h w")
         x = self.x_embedder(x) + self.pos_embed
-
-        # class and time embeddings
-        #        t2d = repeat(t, "b -> (b f)", f=F)
-        #        y2d = repeat(y, "b -> (b f)", f=F)
 
         t = t.reshape(-1)
         if t.shape[0] == B:
