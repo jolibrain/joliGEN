@@ -71,6 +71,11 @@ class B2BModel(BaseDiffusionModel):
             action="store_true",
             help="Clip B2B denoised states to [-1, 1] during sampling (disabled by default to match JiT).",
         )
+        parser.add_argument(
+            "--alg_b2b_disable_inference_clipping",
+            action="store_true",
+            help="Disable inference-time denominator clipping in v=(x_pred-x)/(1-t), i.e. use raw (1-t) at sampling.",
+        )
 
         # -------------------------
         # Perceptual losses
