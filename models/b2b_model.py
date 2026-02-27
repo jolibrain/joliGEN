@@ -377,6 +377,7 @@ class B2BModel(BaseDiffusionModel):
         y_cond = self.cond_image
         mask = self.mask
         B = y_0.shape[0]
+        use_perceptual = self.opt.alg_b2b_perceptual_loss != [""]
 
         # base "real" labels in [0 .. num_classes-1]
         if self.num_classes > 0:
@@ -386,14 +387,20 @@ class B2BModel(BaseDiffusionModel):
         else:
             labels = None
 
-        v_pred, v = self.netG_A(
+        net_out = self.netG_A(
             y_0,
             mask,
             y_cond,
             label=labels,
             use_gt=getattr(self, "use_gt", None),
             ref_idx=getattr(self, "ref_idx", None),
+            return_x_pred=use_perceptual,
         )
+        if use_perceptual:
+            v_pred, v, x_pred = net_out
+        else:
+            v_pred, v = net_out
+            x_pred = None
 
         if not self.opt.alg_b2b_minsnr:
             min_snr_loss_weight = 1.0
@@ -453,6 +460,30 @@ class B2BModel(BaseDiffusionModel):
 
         self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
 
+        self.loss_G_perceptual_lpips = torch.zeros(size=(), device=y_0.device)
+        self.loss_G_perceptual_dists = torch.zeros(size=(), device=y_0.device)
+        self.loss_G_perceptual = torch.zeros(size=(), device=y_0.device)
+
+        if use_perceptual and x_pred is not None:
+            if mask is not None:
+                mask_binary = torch.clamp(mask, min=0, max=1)
+                target_for_perceptual = y_0 * mask_binary
+                pred_for_perceptual = x_pred * mask_binary
+            else:
+                target_for_perceptual = y_0
+                pred_for_perceptual = x_pred
+
+            (
+                self.loss_G_perceptual_lpips,
+                self.loss_G_perceptual_dists,
+            ) = self._compute_perceptual_losses(
+                target_for_perceptual, pred_for_perceptual
+            )
+            self.loss_G_perceptual = self.opt.alg_b2b_lambda_perceptual * (
+                self.loss_G_perceptual_lpips + self.loss_G_perceptual_dists
+            )
+            self.loss_G_tot += self.loss_G_perceptual
+
     def _masked_region_loss(self, pred, target, mask, eps=1e-8):
         if self.opt.alg_b2b_loss in ["MSE", "multiscale_MSE"]:
             loss_elem = (pred - target) ** 2
@@ -467,6 +498,37 @@ class B2BModel(BaseDiffusionModel):
         num = (loss_elem * mask).sum(dim=reduce_dims)
         den = mask.sum(dim=reduce_dims).clamp_min(eps)
         return (num / den).mean()
+
+    def _compute_perceptual_losses(self, target, pred):
+        if target.ndim == 5:
+            target, pred = rearrange_5dto4d_bf(target, pred)
+
+        lpips_loss = torch.zeros(size=(), device=target.device)
+        dists_loss = torch.zeros(size=(), device=target.device)
+
+        if "LPIPS" in self.opt.alg_b2b_perceptual_loss:
+            lpips_loss = self._perceptual_loss_by_channel(
+                self.criterionLPIPS, target, pred
+            )
+        if "DISTS" in self.opt.alg_b2b_perceptual_loss:
+            dists_loss = self._perceptual_loss_by_channel(
+                self.criterionDISTS, target, pred
+            )
+
+        return lpips_loss, dists_loss
+
+    def _perceptual_loss_by_channel(self, criterion, target, pred):
+        if pred.size(1) > 3:
+            loss = torch.zeros(size=(), device=pred.device)
+            for c in range(pred.size(1)):
+                loss += torch.mean(
+                    criterion(
+                        target[:, c : c + 1, :, :],
+                        pred[:, c : c + 1, :, :],
+                    )
+                )
+            return loss
+        return torch.mean(criterion(target, pred))
 
     def inference(self, nb_imgs, offset=0):
         offset = 0
