@@ -26,7 +26,9 @@ def modulate(x, shift, scale):
 def scaled_dot_product_attention(query, key, value, dropout_p=0.0) -> torch.Tensor:
     L, S = query.size(-2), key.size(-2)
     scale_factor = 1 / math.sqrt(query.size(-1))
-    attn_bias = torch.zeros(query.size(0), 1, L, S, dtype=query.dtype).cuda()
+    attn_bias = torch.zeros(
+        query.size(0), 1, L, S, dtype=query.dtype, device=query.device
+    )
 
     with torch.cuda.amp.autocast(enabled=False):
         attn_weight = query.float() @ key.float().transpose(-2, -1) * scale_factor
@@ -688,7 +690,7 @@ class VersatileAttention(CrossAttention):
 
 
 # ============================================================
-#  JiT Video (B,F,C,H,W) + MotionModule at last token layer
+#  JiT Video (B,F,C,H,W) + MotionModule
 # ============================================================
 
 
