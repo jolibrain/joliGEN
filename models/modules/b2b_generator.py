@@ -113,14 +113,24 @@ class B2BGenerator(nn.Module):
 
         return x_pred, z, v, t, x_with_cond
 
-    def forward(self, x, mask=None, x_cond=None, label=None, use_gt=None, ref_idx=None):
-        device = x.device
+    def forward(
+        self,
+        x,
+        mask=None,
+        x_cond=None,
+        label=None,
+        use_gt=None,
+        ref_idx=None,
+        return_x_pred=False,
+    ):
         x_pred, z, v, t, x_with_cond = self.b2b_forward(
             x, mask, x_cond, label, use_gt, ref_idx
         )
         if mask is not None:
             x_pred = x_pred * mask + (1 - mask) * x_with_cond
         v_pred = (x_pred - z) / (1 - t).clamp_min(self.t_eps)
+        if return_x_pred:
+            return v_pred, v, x_pred
         return v_pred, v
 
     def _project_known_pixels(self, x, y_known, mask):
