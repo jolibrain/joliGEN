@@ -207,6 +207,9 @@ class B2BGenerator(nn.Module):
         if mask is not None:
             x = x * mask + y * (1.0 - mask)
 
+        # Always clamp the final restored sample to a valid image range.
+        x = x.clamp(-1.0, 1.0)
+
         return x
 
     @torch.no_grad()
