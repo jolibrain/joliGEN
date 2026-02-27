@@ -123,6 +123,11 @@ class B2BGenerator(nn.Module):
         v_pred = (x_pred - z) / (1 - t).clamp_min(self.t_eps)
         return v_pred, v
 
+    def _project_known_pixels(self, x, y_known, mask):
+        if mask is None or y_known is None:
+            return x
+        return x * mask + y_known * (1.0 - mask)
+
     @torch.no_grad()
     def restoration(
         self,
@@ -138,6 +143,7 @@ class B2BGenerator(nn.Module):
     ):
         B = y.shape[0]
         device = y.device
+        y_known = y if mask is not None else None
 
         if mask is not None:
             mask = torch.clamp(mask, 0.0, 1.0)
@@ -173,7 +179,9 @@ class B2BGenerator(nn.Module):
         for i in range(steps - 1):
             t = timesteps[i]
             t_next = timesteps[i + 1]
-            x = self._heun_step_restoration(x, t, t_next, y_cond, mask, labels)
+            x = self._heun_step_restoration(
+                x, t, t_next, y_cond, mask, labels, y_known
+            )
 
             if clip_denoised:
                 x = x.clamp(-1.0, 1.0)
@@ -182,7 +190,7 @@ class B2BGenerator(nn.Module):
 
         # Last step with euler
         x = self._euler_step_restoration(
-            x, timesteps[-2], timesteps[-1], y_cond, mask, labels
+            x, timesteps[-2], timesteps[-1], y_cond, mask, labels, y_known
         )
         if clip_denoised:
             x = x.clamp(-1.0, 1.0)
@@ -192,16 +200,20 @@ class B2BGenerator(nn.Module):
         return x
 
     @torch.no_grad()
-    def _forward_sample_restoration(self, x, t, y_cond, mask, labels):
+    def _forward_sample_restoration(self, x, t, y_cond, mask, labels, y_known):
         """
         JIT-equivalent CFG:
           v = v_uncond + scale(t) * (v_cond - v_uncond)
         """
+        x_in = self._project_known_pixels(x, y_known, mask)
+        if labels is None:
+            labels = torch.zeros(x_in.shape[0], dtype=torch.long, device=x_in.device)
 
         # --- conditional ---
-        x_cond = self.b2b_model(x, t.flatten(), labels)
+        x_cond = self.b2b_model(x_in, t.flatten(), labels)
+        x_cond = self._project_known_pixels(x_cond, y_known, mask)
 
-        v_cond = (x_cond - x) / (1.0 - t).clamp_min(self.t_eps)
+        v_cond = (x_cond - x_in) / (1.0 - t).clamp_min(self.t_eps)
 
         # cfg interval
         low, high = self.cfg_interval
@@ -214,8 +226,11 @@ class B2BGenerator(nn.Module):
 
         # --- unconditional ---
         num_classes = int(self.b2b_model.num_classes)
-        x_uncond = self.b2b_model(x, t.flatten(), torch.full_like(labels, num_classes))
-        v_uncond = (x_uncond - x) / (1.0 - t).clamp_min(self.t_eps)
+        x_uncond = self.b2b_model(
+            x_in, t.flatten(), torch.full_like(labels, num_classes)
+        )
+        x_uncond = self._project_known_pixels(x_uncond, y_known, mask)
+        v_uncond = (x_uncond - x_in) / (1.0 - t).clamp_min(self.t_eps)
 
         cfg_scale_interval = torch.where(interval_mask, self.cfg_scale, 1.0)
 
@@ -227,16 +242,16 @@ class B2BGenerator(nn.Module):
     #        return (x_pred - x) / (1.0 - t).clamp_min(self.t_eps)
 
     @torch.no_grad()
-    def _euler_step_restoration(self, x, t, t_next, y_cond, mask, labels):
-        v = self._forward_sample_restoration(x, t, y_cond, mask, labels)
+    def _euler_step_restoration(self, x, t, t_next, y_cond, mask, labels, y_known):
+        v = self._forward_sample_restoration(x, t, y_cond, mask, labels, y_known)
         return x + (t_next - t) * v
 
     @torch.no_grad()
-    def _heun_step_restoration(self, x, t, t_next, y_cond, mask, labels):
-        v_t = self._forward_sample_restoration(x, t, y_cond, mask, labels)
+    def _heun_step_restoration(self, x, t, t_next, y_cond, mask, labels, y_known):
+        v_t = self._forward_sample_restoration(x, t, y_cond, mask, labels, y_known)
         x_euler = x + (t_next - t) * v_t
         v_t_next = self._forward_sample_restoration(
-            x_euler, t_next, y_cond, mask, labels
+            x_euler, t_next, y_cond, mask, labels, y_known
         )
         v = 0.5 * (v_t + v_t_next)
         return x + (t_next - t) * v
