@@ -35,6 +35,11 @@ class B2BGenerator(nn.Module):
         self.clip_denoised_default = (
             bool(getattr(opt, "alg_b2b_clip_denoised", False)) if opt else False
         )
+        self.disable_inference_clipping = (
+            bool(getattr(opt, "alg_b2b_disable_inference_clipping", False))
+            if opt
+            else False
+        )
 
         self.denoise_timesteps = (
             getattr(opt, "alg_b2b_denoise_timesteps", 50) if opt else 50
@@ -223,7 +228,10 @@ class B2BGenerator(nn.Module):
         x_cond = self.b2b_model(x_in, t.flatten(), labels)
         x_cond = self._project_known_pixels(x_cond, y_known, mask)
 
-        v_cond = (x_cond - x_in) / (1.0 - t).clamp_min(self.t_eps)
+        den = 1.0 - t
+        if not self.disable_inference_clipping:
+            den = den.clamp_min(self.t_eps)
+        v_cond = (x_cond - x_in) / den
 
         # cfg interval
         low, high = self.cfg_interval
@@ -240,7 +248,7 @@ class B2BGenerator(nn.Module):
             x_in, t.flatten(), torch.full_like(labels, num_classes)
         )
         x_uncond = self._project_known_pixels(x_uncond, y_known, mask)
-        v_uncond = (x_uncond - x_in) / (1.0 - t).clamp_min(self.t_eps)
+        v_uncond = (x_uncond - x_in) / den
 
         cfg_scale_interval = torch.where(interval_mask, self.cfg_scale, 1.0)
 
