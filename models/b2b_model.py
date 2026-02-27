@@ -130,7 +130,7 @@ class B2BModel(BaseDiffusionModel):
             "--alg_b2b_loss",
             type=str,
             default="MSE",
-            choices=["L1", "MSE", "multiscale_L1", "multiscale_MSE"],
+            choices=["L1", "MSE", "pseudo_huber", "multiscale_L1", "multiscale_MSE"],
             help="Loss type for B2B denoising",
         )
         parser.add_argument(
@@ -271,6 +271,8 @@ class B2BModel(BaseDiffusionModel):
             self.loss_fn = torch.nn.MSELoss()
         elif self.opt.alg_b2b_loss == "L1":
             self.loss_fn = torch.nn.L1Loss()
+        elif self.opt.alg_b2b_loss == "pseudo_huber":
+            self.loss_fn = self._pseudo_huber_loss
 
         self.loss_names_G = losses_G
         self.loss_names = self.loss_names_G
@@ -489,6 +491,9 @@ class B2BModel(BaseDiffusionModel):
             loss_elem = (pred - target) ** 2
         elif self.opt.alg_b2b_loss in ["L1", "multiscale_L1"]:
             loss_elem = torch.abs(pred - target)
+        elif self.opt.alg_b2b_loss == "pseudo_huber":
+            c = 0.00054 * math.sqrt(math.prod(pred.shape[1:]))
+            loss_elem = torch.sqrt((pred - target) ** 2 + c**2) - c
         else:
             raise NotImplementedError(
                 f"Unsupported alg_b2b_loss for masked-region loss: {self.opt.alg_b2b_loss}"
@@ -498,6 +503,10 @@ class B2BModel(BaseDiffusionModel):
         num = (loss_elem * mask).sum(dim=reduce_dims)
         den = mask.sum(dim=reduce_dims).clamp_min(eps)
         return (num / den).mean()
+
+    def _pseudo_huber_loss(self, pred, target):
+        c = 0.00054 * math.sqrt(math.prod(pred.shape[1:]))
+        return torch.mean(torch.sqrt((pred - target) ** 2 + c**2) - c)
 
     def _compute_perceptual_losses(self, target, pred):
         if target.ndim == 5:
