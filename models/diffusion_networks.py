@@ -266,6 +266,8 @@ def define_G(
                 opt, "G_vit_in_context_start", base.get("in_context_start", 4)
             ),
         }
+        if getattr(opt, "G_vit_disable_bottleneck", False):
+            cfg["bottleneck_dim"] = cfg["hidden_size"]
         cond_embed_dim = getattr(
             opt, "alg_diffusion_cond_embed_dim", cfg.get("hidden_size", 768)
         )
@@ -299,6 +301,8 @@ def define_G(
                 opt, "G_vit_in_context_start", base.get("in_context_start", 4)
             ),
         }
+        if getattr(opt, "G_vit_disable_bottleneck", False):
+            cfg["bottleneck_dim"] = cfg["hidden_size"]
         cond_embed_dim = getattr(
             opt, "alg_diffusion_cond_embed_dim", cfg.get("hidden_size", 768)
         )

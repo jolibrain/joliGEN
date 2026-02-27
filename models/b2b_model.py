@@ -212,6 +212,11 @@ class B2BModel(BaseDiffusionModel):
             self.visual_names.append(visual_outputs)
 
         # Define network
+        if getattr(opt, "G_dropout", 0):
+            warnings.warn(
+                "B2B forces generator dropout to 0. Ignoring non-zero --G_dropout."
+            )
+        opt.G_dropout = 0.0
         opt.alg_palette_sampling_method = ""
         opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
         opt.alg_diffusion_cond_embed_dim = 256
