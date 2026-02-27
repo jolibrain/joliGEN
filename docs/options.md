@@ -9,7 +9,7 @@ Here are all the available options to call with `train.py`
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
-| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette, cm, cm_gan, sc |
+| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette, cm, cm_gan, sc, b2b |
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
@@ -57,7 +57,7 @@ Here are all the available options to call with `train.py`
 | --G_lora_vae | int | 8 | lora vae rank for G |
 | --G_nblocks | int | 9 | \# of layer blocks in G, applicable to resnets |
 | --G_netE | string | resnet_256 | specify multimodal latent vector encoder<br/><br/> **Values:** resnet_128, resnet_256, resnet_512, conv_128, conv_256, conv_512 |
-| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit, unet_mha_ref_attn, dit, hdit, img2img_turbo, unet_vid, hat |
+| --G_netG | string | mobile_resnet_attn | specify generator architecture<br/><br/> **Values:** resnet, resnet_attn, mobile_resnet, mobile_resnet_attn, unet_256, unet_128, segformer_attn_conv, segformer_conv, ittr, unet_mha, uvit, unet_mha_ref_attn, dit, hdit, img2img_turbo, unet_vid, hat, vit |
 | --G_ngf | int | 64 | \# of gen filters in the last conv layer |
 | --G_norm | string | instance | instance normalization or batch normalization for G<br/><br/> **Values:** instance, batch, none |
 | --G_padding_type | string | reflect | whether to use padding in the generator<br/><br/> **Values:** reflect, replicate, zeros |
@@ -74,11 +74,18 @@ Here are all the available options to call with `train.py`
 | --G_unet_vid_num_attention_heads | int | 8 | number of attention heads for unet_vid motion module, 8, 4, ... |
 | --G_unet_vid_num_transformer_blocks | int | 2 | number of unet_vid motion module transformer blocks, 2, 1, ... |
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
+| --G_vit_variant | string | JiT-B/16 | Selects the ViT backbone when --G_netG vit |
 
 ## Algorithm-specific
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
+| --alg_b2b_denoise_timesteps | array | [50] | Number of denoising steps at inference |
+| --alg_b2b_dists_mean | array | [0.485, 0.456, 0.406] | Mean normalization for DISTS |
+| --alg_b2b_dists_std | array | [0.229, 0.224, 0.225] | Std normalization for DISTS |
+| --alg_b2b_lambda_perceptual | float | 1.0 | Weight for perceptual loss |
+| --alg_b2b_loss | string | MSE | Loss type for B2B denoising<br/><br/> **Values:** L1, MSE, multiscale_L1, multiscale_MSE |
+| --alg_b2b_perceptual_loss | array | [''] | Optional perceptual losses<br/><br/> **Values:** , LPIPS, DISTS |
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
 | --alg_cm_dists_std | array | [0.229, 0.224, 0.225] | std for DISTS perceptual loss |
 | --alg_cm_lambda_perceptual | float | 1.0 | weight for LPIPS and DISTS perceptual losses |
