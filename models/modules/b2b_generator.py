@@ -21,14 +21,14 @@ class B2BGenerator(nn.Module):
         self.sampling_method = sampling_method
         self.image_size = image_size
         self.opt = opt
-        self.P_mean = -0.8
-        self.P_std = 0.8
+        self.P_mean = float(getattr(opt, "alg_b2b_P_mean", -0.8)) if opt else -0.8
+        self.P_std = float(getattr(opt, "alg_b2b_P_std", 0.8)) if opt else 0.8
         requested_noise_scale = getattr(opt, "alg_b2b_noise_scale", -1.0) if opt else -1.0
         if requested_noise_scale > 0:
             self.noise_scale = float(requested_noise_scale)
         else:
             self.noise_scale = 1.0 if int(self.image_size) <= 256 else 2.0
-        self.t_eps = 5e-2
+        self.t_eps = float(getattr(opt, "alg_b2b_t_eps", 5e-2)) if opt else 5e-2
         self.current_t = 1
         self.cfg_scale = float(getattr(opt, "alg_b2b_cfg_scale", 1.0)) if opt else 1.0
         self.cfg_interval = (0.1, 1.0)  # value used in paper training examples

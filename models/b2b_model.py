@@ -61,6 +61,24 @@ class B2BModel(BaseDiffusionModel):
             help="Noise scale for B2B. Use <=0 for automatic JiT-like defaults (1.0 at <=256px, else 2.0).",
         )
         parser.add_argument(
+            "--alg_b2b_P_mean",
+            type=float,
+            default=-0.8,
+            help="Mean of the logistic-normal timestep distribution used at B2B training time.",
+        )
+        parser.add_argument(
+            "--alg_b2b_P_std",
+            type=float,
+            default=0.8,
+            help="Std of the logistic-normal timestep distribution used at B2B training time.",
+        )
+        parser.add_argument(
+            "--alg_b2b_t_eps",
+            type=float,
+            default=5e-2,
+            help="Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t).",
+        )
+        parser.add_argument(
             "--alg_b2b_cfg_scale",
             type=float,
             default=1.0,
@@ -158,6 +176,16 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError(
                 "--alg_b2b_denoise_timesteps values must be positive integers"
             )
+
+        p_std = getattr(opt, "alg_b2b_P_std", 0.8)
+        if p_std <= 0:
+            raise ValueError("--alg_b2b_P_std must be > 0")
+
+        t_eps = getattr(opt, "alg_b2b_t_eps", 5e-2)
+        if t_eps <= 0:
+            raise ValueError("--alg_b2b_t_eps must be > 0")
+        if t_eps >= 1:
+            raise ValueError("--alg_b2b_t_eps must be < 1")
 
         opt.alg_b2b_denoise_timesteps = steps
         return opt
