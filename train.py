@@ -417,7 +417,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             with torch.no_grad():
                 for dataloader_test in all_dataloaders_test:
                     if use_temporal:
-                        dataloaders_test = zip(dataloader_test, dataloader_test_temporal)
+                        dataloaders_test = zip(
+                            dataloader_test, dataloader_test_temporal
+                        )
                     else:
                         dataloaders_test = zip(dataloader_test)
                     model.compute_metrics_test(
