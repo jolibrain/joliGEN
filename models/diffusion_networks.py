@@ -72,6 +72,7 @@ def define_G(
     f_s_semantic_nclasses=-1,
     train_feat_wavelet=False,
     opt=None,
+    alg_b2b_mask_as_channel=False,
     **unused_options,
 ):
     """Create a generator
@@ -100,7 +101,7 @@ def define_G(
     if model_type == "palette":
         in_channel = model_input_nc + model_output_nc
     elif model_type == "b2b":
-        in_channel = model_input_nc
+        in_channel = model_input_nc + (1 if alg_b2b_mask_as_channel else 0)
     else:  # CM
         in_channel = model_input_nc
         if (

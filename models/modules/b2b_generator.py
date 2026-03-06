@@ -23,7 +23,9 @@ class B2BGenerator(nn.Module):
         self.opt = opt
         self.P_mean = float(getattr(opt, "alg_b2b_P_mean", -0.8)) if opt else -0.8
         self.P_std = float(getattr(opt, "alg_b2b_P_std", 0.8)) if opt else 0.8
-        requested_noise_scale = getattr(opt, "alg_b2b_noise_scale", -1.0) if opt else -1.0
+        requested_noise_scale = (
+            getattr(opt, "alg_b2b_noise_scale", -1.0) if opt else -1.0
+        )
         if requested_noise_scale > 0:
             self.noise_scale = float(requested_noise_scale)
         else:
@@ -50,7 +52,28 @@ class B2BGenerator(nn.Module):
                 f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
                 "Stopping because this run only supports num_classes=1."
             )
-        self.label_drop_prob = 0.0  # default  value used in paper 0.1, set to 0.0 for single class
+        self.label_drop_prob = (
+            0.0  # default  value used in paper 0.1, set to 0.0 for single class
+        )
+
+    def _match_prediction_channels(self, pred, reference):
+        if pred.ndim != reference.ndim:
+            raise RuntimeError(
+                f"Prediction dims {pred.ndim} do not match reference dims {reference.ndim}"
+            )
+
+        channel_dim = 2 if pred.ndim == 5 else 1
+        pred_channels = pred.shape[channel_dim]
+        ref_channels = reference.shape[channel_dim]
+        if pred_channels == ref_channels:
+            return pred
+        if pred_channels > ref_channels:
+            if channel_dim == 1:
+                return pred[:, -ref_channels:, :, :]
+            return pred[:, :, -ref_channels:, :, :]
+        raise RuntimeError(
+            f"Prediction channels ({pred_channels}) are fewer than reference channels ({ref_channels})"
+        )
 
     def sample_t(self, B: int, device, F=None):
         # returns t_cont in [0,1]
@@ -68,13 +91,12 @@ class B2BGenerator(nn.Module):
     def b2b_forward(self, x, mask, x_cond=None, label=None, use_gt=None, ref_idx=None):
         labels_dropped = self.drop_labels(label) if self.training else label
 
-        if not x_cond is None:
-            if len(x.shape) != 5:
-                x_with_cond = torch.cat([x_cond, x], dim=1)
-            else:
-                x_with_cond = torch.cat([x_cond, x], dim=2)
-        else:
+        if x_cond is None:
             x_with_cond = x
+        elif len(x.shape) != 5:
+            x_with_cond = torch.cat([x_cond, x], dim=1)
+        else:
+            x_with_cond = torch.cat([x_cond, x], dim=2)
 
         # 2) sample_t timestep
         B = x.size(0)
@@ -102,16 +124,21 @@ class B2BGenerator(nn.Module):
 
         e = torch.randn_like(x_with_cond) * self.noise_scale
         z_t = t * x_with_cond + (1 - t) * e
+        z = z_t
 
         if mask is not None:
             z = z_t * mask + (1 - mask) * x_with_cond
 
         v = (x_with_cond - z) / (1 - t).clamp_min(self.t_eps)
+        z_model = z
+        z = self._match_prediction_channels(z, x)
+        v = self._match_prediction_channels(v, x)
 
         # 4) model predict img
-        x_pred = self.b2b_model(z, t_flat, labels_dropped)
+        x_pred = self.b2b_model(z_model, t_flat, labels_dropped)
+        x_pred = self._match_prediction_channels(x_pred, x)
 
-        return x_pred, z, v, t, x_with_cond
+        return x_pred, z, v, t, x
 
     def forward(
         self,
@@ -123,11 +150,11 @@ class B2BGenerator(nn.Module):
         ref_idx=None,
         return_x_pred=False,
     ):
-        x_pred, z, v, t, x_with_cond = self.b2b_forward(
+        x_pred, z, v, t, x_target = self.b2b_forward(
             x, mask, x_cond, label, use_gt, ref_idx
         )
         if mask is not None:
-            x_pred = x_pred * mask + (1 - mask) * x_with_cond
+            x_pred = x_pred * mask + (1 - mask) * x_target
         v_pred = (x_pred - z) / (1 - t).clamp_min(self.t_eps)
         if return_x_pred:
             return v_pred, v, x_pred
@@ -189,9 +216,7 @@ class B2BGenerator(nn.Module):
         for i in range(steps - 1):
             t = timesteps[i]
             t_next = timesteps[i + 1]
-            x = self._heun_step_restoration(
-                x, t, t_next, y_cond, mask, labels, y_known
-            )
+            x = self._heun_step_restoration(x, t, t_next, y_cond, mask, labels, y_known)
 
             if clip_denoised:
                 x = x.clamp(-1.0, 1.0)
@@ -221,9 +246,16 @@ class B2BGenerator(nn.Module):
         x_in = self._project_known_pixels(x, y_known, mask)
         if labels is None:
             labels = torch.zeros(x_in.shape[0], dtype=torch.long, device=x_in.device)
+        if y_cond is None:
+            model_input = x_in
+        elif len(x_in.shape) != 5:
+            model_input = torch.cat([y_cond, x_in], dim=1)
+        else:
+            model_input = torch.cat([y_cond, x_in], dim=2)
 
         # --- conditional ---
-        x_cond = self.b2b_model(x_in, t.flatten(), labels)
+        x_cond = self.b2b_model(model_input, t.flatten(), labels)
+        x_cond = self._match_prediction_channels(x_cond, x_in)
         x_cond = self._project_known_pixels(x_cond, y_known, mask)
 
         den = 1.0 - t
@@ -243,8 +275,9 @@ class B2BGenerator(nn.Module):
         # --- unconditional ---
         num_classes = int(self.b2b_model.num_classes)
         x_uncond = self.b2b_model(
-            x_in, t.flatten(), torch.full_like(labels, num_classes)
+            model_input, t.flatten(), torch.full_like(labels, num_classes)
         )
+        x_uncond = self._match_prediction_channels(x_uncond, x_in)
         x_uncond = self._project_known_pixels(x_uncond, y_known, mask)
         v_uncond = (x_uncond - x_in) / den
 
