@@ -969,7 +969,10 @@ class BaseModel(ABC):
                 net = getattr(self, "net" + name)
                 if isinstance(net, torch.nn.DataParallel):
                     net = net.module
-                if not os.path.isfile(load_path_effective) and "temporal" in load_path_effective:
+                if (
+                    not os.path.isfile(load_path_effective)
+                    and "temporal" in load_path_effective
+                ):
                     print("Skipping missing temporal discriminator pre-trained weights")
                     continue
                 print("loading the model from %s" % load_path_effective)
@@ -1805,7 +1808,9 @@ class BaseModel(ABC):
                     fake_list_per_step.setdefault(step, [])
                     real_list_per_step.setdefault(step, [])
 
-                    max_batch = min(step_fake.shape[0], batch_real_img_per_step.shape[0])
+                    max_batch = min(
+                        step_fake.shape[0], batch_real_img_per_step.shape[0]
+                    )
 
                     if step_fake.ndim == 5 and batch_real_img_per_step.ndim == 5:
                         max_frames = min(

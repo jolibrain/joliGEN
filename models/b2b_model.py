@@ -48,6 +48,11 @@ class B2BModel(BaseDiffusionModel):
             help="Autoregressive training: each batch is with one GT and the other is noisy image ",
         )
         parser.add_argument(
+            "--alg_b2b_mask_as_channel",
+            action="store_true",
+            help="Concatenate the inpainting mask as an additional input channel in B2B.",
+        )
+        parser.add_argument(
             "--alg_b2b_denoise_timesteps",
             type=int,
             nargs="+",
@@ -170,7 +175,9 @@ class B2BModel(BaseDiffusionModel):
             steps = [steps]
 
         if len(steps) == 0:
-            raise ValueError("--alg_b2b_denoise_timesteps must contain at least one value")
+            raise ValueError(
+                "--alg_b2b_denoise_timesteps must contain at least one value"
+            )
 
         if any(step <= 0 for step in steps):
             raise ValueError(
@@ -365,7 +372,6 @@ class B2BModel(BaseDiffusionModel):
             if self.opt.alg_b2b_autoregressive and self.opt.G_netG == "vit_vid":
                 B, T, C, H, W = self.gt_image.shape
                 gt_image_mix = self.y_t.clone()
-                self.cond_image = None
 
                 # per-sample decision: True for ~10% of samples in the batch
                 use_gt = torch.rand((B,), device=self.device) < 0.1
@@ -387,6 +393,12 @@ class B2BModel(BaseDiffusionModel):
                     self.mask = self.mask * mask_ar
 
                 # else: nobody selected -> do nothing
+            if self.opt.alg_b2b_mask_as_channel:
+                if self.mask is None:
+                    raise RuntimeError(
+                        "--alg_b2b_mask_as_channel requires inpainting masks."
+                    )
+                self.cond_image = self.mask.to(dtype=self.y_t.dtype)
             else:
                 self.cond_image = None
 
