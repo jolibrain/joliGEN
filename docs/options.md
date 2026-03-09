@@ -74,20 +74,30 @@ Here are all the available options to call with `train.py`
 | --G_unet_vid_num_attention_heads | int | 8 | number of attention heads for unet_vid motion module, 8, 4, ... |
 | --G_unet_vid_num_transformer_blocks | int | 2 | number of unet_vid motion module transformer blocks, 2, 1, ... |
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
+| --G_vit_disable_bottleneck | flag |  | Disable JiT bottleneck by forcing bottleneck_dim=hidden_size for vit/vit_vid. |
 | --G_vit_variant | string | JiT-B/16 | Selects the ViT backbone when --G_netG vit |
 
 ## Algorithm-specific
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
+| --alg_b2b_P_mean | float | -0.8 | Mean of the logistic-normal timestep distribution used at B2B training time. |
+| --alg_b2b_P_std | float | 0.8 | Std of the logistic-normal timestep distribution used at B2B training time. |
 | --alg_b2b_autoregressive | flag |  | Autoregressive training: each batch is with one GT and the other is noisy image  |
-| --alg_b2b_denoise_timesteps | array | [50] | Number of denoising steps at inference |
+| --alg_b2b_cfg_scale | float | 1.0 | Classifier-free guidance scale used at B2B inference time. |
+| --alg_b2b_clip_denoised | flag |  | Clip B2B denoised states to [-1, 1] during sampling (disabled by default to match JiT). |
+| --alg_b2b_denoise_timesteps | array | [50] | One or more denoising step counts to evaluate at inference (positive integers) |
+| --alg_b2b_disable_inference_clipping | flag |  | Disable inference-time denominator clipping in v=(x_pred-x)/(1-t), i.e. use raw (1-t) at sampling. |
 | --alg_b2b_dists_mean | array | [0.485, 0.456, 0.406] | Mean normalization for DISTS |
 | --alg_b2b_dists_std | array | [0.229, 0.224, 0.225] | Std normalization for DISTS |
 | --alg_b2b_lambda_perceptual | float | 1.0 | Weight for perceptual loss |
-| --alg_b2b_loss | string | MSE | Loss type for B2B denoising<br/><br/> **Values:** L1, MSE, multiscale_L1, multiscale_MSE |
+| --alg_b2b_loss | string | MSE | Loss type for B2B denoising<br/><br/> **Values:** L1, MSE, pseudo_huber, multiscale_L1, multiscale_MSE |
+| --alg_b2b_loss_masked_region_only | flag |  | Normalize B2B loss over masked pixels only (instead of all image pixels). |
+| --alg_b2b_metric_mask | flag |  | Evaluate metrics only on dilated mask region |
 | --alg_b2b_minsnr | flag |  | use min-SNR weighting |
+| --alg_b2b_noise_scale | float | -1.0 | Noise scale for B2B. Use \<=0 for automatic JiT-like defaults (1.0 at \<=256px, else 2.0). |
 | --alg_b2b_perceptual_loss | array | [''] | Optional perceptual losses<br/><br/> **Values:** , LPIPS, DISTS |
+| --alg_b2b_t_eps | float | 0.05 | Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t). |
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
 | --alg_cm_dists_std | array | [0.229, 0.224, 0.225] | std for DISTS perceptual loss |
 | --alg_cm_lambda_perceptual | float | 1.0 | weight for LPIPS and DISTS perceptual losses |
