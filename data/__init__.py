@@ -129,6 +129,7 @@ class CustomDatasetDataLoader:
             sampler=sampler,
             shuffle=shuffle,
             num_workers=int(opt.data_num_threads),
+            persistent_workers=int(opt.data_num_threads) > 0,
             collate_fn=collate_fn,
         )
 
@@ -169,6 +170,7 @@ class IterableCustomDatasetDataLoader:
             batch_size=batch_size,
             sampler=sampler,
             num_workers=int(opt.data_num_threads),
+            persistent_workers=int(opt.data_num_threads) > 0,
             collate_fn=collate_fn,
         )
 
