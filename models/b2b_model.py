@@ -47,7 +47,11 @@ class B2BModel(BaseDiffusionModel):
             action="store_true",
             help="Autoregressive training: each batch is with one GT and the other is noisy image ",
         )
-
+        parser.add_argument(
+            "--alg_b2b_mask_as_channel",
+            action="store_true",
+            help="Concatenate the inpainting mask as an additional input channel in B2B.",
+        )
         parser.add_argument(
             "--alg_b2b_denoise_timesteps",
             type=int,
@@ -197,7 +201,7 @@ class B2BModel(BaseDiffusionModel):
         super().__init__(opt, rank)
 
         self.task = self.opt.alg_diffusion_task
-        self.gt_frame_idx = 0
+
         if opt.isTrain:
             batch_size = self.opt.train_batch_size
         else:
@@ -368,7 +372,6 @@ class B2BModel(BaseDiffusionModel):
             if self.opt.alg_b2b_autoregressive and self.opt.G_netG == "vit_vid":
                 B, T, C, H, W = self.gt_image.shape
                 gt_image_mix = self.y_t.clone()
-                self.cond_image = None
 
                 # per-sample decision: True for ~10% of samples in the batch
                 use_gt = torch.rand((B,), device=self.device) < 0.1
@@ -390,6 +393,12 @@ class B2BModel(BaseDiffusionModel):
                     self.mask = self.mask * mask_ar
 
                 # else: nobody selected -> do nothing
+            if self.opt.alg_b2b_mask_as_channel:
+                if self.mask is None:
+                    raise RuntimeError(
+                        "--alg_b2b_mask_as_channel requires inpainting masks."
+                    )
+                self.cond_image = self.mask.to(dtype=self.y_t.dtype)
             else:
                 self.cond_image = None
 
@@ -463,26 +472,6 @@ class B2BModel(BaseDiffusionModel):
                     mask_binary * weighted_pred,
                     mask_binary * weighted_target,
                 )
-        else:
-            loss = self.loss_fn(min_snr_loss_weight * v_pred, min_snr_loss_weight * v)
-
-        if isinstance(loss, dict):
-            loss_tot = torch.zeros(size=(), device=noise.device)
-
-            for cur_size, cur_loss in loss.items():
-                setattr(self, "loss_G_" + cur_size, cur_loss)
-                loss_tot += cur_loss
-
-            loss = loss_tot
-
-        self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
-
-        if mask is not None:
-            mask_binary = torch.clamp(mask, min=0, max=1)
-            loss = self.loss_fn(
-                min_snr_loss_weight * mask_binary * v_pred,
-                min_snr_loss_weight * mask_binary * v,
-            )
         else:
             loss = self.loss_fn(min_snr_loss_weight * v_pred, min_snr_loss_weight * v)
 
