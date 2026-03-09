@@ -72,6 +72,7 @@ def define_G(
     f_s_semantic_nclasses=-1,
     train_feat_wavelet=False,
     opt=None,
+    alg_b2b_mask_as_channel=False,
     **unused_options,
 ):
     """Create a generator
@@ -100,7 +101,7 @@ def define_G(
     if model_type == "palette":
         in_channel = model_input_nc + model_output_nc
     elif model_type == "b2b":
-        in_channel = model_input_nc
+        in_channel = model_input_nc + (1 if alg_b2b_mask_as_channel else 0)
     else:  # CM
         in_channel = model_input_nc
         if (
@@ -248,11 +249,6 @@ def define_G(
         model.cond_embed_dim = cond_embed_dim
     elif G_netG == "vit":
         variant = getattr(opt, "G_vit_variant", "")
-        if variant and variant not in JiT_VARIANT_CONFIGS:
-            raise ValueError(
-                f"Unknown G_vit_variant '{variant}'. "
-                f"Valid: {sorted(JiT_VARIANT_CONFIGS.keys())}"
-            )
         base = JiT_VARIANT_CONFIGS.get(variant, {})
         cfg = {
             "depth": getattr(opt, "G_vit_depth", base.get("depth", 12)),
