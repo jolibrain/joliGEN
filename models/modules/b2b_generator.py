@@ -124,7 +124,6 @@ class B2BGenerator(nn.Module):
 
         e = torch.randn_like(x_with_cond) * self.noise_scale
         z_t = t * x_with_cond + (1 - t) * e
-        z = z_t
 
         if mask is not None:
             z = z_t * mask + (1 - mask) * x_with_cond
