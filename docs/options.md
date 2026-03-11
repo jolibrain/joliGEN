@@ -98,6 +98,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_noise_scale | float | -1.0 | Noise scale for B2B. Use \<=0 for automatic JiT-like defaults (1.0 at \<=256px, else 2.0). |
 | --alg_b2b_perceptual_loss | array | [''] | Optional perceptual losses<br/><br/> **Values:** , LPIPS, DISTS |
 | --alg_b2b_t_eps | float | 0.05 | Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t). |
+| --alg_b2b_vit_patch_embed_stride_divisor | int | 1 | Divides the JiT/JiTViD BottleneckPatchEmbed stride by this factor for B2B runs. Use 2 for 50% overlap. |
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
 | --alg_cm_dists_std | array | [0.229, 0.224, 0.225] | std for DISTS perceptual loss |
 | --alg_cm_lambda_perceptual | float | 1.0 | weight for LPIPS and DISTS perceptual losses |
@@ -426,4 +427,3 @@ Here are all the available options to call with `train.py`
 | --dataaug_flip | string | horizontal | if specified, flip the images for data augmentation, possible values: none, horizontal, vertical, both<br/><br/> **Values:** none, horizontal, vertical, both |
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
 | --dataaug_no_rotate | flag |  | if specified, do not rotate the images for data augmentation |
-

@@ -33,18 +33,36 @@ class BottleneckPatchEmbed(nn.Module):
         in_chans=3,
         pca_dim=768,
         embed_dim=768,
+        patch_stride_divisor=1,
         bias=True,
     ):
         super().__init__()
         img_size = (img_size, img_size)
         patch_size = (patch_size, patch_size)
-        num_patches = (img_size[1] // patch_size[1]) * (img_size[0] // patch_size[0])
+        if patch_stride_divisor < 1:
+            raise ValueError("patch_stride_divisor must be >= 1")
+        if patch_size[0] % patch_stride_divisor != 0:
+            raise ValueError(
+                "patch_size must be divisible by patch_stride_divisor to keep an integer stride"
+            )
+
+        stride = (
+            patch_size[0] // patch_stride_divisor,
+            patch_size[1] // patch_stride_divisor,
+        )
+        grid_size = (
+            (img_size[0] - patch_size[0]) // stride[0] + 1,
+            (img_size[1] - patch_size[1]) // stride[1] + 1,
+        )
+        num_patches = grid_size[0] * grid_size[1]
         self.img_size = img_size
         self.patch_size = patch_size
+        self.stride = stride
+        self.grid_size = grid_size
         self.num_patches = num_patches
 
         self.proj1 = nn.Conv2d(
-            in_chans, pca_dim, kernel_size=patch_size, stride=patch_size, bias=False
+            in_chans, pca_dim, kernel_size=patch_size, stride=stride, bias=False
         )
         self.proj2 = nn.Conv2d(pca_dim, embed_dim, kernel_size=1, stride=1, bias=bias)
 
@@ -279,6 +297,7 @@ class JiT(nn.Module):
         in_context_len=32,
         in_context_start=8,
         cond_embed_dim=None,
+        patch_stride_divisor=1,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -296,7 +315,13 @@ class JiT(nn.Module):
         ################### check
         # linear embed
         self.x_embedder = BottleneckPatchEmbed(
-            input_size, patch_size, in_channels, bottleneck_dim, hidden_size, bias=True
+            input_size,
+            patch_size,
+            in_channels,
+            bottleneck_dim,
+            hidden_size,
+            patch_stride_divisor=patch_stride_divisor,
+            bias=True,
         )
 
         # use fixed sin-cos embedding
@@ -314,7 +339,7 @@ class JiT(nn.Module):
 
         # rope
         half_head_dim = hidden_size // num_heads // 2
-        hw_seq_len = input_size // patch_size
+        hw_seq_len = self.x_embedder.grid_size[0]
         self.feat_rope = VisionRotaryEmbeddingFast(
             dim=half_head_dim, pt_seq_len=hw_seq_len, num_cls_token=0
         )
@@ -353,7 +378,7 @@ class JiT(nn.Module):
 
         # Initialize (and freeze) pos_embed by sin-cos embedding:
         pos_embed = get_2d_sincos_pos_embed(
-            self.pos_embed.shape[-1], int(self.x_embedder.num_patches**0.5)
+            self.pos_embed.shape[-1], self.x_embedder.grid_size[0]
         )
         self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
 
@@ -385,16 +410,29 @@ class JiT(nn.Module):
     def unpatchify(self, x, p):
         """
         x: (N, T, patch_size**2 * C)
-        imgs: (N, H, W, C)
+        imgs: (N, C, H, W)
         """
-        c = self.out_channels
-        h = w = int(x.shape[1] ** 0.5)
-        assert h * w == x.shape[1]
-
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
-        x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], c, h * p, h * p))
-        return imgs
+        patches = x.transpose(1, 2)
+        # Fold patch predictions back to image space and average overlaps if needed.
+        imgs = F.fold(
+            patches,
+            output_size=self.x_embedder.img_size,
+            kernel_size=(p, p),
+            stride=self.x_embedder.stride,
+        )
+        norm = F.fold(
+            torch.ones(
+                x.shape[0],
+                p * p,
+                x.shape[1],
+                dtype=x.dtype,
+                device=x.device,
+            ),
+            output_size=self.x_embedder.img_size,
+            kernel_size=(p, p),
+            stride=self.x_embedder.stride,
+        )
+        return imgs / norm.clamp_min(1e-8)
 
     def forward(self, x, t, y):
         """

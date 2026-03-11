@@ -270,6 +270,13 @@ def define_G(
             "in_context_start": getattr(
                 opt, "G_vit_in_context_start", base.get("in_context_start", 4)
             ),
+            "patch_stride_divisor": getattr(
+                opt,
+                "alg_b2b_vit_patch_embed_stride_divisor",
+                1,
+            )
+            if model_type == "b2b"
+            else 1,
         }
         if getattr(opt, "G_vit_disable_bottleneck", False):
             cfg["bottleneck_dim"] = cfg["hidden_size"]
@@ -305,6 +312,13 @@ def define_G(
             "in_context_start": getattr(
                 opt, "G_vit_in_context_start", base.get("in_context_start", 4)
             ),
+            "patch_stride_divisor": getattr(
+                opt,
+                "alg_b2b_vit_patch_embed_stride_divisor",
+                1,
+            )
+            if model_type == "b2b"
+            else 1,
         }
         if getattr(opt, "G_vit_disable_bottleneck", False):
             cfg["bottleneck_dim"] = cfg["hidden_size"]

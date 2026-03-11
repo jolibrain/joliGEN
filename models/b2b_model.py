@@ -95,6 +95,12 @@ class B2BModel(BaseDiffusionModel):
             action="store_true",
             help="Disable inference-time denominator clipping in v=(x_pred-x)/(1-t), i.e. use raw (1-t) at sampling.",
         )
+        parser.add_argument(
+            "--alg_b2b_vit_patch_embed_stride_divisor",
+            type=int,
+            default=1,
+            help="Divides the JiT/JiTViD BottleneckPatchEmbed stride by this factor for B2B runs. Use 2 for 50% overlap.",
+        )
 
         # -------------------------
         # Perceptual losses
@@ -189,6 +195,14 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError("--alg_b2b_t_eps must be > 0")
         if t_eps >= 1:
             raise ValueError("--alg_b2b_t_eps must be < 1")
+
+        patch_stride_divisor = getattr(
+            opt, "alg_b2b_vit_patch_embed_stride_divisor", 1
+        )
+        if patch_stride_divisor < 1:
+            raise ValueError(
+                "--alg_b2b_vit_patch_embed_stride_divisor must be >= 1"
+            )
 
         opt.alg_b2b_denoise_timesteps = steps
         return opt
