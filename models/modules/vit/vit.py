@@ -276,11 +276,7 @@ class JiTBlock(nn.Module):
         return x
 
 
-class JiT(nn.Module):
-    """
-    Just image Transformer.
-    """
-
+class BaseJiT(nn.Module):
     def __init__(
         self,
         input_size=256,
@@ -309,10 +305,11 @@ class JiT(nn.Module):
         self.in_context_len = in_context_len
         self.in_context_start = in_context_start
         self.num_classes = num_classes
+
         # time and class embed
         self.t_embedder = TimestepEmbedder(hidden_size)
         self.y_embedder = LabelEmbedder(num_classes, hidden_size)
-        ################### check
+
         # linear embed
         self.x_embedder = BottleneckPatchEmbed(
             input_size,
@@ -364,8 +361,6 @@ class JiT(nn.Module):
         # linear predict
         self.final_layer = FinalLayer(hidden_size, patch_size, self.out_channels)
 
-        self.initialize_weights()
-
     def initialize_weights(self):
         # Initialize transformer layers:
         def _basic_init(module):
@@ -407,11 +402,62 @@ class JiT(nn.Module):
         nn.init.constant_(self.final_layer.linear.weight, 0)
         nn.init.constant_(self.final_layer.linear.bias, 0)
 
-    def unpatchify(self, x, p):
+    def _embed_patches(self, x):
+        return self.x_embedder(x) + self.pos_embed
+
+    def _embed_condition(self, t, y):
+        t_emb = self.t_embedder(t)
+        y_emb = self.y_embedder(y)
+        return t_emb + y_emb, y_emb
+
+    def _insert_in_context_tokens(self, x, y_emb):
+        in_context_tokens = y_emb.unsqueeze(1).repeat(1, self.in_context_len, 1)
+        in_context_tokens += self.in_context_posemb
+        return torch.cat([in_context_tokens, x], dim=1)
+
+    def _rope_for_block(self, block_index):
+        return (
+            self.feat_rope
+            if block_index < self.in_context_start
+            else self.feat_rope_incontext
+        )
+
+    def _run_block(self, x, c, y_emb, block_index, in_context_inserted):
+        if (
+            self.in_context_len > 0
+            and not in_context_inserted
+            and block_index == self.in_context_start
+        ):
+            x = self._insert_in_context_tokens(x, y_emb)
+            in_context_inserted = True
+
+        x = self.blocks[block_index](
+            x,
+            c,
+            self._rope_for_block(block_index),
+        )
+        return x, in_context_inserted
+
+    def _run_blocks(self, x, c, y_emb):
+        in_context_inserted = False
+        for block_index in range(len(self.blocks)):
+            x, in_context_inserted = self._run_block(
+                x, c, y_emb, block_index, in_context_inserted
+            )
+
+        return self._strip_in_context_tokens(x, in_context_inserted)
+
+    def _strip_in_context_tokens(self, x, in_context_inserted):
+        return x[:, self.in_context_len :] if in_context_inserted else x
+
+    def unpatchify(self, x, p=None):
         """
         x: (N, T, patch_size**2 * C)
         imgs: (N, C, H, W)
         """
+        if p is None:
+            p = self.patch_size
+
         patches = x.transpose(1, 2)
         # Fold patch predictions back to image space and average overlaps if needed.
         imgs = F.fold(
@@ -434,44 +480,63 @@ class JiT(nn.Module):
         )
         return imgs / norm.clamp_min(1e-8)
 
+    def _decode_tokens(self, x, c):
+        x = self.final_layer(x, c)
+        return self.unpatchify(x)
+
+
+class JiT(BaseJiT):
+    """
+    Just image Transformer.
+    """
+
+    def __init__(
+        self,
+        input_size=256,
+        patch_size=16,
+        in_channels=3,
+        hidden_size=1024,
+        depth=24,
+        num_heads=16,
+        mlp_ratio=4.0,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        num_classes=1000,
+        bottleneck_dim=128,
+        in_context_len=32,
+        in_context_start=8,
+        cond_embed_dim=None,
+        patch_stride_divisor=1,
+    ):
+        super().__init__(
+            input_size=input_size,
+            patch_size=patch_size,
+            in_channels=in_channels,
+            hidden_size=hidden_size,
+            depth=depth,
+            num_heads=num_heads,
+            mlp_ratio=mlp_ratio,
+            attn_drop=attn_drop,
+            proj_drop=proj_drop,
+            num_classes=num_classes,
+            bottleneck_dim=bottleneck_dim,
+            in_context_len=in_context_len,
+            in_context_start=in_context_start,
+            cond_embed_dim=cond_embed_dim,
+            patch_stride_divisor=patch_stride_divisor,
+        )
+        self.initialize_weights()
+
     def forward(self, x, t, y):
         """
         x: (N, C, H, W)
         t: (N,)
         y: (N,)
         """
-
-        # class and time embeddings
-        t_emb = self.t_embedder(t)
-        y_emb = self.y_embedder(y)
-        c = t_emb + y_emb
-
-        # forward JiT
-        x = self.x_embedder(x)
-        x += self.pos_embed
-
-        for i, block in enumerate(self.blocks):
-            # in-context
-            if self.in_context_len > 0 and i == self.in_context_start:
-                in_context_tokens = y_emb.unsqueeze(1).repeat(1, self.in_context_len, 1)
-                in_context_tokens += self.in_context_posemb
-                x = torch.cat([in_context_tokens, x], dim=1)
-            x = block(
-                x,
-                c,
-                (
-                    self.feat_rope
-                    if i < self.in_context_start
-                    else self.feat_rope_incontext
-                ),
-            )
-
-        x = x[:, self.in_context_len :]
-
-        x = self.final_layer(x, c)
-        output = self.unpatchify(x, self.patch_size)
-
-        return output
+        c, y_emb = self._embed_condition(t, y)
+        x = self._embed_patches(x)
+        x = self._run_blocks(x, c, y_emb)
+        return self._decode_tokens(x, c)
 
 
 JiT_VARIANT_CONFIGS = {
