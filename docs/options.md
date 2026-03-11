@@ -93,6 +93,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_lambda_perceptual | float | 1.0 | Weight for perceptual loss |
 | --alg_b2b_loss | string | MSE | Loss type for B2B denoising<br/><br/> **Values:** L1, MSE, pseudo_huber, multiscale_L1, multiscale_MSE |
 | --alg_b2b_loss_masked_region_only | flag |  | Normalize B2B loss over masked pixels only (instead of all image pixels). |
+| --alg_b2b_mask_as_channel | flag |  | Concatenate the inpainting mask as an additional input channel in B2B. |
 | --alg_b2b_metric_mask | flag |  | Evaluate metrics only on dilated mask region |
 | --alg_b2b_minsnr | flag |  | use min-SNR weighting |
 | --alg_b2b_noise_scale | float | -1.0 | Noise scale for B2B. Use \<=0 for automatic JiT-like defaults (1.0 at \<=256px, else 2.0). |
