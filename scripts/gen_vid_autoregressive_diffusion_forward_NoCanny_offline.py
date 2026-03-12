@@ -101,7 +101,7 @@ def load_model(
     if opt.model_type in ["cm", "cm_gan", "b2b"]:
         opt.alg_palette_sampling_method = sampling_method
         opt.alg_diffusion_cond_embed_dim = 256
-    model = diffusion_networks.define_G(**vars(opt))
+    model = diffusion_networks.define_G(opt=opt, **vars(opt))
     model.eval()
 
     # handle old models

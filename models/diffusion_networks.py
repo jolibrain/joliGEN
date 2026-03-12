@@ -289,6 +289,16 @@ def define_G(
 
     elif G_netG == "vit_vid":
         variant = getattr(opt, "G_vit_variant", "")
+        if variant and variant not in JiTVid_VARIANT_CONFIGS:
+            if variant.startswith("JiT-"):
+                alias = f"JiTVid-{variant[len('JiT-'):]}"
+                if alias in JiTVid_VARIANT_CONFIGS:
+                    variant = alias
+            if variant not in JiTVid_VARIANT_CONFIGS:
+                raise ValueError(
+                    f"Unknown G_vit_variant '{variant}'. "
+                    f"Valid: {sorted(JiTVid_VARIANT_CONFIGS.keys())}"
+                )
         base = JiTVid_VARIANT_CONFIGS.get(variant, {})
         cfg = {
             "depth": getattr(opt, "G_vit_depth", base.get("depth", 12)),

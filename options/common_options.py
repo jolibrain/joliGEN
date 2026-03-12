@@ -428,7 +428,7 @@ class CommonOptions(BaseOptions):
             "--G_vit_variant",
             type=str,
             default="JiT-B/16",
-            help="Selects the ViT backbone when --G_netG vit",
+            help="Selects the ViT backbone when --G_netG vit (use JiT-*) or vit_vid (use JiTVid-*)",
         )
         parser.add_argument(
             "--G_vit_disable_bottleneck",
