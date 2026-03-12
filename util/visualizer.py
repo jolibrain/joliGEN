@@ -197,19 +197,28 @@ class Visualizer:
 
         output_types = sorted(output_types)  # stable order
         if not output_types:
-            output_types = ["output_"]
+            output_types = [None]
 
         for oi, out_key in enumerate(output_types):
+            if out_key is None:
+                # Non-diffusion models (for example CUT) do not expose output_* keys.
+                filtered_visuals = [group for group in visuals if group]
+                display_key = "visuals"
+            else:
+                filtered_visuals = []
+                for group in visuals:
+                    new_group = {}
+                    for name, img in group.items():
+                        if ("gt_image" in name) or ("y_t" in name) or ("mask" in name):
+                            new_group[name] = img
+                        elif name.startswith(out_key):
+                            new_group["output"] = img
+                    if new_group:
+                        filtered_visuals.append(new_group)
+                display_key = out_key
 
-            filtered_visuals = []
-            for group in visuals:
-                new_group = {}
-                for name, img in group.items():
-                    if ("gt_image" in name) or ("y_t" in name) or ("mask" in name):
-                        new_group[name] = img
-                    elif name.startswith(out_key):
-                        new_group["output"] = img
-                filtered_visuals.append(new_group)
+            if not filtered_visuals:
+                continue
 
             if self.display_id > 0:  # show images in the browser using visdom
                 ncols = self.ncols
@@ -336,7 +345,12 @@ class Visualizer:
                             win=self.display_id + win_id,
                             padding=2,
                             opts=dict(
-                                title=title + " " + phase + " " + out_key + " images"
+                                title=title
+                                + " "
+                                + phase
+                                + " "
+                                + display_key
+                                + " images"
                             ),
                         )
                         label_html_out = "<table>%s</table>" % label_html
@@ -365,7 +379,7 @@ class Visualizer:
                 else:  # show each image in a separate visdom panel;
                     idx = 1
                     try:
-                        for visual_group in visuals:
+                        for visual_group in filtered_visuals:
                             for label, image in visual_group.items():
                                 image_numpy = util.tensor2im(image)
                                 self.vis.image(

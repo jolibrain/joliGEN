@@ -99,7 +99,7 @@ def define_G(
 
     if model_type == "palette":
         in_channel = model_input_nc + model_output_nc
-    elif model_type == "b2b":
+    elif model_type in ["b2b", "b2b_gan"]:
         in_channel = model_input_nc
     else:  # CM
         in_channel = model_input_nc
@@ -275,7 +275,7 @@ def define_G(
                 "alg_b2b_vit_patch_embed_stride_divisor",
                 1,
             )
-            if model_type == "b2b"
+            if model_type in ["b2b", "b2b_gan"]
             else 1,
         }
         if getattr(opt, "G_vit_disable_bottleneck", False):
@@ -317,7 +317,7 @@ def define_G(
                 "alg_b2b_vit_patch_embed_stride_divisor",
                 1,
             )
-            if model_type == "b2b"
+            if model_type in ["b2b", "b2b_gan"]
             else 1,
         }
         if getattr(opt, "G_vit_disable_bottleneck", False):
@@ -364,7 +364,7 @@ def define_G(
             G_ngf=G_ngf,
             opt=opt,
         )
-    elif model_type == "b2b":
+    elif model_type in ["b2b", "b2b_gan"]:
         net = B2BGenerator(
             b2b_model=model,
             sampling_method="",

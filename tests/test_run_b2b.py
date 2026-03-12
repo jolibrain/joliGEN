@@ -35,17 +35,14 @@ json_like_dict = {
 G_netG = ["vit"]
 alg_diffusion_cond_embed = ["y_t"]
 models_diffusion = ["b2b"]
+models_diffusion_gan = ["b2b", "b2b_gan"]
 
 infer_options = {
     "gpu_ids": "0",
     "img_width": 256,
     "img_height": 256,
 }
-product_list = product(
-    models_diffusion,
-    G_netG,
-    alg_diffusion_cond_embed,
-)
+product_list = product(models_diffusion_gan, G_netG, alg_diffusion_cond_embed)
 
 
 def test_b2b_model(dataroot):
@@ -69,6 +66,8 @@ def test_b2b_model(dataroot):
         json_like_dict_c["name"] += "_" + model
         json_like_dict_c["G_netG"] = Gtype
         json_like_dict_c["alg_diffusion_cond_embed"] = alg_diffusion_cond_embed
+        if model == "b2b_gan":
+            json_like_dict_c["D_netDs"] = ["basic"]
 
         opt = TrainOptions().parse_json(json_like_dict_c, save_config=True)
         train.launch_training(opt)
@@ -90,3 +89,19 @@ def test_b2b_model(dataroot):
 
         opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=False)
         inference(opt)
+
+
+def test_b2b_gan_rejects_vit_vid(dataroot):
+    json_like_dict_c = json_like_dict.copy()
+    json_like_dict_c["dataroot"] = dataroot
+    json_like_dict_c["checkpoints_dir"] = "/".join(dataroot.split("/")[:-1])
+    json_like_dict_c["model_type"] = "b2b_gan"
+    json_like_dict_c["name"] += "_b2b_gan_vit_vid"
+    json_like_dict_c["G_netG"] = "vit_vid"
+    json_like_dict_c["D_netDs"] = ["basic"]
+    json_like_dict_c["data_dataset_mode"] = "self_supervised_vid_mask_online"
+    json_like_dict_c["data_temporal_number_frames"] = 2
+    json_like_dict_c["train_batch_size"] = 1
+
+    with pytest.raises(ValueError, match="does not support G_netG=vit_vid"):
+        TrainOptions().parse_json(json_like_dict_c, save_config=False)

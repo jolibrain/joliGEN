@@ -233,7 +233,7 @@ class B2BModel(BaseDiffusionModel):
         ):
             for i in range(self.nb_classes_inference):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
-        elif self.opt.model_type == "b2b":
+        elif self.opt.model_type in ["b2b", "b2b_gan"]:
             base_names = ["gt_image_", "y_t_", "mask_"]
             step_outputs = [
                 f"output_{ts}_steps_" for ts in self.opt.alg_b2b_denoise_timesteps
@@ -357,6 +357,8 @@ class B2BModel(BaseDiffusionModel):
             self.criterionDISTS = DISTS(
                 mean=self.opt.alg_b2b_dists_mean, std=self.opt.alg_b2b_dists_std
             ).to(self.device)
+        self.requires_x_pred_for_losses = False
+        self.pred_x = None
 
     def set_input(self, data):
         if (
@@ -429,6 +431,7 @@ class B2BModel(BaseDiffusionModel):
         mask = self.mask
         B = y_0.shape[0]
         use_perceptual = self.opt.alg_b2b_perceptual_loss != [""]
+        need_x_pred = use_perceptual or self.requires_x_pred_for_losses
 
         # base "real" labels in [0 .. num_classes-1]
         if self.num_classes > 0:
@@ -445,13 +448,16 @@ class B2BModel(BaseDiffusionModel):
             label=labels,
             use_gt=getattr(self, "use_gt", None),
             ref_idx=getattr(self, "ref_idx", None),
-            return_x_pred=use_perceptual,
+            return_x_pred=need_x_pred,
         )
-        if use_perceptual:
+        if need_x_pred:
             v_pred, v, x_pred = net_out
         else:
             v_pred, v = net_out
             x_pred = None
+        self.pred_x = x_pred
+        if x_pred is not None:
+            self.fake_B = x_pred
 
         if not self.opt.alg_b2b_minsnr:
             min_snr_loss_weight = 1.0
@@ -477,26 +483,6 @@ class B2BModel(BaseDiffusionModel):
                     mask_binary * weighted_pred,
                     mask_binary * weighted_target,
                 )
-        else:
-            loss = self.loss_fn(min_snr_loss_weight * v_pred, min_snr_loss_weight * v)
-
-        if isinstance(loss, dict):
-            loss_tot = torch.zeros(size=(), device=noise.device)
-
-            for cur_size, cur_loss in loss.items():
-                setattr(self, "loss_G_" + cur_size, cur_loss)
-                loss_tot += cur_loss
-
-            loss = loss_tot
-
-        self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
-
-        if mask is not None:
-            mask_binary = torch.clamp(mask, min=0, max=1)
-            loss = self.loss_fn(
-                min_snr_loss_weight * mask_binary * v_pred,
-                min_snr_loss_weight * mask_binary * v,
-            )
         else:
             loss = self.loss_fn(min_snr_loss_weight * v_pred, min_snr_loss_weight * v)
 

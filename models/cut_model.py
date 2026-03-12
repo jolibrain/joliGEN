@@ -787,33 +787,15 @@ class CUTModel(BaseGanModel):
         else:
             self.loss_G_supervised_norm = 0
         if "LPIPS" in self.opt.alg_cut_supervised_loss:
-            if self.real_B.size(1) > 3:  # more than 3 channels
-                self.loss_G_supervised_lpips = 0.0
-                for c in range(4):  # per channel loss and sum
-                    real_Bc = self.real_B[:, c, :, :].unsqueeze(1)
-                    fake_Bc = self.fake_B[:, c, :, :].unsqueeze(1)
-                    self.loss_G_supervised_lpips += self.criterionLPIPS(
-                        real_Bc, fake_Bc
-                    )
-            else:
-                self.loss_G_supervised_lpips = torch.mean(
-                    self.criterionLPIPS(self.real_B, self.fake_B)
-                )
+            self.loss_G_supervised_lpips = self._compute_supervised_perceptual_loss(
+                self.criterionLPIPS
+            )
         else:
             self.loss_G_supervised_lpips = 0
         if "DISTS" in self.opt.alg_cut_supervised_loss:
-            if self.real_B.size(1) > 3:  # more than 3 channels
-                self.loss_G_supervised_dists = 0.0
-                for c in range(4):  # per channel loss and sum
-                    real_Bc = self.real_B[:, c, :, :].unsqueeze(1)
-                    fake_Bc = self.fake_B[:, c, :, :].unsqueeze(1)
-                    self.loss_G_supervised_dists += self.criterionDISTS(
-                        real_Bc, fake_Bc
-                    )
-            else:
-                self.loss_G_supervised_dists = torch.mean(
-                    self.criterionDISTS(self.real_B, self.fake_B)
-                )
+            self.loss_G_supervised_dists = self._compute_supervised_perceptual_loss(
+                self.criterionDISTS
+            )
         else:
             self.loss_G_supervised_dists = 0
 
@@ -830,11 +812,33 @@ class CUTModel(BaseGanModel):
                 + self.opt.alg_cut_lambda_perceptual
                 * (self.loss_G_supervised_lpips + self.loss_G_supervised_dists)
             )
+            if not torch.isfinite(self.loss_G_supervised):
+                raise RuntimeError(
+                    "CUT supervised loss became non-finite. "
+                    "This usually comes from LPIPS/DISTS instability, often under AMP "
+                    "or from incompatible DISTS mean/std normalization."
+                )
             self.loss_G_tot += self.loss_G_supervised
 
         if len(self.netDs):
             self.compute_E_loss()
             self.loss_G_tot += self.loss_G_z
+
+    def _compute_supervised_perceptual_loss(self, criterion):
+        with torch.cuda.amp.autocast(enabled=False):
+            real_B = self.real_B.float()
+            fake_B = self.fake_B.float()
+            if real_B.size(1) > 3:
+                loss = torch.zeros(size=(), device=real_B.device)
+                for channel in range(real_B.size(1)):
+                    loss += torch.mean(
+                        criterion(
+                            real_B[:, channel : channel + 1, :, :],
+                            fake_B[:, channel : channel + 1, :, :],
+                        )
+                    )
+                return loss
+            return torch.mean(criterion(real_B, fake_B))
 
     def compute_E_loss(self):
         # multimodal loss

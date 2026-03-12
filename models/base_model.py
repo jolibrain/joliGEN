@@ -879,6 +879,7 @@ class BaseModel(ABC):
                     "cm_gan",
                     "sc",
                     "b2b",
+                    "b2b_gan",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
@@ -1697,6 +1698,33 @@ class BaseModel(ABC):
 
         return metrics
 
+    def _set_empty_test_metrics(self, test_name):
+        if "FID" in self.opt.train_metrics_list:
+            setattr(self, "fidB_test_" + test_name, math.nan)
+        if "MSID" in self.opt.train_metrics_list:
+            setattr(self, "msidB_test_" + test_name, math.nan)
+        if "KID" in self.opt.train_metrics_list:
+            setattr(self, "kidB_test_" + test_name, math.nan)
+        if "PSNR" in self.opt.train_metrics_list:
+            setattr(self, "psnr_test_" + test_name, math.nan)
+        if "SSIM" in self.opt.train_metrics_list:
+            setattr(self, "ssim_test_" + test_name, math.nan)
+        if "LPIPS" in self.opt.train_metrics_list:
+            setattr(self, "lpips_test_" + test_name, math.nan)
+        if "FVD" in self.opt.train_metrics_list:
+            setattr(self, "fvd_test_" + test_name, math.nan)
+
+        if not hasattr(self, "psnr_step_results"):
+            self.psnr_step_results = {}
+        if not hasattr(self, "ssim_step_results"):
+            self.ssim_step_results = {}
+        if not hasattr(self, "lpips_step_results"):
+            self.lpips_step_results = {}
+
+        self.psnr_step_results[test_name] = {}
+        self.ssim_step_results[test_name] = {}
+        self.lpips_step_results[test_name] = {}
+
     def _compute_metrics(self, fake_images, gt_images):
         compute_lpips = hasattr(self, "lpips_metric")
         psnr_sum, ssim_sum, lpips_sum, n = 0.0, 0.0, 0.0, 0
@@ -1742,6 +1770,7 @@ class BaseModel(ABC):
         real_list = []
         fake_list_per_step = {}
         real_list_per_step = {}
+        processed_batches = 0
 
         if self.opt.train_nb_img_max_fid != MAX_INT:
             progress = tqdm(
@@ -1769,6 +1798,7 @@ class BaseModel(ABC):
             self.opt.isTrain = False
             self.inference(self.opt.test_batch_size, offset=offset)
             self.opt.isTrain = istrain
+            processed_batches += 1
 
             if save_images:
                 pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (
@@ -1797,7 +1827,7 @@ class BaseModel(ABC):
                     batch_real_img = self.real_A
 
             if (
-                getattr(self.opt, "model_type", "") == "b2b"
+                getattr(self.opt, "model_type", "") in ["b2b", "b2b_gan"]
                 and hasattr(self, "outputs_per_step")
                 and isinstance(self.outputs_per_step, dict)
                 and len(self.outputs_per_step) > 0
@@ -1875,6 +1905,18 @@ class BaseModel(ABC):
 
         if progress:
             progress.close()
+
+        if len(fake_list) == 0 or len(real_list) == 0:
+            logging.warning(
+                "Skipping test metrics for '%s': collected %d fake images and %d real images across %d processed test batches. "
+                "This usually means the test dataloader is empty or yielded no valid samples.",
+                test_name if test_name else "<default>",
+                len(fake_list),
+                len(real_list),
+                processed_batches,
+            )
+            self._set_empty_test_metrics(test_name)
+            return
 
         if self.use_inception:
             if self.use_cuda:

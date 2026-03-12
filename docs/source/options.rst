@@ -14,7 +14,7 @@ Here are all the available options to call with ``train.py``
 +----------------------+-----------------+-----------------+------------------------------------------------------------------------------------------+
 | --gpu_ids            | string          | 0               | gpu ids: e.g. 0 0,1,2, 0,2. use -1 for CPU                                               |
 +----------------------+-----------------+-----------------+------------------------------------------------------------------------------------------+
-| --model_type         | string          | cut             | chooses which model to use. **Values:** cut, cycle_gan, palette, cm, cm_gan, sc, b2b     |
+| --model_type         | string          | cut             | chooses which model to use. **Values:** cut, cycle_gan, palette, cm, cm_gan, sc, b2b, b2b_gan     |
 +----------------------+-----------------+-----------------+------------------------------------------------------------------------------------------+
 | --name               | string          | experiment_name | name of the experiment. It decides where to store samples and models                     |
 +----------------------+-----------------+-----------------+------------------------------------------------------------------------------------------+
