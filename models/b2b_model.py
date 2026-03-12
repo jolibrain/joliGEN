@@ -13,6 +13,10 @@ from torch import nn
 from util.network_group import NetworkGroup
 from util.iter_calculator import IterCalculator
 from models.modules.diffusion_utils import rearrange_5dto4d_bf, rearrange_4dto5d_bf
+from models.modules.perceptual_dino import (
+    DINOPerceptualLoss,
+    SUPPORTED_DINO_MODELS,
+)
 
 from util.mask_generation import random_edge_mask
 
@@ -110,7 +114,7 @@ class B2BModel(BaseDiffusionModel):
             type=str,
             nargs="*",
             default=[""],
-            choices=["", "LPIPS", "DISTS"],
+            choices=["", "LPIPS", "DISTS", "DINO"],
             help="Optional perceptual losses",
         )
 
@@ -118,7 +122,7 @@ class B2BModel(BaseDiffusionModel):
             "--alg_b2b_lambda_perceptual",
             type=float,
             default=1.0,
-            help="Weight for perceptual loss",
+            help="Weight for LPIPS, DISTS, and DINO perceptual losses",
         )
 
         parser.add_argument(
@@ -135,6 +139,21 @@ class B2BModel(BaseDiffusionModel):
             nargs="*",
             default=[0.229, 0.224, 0.225],
             help="Std normalization for DISTS",
+        )
+
+        parser.add_argument(
+            "--alg_b2b_dino_model",
+            type=str,
+            default="dinov2_vitb14_reg",
+            choices=list(SUPPORTED_DINO_MODELS.keys()),
+            help="Frozen DINO backbone used for DINO perceptual loss",
+        )
+
+        parser.add_argument(
+            "--alg_b2b_dino_resize_resolution",
+            type=int,
+            default=224,
+            help="Resize resolution for DINO perceptual loss",
         )
 
         # -------------------------
@@ -203,6 +222,9 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError(
                 "--alg_b2b_vit_patch_embed_stride_divisor must be >= 1"
             )
+
+        if getattr(opt, "alg_b2b_dino_resize_resolution", 224) <= 0:
+            raise ValueError("--alg_b2b_dino_resize_resolution must be > 0")
 
         opt.alg_b2b_denoise_timesteps = steps
         return opt
@@ -357,6 +379,15 @@ class B2BModel(BaseDiffusionModel):
             self.criterionDISTS = DISTS(
                 mean=self.opt.alg_b2b_dists_mean, std=self.opt.alg_b2b_dists_std
             ).to(self.device)
+        if "DINO" in self.opt.alg_b2b_perceptual_loss:
+            if getattr(self.opt, "output_nc", 3) != 3:
+                raise ValueError(
+                    "alg_b2b_perceptual_loss=DINO requires output_nc == 3"
+                )
+            self.criterionDINO = DINOPerceptualLoss(
+                model=self.opt.alg_b2b_dino_model,
+                resize_resolution=self.opt.alg_b2b_dino_resize_resolution,
+            ).to(self.device)
         self.requires_x_pred_for_losses = False
         self.pred_x = None
 
@@ -499,6 +530,7 @@ class B2BModel(BaseDiffusionModel):
 
         self.loss_G_perceptual_lpips = torch.zeros(size=(), device=y_0.device)
         self.loss_G_perceptual_dists = torch.zeros(size=(), device=y_0.device)
+        self.loss_G_perceptual_dino = torch.zeros(size=(), device=y_0.device)
         self.loss_G_perceptual = torch.zeros(size=(), device=y_0.device)
 
         if use_perceptual and x_pred is not None:
@@ -513,11 +545,14 @@ class B2BModel(BaseDiffusionModel):
             (
                 self.loss_G_perceptual_lpips,
                 self.loss_G_perceptual_dists,
+                self.loss_G_perceptual_dino,
             ) = self._compute_perceptual_losses(
                 target_for_perceptual, pred_for_perceptual
             )
             self.loss_G_perceptual = self.opt.alg_b2b_lambda_perceptual * (
-                self.loss_G_perceptual_lpips + self.loss_G_perceptual_dists
+                self.loss_G_perceptual_lpips
+                + self.loss_G_perceptual_dists
+                + self.loss_G_perceptual_dino
             )
             self.loss_G_tot += self.loss_G_perceptual
 
@@ -549,6 +584,7 @@ class B2BModel(BaseDiffusionModel):
 
         lpips_loss = torch.zeros(size=(), device=target.device)
         dists_loss = torch.zeros(size=(), device=target.device)
+        dino_loss = torch.zeros(size=(), device=target.device)
 
         if "LPIPS" in self.opt.alg_b2b_perceptual_loss:
             lpips_loss = self._perceptual_loss_by_channel(
@@ -558,8 +594,10 @@ class B2BModel(BaseDiffusionModel):
             dists_loss = self._perceptual_loss_by_channel(
                 self.criterionDISTS, target, pred
             )
+        if "DINO" in self.opt.alg_b2b_perceptual_loss:
+            dino_loss = self.criterionDINO(target, pred)
 
-        return lpips_loss, dists_loss
+        return lpips_loss, dists_loss, dino_loss
 
     def _perceptual_loss_by_channel(self, criterion, target, pred):
         if pred.size(1) > 3:
