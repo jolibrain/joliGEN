@@ -59,13 +59,12 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
         )
         self.model_names += ["P_B"]
 
-        self.optimizer_P = opt.optim(
-            opt,
-            itertools.chain(self.netP_B.parameters()),
+        optimizer_P_names = self.register_optimizer(
+            "optimizer_P",
+            self.get_named_parameters(("P_B", self.netP_B)),
             lr=opt.alg_re_P_lr,
             betas=(opt.train_beta1, opt.train_beta2),
         )
-        self.optimizers.append(self.optimizer_P)
 
         if self.opt.alg_re_no_train_P_fake_images:
             self.group_P = NetworkGroup(
@@ -73,7 +72,7 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
                 forward_functions=["forward_P"],
                 backward_functions=["compute_P_loss"],
                 loss_names_list=["loss_names_P"],
-                optimizer=["optimizer_P"],
+                optimizer=optimizer_P_names,
                 loss_backward=["loss_P"],
             )
             self.networks_groups.insert(1, self.group_P)
@@ -83,7 +82,7 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
                 forward_functions=["forward", "forward_P"],
                 backward_functions=["compute_G_loss", "compute_P_loss"],
                 loss_names_list=["loss_names_G", "loss_names_P"],
-                optimizer=["optimizer_G", "optimizer_P"],
+                optimizer=self.group_G.optimizer + optimizer_P_names,
                 loss_backward=["loss_G", "loss_P"],
                 networks_to_ema=["G"],
             )
@@ -131,13 +130,15 @@ class ReCUTSemanticMaskModel(CUTSemanticMaskModel):
             self.loss_G.backward()  # calculate gradients for G
             self.loss_P.backward()  # calculate gradients for P
             if self.opt.alg_cut_lambda_NCE > 0.0:
-                self.optimizer_F = opt.optim(
-                    opt,
-                    self.netF.parameters(),
+                optimizer_F_names = self.register_optimizer(
+                    "optimizer_F",
+                    self.get_named_parameters(("F", self.netF)),
                     lr=self.opt.train_G_lr,
                     betas=(self.opt.train_beta1, self.opt.train_beta2),
                 )
-                self.optimizers.append(self.optimizer_F)
+                for optimizer_name in optimizer_F_names:
+                    if optimizer_name not in self.group_G.optimizer:
+                        self.group_G.optimizer.append(optimizer_name)
 
         for optimizer in self.optimizers:
             optimizer.zero_grad()

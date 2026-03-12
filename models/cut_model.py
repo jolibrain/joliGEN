@@ -322,81 +322,81 @@ class CUTModel(BaseGanModel):
 
             # Optimizers
             if self.opt.G_netG != "img2img_turbo":
-                layers_to_opt = self.netG_A.parameters()
+                layers_to_opt = self.get_named_parameters(("G_A", self.netG_A))
             else:
                 layers_to_opt = []
                 for n, _p in self.netG_A.unet.named_parameters():
                     if "lora" in n or "conv_in" in n:
                         assert _p.requires_grad
-                        layers_to_opt.append(_p)
-                layers_to_opt += list(self.netG_A.unet.conv_in.parameters())
+                        layers_to_opt.append(("unet." + n, _p))
+                layers_to_opt += [
+                    ("unet.conv_in." + n, _p)
+                    for n, _p in self.netG_A.unet.conv_in.named_parameters()
+                ]
                 for n, _p in self.netG_A.vae.named_parameters():
                     if "lora" in n or "skip" in n:
                         assert _p.requires_grad
-                        layers_to_opt.append(_p)
-                layers_to_opt = (
-                    layers_to_opt
-                    + list(self.netG_A.vae.decoder.skip_conv_1.parameters())
-                    + list(self.netG_A.vae.decoder.skip_conv_2.parameters())
-                    + list(self.netG_A.vae.decoder.skip_conv_3.parameters())
-                    + list(self.netG_A.vae.decoder.skip_conv_4.parameters())
+                        layers_to_opt.append(("vae." + n, _p))
+                layers_to_opt = self.get_named_parameters(
+                    (
+                        "G_A",
+                        layers_to_opt
+                        + [
+                            ("vae.decoder.skip_conv_1." + n, _p)
+                            for n, _p in self.netG_A.vae.decoder.skip_conv_1.named_parameters()
+                        ]
+                        + [
+                            ("vae.decoder.skip_conv_2." + n, _p)
+                            for n, _p in self.netG_A.vae.decoder.skip_conv_2.named_parameters()
+                        ]
+                        + [
+                            ("vae.decoder.skip_conv_3." + n, _p)
+                            for n, _p in self.netG_A.vae.decoder.skip_conv_3.named_parameters()
+                        ]
+                        + [
+                            ("vae.decoder.skip_conv_4." + n, _p)
+                            for n, _p in self.netG_A.vae.decoder.skip_conv_4.named_parameters()
+                        ],
+                    )
                 )
 
-            self.optimizer_G = opt.optim(
-                opt,
-                # self.netG_A.parameters(),
+            optimizer_G_names = self.register_optimizer(
+                "optimizer_G",
                 layers_to_opt,
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
-                weight_decay=opt.train_optim_weight_decay,
-                eps=opt.train_optim_eps,
             )
             if self.opt.model_multimodal:
                 self.criterionZ = torch.nn.L1Loss()
-                self.optimizer_E = opt.optim(
-                    opt,
-                    self.netE.parameters(),
+                optimizer_E_names = self.register_optimizer(
+                    "optimizer_E",
+                    self.get_named_parameters(("E", self.netE)),
                     lr=opt.train_G_lr,
                     betas=(opt.train_beta1, opt.train_beta2),
-                    weight_decay=opt.train_optim_weight_decay,
-                    eps=opt.train_optim_eps,
                 )
 
             if len(self.netDs):
-                if len(self.discriminators_names) > 0:
-                    D_parameters = itertools.chain(
-                        *[
-                            getattr(self, "net" + D_name).parameters()
-                            for D_name in self.discriminators_names
-                        ]
-                    )
-                else:
-                    D_parameters = getattr(
-                        self, "net" + self.discriminators_names[0]
-                    ).parameters()
+                D_parameters = self.get_named_parameters(
+                    *[
+                        (D_name, getattr(self, "net" + D_name))
+                        for D_name in self.discriminators_names
+                    ]
+                )
 
-                self.optimizer_D = opt.optim(
-                    opt,
+                optimizer_D_names = self.register_optimizer(
+                    "optimizer_D",
                     D_parameters,
                     lr=opt.train_D_lr,
                     betas=(opt.train_beta1, opt.train_beta2),
-                    weight_decay=opt.train_optim_weight_decay,
-                    eps=opt.train_optim_eps,
                 )
-                self.optimizers.append(self.optimizer_D)
-
-            self.optimizers.append(self.optimizer_G)
-            if self.opt.model_multimodal:
-                self.optimizers.append(self.optimizer_E)
 
             # Making groups
             self.networks_groups = []
 
             networks_to_optimize = ["G_A"]
-            optimizers = ["optimizer_G"]
+            optimizers = optimizer_G_names.copy()
             if len(self.netDs):
                 if self.opt.alg_cut_lambda_NCE > 0.0:
-                    optimizers.append("optimizer_F")
                     networks_to_optimize.append("F")
             losses_backward = ["loss_G_tot"]
 
@@ -420,7 +420,7 @@ class CUTModel(BaseGanModel):
                     forward_functions=["forward_E"],
                     backward_functions=["compute_E_loss"],
                     loss_names_list=["loss_names_E"],
-                    optimizer=["optimizer_E"],
+                    optimizer=optimizer_E_names,
                     loss_backward=["loss_G_z"],
                 )
                 self.networks_groups.append(self.group_E)
@@ -431,7 +431,7 @@ class CUTModel(BaseGanModel):
                     forward_functions=None,
                     backward_functions=["compute_D_loss"],
                     loss_names_list=["loss_names_D"],
-                    optimizer=["optimizer_D"],
+                    optimizer=optimizer_D_names,
                     loss_backward=["loss_D_tot"],
                 )
                 self.networks_groups.append(self.group_D)
@@ -531,15 +531,15 @@ class CUTModel(BaseGanModel):
                 self.opt.alg_cut_lambda_NCE > 0.0
                 and not self.opt.alg_cut_netF == "sample"
             ):
-                self.optimizer_F = self.opt.optim(
-                    self.opt,
-                    self.netF.parameters(),
+                optimizer_F_names = self.register_optimizer(
+                    "optimizer_F",
+                    self.get_named_parameters(("F", self.netF)),
                     lr=self.opt.train_G_lr,
                     betas=(self.opt.train_beta1, self.opt.train_beta2),
-                    weight_decay=self.opt.train_optim_weight_decay,
-                    eps=self.opt.train_optim_eps,
                 )
-                self.optimizers.append(self.optimizer_F)
+                for optimizer_name in optimizer_F_names:
+                    if optimizer_name not in self.group_G.optimizer:
+                        self.group_G.optimizer.append(optimizer_name)
 
         for optimizer in self.optimizers:
             optimizer.zero_grad()

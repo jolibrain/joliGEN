@@ -385,7 +385,10 @@ Here are all the available options to call with `train.py`
 | --train_n_epochs | int | 100 | number of epochs with the initial learning rate |
 | --train_n_epochs_decay | int | 0 | number of epochs to linearly decay learning rate to zero |
 | --train_nb_img_max_fid | int | 1000000000 | Maximum number of samples allowed per dataset to compute fid. If the dataset directory contains more than nb_img_max_fid, only a subset is used. |
-| --train_optim | string | adam | optimizer (adam, radam, adamw, ...)<br/><br/> **Values:** adam, radam, adamw, lion, adam8bit |
+| --train_muon_adjust_lr_fn | string | original | learning-rate adjustment mode for Muon<br/><br/> **Values:** original, match_rms_adamw |
+| --train_muon_nesterov | flag | True | enable Nesterov momentum for the Muon optimizer |
+| --train_muon_ns_steps | int | 5 | number of Newton-Schulz steps used by Muon |
+| --train_optim | string | adam | optimizer (adam, radam, adamw, ...)<br/><br/> **Values:** adam, radam, adamw, lion, adam8bit, muon |
 | --train_optim_eps | float | 1e-08 | epsilon for optimizer |
 | --train_optim_weight_decay | float | 0.0 | weight decay for optimizer |
 | --train_pool_size | int | 50 | the size of image buffer that stores previously generated images |
@@ -451,4 +454,3 @@ Here are all the available options to call with `train.py`
 | --dataaug_flip | string | horizontal | if specified, flip the images for data augmentation, possible values: none, horizontal, vertical, both<br/><br/> **Values:** none, horizontal, vertical, both |
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
 | --dataaug_no_rotate | flag |  | if specified, do not rotate the images for data augmentation |
-

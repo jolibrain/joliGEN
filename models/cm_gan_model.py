@@ -37,27 +37,19 @@ class CMGanModel(CMModel, BaseGanModel):
             for D_name, netD in self.netDs.items():
                 setattr(self, "netD_B_" + D_name, netD)
 
-            if len(self.discriminators_names) > 0:
-                D_parameters = itertools.chain(
-                    *[
-                        getattr(self, "net" + D_name).parameters()
-                        for D_name in self.discriminators_names
-                    ]
-                )
-            else:
-                D_parameters = getattr(
-                    self, "net" + self.discriminators_names[0]
-                ).parameters()
+            D_parameters = self.get_named_parameters(
+                *[
+                    (D_name, getattr(self, "net" + D_name))
+                    for D_name in self.discriminators_names
+                ]
+            )
 
-            self.optimizer_D = opt.optim(
-                opt,
+            optimizer_D_names = self.register_optimizer(
+                "optimizer_D",
                 D_parameters,
                 lr=opt.train_D_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
-                weight_decay=opt.train_optim_weight_decay,
-                eps=opt.train_optim_eps,
             )
-            self.optimizers.append(self.optimizer_D)
 
             self.group_G.backward_functions = [
                 "compute_cm_gan_loss"
@@ -68,7 +60,7 @@ class CMGanModel(CMModel, BaseGanModel):
                 forward_functions=None,
                 backward_functions=["compute_D_loss"],
                 loss_names_list=["loss_names_D"],
-                optimizer=["optimizer_D"],
+                optimizer=optimizer_D_names,
                 loss_backward=["loss_D_tot"],
             )
             self.networks_groups.append(self.group_D)
