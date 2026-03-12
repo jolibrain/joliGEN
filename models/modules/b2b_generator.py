@@ -91,49 +91,51 @@ class B2BGenerator(nn.Module):
     def b2b_forward(self, x, mask, x_cond=None, label=None, use_gt=None, ref_idx=None):
         labels_dropped = self.drop_labels(label) if self.training else label
 
-        if x_cond is None:
-            x_with_cond = x
-        elif len(x.shape) != 5:
-            x_with_cond = torch.cat([x_cond, x], dim=1)
-        else:
-            x_with_cond = torch.cat([x_cond, x], dim=2)
-
-        # 2) sample_t timestep
+        # 1) sample timestep
         B = x.size(0)
         is_video = x.ndim == 5
 
         if not is_video:
             t_cont = self.sample_t(B, device=x.device)  # (B,)
-            t = t_cont.view(B, *([1] * (x.ndim - 1)))  # (B,1,1,1) for images
-            t_flat = t_cont  # (B,)
+            t = t_cont.view(B, *([1] * (x.ndim - 1)))  # (B,1,1,1)
+            t_flat = t_cont
         else:
             F = x.size(1)
             t_base = self.sample_t(B, device=x.device)  # (B,)
-            t_cont = t_base[:, None].repeat(1, F)  # (B,F) same across frames
+            t_cont = t_base[:, None].repeat(1, F)  # (B,F)
 
             if use_gt is not None and ref_idx is not None and use_gt.any():
                 b_idx = torch.arange(B, device=x.device)
                 t_cont[b_idx[use_gt], ref_idx[use_gt]] = 1.0
 
-            t = t_cont.view(B, F, 1, 1, 1)  # (B,F,1,1,1) for mixing
-            t_flat = t_cont.reshape(B * F)  # (B*F,) for model
+            t = t_cont.view(B, F, 1, 1, 1)
+            t_flat = t_cont.reshape(B * F)
 
-        # 3) noise + mixing
+        # 2) clean mask
         if mask is not None:
             mask = torch.clamp(mask, min=0.0, max=1.0)
 
-        e = torch.randn_like(x_with_cond) * self.noise_scale
-        z_t = t * x_with_cond + (1 - t) * e
+        # 3) noise image only
+        e = torch.randn_like(x) * self.noise_scale
+        z_t = t * x + (1.0 - t) * e
 
         if mask is not None:
-            z = z_t * mask + (1 - mask) * x_with_cond
+            z = z_t * mask + (1.0 - mask) * x
+        else:
+            z = z_t
 
-        v = (x_with_cond - z) / (1 - t).clamp_min(self.t_eps)
-        z_model = z
-        z = self._match_prediction_channels(z, x)
-        v = self._match_prediction_channels(v, x)
+        # 4) concatenate clean condition after noising
+        if x_cond is None:
+            z_model = z
+        elif len(x.shape) != 5:
+            z_model = torch.cat([x_cond, z], dim=1)
+        else:
+            z_model = torch.cat([x_cond, z], dim=2)
 
-        # 4) model predict img
+        # 5) target velocity in image space only
+        v = (x - z) / (1.0 - t).clamp_min(self.t_eps)
+
+        # 6) predict image
         x_pred = self.b2b_model(z_model, t_flat, labels_dropped)
         x_pred = self._match_prediction_channels(x_pred, x)
 
