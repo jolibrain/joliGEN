@@ -25,6 +25,7 @@ class CommonOptions(BaseOptions):
                         "gan": {"title": "GAN model"},
                         "cut": {"title": "CUT model"},
                         "cyclegan": {"title": "CycleGAN model"},
+                        "mat": {"title": "MAT model"},
                         "re": {"title": "ReCUT / ReCycleGAN"},
                         "palette": {"title": "Diffusion model"},
                     },
@@ -118,7 +119,16 @@ class CommonOptions(BaseOptions):
             "--model_type",
             type=str,
             default="cut",
-            choices=["cut", "cycle_gan", "palette", "cm", "cm_gan", "sc", "b2b"],
+            choices=[
+                "cut",
+                "cycle_gan",
+                "palette",
+                "cm",
+                "cm_gan",
+                "sc",
+                "b2b",
+                "mat",
+            ],
             help="chooses which model to use.",
         )
         parser.add_argument(

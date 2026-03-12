@@ -42,7 +42,6 @@ from scipy import linalg
 from torch.nn.functional import adaptive_avg_pool2d, interpolate
 import random
 
-
 try:
     from tqdm import tqdm
 except ImportError:
