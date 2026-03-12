@@ -168,20 +168,16 @@ class SCModel(BaseDiffusionModel):
         self.model_names_export = ["G_A"]
 
         G_models = ["G_A"]
-        G_parameters = [self.netG_A.parameters()]
-        G_parameters = itertools.chain(*G_parameters)
+        G_parameters = self.get_named_parameters(("G_A", self.netG_A))
 
         # Define optimizer
         if opt.isTrain:
-            self.optimizer_G = opt.optim(
-                opt,
+            optimizer_G_names = self.register_optimizer(
+                "optimizer_G",
                 G_parameters,
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
-                weight_decay=opt.train_optim_weight_decay,
-                eps=opt.train_optim_eps,
             )
-            self.optimizers.append(self.optimizer_G)
 
         self.loss_names_G = ["G_tot"]
         self.loss_names = self.loss_names_G
@@ -196,7 +192,7 @@ class SCModel(BaseDiffusionModel):
             forward_functions=[],
             backward_functions=["compute_sc_loss"],
             loss_names_list=["loss_names_G"],
-            optimizer=["optimizer_G"],
+            optimizer=optimizer_G_names if opt.isTrain else [],
             loss_backward=losses_backward,
             networks_to_ema=G_models,
         )

@@ -73,14 +73,16 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
         )
         self.model_names += ["P_A", "P_B"]
 
-        self.optimizer_P = opt.optim(
-            opt,
-            itertools.chain(self.netP_A.parameters(), self.netP_B.parameters()),
+        optimizer_P_names = self.register_optimizer(
+            "optimizer_P",
+            self.get_named_parameters(
+                ("P_A", self.netP_A),
+                ("P_B", self.netP_B),
+            ),
             lr=opt.alg_re_P_lr,
             betas=(opt.train_beta1, opt.train_beta2),
             weight_decay=opt.train_optim_weight_decay,
         )
-        self.optimizers.append(self.optimizer_P)
 
         if self.opt.alg_re_no_train_P_fake_images:
             self.group_P = NetworkGroup(
@@ -88,7 +90,7 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
                 forward_functions=["forward_P"],
                 backward_functions=["compute_P_loss"],
                 loss_names_list=["loss_names_P"],
-                optimizer=["optimizer_P"],
+                optimizer=optimizer_P_names,
                 loss_backward=["loss_P"],
             )
         else:  # P and G networks will be trained in the same time
@@ -97,7 +99,7 @@ class ReCycleGANSemanticMaskModel(CycleGANSemanticMaskModel):
                 forward_functions=["forward", "forward_P"],
                 backward_functions=["compute_G_loss", "compute_P_loss"],
                 loss_names_list=["loss_names_G", "loss_names_P"],
-                optimizer=["optimizer_G", "optimizer_P"],
+                optimizer=self.group_G.optimizer + optimizer_P_names,
                 loss_backward=["loss_G", "loss_P"],
                 network_to_ema=["G_A", "G_B"],
             )

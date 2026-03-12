@@ -18,8 +18,6 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
-import bitsandbytes as bnb
-
 from data import (
     create_dataloader,
     create_dataset,
@@ -28,9 +26,9 @@ from data import (
     list_test_sets,
 )
 from models import create_model
+from util.optimizer_factory import build_optimizer_bundle
 from util.parser import get_opt
 from util.visualizer import Visualizer
-from util.lion_pytorch import Lion
 from util.script import get_override_options_names
 import datetime
 
@@ -48,18 +46,32 @@ def setup(rank, world_size, port):
     )  # modified timeout from default 10 or 30 mins (?) to 1.5h
 
 
-def optim(opt, params, lr, betas, weight_decay, eps):
-    print("Using ", opt.train_optim, " as optimizer")
-    if opt.train_optim == "adam":
-        return torch.optim.Adam(params, lr, betas, weight_decay=weight_decay, eps=eps)
-    elif opt.train_optim == "radam":
-        return torch.optim.RAdam(params, lr, betas, weight_decay=weight_decay, eps=eps)
-    elif opt.train_optim == "adamw":
-        return torch.optim.AdamW(params, lr, betas, weight_decay=weight_decay, eps=eps)
-    elif opt.train_optim == "lion":
-        return Lion(params, lr, betas, weight_decay)
-    elif opt.train_optim == "adam8bit":
-        return bnb.optim.Adam8bit(params, lr, betas, weight_decay=weight_decay, eps=eps)
+def optim(
+    opt,
+    params,
+    lr,
+    betas,
+    weight_decay=0.0,
+    eps=1e-8,
+    optimizer_name=None,
+):
+    optimizer_bundle = build_optimizer_bundle(
+        opt,
+        params,
+        lr=lr,
+        betas=betas,
+        weight_decay=weight_decay,
+        eps=eps,
+        optimizer_name=optimizer_name,
+    )
+    if optimizer_name is None:
+        if len(optimizer_bundle) != 1:
+            raise ValueError(
+                "Muon requires named optimizer registration. "
+                "Use BaseModel.register_optimizer instead of calling opt.optim directly."
+            )
+        return optimizer_bundle[0][1]
+    return optimizer_bundle
 
 
 def signal_handler(sig, frame):

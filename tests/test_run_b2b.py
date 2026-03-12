@@ -8,6 +8,7 @@ sys.path.append(sys.path[0] + "/..")
 import train
 from options.train_options import TrainOptions
 from data import create_dataset
+from models import create_model
 from itertools import product
 import torch
 
@@ -92,3 +93,28 @@ def test_b2b_model(dataroot):
 
         opt = InferenceDiffusionOptions().parse_json(infer_options_c, save_config=False)
         inference(opt)
+
+
+def test_b2b_model_muon_optimizer_bundle():
+    json_like_dict_c = json_like_dict.copy()
+    json_like_dict_c["dataroot"] = "/tmp"
+    json_like_dict_c["checkpoints_dir"] = "/tmp"
+    json_like_dict_c["gpu_ids"] = "-1"
+    json_like_dict_c["model_type"] = "b2b"
+    json_like_dict_c["name"] += "_muon"
+    json_like_dict_c["G_netG"] = "vit"
+    json_like_dict_c["alg_diffusion_cond_embed"] = "y_t"
+    json_like_dict_c["train_optim"] = "muon"
+
+    opt = TrainOptions().parse_json(json_like_dict_c, save_config=False)
+    opt.use_cuda = False
+    opt.total_iters = 0
+    opt.jg_dir = "/".join(train.__file__.split("/")[:-1])
+    opt.optim = train.optim
+
+    model = create_model(opt, 0)
+
+    assert any(isinstance(optim, torch.optim.Muon) for optim in model.optimizers)
+    assert any(isinstance(optim, torch.optim.AdamW) for optim in model.optimizers)
+    assert "optimizer_G" in model.group_G.optimizer
+    assert "optimizer_G_aux" in model.group_G.optimizer
