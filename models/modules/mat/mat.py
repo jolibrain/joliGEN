@@ -684,8 +684,10 @@ class Encoder(nn.Module):
         patch_size=5,
         channels=16,
         drop_path_rate=0.1,
+        mask_class_channels=0,
     ):
         super().__init__()
+        self.mask_class_channels = mask_class_channels
 
         self.resolution = []
 
@@ -693,7 +695,9 @@ class Encoder(nn.Module):
             res = 2**i
             self.resolution.append(res)
             if i == res_log2:
-                block = EncFromRGB(img_channels * 2 + 1, nf(i), activation)
+                block = EncFromRGB(
+                    img_channels * 2 + 1 + mask_class_channels, nf(i), activation
+                )
             else:
                 block = ConvBlockDown(nf(i + 1), nf(i), activation)
             setattr(self, "EncConv_Block_%dx%d" % (res, res), block)
@@ -963,12 +967,14 @@ class FirstStage(nn.Module):
         use_noise=False,
         demodulate=True,
         activation="lrelu",
+        mask_class_channels=0,
     ):
         super().__init__()
         res = 64
+        self.mask_class_channels = mask_class_channels
 
         self.conv_first = Conv2dLayerPartial(
-            in_channels=img_channels + 1,
+            in_channels=img_channels + 1 + mask_class_channels,
             out_channels=dim,
             kernel_size=3,
             activation=activation,
@@ -1056,8 +1062,21 @@ class FirstStage(nn.Module):
                 )
             )
 
-    def forward(self, images_in, masks_in, ws, noise_mode="random"):
-        x = torch.cat([masks_in - 0.5, images_in * masks_in], dim=1)
+    def forward(self, images_in, masks_in, ws, mask_class=None, noise_mode="random"):
+        if self.mask_class_channels > 0 and mask_class is None:
+            mask_class = torch.zeros(
+                images_in.shape[0],
+                self.mask_class_channels,
+                images_in.shape[2],
+                images_in.shape[3],
+                device=images_in.device,
+                dtype=images_in.dtype,
+            )
+
+        x_inputs = [masks_in - 0.5, images_in * masks_in]
+        if self.mask_class_channels > 0:
+            x_inputs.append(mask_class)
+        x = torch.cat(x_inputs, dim=1)
 
         skips = []
         x, mask = self.conv_first(x, masks_in)  # input size
@@ -1126,6 +1145,7 @@ class SynthesisNet(nn.Module):
         drop_rate=0.5,
         use_noise=True,
         demodulate=True,
+        mask_class_channels=0,
     ):
         super().__init__()
         resolution_log2 = int(np.log2(img_resolution))
@@ -1134,6 +1154,7 @@ class SynthesisNet(nn.Module):
         self.num_layers = resolution_log2 * 2 - 3 * 2
         self.img_resolution = img_resolution
         self.resolution_log2 = resolution_log2
+        self.mask_class_channels = mask_class_channels
 
         # first stage
         self.first_stage = FirstStage(
@@ -1142,11 +1163,17 @@ class SynthesisNet(nn.Module):
             w_dim=w_dim,
             use_noise=False,
             demodulate=demodulate,
+            mask_class_channels=mask_class_channels,
         )
 
         # second stage
         self.enc = Encoder(
-            resolution_log2, img_channels, activation, patch_size=5, channels=16
+            resolution_log2,
+            img_channels,
+            activation,
+            patch_size=5,
+            channels=16,
+            mask_class_channels=mask_class_channels,
         )
         self.to_square = FullyConnectedLayer(
             in_features=w_dim, out_features=16 * 16, activation=activation
@@ -1162,12 +1189,35 @@ class SynthesisNet(nn.Module):
             resolution_log2, activation, style_dim, use_noise, demodulate, img_channels
         )
 
-    def forward(self, images_in, masks_in, ws, noise_mode="random", return_stg1=False):
-        out_stg1 = self.first_stage(images_in, masks_in, ws, noise_mode=noise_mode)
+    def forward(
+        self,
+        images_in,
+        masks_in,
+        ws,
+        mask_class=None,
+        noise_mode="random",
+        return_stg1=False,
+    ):
+        if self.mask_class_channels > 0 and mask_class is None:
+            mask_class = torch.zeros(
+                images_in.shape[0],
+                self.mask_class_channels,
+                images_in.shape[2],
+                images_in.shape[3],
+                device=images_in.device,
+                dtype=images_in.dtype,
+            )
+
+        out_stg1 = self.first_stage(
+            images_in, masks_in, ws, mask_class=mask_class, noise_mode=noise_mode
+        )
 
         # encoder
         x = images_in * masks_in + out_stg1 * (1 - masks_in)
-        x = torch.cat([masks_in - 0.5, x, images_in * masks_in], dim=1)
+        x_inputs = [masks_in - 0.5, x, images_in * masks_in]
+        if self.mask_class_channels > 0:
+            x_inputs.append(mask_class)
+        x = torch.cat(x_inputs, dim=1)
         E_features = self.enc(x)
 
         fea_16 = E_features[4]
@@ -1235,6 +1285,7 @@ class Generator(nn.Module):
         masks_in,
         z,
         c,
+        mask_class=None,
         truncation_psi=1,
         truncation_cutoff=None,
         skip_w_avg_update=False,
@@ -1250,11 +1301,22 @@ class Generator(nn.Module):
         )
 
         if not return_stg1:
-            img = self.synthesis(images_in, masks_in, ws, noise_mode=noise_mode)
+            img = self.synthesis(
+                images_in,
+                masks_in,
+                ws,
+                mask_class=mask_class,
+                noise_mode=noise_mode,
+            )
             return img
         else:
             img, out_stg1 = self.synthesis(
-                images_in, masks_in, ws, noise_mode=noise_mode, return_stg1=True
+                images_in,
+                masks_in,
+                ws,
+                mask_class=mask_class,
+                noise_mode=noise_mode,
+                return_stg1=True,
             )
             return img, out_stg1
 

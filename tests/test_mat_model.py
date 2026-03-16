@@ -44,12 +44,12 @@ def make_mat_opt(tmp_path, **overrides):
     return opt
 
 
-def make_batch(path="/tmp/sample.png"):
+def make_batch(path="/tmp/sample.png", b_mask_value=1):
     real_a = torch.randn(1, 3, 256, 256)
     real_b = torch.randn(1, 3, 256, 256)
     a_mask = torch.zeros(1, 1, 256, 256)
     b_mask = torch.zeros(1, 1, 256, 256)
-    b_mask[:, :, 64:128, 96:160] = 1
+    b_mask[:, :, 64:128, 96:160] = b_mask_value
 
     return {
         "A": real_a,
@@ -119,6 +119,32 @@ def test_vendored_mat_generator_and_discriminator_shapes():
     assert fake_b_stg1.min().item() >= -1.0
 
 
+def test_vendored_mat_generator_mask_class_conditioning_keeps_rgb_output():
+    image = torch.randn(1, 3, 256, 256)
+    mask_keep = (torch.rand(1, 1, 256, 256) > 0.5).float()
+    mask_class = torch.zeros(1, 1, 256, 256)
+    mask_class[:, :, 64:128, 96:160] = 2.0
+    z = torch.randn(1, 512)
+
+    net_g = Generator(
+        z_dim=512,
+        c_dim=0,
+        w_dim=512,
+        img_resolution=256,
+        img_channels=3,
+        synthesis_kwargs={"mask_class_channels": 1},
+    )
+
+    fake_b, fake_b_stg1 = net_g(
+        image, mask_keep, z, None, mask_class=mask_class, return_stg1=True
+    )
+
+    assert fake_b.shape == image.shape
+    assert fake_b_stg1.shape == image.shape
+    assert fake_b.shape[1] == 3
+    assert fake_b_stg1.shape[1] == 3
+
+
 def test_mat_model_mask_conversion_and_eval_determinism(tmp_path):
     opt = make_mat_opt(tmp_path)
     opt.isTrain = False
@@ -154,6 +180,24 @@ def test_mat_model_mask_conversion_and_eval_determinism(tmp_path):
     assert model.eval_seeds != first_seeds
 
 
+def test_mat_model_mask_class_conditioning_map(tmp_path):
+    opt = make_mat_opt(
+        tmp_path, alg_mat_mask_class_conditioning=True, f_s_semantic_nclasses=4
+    )
+    model = MATModel(opt, rank=0)
+    batch = make_batch(b_mask_value=2)
+
+    model.set_input(batch)
+
+    expected_mask_class = torch.zeros_like(model.mask)
+    expected_mask_class[:, :, 64:128, 96:160] = 2.0
+    torch.testing.assert_close(model.mask_class, expected_mask_class)
+
+    model.inference(1, offset=0)
+    assert model.fake_B.shape[1] == 3
+    assert model.fake_B_stg1.shape[1] == 3
+
+
 class TinyMapping(nn.Module):
     def __init__(self, z_dim, w_dim):
         super().__init__()
@@ -183,7 +227,15 @@ class TinySynthesis(nn.Module):
         self.num_layers = 1
         self.conv = nn.Conv2d(img_channels + 1, img_channels, kernel_size=1)
 
-    def forward(self, images_in, masks_in, ws, noise_mode="random", return_stg1=False):
+    def forward(
+        self,
+        images_in,
+        masks_in,
+        ws,
+        mask_class=None,
+        noise_mode="random",
+        return_stg1=False,
+    ):
         style = ws[:, 0, :].mean(dim=1, keepdim=True).view(-1, 1, 1, 1)
         stage1 = torch.tanh(self.conv(torch.cat([images_in, masks_in], dim=1)) + style)
         final = stage1 * (1 - masks_in) + images_in * masks_in
@@ -214,6 +266,7 @@ class TinyGenerator(nn.Module):
         masks_in,
         z,
         c,
+        mask_class=None,
         truncation_psi=1,
         truncation_cutoff=None,
         skip_w_avg_update=False,
@@ -231,6 +284,7 @@ class TinyGenerator(nn.Module):
             images_in,
             masks_in,
             ws,
+            mask_class=mask_class,
             noise_mode=noise_mode,
             return_stg1=return_stg1,
         )
@@ -277,9 +331,14 @@ def test_mat_model_training_step_with_lazy_r1_and_ema(monkeypatch, tmp_path):
     monkeypatch.setattr(mat_model_module, "MATDiscriminator", TinyDiscriminator)
     monkeypatch.setattr(mat_model_module, "MATPerceptualLoss", TinyPerceptualLoss)
 
-    opt = make_mat_opt(tmp_path, alg_mat_d_reg_every=2)
+    opt = make_mat_opt(
+        tmp_path,
+        alg_mat_d_reg_every=2,
+        alg_mat_mask_class_conditioning=True,
+        f_s_semantic_nclasses=3,
+    )
     model = MATModel(opt, rank=0)
-    batch = make_batch()
+    batch = make_batch(b_mask_value=2)
 
     model.set_input(batch)
     model.optimize_parameters()
@@ -288,6 +347,7 @@ def test_mat_model_training_step_with_lazy_r1_and_ema(monkeypatch, tmp_path):
     assert torch.isfinite(model.loss_G_tot)
     assert torch.isfinite(model.loss_D_tot)
     assert hasattr(model, "netG_A_ema")
+    assert model.mask_class is not None
 
     model.set_input(batch)
     model.optimize_parameters()

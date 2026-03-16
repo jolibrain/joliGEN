@@ -92,6 +92,11 @@ class MATModel(BaseModel):
             choices=["random", "const", "none"],
             help="noise mode used by MAT during evaluation",
         )
+        parser.add_argument(
+            "--alg_mat_mask_class_conditioning",
+            action="store_true",
+            help="add a raw class-valued mask channel as extra MAT generator conditioning",
+        )
 
         parser.set_defaults(
             D_netDs=["none"],
@@ -159,6 +164,10 @@ class MATModel(BaseModel):
             raise ValueError("alg_mat_ema_kimg must be strictly positive")
         if opt.alg_mat_ema_rampup < 0:
             raise ValueError("alg_mat_ema_rampup must be non-negative")
+        if opt.alg_mat_mask_class_conditioning and opt.f_s_semantic_nclasses < 2:
+            raise ValueError(
+                "alg_mat_mask_class_conditioning requires f_s_semantic_nclasses >= 2"
+            )
 
         return opt
 
@@ -189,6 +198,11 @@ class MATModel(BaseModel):
             w_dim=opt.alg_mat_w_dim,
             img_resolution=opt.data_crop_size,
             img_channels=opt.model_output_nc,
+            synthesis_kwargs={
+                "mask_class_channels": 1
+                if opt.alg_mat_mask_class_conditioning
+                else 0
+            },
         )
 
         if opt.isTrain:
@@ -263,12 +277,26 @@ class MATModel(BaseModel):
             self.iter_calculator_init()
 
         self.mask = None
+        self.mask_class = None
         self.gt_image = None
         self.y_t = None
         self.output = None
         self.fake_B = None
         self.fake_B_stg1 = None
         self.eval_seeds = []
+
+    def _ensure_rgb_output(self, tensor, name):
+        expected_channels = self.opt.model_output_nc
+        if tensor.ndim != 4:
+            raise RuntimeError(
+                f"MAT {name} must be a 4D tensor, got shape {tuple(tensor.shape)}"
+            )
+        if tensor.shape[1] != expected_channels:
+            raise RuntimeError(
+                f"MAT {name} must have {expected_channels} channels, "
+                f"got shape {tuple(tensor.shape)}"
+            )
+        return tensor
 
     def _build_generator_param_groups(self):
         transformer_lr = self.opt.alg_mat_transformer_lr
@@ -311,6 +339,11 @@ class MATModel(BaseModel):
         hole_mask = (label_mask > 0).to(dtype=self.real_A.dtype).unsqueeze(1)
         self.mask = hole_mask
         self.mask_keep = 1.0 - hole_mask
+        if self.opt.alg_mat_mask_class_conditioning:
+            class_mask = label_mask.to(dtype=self.real_A.dtype).unsqueeze(1) * hole_mask
+            self.mask_class = class_mask
+        else:
+            self.mask_class = None
         self.y_t = self.real_A
         self.gt_image = self.real_B
 
@@ -412,9 +445,12 @@ class MATModel(BaseModel):
             self.real_A,
             self.mask_keep,
             ws,
+            mask_class=self.mask_class,
             noise_mode=self.opt.alg_mat_noise_mode_train,
             return_stg1=True,
         )
+        self.fake_B = self._ensure_rgb_output(self.fake_B, "fake_B")
+        self.fake_B_stg1 = self._ensure_rgb_output(self.fake_B_stg1, "fake_B_stg1")
         return self.fake_B, self.fake_B_stg1
 
     def forward(self):
@@ -454,6 +490,11 @@ class MATModel(BaseModel):
                         mask_keep[i : i + 1],
                         z,
                         None,
+                        mask_class=(
+                            None
+                            if self.mask_class is None
+                            else self.mask_class[i : i + 1]
+                        ),
                         truncation_psi=self.opt.alg_mat_truncation_psi,
                         noise_mode=self.opt.alg_mat_noise_mode_eval,
                         return_stg1=True,
@@ -463,7 +504,11 @@ class MATModel(BaseModel):
         finally:
             netG.train(was_training)
 
-        return torch.cat(outputs, dim=0), torch.cat(outputs_stg1, dim=0)
+        fake_B = self._ensure_rgb_output(torch.cat(outputs, dim=0), "fake_B")
+        fake_B_stg1 = self._ensure_rgb_output(
+            torch.cat(outputs_stg1, dim=0), "fake_B_stg1"
+        )
+        return fake_B, fake_B_stg1
 
     def _run_discriminator(self, images, images_stg1):
         netD = self._unwrap_net(self.netD_A)
