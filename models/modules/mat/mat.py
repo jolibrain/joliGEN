@@ -9,6 +9,7 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
 from .torch_utils import misc
 from .torch_utils import persistence
+from ..temporal_motion import MotionModule
 from .basic_module import (
     FullyConnectedLayer,
     Conv2dLayer,
@@ -1146,6 +1147,10 @@ class SynthesisNet(nn.Module):
         use_noise=True,
         demodulate=True,
         mask_class_channels=0,
+        motion_enabled=False,
+        motion_max_frames=8,
+        motion_num_attention_heads=8,
+        motion_num_transformer_blocks=2,
     ):
         super().__init__()
         resolution_log2 = int(np.log2(img_resolution))
@@ -1155,6 +1160,8 @@ class SynthesisNet(nn.Module):
         self.img_resolution = img_resolution
         self.resolution_log2 = resolution_log2
         self.mask_class_channels = mask_class_channels
+        self.motion_enabled = motion_enabled
+        self.motion_max_frames = motion_max_frames
 
         # first stage
         self.first_stage = FirstStage(
@@ -1188,6 +1195,173 @@ class SynthesisNet(nn.Module):
         self.dec = Decoder(
             resolution_log2, activation, style_dim, use_noise, demodulate, img_channels
         )
+        self.motion_module = None
+        if motion_enabled:
+            self.motion_module = MotionModule(
+                in_channels=nf(4),
+                num_attention_heads=motion_num_attention_heads,
+                num_transformer_block=motion_num_transformer_blocks,
+                attention_block_types=("Temporal_Self", "Temporal_Self"),
+                temporal_position_encoding=True,
+                temporal_position_encoding_max_len=motion_max_frames,
+                temporal_attention_dim_div=1,
+                zero_initialize=True,
+            )
+        if mask_class_channels > 0:
+            self._zero_mask_class_input_channels()
+
+    def _zero_mask_class_input_channels(self):
+        with torch.no_grad():
+            self.first_stage.conv_first.conv.weight[:, -self.mask_class_channels :] = 0
+            first_enc_block = getattr(
+                self.enc,
+                f"EncConv_Block_{self.img_resolution}x{self.img_resolution}",
+            )
+            first_enc_block.conv0.weight[:, -self.mask_class_channels :] = 0
+
+    def _ensure_mask_class(self, images_in, mask_class):
+        if self.mask_class_channels == 0:
+            return None
+        if mask_class is None:
+            mask_shape = list(images_in.shape[:-3]) + [
+                self.mask_class_channels,
+                images_in.shape[-2],
+                images_in.shape[-1],
+            ]
+            return torch.zeros(
+                mask_shape,
+                device=images_in.device,
+                dtype=images_in.dtype,
+            )
+        return mask_class
+
+    def _inject_latent_into_bottleneck(self, fea_16, ws):
+        mul_map = torch.ones_like(fea_16) * 0.5
+        mul_map = F.dropout(mul_map, training=self.training)
+        add_n = self.to_square(ws[:, 0]).view(-1, 16, 16).unsqueeze(1)
+        add_n = F.interpolate(
+            add_n, size=fea_16.size()[-2:], mode="bilinear", align_corners=False
+        )
+        return fea_16 * mul_map + add_n * (1 - mul_map)
+
+    def _decode_current_frame(self, fea_16, ws, e_features, images_in, masks_in, noise_mode):
+        gs = self.to_style(fea_16)
+        img = self.dec(fea_16, ws, gs, e_features, noise_mode=noise_mode)
+        img = img * (1 - masks_in) + images_in * masks_in
+        return img.clamp(-1, 1)
+
+    def _forward_single_frame(
+        self,
+        images_in,
+        masks_in,
+        ws,
+        mask_class=None,
+        noise_mode="random",
+        return_stg1=False,
+    ):
+        mask_class = self._ensure_mask_class(images_in, mask_class)
+
+        out_stg1 = self.first_stage(
+            images_in, masks_in, ws, mask_class=mask_class, noise_mode=noise_mode
+        )
+
+        x = images_in * masks_in + out_stg1 * (1 - masks_in)
+        x_inputs = [masks_in - 0.5, x, images_in * masks_in]
+        if self.mask_class_channels > 0:
+            x_inputs.append(mask_class)
+        e_features = self.enc(torch.cat(x_inputs, dim=1))
+
+        bottleneck_key = min(e_features.keys())
+        fea_16 = self._inject_latent_into_bottleneck(e_features[bottleneck_key], ws)
+        e_features[bottleneck_key] = fea_16
+
+        img = self._decode_current_frame(
+            fea_16, ws, e_features, images_in, masks_in, noise_mode
+        )
+        if not return_stg1:
+            return img
+        return img, out_stg1
+
+    def _forward_motion(
+        self,
+        images_in,
+        masks_in,
+        ws,
+        mask_class=None,
+        noise_mode="random",
+        return_stg1=False,
+    ):
+        if self.motion_module is None:
+            raise RuntimeError("Motion synthesis requested but motion_module is missing")
+        if images_in.dim() != 5 or masks_in.dim() != 5:
+            raise ValueError(
+                "Motion-enabled MAT synthesis expects (B, F, C, H, W) inputs"
+            )
+
+        batch_size, num_frames = images_in.shape[:2]
+        if num_frames < 2:
+            raise ValueError("Motion-enabled MAT synthesis requires at least 2 frames")
+        if num_frames > self.motion_max_frames:
+            raise ValueError(
+                f"Received {num_frames} frames, but motion_max_frames={self.motion_max_frames}"
+            )
+
+        mask_class = self._ensure_mask_class(images_in, mask_class)
+
+        images_flat = images_in.reshape(
+            batch_size * num_frames, *images_in.shape[2:]
+        )
+        masks_flat = masks_in.reshape(batch_size * num_frames, *masks_in.shape[2:])
+        mask_class_flat = None
+        if mask_class is not None:
+            mask_class_flat = mask_class.reshape(
+                batch_size * num_frames, *mask_class.shape[2:]
+            )
+        ws_frames = (
+            ws.unsqueeze(1)
+            .expand(-1, num_frames, -1, -1)
+            .reshape(batch_size * num_frames, ws.shape[1], ws.shape[2])
+        )
+
+        out_stg1 = self.first_stage(
+            images_flat,
+            masks_flat,
+            ws_frames,
+            mask_class=mask_class_flat,
+            noise_mode=noise_mode,
+        )
+
+        x = images_flat * masks_flat + out_stg1 * (1 - masks_flat)
+        x_inputs = [masks_flat - 0.5, x, images_flat * masks_flat]
+        if self.mask_class_channels > 0:
+            x_inputs.append(mask_class_flat)
+        encoded_flat = self.enc(torch.cat(x_inputs, dim=1))
+
+        encoded_seq = {
+            key: value.reshape(batch_size, num_frames, *value.shape[1:])
+            for key, value in encoded_flat.items()
+        }
+        bottleneck_key = min(encoded_seq.keys())
+        fea_16 = self.motion_module(encoded_seq[bottleneck_key])[:, -1]
+
+        current_features = {
+            key: value[:, -1].contiguous() for key, value in encoded_seq.items()
+        }
+        current_images = images_in[:, -1]
+        current_masks = masks_in[:, -1]
+        current_stg1 = out_stg1.reshape(batch_size, num_frames, *out_stg1.shape[1:])[
+            :, -1
+        ]
+
+        fea_16 = self._inject_latent_into_bottleneck(fea_16, ws)
+        current_features[bottleneck_key] = fea_16
+        img = self._decode_current_frame(
+            fea_16, ws, current_features, current_images, current_masks, noise_mode
+        )
+
+        if not return_stg1:
+            return img
+        return img, current_stg1
 
     def forward(
         self,
@@ -1198,52 +1372,23 @@ class SynthesisNet(nn.Module):
         noise_mode="random",
         return_stg1=False,
     ):
-        if self.mask_class_channels > 0 and mask_class is None:
-            mask_class = torch.zeros(
-                images_in.shape[0],
-                self.mask_class_channels,
-                images_in.shape[2],
-                images_in.shape[3],
-                device=images_in.device,
-                dtype=images_in.dtype,
+        if self.motion_enabled and images_in.dim() == 5:
+            return self._forward_motion(
+                images_in,
+                masks_in,
+                ws,
+                mask_class=mask_class,
+                noise_mode=noise_mode,
+                return_stg1=return_stg1,
             )
-
-        out_stg1 = self.first_stage(
-            images_in, masks_in, ws, mask_class=mask_class, noise_mode=noise_mode
+        return self._forward_single_frame(
+            images_in,
+            masks_in,
+            ws,
+            mask_class=mask_class,
+            noise_mode=noise_mode,
+            return_stg1=return_stg1,
         )
-
-        # encoder
-        x = images_in * masks_in + out_stg1 * (1 - masks_in)
-        x_inputs = [masks_in - 0.5, x, images_in * masks_in]
-        if self.mask_class_channels > 0:
-            x_inputs.append(mask_class)
-        x = torch.cat(x_inputs, dim=1)
-        E_features = self.enc(x)
-
-        fea_16 = E_features[4]
-        mul_map = torch.ones_like(fea_16) * 0.5
-        mul_map = F.dropout(mul_map, training=True)
-        add_n = self.to_square(ws[:, 0]).view(-1, 16, 16).unsqueeze(1)
-        add_n = F.interpolate(
-            add_n, size=fea_16.size()[-2:], mode="bilinear", align_corners=False
-        )
-        fea_16 = fea_16 * mul_map + add_n * (1 - mul_map)
-        E_features[4] = fea_16
-
-        # style
-        gs = self.to_style(fea_16)
-
-        # decoder
-        img = self.dec(fea_16, ws, gs, E_features, noise_mode=noise_mode)
-
-        # ensemble
-        img = img * (1 - masks_in) + images_in * masks_in
-        img = img.clamp(-1, 1)
-
-        if not return_stg1:
-            return img
-        else:
-            return img, out_stg1
 
 
 @persistence.persistent_class
