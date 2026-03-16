@@ -304,7 +304,7 @@ def load_original_frame(img_in):
     return frame
 
 
-def generate_frame(model, opt, device, img_in, mask_in, img_width, img_height, args):
+def prepare_frame_context(opt, device, img_in, mask_in, img_width, img_height, args):
     bbox_ref_id = args.bbox_ref_id
     bbox_insert_region = None
     original_frame = None
@@ -324,9 +324,51 @@ def generate_frame(model, opt, device, img_in, mask_in, img_width, img_height, a
         device,
         bbox_ref_id=bbox_ref_id,
     )
-    model.set_input(batch)
-    model.inference(1)
-    output_bgr = tensor_to_bgr_uint8(model.fake_B)
+    return {
+        "batch": batch,
+        "original_np": original_np,
+        "bbox_insert_region": bbox_insert_region,
+        "original_frame": original_frame,
+        "img_in": img_in,
+    }
+
+
+def build_motion_window(frame_contexts, window_size):
+    if len(frame_contexts) == 0:
+        raise ValueError("Cannot build a MAT motion window from an empty frame list")
+
+    if len(frame_contexts) >= window_size:
+        return frame_contexts[-window_size:]
+
+    padding = [frame_contexts[0]] * (window_size - len(frame_contexts))
+    return padding + frame_contexts
+
+
+def build_motion_batch(frame_contexts, current_img_path):
+    batch = {
+        "A": torch.stack(
+            [frame_context["batch"]["A"][0] for frame_context in frame_contexts], dim=0
+        ).unsqueeze(0),
+        "B": torch.stack(
+            [frame_context["batch"]["B"][0] for frame_context in frame_contexts], dim=0
+        ).unsqueeze(0),
+        "A_label_mask": torch.stack(
+            [frame_context["batch"]["A_label_mask"][0] for frame_context in frame_contexts],
+            dim=0,
+        ).unsqueeze(0),
+        "B_label_mask": torch.stack(
+            [frame_context["batch"]["B_label_mask"][0] for frame_context in frame_contexts],
+            dim=0,
+        ).unsqueeze(0),
+        "A_img_paths": [current_img_path],
+        "B_img_paths": [current_img_path],
+    }
+    return batch
+
+
+def compose_output_frame(frame_context, output_bgr, args):
+    bbox_insert_region = frame_context["bbox_insert_region"]
+    original_frame = frame_context["original_frame"]
 
     if bbox_insert_region is not None:
         x0, y0, x1, y1 = bbox_insert_region
@@ -344,8 +386,18 @@ def generate_frame(model, opt, device, img_in, mask_in, img_width, img_height, a
     if not args.compare:
         return output_bgr
 
-    input_bgr = cv2.cvtColor(original_np, cv2.COLOR_RGB2BGR)
+    input_bgr = cv2.cvtColor(frame_context["original_np"], cv2.COLOR_RGB2BGR)
     return np.concatenate([input_bgr, output_bgr], axis=1)
+
+
+def generate_frame(model, opt, device, img_in, mask_in, img_width, img_height, args):
+    frame_context = prepare_frame_context(
+        opt, device, img_in, mask_in, img_width, img_height, args
+    )
+    model.set_input(frame_context["batch"])
+    model.inference(1)
+    output_bgr = tensor_to_bgr_uint8(model.fake_B)
+    return compose_output_frame(frame_context, output_bgr, args)
 
 
 def save_frame(frame, dir_out, name, idx, num_frames):
@@ -355,6 +407,10 @@ def save_frame(frame, dir_out, name, idx, num_frames):
 
 def run_video_inference(args):
     model, opt, device = load_mat_model(args.model_in_file, args.cpu, args.gpuid)
+    use_motion = getattr(opt, "alg_mat_motion", False)
+    motion_window_size = (
+        getattr(opt, "data_temporal_number_frames", 1) if use_motion else 1
+    )
 
     img_width = args.img_width if args.img_width is not None else opt.data_crop_size
     img_height = args.img_height if args.img_height is not None else opt.data_crop_size
@@ -374,6 +430,7 @@ def run_video_inference(args):
     video_size = None
     total_generation_time = 0.0
     num_generated = 0
+    frame_history = []
     try:
         with torch.inference_mode():
             progress = tqdm(
@@ -383,9 +440,27 @@ def run_video_inference(args):
                 img_in = resolve_path(args.data_prefix, image)
                 mask_in = resolve_path(args.data_prefix, mask)
                 start_time = time.perf_counter()
-                frame = generate_frame(
-                    model, opt, device, img_in, mask_in, img_width, img_height, args
+                frame_context = prepare_frame_context(
+                    opt, device, img_in, mask_in, img_width, img_height, args
                 )
+                if use_motion:
+                    frame_history.append(frame_context)
+                    if len(frame_history) > motion_window_size:
+                        frame_history = frame_history[-motion_window_size:]
+                    model.set_input(
+                        build_motion_batch(
+                            build_motion_window(frame_history, motion_window_size),
+                            img_in,
+                        )
+                    )
+                    model.inference(1)
+                    output_bgr = tensor_to_bgr_uint8(model.fake_B)
+                    frame = compose_output_frame(frame_context, output_bgr, args)
+                else:
+                    model.set_input(frame_context["batch"])
+                    model.inference(1)
+                    output_bgr = tensor_to_bgr_uint8(model.fake_B)
+                    frame = compose_output_frame(frame_context, output_bgr, args)
                 if out is None:
                     video_size = (frame.shape[1], frame.shape[0])
                     out = cv2.VideoWriter(

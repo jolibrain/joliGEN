@@ -12,6 +12,7 @@ from util.model_util import VisionRotaryEmbeddingFast, get_2d_sincos_pos_embed, 
 from einops import rearrange, repeat
 import numpy as np
 from models.modules.unet_generator_attn.unet_attn_utils import zero_module
+from ..temporal_motion import MotionModule as SharedMotionModule
 
 
 # ============================================================
@@ -779,7 +780,7 @@ class JiTViD(nn.Module):
             ]
         )
 
-        self.motion_module = MotionModule(
+        self.motion_module = SharedMotionModule(
             in_channels=hidden_size,
             num_attention_heads=motion_num_heads,
             num_transformer_block=motion_num_layers,

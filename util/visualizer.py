@@ -205,7 +205,12 @@ class Visualizer:
             for group in visuals:
                 new_group = {}
                 for name, img in group.items():
-                    if ("gt_image" in name) or ("y_t" in name) or ("mask" in name):
+                    if (
+                        ("previous_frame" in name)
+                        or ("gt_image" in name)
+                        or ("y_t" in name)
+                        or ("mask" in name)
+                    ):
                         new_group[name] = img
                     elif name.startswith(out_key):
                         new_group["output"] = img
