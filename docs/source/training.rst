@@ -249,3 +249,18 @@ Dataset: https://joligen.com/datasets/online_mario2sonic_lite2.zip
 
 .. image:: _static/ddpm_vid_ft_ref_visdom.png
 
+****************************************************
+ Flow Matching training for object insertion / inpainting
+****************************************************
+Trains a basic flow matching model for object insertion/inpainting based on video frames.
+
+Dataset: /path/to/data/online_mario2sonic_video
+
+.. code:: bash
+
+    python3 train.py
+      --dataroot /path/to/data/online_mario2sonic_full \
+      --checkpoints_dir /path/to/checkpoints \
+      --name mario_b2b_vid \
+      --config_json examples/example_b2b_vid_mario.json \
+
