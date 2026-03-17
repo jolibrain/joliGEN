@@ -75,7 +75,7 @@ Here are all the available options to call with `train.py`
 | --G_unet_vid_num_transformer_blocks | int | 2 | number of unet_vid motion module transformer blocks, 2, 1, ... |
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
 | --G_vit_disable_bottleneck | flag |  | Disable JiT bottleneck by forcing bottleneck_dim=hidden_size for vit/vit_vid. |
-| --G_vit_variant | string | JiT-B/16 | Selects the ViT backbone when --G_netG vit |
+| --G_vit_variant | string | JiT-B/16 | Selects the ViT backbone when --G_netG vit (use JiT-\*) or vit_vid (use JiTVid-\*) |
 
 ## Algorithm-specific
 
