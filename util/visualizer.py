@@ -268,7 +268,7 @@ class Visualizer:
                             images.append(image_numpy.transpose([2, 0, 1]))
                             pos = 0
                             while pos < npos:
-                                label_html_row += "<td>%s</td>" % label_html_row
+                                label_html_row += "<td>%s</td>" % label
                                 idx += 1
                                 if idx % ncols == 0:
                                     label_html += "<tr>%s</tr>" % label_html_row

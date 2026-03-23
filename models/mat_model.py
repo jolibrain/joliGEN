@@ -227,9 +227,16 @@ class MATModel(BaseModel):
                 self.opt.test_batch_size, self.opt.output_num_images
             )
 
-        self.gen_visual_names = ["gt_image_", "y_t_", "mask_", "output_"]
         if opt.alg_mat_motion:
-            self.gen_visual_names.insert(0, "previous_frame_")
+            self.gen_visual_names = [
+                "previous_frame_",
+                "y_t_",
+                "gt_image_",
+                "mask_",
+                "output_",
+            ]
+        else:
+            self.gen_visual_names = ["gt_image_", "y_t_", "mask_", "output_"]
         for k in range(max_visual_outputs):
             self.visual_names.append([name + str(k) for name in self.gen_visual_names])
 
