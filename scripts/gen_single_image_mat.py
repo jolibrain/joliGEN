@@ -111,7 +111,9 @@ def load_bbox_mask_crop(opt, img_path, bbox_path, img_width, img_height, bbox_re
     if img_width != img_height:
         raise ValueError("MAT bbox inference requires square output dimensions")
 
-    mask_random_offset = getattr(opt, "data_online_creation_mask_random_offset_A", [0.0])
+    mask_random_offset = getattr(
+        opt, "data_online_creation_mask_random_offset_A", [0.0]
+    )
     if mask_random_offset != [0.0]:
         warnings.warn(
             "disabling data_online_creation_mask_random_offset_A in MAT inference mode"

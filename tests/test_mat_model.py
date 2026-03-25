@@ -341,7 +341,9 @@ class TinySynthesis(nn.Module):
         style = ws[:, 0, :].mean(dim=1, keepdim=True)
         if images_in.ndim == 5:
             batch_size, num_frames = images_in.shape[:2]
-            images_flat = images_in.reshape(batch_size * num_frames, *images_in.shape[2:])
+            images_flat = images_in.reshape(
+                batch_size * num_frames, *images_in.shape[2:]
+            )
             masks_flat = masks_in.reshape(batch_size * num_frames, *masks_in.shape[2:])
             mask_class_flat = None
             if self.mask_class_channels > 0 and mask_class is not None:
@@ -369,9 +371,13 @@ class TinySynthesis(nn.Module):
             enc_inputs = [stage1, masks_flat]
             if self.mask_class_channels > 0:
                 enc_inputs.append(mask_class_flat)
-            encoded = torch.tanh(
-                self.enc(torch.cat(enc_inputs, dim=1))
-            ).reshape(batch_size, num_frames, images_in.shape[2], images_in.shape[3], images_in.shape[4])
+            encoded = torch.tanh(self.enc(torch.cat(enc_inputs, dim=1))).reshape(
+                batch_size,
+                num_frames,
+                images_in.shape[2],
+                images_in.shape[3],
+                images_in.shape[4],
+            )
 
             if self.motion_enabled:
                 encoded = self.motion_module(encoded.permute(0, 2, 1, 3, 4)).permute(
@@ -703,12 +709,18 @@ def test_mat_motion_loader_allows_missing_motion_keys(monkeypatch, tmp_path):
         motion_model.netG_A, non_motion_generator.state_dict()
     )
 
-    loaded_first_stage = motion_model.netG_A.state_dict()["synthesis.first_stage.weight"]
-    source_first_stage = non_motion_generator.state_dict()["synthesis.first_stage.weight"]
+    loaded_first_stage = motion_model.netG_A.state_dict()[
+        "synthesis.first_stage.weight"
+    ]
+    source_first_stage = non_motion_generator.state_dict()[
+        "synthesis.first_stage.weight"
+    ]
     torch.testing.assert_close(
         loaded_first_stage[:, : source_first_stage.shape[1]], source_first_stage
     )
-    assert torch.count_nonzero(loaded_first_stage[:, source_first_stage.shape[1] :]) == 0
+    assert (
+        torch.count_nonzero(loaded_first_stage[:, source_first_stage.shape[1] :]) == 0
+    )
 
     loaded_enc = motion_model.netG_A.state_dict()["synthesis.enc.weight"]
     source_enc = non_motion_generator.state_dict()["synthesis.enc.weight"]
