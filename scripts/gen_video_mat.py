@@ -83,6 +83,31 @@ def parse_args():
         default=-1,
         help="bbox id to use when a frame mask path points to a bbox .txt file",
     )
+    parser.add_argument(
+        "--motion_num_frames",
+        type=int,
+        default=None,
+        help=(
+            "optional temporal window size for motion-enabled MAT inference; "
+            "defaults to data_temporal_number_frames from train_config.json"
+        ),
+    )
+    parser.add_argument(
+        "--motion_autoregressive",
+        action="store_true",
+        help=(
+            "motion-mode only: feed generated frames back as conditioning history "
+            "for subsequent frames"
+        ),
+    )
+    parser.add_argument(
+        "--freeze_noise_across_frames",
+        action="store_true",
+        help=(
+            "freeze MAT eval randomness across the full video by reusing the first "
+            "frame path as seed source for all frames"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -129,7 +154,9 @@ def load_bbox_entries(mask_in, select_cat):
             cat = int(parts[0])
             if select_cat != -1 and cat != select_cat:
                 continue
-            bbox_entries.append([cat, int(parts[1]), int(parts[2]), int(parts[3]), int(parts[4])])
+            bbox_entries.append(
+                [cat, int(parts[1]), int(parts[2]), int(parts[3]), int(parts[4])]
+            )
     if len(bbox_entries) == 0:
         raise ValueError(f"No bbox found in {mask_in}")
     return bbox_entries
@@ -344,7 +371,8 @@ def build_motion_window(frame_contexts, window_size):
     return padding + frame_contexts
 
 
-def build_motion_batch(frame_contexts, current_img_path):
+def build_motion_batch(frame_contexts, current_img_path, seed_img_path=None):
+    seed_path = current_img_path if seed_img_path is None else seed_img_path
     batch = {
         "A": torch.stack(
             [frame_context["batch"]["A"][0] for frame_context in frame_contexts], dim=0
@@ -353,17 +381,57 @@ def build_motion_batch(frame_contexts, current_img_path):
             [frame_context["batch"]["B"][0] for frame_context in frame_contexts], dim=0
         ).unsqueeze(0),
         "A_label_mask": torch.stack(
-            [frame_context["batch"]["A_label_mask"][0] for frame_context in frame_contexts],
+            [
+                frame_context["batch"]["A_label_mask"][0]
+                for frame_context in frame_contexts
+            ],
             dim=0,
         ).unsqueeze(0),
         "B_label_mask": torch.stack(
-            [frame_context["batch"]["B_label_mask"][0] for frame_context in frame_contexts],
+            [
+                frame_context["batch"]["B_label_mask"][0]
+                for frame_context in frame_contexts
+            ],
             dim=0,
         ).unsqueeze(0),
-        "A_img_paths": [current_img_path],
-        "B_img_paths": [current_img_path],
+        "A_img_paths": [seed_path],
+        "B_img_paths": [seed_path],
     }
     return batch
+
+
+def freeze_batch_seed_path(batch, seed_img_path):
+    batch["A_img_paths"] = [seed_img_path]
+    if "B_img_paths" in batch:
+        batch["B_img_paths"] = [seed_img_path]
+    return batch
+
+
+def resolve_motion_window_size(opt, args):
+    use_motion = getattr(opt, "alg_mat_motion", False)
+    if not use_motion:
+        if args.motion_num_frames is not None:
+            raise ValueError(
+                "--motion_num_frames can only be used with motion-enabled MAT checkpoints"
+            )
+        return False, 1
+
+    default_window = int(getattr(opt, "data_temporal_number_frames", 2))
+    max_supported = int(getattr(opt, "alg_mat_motion_max_frames", default_window))
+    window_size = (
+        default_window
+        if args.motion_num_frames is None
+        else int(args.motion_num_frames)
+    )
+
+    if window_size < 2:
+        raise ValueError("motion_num_frames must be >= 2")
+    if window_size > max_supported:
+        raise ValueError(
+            f"motion_num_frames={window_size} exceeds alg_mat_motion_max_frames={max_supported}"
+        )
+
+    return True, window_size
 
 
 def compose_output_frame(frame_context, output_bgr, args):
@@ -407,10 +475,11 @@ def save_frame(frame, dir_out, name, idx, num_frames):
 
 def run_video_inference(args):
     model, opt, device = load_mat_model(args.model_in_file, args.cpu, args.gpuid)
-    use_motion = getattr(opt, "alg_mat_motion", False)
-    motion_window_size = (
-        getattr(opt, "data_temporal_number_frames", 1) if use_motion else 1
-    )
+    use_motion, motion_window_size = resolve_motion_window_size(opt, args)
+    if args.motion_autoregressive and not use_motion:
+        raise ValueError(
+            "--motion_autoregressive can only be used with motion-enabled MAT checkpoints"
+        )
 
     img_width = args.img_width if args.img_width is not None else opt.data_crop_size
     img_height = args.img_height if args.img_height is not None else opt.data_crop_size
@@ -423,6 +492,10 @@ def run_video_inference(args):
 
     if len(frame_specs) == 0:
         raise ValueError(f"No valid image/mask pairs found in {args.dataroot}")
+
+    fixed_seed_img_path = None
+    if args.freeze_noise_across_frames:
+        fixed_seed_img_path = resolve_path(args.data_prefix, frame_specs[0][0])
 
     os.makedirs(args.dir_out, exist_ok=True)
     video_path = os.path.join(args.dir_out, args.name + "_generated_video.avi")
@@ -451,13 +524,19 @@ def run_video_inference(args):
                         build_motion_batch(
                             build_motion_window(frame_history, motion_window_size),
                             img_in,
+                            seed_img_path=fixed_seed_img_path,
                         )
                     )
                     model.inference(1)
+                    if args.motion_autoregressive:
+                        frame_context["batch"]["B"] = model.fake_B.detach().clone()
                     output_bgr = tensor_to_bgr_uint8(model.fake_B)
                     frame = compose_output_frame(frame_context, output_bgr, args)
                 else:
-                    model.set_input(frame_context["batch"])
+                    batch = frame_context["batch"]
+                    if fixed_seed_img_path is not None:
+                        batch = freeze_batch_seed_path(batch, fixed_seed_img_path)
+                    model.set_input(batch)
                     model.inference(1)
                     output_bgr = tensor_to_bgr_uint8(model.fake_B)
                     frame = compose_output_frame(frame_context, output_bgr, args)
@@ -470,7 +549,9 @@ def run_video_inference(args):
                         video_size,
                     )
                     if not out.isOpened():
-                        raise RuntimeError(f"Could not open video writer for {video_path}")
+                        raise RuntimeError(
+                            f"Could not open video writer for {video_path}"
+                        )
                 elif (frame.shape[1], frame.shape[0]) != video_size:
                     raise ValueError(
                         f"Frame size {(frame.shape[1], frame.shape[0])} does not match video size {video_size}"

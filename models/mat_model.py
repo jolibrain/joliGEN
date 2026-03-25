@@ -121,6 +121,16 @@ class MATModel(BaseModel):
             default=2,
             help="number of temporal transformer blocks used by the MAT motion module",
         )
+        parser.add_argument(
+            "--alg_mat_motion_prob_use_previous_frames",
+            type=float,
+            default=1.0,
+            help=(
+                "probability to keep previous-frame motion conditioning during training; "
+                "with complementary probability, previous frames are replaced by the current "
+                "masked frame to train no-conditioning behavior"
+            ),
+        )
 
         parser.set_defaults(
             D_netDs=["none"],
@@ -211,6 +221,13 @@ class MATModel(BaseModel):
             raise ValueError("alg_mat_motion_num_attention_heads must be > 0")
         if opt.alg_mat_motion_num_transformer_blocks <= 0:
             raise ValueError("alg_mat_motion_num_transformer_blocks must be > 0")
+        if (
+            opt.alg_mat_motion_prob_use_previous_frames < 0.0
+            or opt.alg_mat_motion_prob_use_previous_frames > 1.0
+        ):
+            raise ValueError(
+                "alg_mat_motion_prob_use_previous_frames must be in [0, 1]"
+            )
 
         return opt
 
@@ -251,9 +268,7 @@ class MATModel(BaseModel):
             img_resolution=opt.data_crop_size,
             img_channels=opt.model_output_nc,
             synthesis_kwargs={
-                "mask_class_channels": 1
-                if opt.alg_mat_mask_class_conditioning
-                else 0,
+                "mask_class_channels": 1 if opt.alg_mat_mask_class_conditioning else 0,
                 "motion_enabled": opt.alg_mat_motion,
                 "motion_max_frames": opt.alg_mat_motion_max_frames,
                 "motion_num_attention_heads": opt.alg_mat_motion_num_attention_heads,
@@ -341,6 +356,7 @@ class MATModel(BaseModel):
         self.previous_frame = None
         self.real_A_seq = None
         self.real_B_seq = None
+        self.motion_conditioning_keep_mask = None
         self.gt_image = None
         self.y_t = None
         self.output = None
@@ -371,11 +387,7 @@ class MATModel(BaseModel):
         for name, param in self.netG_A.named_parameters():
             if not param.requires_grad:
                 continue
-            if (
-                "tran" in name
-                or "Tran" in name
-                or "motion_module" in name
-            ):
+            if "tran" in name or "Tran" in name or "motion_module" in name:
                 transformer_params.append(param)
             else:
                 base_params.append(param)
@@ -424,6 +436,51 @@ class MATModel(BaseModel):
     def _motion_sequence_length(self):
         return max(2, self.opt.data_temporal_number_frames)
 
+    def _apply_motion_conditioning_dropout(self):
+        if not self.opt.alg_mat_motion or not self.opt.isTrain:
+            self.motion_conditioning_keep_mask = None
+            return
+
+        keep_prob = float(self.opt.alg_mat_motion_prob_use_previous_frames)
+        if keep_prob >= 1.0:
+            self.motion_conditioning_keep_mask = None
+            return
+
+        if self.real_A_seq is None or self.mask_keep_seq is None:
+            self.motion_conditioning_keep_mask = None
+            return
+
+        num_frames = self.real_A_seq.shape[1]
+        if num_frames < 2:
+            self.motion_conditioning_keep_mask = None
+            return
+
+        keep_mask = (
+            torch.rand((self.real_A_seq.shape[0],), device=self.real_A_seq.device)
+            < keep_prob
+        )
+        drop_mask = ~keep_mask
+        self.motion_conditioning_keep_mask = keep_mask
+
+        if not drop_mask.any():
+            return
+
+        history_length = num_frames - 1
+        current_frame = self.real_A_seq[:, -1:].clone()
+        current_mask_keep = self.mask_keep_seq[:, -1:].clone()
+        self.real_A_seq[drop_mask, :-1] = current_frame[drop_mask].expand(
+            -1, history_length, -1, -1, -1
+        )
+        self.mask_keep_seq[drop_mask, :-1] = current_mask_keep[drop_mask].expand(
+            -1, history_length, -1, -1, -1
+        )
+
+        if self.mask_class_seq is not None:
+            current_mask_class = self.mask_class_seq[:, -1:].clone()
+            self.mask_class_seq[drop_mask, :-1] = current_mask_class[drop_mask].expand(
+                -1, history_length, -1, -1, -1
+            )
+
     def _repeat_along_time(self, tensor, sequence_length):
         if tensor.ndim == 4:
             return tensor.unsqueeze(1).repeat(1, sequence_length, 1, 1, 1)
@@ -464,6 +521,7 @@ class MATModel(BaseModel):
 
     def set_input(self, data):
         super().set_input(data)
+        self.motion_conditioning_keep_mask = None
 
         use_ref_masks = not self.opt.alg_mat_motion
         self.input_A_label_mask = self._load_label_mask(
@@ -516,14 +574,13 @@ class MATModel(BaseModel):
                 [source_b_seq[:, :-1], source_a_seq[:, -1:]], dim=1
             )
 
-            hole_mask = (label_mask_seq > 0).to(dtype=self.real_A_seq.dtype).unsqueeze(2)
+            hole_mask = (
+                (label_mask_seq > 0).to(dtype=self.real_A_seq.dtype).unsqueeze(2)
+            )
             self.mask_seq = torch.zeros_like(hole_mask)
             self.mask_seq[:, -1] = hole_mask[:, -1]
             self.mask_keep_seq = torch.ones_like(self.mask_seq)
             self.mask_keep_seq[:, -1] = 1.0 - self.mask_seq[:, -1]
-            self.mask = self.mask_seq[:, -1]
-            self.mask_keep = self.mask_keep_seq[:, -1]
-            self.previous_frame = self.real_B_seq[:, -2]
 
             if self.opt.alg_mat_mask_class_conditioning:
                 class_mask_last = (
@@ -537,6 +594,10 @@ class MATModel(BaseModel):
                 self.mask_class_seq = None
                 self.mask_class = None
 
+            self._apply_motion_conditioning_dropout()
+            self.mask = self.mask_seq[:, -1]
+            self.mask_keep = self.mask_keep_seq[:, -1]
+            self.previous_frame = self.real_A_seq[:, -2]
             self.real_A = self.real_A_seq[:, -1]
             self.real_B = self.real_B_seq[:, -1]
         else:
@@ -548,6 +609,7 @@ class MATModel(BaseModel):
             self.previous_frame = None
             self.real_A_seq = None
             self.real_B_seq = None
+            self.motion_conditioning_keep_mask = None
             if self.opt.alg_mat_mask_class_conditioning:
                 class_mask = (
                     label_mask.to(dtype=self.real_A.dtype).unsqueeze(1) * hole_mask
@@ -663,7 +725,9 @@ class MATModel(BaseModel):
         netG = self._unwrap_net(self.netG_A)
         z = self._sample_train_latent(self.get_current_batch_size())
         ws = self._map_with_style_mixing(netG, z, truncation_psi=1.0)
-        images_in, mask_keep, mask_class = self._get_generator_inputs_for_current_batch()
+        images_in, mask_keep, mask_class = (
+            self._get_generator_inputs_for_current_batch()
+        )
         self.fake_B, self.fake_B_stg1 = netG.synthesis(
             images_in,
             mask_keep,
@@ -680,7 +744,9 @@ class MATModel(BaseModel):
         if self.opt.isTrain:
             self._forward_generator_train()
         else:
-            images_in, mask_keep, mask_class = self._get_generator_inputs_for_current_batch()
+            images_in, mask_keep, mask_class = (
+                self._get_generator_inputs_for_current_batch()
+            )
             self.fake_B, self.fake_B_stg1 = self._run_eval_batch(
                 images_in,
                 mask_keep,
@@ -723,9 +789,7 @@ class MATModel(BaseModel):
                         z,
                         None,
                         mask_class=(
-                            None
-                            if mask_class is None
-                            else mask_class[i : i + 1]
+                            None if mask_class is None else mask_class[i : i + 1]
                         ),
                         truncation_psi=self.opt.alg_mat_truncation_psi,
                         noise_mode=self.opt.alg_mat_noise_mode_eval,
@@ -890,7 +954,9 @@ class MATModel(BaseModel):
         expanded[:, : loaded_weight.shape[1]] = loaded_weight.to(expanded)
         return expanded
 
-    def _load_generator_state_dict_for_motion(self, net, state_dict, allow_partial=False):
+    def _load_generator_state_dict_for_motion(
+        self, net, state_dict, allow_partial=False
+    ):
         model_dict = net.state_dict()
         filtered = {}
         unexpected = []
@@ -905,9 +971,13 @@ class MATModel(BaseModel):
                 adapted_value = self._adapt_loaded_conv_weight(model_dict[key], value)
                 if adapted_value is not None:
                     filtered[key] = adapted_value
-                    adapted.append((key, tuple(value.shape), tuple(model_dict[key].shape)))
+                    adapted.append(
+                        (key, tuple(value.shape), tuple(model_dict[key].shape))
+                    )
                     continue
-                mismatched.append((key, tuple(value.shape), tuple(model_dict[key].shape)))
+                mismatched.append(
+                    (key, tuple(value.shape), tuple(model_dict[key].shape))
+                )
                 continue
             filtered[key] = value
 
@@ -945,9 +1015,7 @@ class MATModel(BaseModel):
         elif unexpected or mismatched or disallowed_missing:
             details = []
             if unexpected:
-                details.append(
-                    "unexpected keys: " + ", ".join(sorted(unexpected)[:10])
-                )
+                details.append("unexpected keys: " + ", ".join(sorted(unexpected)[:10]))
             if mismatched:
                 mismatch_preview = ", ".join(
                     f"{key} {src_shape}->{dst_shape}"
@@ -1052,9 +1120,7 @@ class MATModel(BaseModel):
                     self.compute_D_r1_loss()
                     if self.opt.alg_mat_motion:
                         self.loss_D_tot = (
-                            self.loss_D_fake
-                            + self.loss_D_real
-                            + self.loss_D_r1
+                            self.loss_D_fake + self.loss_D_real + self.loss_D_r1
                         )
                     else:
                         self.loss_D_tot = (
@@ -1077,7 +1143,9 @@ class MATModel(BaseModel):
         self._update_mat_ema()
 
     def inference(self, nb_imgs, offset=0):
-        images_in, mask_keep, mask_class = self._get_generator_inputs_for_current_batch()
+        images_in, mask_keep, mask_class = (
+            self._get_generator_inputs_for_current_batch()
+        )
         with torch.no_grad():
             fake_B, fake_B_stg1 = self._run_eval_batch(
                 images_in[:nb_imgs],

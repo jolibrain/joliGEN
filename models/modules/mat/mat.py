@@ -1244,7 +1244,9 @@ class SynthesisNet(nn.Module):
         )
         return fea_16 * mul_map + add_n * (1 - mul_map)
 
-    def _decode_current_frame(self, fea_16, ws, e_features, images_in, masks_in, noise_mode):
+    def _decode_current_frame(
+        self, fea_16, ws, e_features, images_in, masks_in, noise_mode
+    ):
         gs = self.to_style(fea_16)
         img = self.dec(fea_16, ws, gs, e_features, noise_mode=noise_mode)
         img = img * (1 - masks_in) + images_in * masks_in
@@ -1292,7 +1294,9 @@ class SynthesisNet(nn.Module):
         return_stg1=False,
     ):
         if self.motion_module is None:
-            raise RuntimeError("Motion synthesis requested but motion_module is missing")
+            raise RuntimeError(
+                "Motion synthesis requested but motion_module is missing"
+            )
         if images_in.dim() != 5 or masks_in.dim() != 5:
             raise ValueError(
                 "Motion-enabled MAT synthesis expects (B, F, C, H, W) inputs"
@@ -1308,9 +1312,7 @@ class SynthesisNet(nn.Module):
 
         mask_class = self._ensure_mask_class(images_in, mask_class)
 
-        images_flat = images_in.reshape(
-            batch_size * num_frames, *images_in.shape[2:]
-        )
+        images_flat = images_in.reshape(batch_size * num_frames, *images_in.shape[2:])
         masks_flat = masks_in.reshape(batch_size * num_frames, *masks_in.shape[2:])
         mask_class_flat = None
         if mask_class is not None:
@@ -1414,14 +1416,14 @@ class Generator(nn.Module):
             w_dim=w_dim,
             img_resolution=img_resolution,
             img_channels=img_channels,
-            **synthesis_kwargs
+            **synthesis_kwargs,
         )
         self.mapping = MappingNet(
             z_dim=z_dim,
             c_dim=c_dim,
             w_dim=w_dim,
             num_ws=self.synthesis.num_layers,
-            **mapping_kwargs
+            **mapping_kwargs,
         )
 
     def forward(
