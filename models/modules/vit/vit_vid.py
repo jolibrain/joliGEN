@@ -12,7 +12,7 @@ from util.model_util import VisionRotaryEmbeddingFast, get_2d_sincos_pos_embed, 
 from einops import rearrange, repeat
 import numpy as np
 from models.modules.unet_generator_attn.unet_attn_utils import zero_module
-from ..temporal_motion import MotionModule as SharedMotionModule
+from .vit_vid_per_layer_motion import MotionModule as SharedMotionModule
 
 
 # ============================================================

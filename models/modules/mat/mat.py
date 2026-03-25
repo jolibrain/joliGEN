@@ -9,7 +9,7 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
 from .torch_utils import misc
 from .torch_utils import persistence
-from ..temporal_motion import MotionModule
+from ..vit.vit_vid_per_layer_motion import MotionModule
 from .basic_module import (
     FullyConnectedLayer,
     Conv2dLayer,
