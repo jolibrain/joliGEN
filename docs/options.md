@@ -99,6 +99,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_noise_scale | float | -1.0 | Noise scale for B2B. Use \<=0 for automatic JiT-like defaults (1.0 at \<=256px, else 2.0). |
 | --alg_b2b_perceptual_loss | array | [''] | Optional perceptual losses<br/><br/> **Values:** , LPIPS, DISTS |
 | --alg_b2b_t_eps | float | 0.05 | Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t). |
+| --alg_b2b_use_gt_prob | float | 0.1 | Probability of selecting a sample to use a GT frame in autoregressive B2B training. |
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
 | --alg_cm_dists_std | array | [0.229, 0.224, 0.225] | std for DISTS perceptual loss |
 | --alg_cm_lambda_perceptual | float | 1.0 | weight for LPIPS and DISTS perceptual losses |
