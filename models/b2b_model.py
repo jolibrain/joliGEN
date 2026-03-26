@@ -48,6 +48,12 @@ class B2BModel(BaseDiffusionModel):
             help="Autoregressive training: each batch is with one GT and the other is noisy image ",
         )
         parser.add_argument(
+            "--alg_b2b_use_gt_prob",
+            type=float,
+            default=0.1,
+            help="Probability of selecting a sample to use a GT frame in autoregressive B2B training.",
+        )
+        parser.add_argument(
             "--alg_b2b_mask_as_channel",
             action="store_true",
             help="Concatenate the inpainting mask as an additional input channel in B2B.",
@@ -193,6 +199,10 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError("--alg_b2b_t_eps must be > 0")
         if t_eps >= 1:
             raise ValueError("--alg_b2b_t_eps must be < 1")
+
+        use_gt_prob = getattr(opt, "alg_b2b_use_gt_prob", 0.1)
+        if not (0.0 <= use_gt_prob <= 1.0):
+            raise ValueError("--alg_b2b_use_gt_prob must be in [0, 1]")
 
         opt.alg_b2b_denoise_timesteps = steps
         return opt
@@ -373,8 +383,10 @@ class B2BModel(BaseDiffusionModel):
                 B, T, C, H, W = self.gt_image.shape
                 gt_image_mix = self.y_t.clone()
 
-                # per-sample decision: True for ~10% of samples in the batch
-                use_gt = torch.rand((B,), device=self.device) < 0.1
+                # per-sample decision: True for ~P of samples in the batch
+                use_gt = (
+                    torch.rand((B,), device=self.device) < self.opt.alg_b2b_use_gt_prob
+                )
                 # one random frame index per sample (we'll only use those for sel)
                 idx = torch.randint(0, T, (B,), device=self.device)
                 self.use_gt = use_gt  # (B,) bool
