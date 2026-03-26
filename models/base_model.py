@@ -1697,9 +1697,10 @@ class BaseModel(ABC):
 
         return metrics
 
-    def _compute_metrics(self, fake_images, gt_images):
+    def _compute_metrics(self, fake_images, gt_images, filter_psnr_78=False):
         compute_lpips = hasattr(self, "lpips_metric")
-        psnr_sum, ssim_sum, lpips_sum, n = 0.0, 0.0, 0.0, 0
+        psnr_vals = []
+        ssim_sum, lpips_sum, n = 0.0, 0.0, 0
         for fake, gt in zip(fake_images, gt_images):
             if fake.shape != gt.shape:
                 print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
@@ -1707,7 +1708,7 @@ class BaseModel(ABC):
             fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
             gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
 
-            psnr_sum += psnr(fake, gt, data_range=1.0).item()
+            psnr_vals.append(psnr(fake, gt, data_range=1.0).item())
             ssim_sum += ssim(fake, gt).item()
 
             if compute_lpips:
@@ -1722,7 +1723,14 @@ class BaseModel(ABC):
                 lpips_sum += self.lpips_metric(fake_lpips, gt_lpips).item()
             n += 1
 
-        psnr_val = psnr_sum / n if n else 0.0
+        if filter_psnr_78 and psnr_vals:
+            psnr_filtered = [v for v in psnr_vals if v < 78]
+            if psnr_filtered:
+                psnr_val = sum(psnr_filtered) / len(psnr_filtered)
+            else:
+                psnr_val = sum(psnr_vals) / len(psnr_vals)
+        else:
+            psnr_val = sum(psnr_vals) / len(psnr_vals) if psnr_vals else 0.0
         ssim_val = ssim_sum / n if n else 0.0
         lpips_val = lpips_sum / n if (n and compute_lpips) else 0.0
         return psnr_val, ssim_val, lpips_val
@@ -2069,6 +2077,7 @@ class BaseModel(ABC):
             self.psnr_step = {}
             self.ssim_step = {}
             self.lpips_step = {}
+            filter_psnr_78 = self.opt.G_netG in ["unet_vid", "vit_vid"]
 
             for step in sorted(fake_list_per_step.keys()):
                 fake_images = fake_list_per_step[step]
@@ -2078,7 +2087,9 @@ class BaseModel(ABC):
 
                 max_count = min(len(fake_images), len(gt_images))
                 psnr_val, ssim_val, lpips_val = self._compute_metrics(
-                    fake_images[:max_count], gt_images[:max_count]
+                    fake_images[:max_count],
+                    gt_images[:max_count],
+                    filter_psnr_78=filter_psnr_78,
                 )
 
                 self.psnr_step[step] = psnr_val
