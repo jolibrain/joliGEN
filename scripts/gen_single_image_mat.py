@@ -15,7 +15,6 @@ sys.path.append(jg_dir)
 
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
 from models import create_model
-from options.inference_mat_options import InferenceMATOptions
 from options.train_options import TrainOptions
 
 
@@ -258,5 +257,7 @@ def inference(args):
 
 
 if __name__ == "__main__":
+    from options.inference_mat_options import InferenceMATOptions
+
     options = InferenceMATOptions().parse(save_config=False)
     inference(options)
