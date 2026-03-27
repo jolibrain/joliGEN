@@ -308,6 +308,15 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+####### MAT motion video tests
+echo "Running MAT motion video training tests"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_run_mat_vid_online.py" --dataroot "$TARGET_MASK_SEM_ONLINE_DIR"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 
 ###### test cycle_gan
 # echo "Running test cycle_gan"
