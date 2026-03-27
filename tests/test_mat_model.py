@@ -610,8 +610,8 @@ def test_mat_motion_visuals_include_previous_frame(monkeypatch, tmp_path):
 
     assert list(visuals[0].keys()) == [
         "previous_frame_0",
-        "gt_image_0",
         "y_t_0",
+        "gt_image_0",
         "mask_0",
         "output_0",
     ]
