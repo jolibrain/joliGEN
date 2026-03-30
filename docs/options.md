@@ -9,7 +9,7 @@ Here are all the available options to call with `train.py`
 | --dataroot | string | None | path to images (should have subfolders trainA, trainB, valA, valB, etc) |
 | --ddp_port | string | 12355 |  |
 | --gpu_ids | string | 0 | gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU |
-| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette, cm, cm_gan, sc, b2b |
+| --model_type | string | cut | chooses which model to use.<br/><br/> **Values:** cut, cycle_gan, palette, cm, cm_gan, sc, b2b, mat |
 | --name | string | experiment_name | name of the experiment. It decides where to store samples and models |
 | --phase | string | train | train, val, test, etc |
 | --suffix | string |  | customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size} |
@@ -181,6 +181,29 @@ Here are all the available options to call with `train.py`
 | --alg_cyclegan_lambda_B | float | 10.0 | weight for cycle loss (B -\> A -\> B) |
 | --alg_cyclegan_lambda_identity | float | 0.5 | use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1 |
 | --alg_cyclegan_rec_noise | float | 0.0 | whether to add noise to reconstruction |
+
+### MAT model
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| --alg_mat_d_reg_every | int | 16 | interval for lazy discriminator R1 regularization, 0 disables it |
+| --alg_mat_ema_kimg | float | 10.0 | EMA half-life in kimg for the MAT generator |
+| --alg_mat_ema_rampup | float | 0.0 | EMA ramp-up factor, 0 disables ramp-up |
+| --alg_mat_mask_class_conditioning | flag |  | add a raw class-valued mask channel as extra MAT generator conditioning |
+| --alg_mat_motion | flag |  | enable MAT motion conditioning on self_supervised_vid_mask_online windows |
+| --alg_mat_motion_max_frames | int | 8 | maximum temporal window supported by the MAT motion module |
+| --alg_mat_motion_num_attention_heads | int | 8 | number of attention heads used by the MAT motion module |
+| --alg_mat_motion_num_transformer_blocks | int | 2 | number of temporal transformer blocks used by the MAT motion module |
+| --alg_mat_motion_prob_use_previous_frames | float | 1.0 | probability to keep previous-frame motion conditioning during training; with complementary probability, previous frames are replaced by the current masked frame to train no-conditioning behavior |
+| --alg_mat_noise_mode_eval | string | const | noise mode used by MAT during evaluation<br/><br/> **Values:** random, const, none |
+| --alg_mat_noise_mode_train | string | random | noise mode used by MAT during training<br/><br/> **Values:** random, const, none |
+| --alg_mat_pcp_ratio | float | 0.1 | weight for the MAT perceptual loss |
+| --alg_mat_r1_gamma | float | 10.0 | R1 regularization weight for the MAT discriminator |
+| --alg_mat_style_mixing_prob | float | 0.5 | style mixing probability for MAT generator training |
+| --alg_mat_transformer_lr | float | -1.0 | optional learning rate override for MAT transformer parameters |
+| --alg_mat_truncation_psi | float | 0.5 | truncation psi used for MAT evaluation and validation inference |
+| --alg_mat_w_dim | int | 512 | latent w dimensionality for MAT |
+| --alg_mat_z_dim | int | 512 | latent z dimensionality for MAT |
 
 ### ReCUT / ReCycleGAN
 
