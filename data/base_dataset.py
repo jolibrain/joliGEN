@@ -1135,7 +1135,7 @@ def get_transform_list(
         elif opt.dataaug_flip == "vertical":
             transform_list.append(RandomVerticalFlipMaskList())
         elif opt.dataaug_flip == "both":
-            transform_list.append(RandomHorizonalFlipMaskList())
+            transform_list.append(RandomHorizontalFlipMaskList())
             transform_list.append(RandomVerticalFlipMaskList())
 
     if not opt.dataaug_no_rotate:
