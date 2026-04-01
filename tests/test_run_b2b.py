@@ -27,6 +27,8 @@ json_like_dict = {
     "data_relative_paths": True,
     "train_G_ema": True,
     "dataaug_no_rotate": True,
+    "dataaug_diff_aug_policy": "color,randaffine,randperspective",
+    "dataaug_diff_aug_proba": 1.0,
     "G_diff_n_timestep_train": 50000,
     "data_online_creation_rand_mask_A": True,
     "alg_b2b_denoise_timesteps": [1],

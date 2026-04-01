@@ -12,7 +12,6 @@ from itertools import product
 import torch
 from scripts.gen_vid_diffusion import InferenceDiffusionOptions, inference
 
-
 json_like_dict = {
     "name": "joligen_utest_vid",
     "output_display_env": "joligen_utest_vid",
@@ -31,6 +30,8 @@ json_like_dict = {
     "data_relative_paths": True,
     "train_G_ema": True,
     "dataaug_no_rotate": True,
+    "dataaug_diff_aug_policy": "color,randaffine,randperspective",
+    "dataaug_diff_aug_proba": 1.0,
     "data_online_creation_rand_mask_A": True,
     "train_export_jit": False,
     "train_save_latest_freq": 10,
