@@ -405,6 +405,8 @@ class B2BModel(BaseDiffusionModel):
                     self.mask = self.mask * mask_ar
 
                 # else: nobody selected -> do nothing
+        self._apply_b2b_diff_augment()
+        if self.opt.alg_diffusion_cond_image_creation == "y_t":
             if self.opt.alg_b2b_mask_as_channel:
                 if self.mask is None:
                     raise RuntimeError(
@@ -429,6 +431,19 @@ class B2BModel(BaseDiffusionModel):
         self.label_cls = torch.zeros(
             self.batch_size, dtype=torch.long, device=self.device
         )
+
+    def _apply_b2b_diff_augment(self):
+        if not self.opt.isTrain or not hasattr(self, "diff_augment"):
+            return
+
+        aug_images, aug_masks = self.diff_augment.apply_synchronized(
+            image_tensors=[self.gt_image, self.y_t],
+            mask_tensors=[self.mask] if self.mask is not None else [],
+        )
+        self.gt_image = aug_images[0]
+        self.y_t = aug_images[1]
+        if self.mask is not None:
+            self.mask = aug_masks[0]
 
     def compute_b2b_loss(self):
         y_0 = self.gt_image
