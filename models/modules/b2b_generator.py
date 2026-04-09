@@ -47,14 +47,16 @@ class B2BGenerator(nn.Module):
             getattr(opt, "alg_b2b_denoise_timesteps", 50) if opt else 50
         )
         self.num_classes = getattr(opt, "G_vit_num_classes", 1) if opt else 1
-        if self.num_classes != 1:
-            raise RuntimeError(
-                f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
-                "Stopping because this run only supports num_classes=1."
-            )
+        #     if self.num_classes != 1:
+        #         raise RuntimeError(
+        #             f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
+        #             "Stopping because this run only supports num_classes=1."
+        #         )
+
         self.label_drop_prob = (
-            0.0  # default  value used in paper 0.1, set to 0.0 for single class
+            float(getattr(opt, "alg_diffusion_dropout_prob", 0.0)) if opt else 0.0
         )
+        self.label_drop_prob = min(max(self.label_drop_prob, 0.0), 1.0)
 
     def _match_prediction_channels(self, pred, reference):
         if pred.ndim != reference.ndim:
