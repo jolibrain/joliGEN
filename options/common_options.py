@@ -445,6 +445,12 @@ class CommonOptions(BaseOptions):
             action="store_true",
             help="Disable JiT bottleneck by forcing bottleneck_dim=hidden_size for vit/vit_vid.",
         )
+        parser.add_argument(
+            "--G_vit_num_classes",
+            type=int,
+            default=1,
+            help="number of class labels used by vit/vit_vid class embeddings",
+        )
 
         # discriminator
         parser.add_argument(

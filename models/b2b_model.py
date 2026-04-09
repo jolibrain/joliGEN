@@ -421,14 +421,36 @@ class B2BModel(BaseDiffusionModel):
         self.real_B = self.gt_image
         self.num_classes = getattr(self.opt, "G_vit_num_classes", 1) if self.opt else 1
 
-        if self.num_classes != 1:
+        #     if self.num_classes != 1:
+        #         raise RuntimeError(
+        #             f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
+        #             "Stopping because this run only supports num_classes=1."
+        #         )
+        label_cls = data.get("B_label_cls", data.get("A_label_cls"))
+        self.label_cls = self._prepare_b2b_labels(label_cls)
+
+    def _default_b2b_labels(self):
+        return torch.zeros(self.batch_size, dtype=torch.long, device=self.device)
+
+    def _prepare_b2b_labels(self, labels):
+        if labels is None:
+            return self._default_b2b_labels()
+
+        labels = labels.to(torch.long).to(self.device)
+        if labels.ndim == 0:
+            labels = labels.unsqueeze(0)
+        if labels.ndim == 2 and labels.shape[1] == 1:
+            labels = labels.squeeze(1)
+        if labels.ndim != 1:
             raise RuntimeError(
-                f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
-                "Stopping because this run only supports num_classes=1."
+                f"Expected image class labels with shape [B], got {tuple(labels.shape)}"
             )
-        self.label_cls = torch.zeros(
-            self.batch_size, dtype=torch.long, device=self.device
-        )
+        if labels.shape[0] != self.batch_size:
+            raise RuntimeError(
+                f"Expected class labels batch dim {self.batch_size}, got {tuple(labels.shape)}"
+            )
+
+        return labels
 
     def compute_b2b_loss(self):
         y_0 = self.gt_image
@@ -437,11 +459,8 @@ class B2BModel(BaseDiffusionModel):
         B = y_0.shape[0]
         use_perceptual = self.opt.alg_b2b_perceptual_loss != [""]
 
-        # base "real" labels in [0 .. num_classes-1]
         if self.num_classes > 0:
-            labels = torch.zeros(
-                B, dtype=torch.long, device=self.device
-            )  # class 1 start from 0, need discuss
+            labels = self.label_cls
         else:
             labels = None
 
