@@ -17,6 +17,11 @@
 
 # -- Project information -----------------------------------------------------
 
+import os
+import sys
+import warnings
+from importlib.util import find_spec
+
 project = "joliGEN"
 copyright = "2020-2023, Jolibrain SASU"
 author = "Jolibrain"
@@ -32,9 +37,6 @@ release = "1.0"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-# Add any Sphinx extension module names here, as strings. They can be
-# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
-# ones.
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -42,11 +44,28 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.autosectionlabel",
+]
+
+
+def _add_optional_extension(name):
+    if find_spec(name):
+        extensions.append(name)
+        return
+
+    warnings.warn(
+        f"Optional Sphinx extension '{name}' is not installed; continuing without it.",
+        stacklevel=2,
+    )
+
+
+for optional_extension in (
     "sphinx_copybutton",
     "sphinx_rtd_dark_mode",
-    "sphinx.ext.autosectionlabel",
     "sphinx_rtd_size",
-]
+):
+    _add_optional_extension(optional_extension)
+
 sphinx_rtd_size_width = "75%"
 autosectionlabel_prefix_document = True
 
@@ -63,9 +82,6 @@ master_doc = "index"
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
-import os
-import sys
-
 sys.path.insert(0, os.path.abspath("."))
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -79,7 +95,20 @@ autosummary_generate = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_rtd_theme"
+if find_spec("sphinx_rtd_theme"):
+    html_theme = "sphinx_rtd_theme"
+    html_theme_options = {
+        "logo_only": False,
+        "style_nav_header_background": "red",
+        "style_external_links": True,
+        "sticky_navigation": False,
+    }
+else:
+    warnings.warn(
+        "Optional Sphinx theme 'sphinx_rtd_theme' is not installed; falling back to 'alabaster'.",
+        stacklevel=2,
+    )
+    html_theme = "alabaster"
 
 stickysidebar = True
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -89,12 +118,6 @@ html_static_path = ["_static"]
 html_css_files = ["css/custom.css"]
 html_favicon = "https://www.jolibrain.com/static/img/logo.png"
 html_logo = "https://raw.githubusercontent.com/jolibrain/joliGEN/57088323771c1bb0a9540e567f9fb55c3c416c4c/imgs/joligen.svg"
-html_theme_option = {
-    "logo_only": False,
-    "style_nav_header_background": "red",
-    "style_external_links": True,
-    "sticky_navigation": False,
-}
 html_context = {
     "display_github": True,  # Integrate Gitlab
     "github_host": "github.com",
