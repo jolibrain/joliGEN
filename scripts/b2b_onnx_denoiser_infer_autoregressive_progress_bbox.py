@@ -257,6 +257,124 @@ def compute_bbox_select(
     return bbox_select
 
 
+def compute_paste_bbox(crop_meta):
+    full_x0 = crop_meta["x_crop"] - crop_meta["context_pixels"]
+    full_y0 = crop_meta["y_crop"] - crop_meta["context_pixels"]
+    full_x1 = crop_meta["x_crop"] + crop_meta["crop_size"] + crop_meta["context_pixels"]
+    full_y1 = crop_meta["y_crop"] + crop_meta["crop_size"] + crop_meta["context_pixels"]
+
+    orig_loaded_x0 = crop_meta["x_padding"]
+    orig_loaded_y0 = crop_meta["y_padding"]
+    orig_loaded_x1 = orig_loaded_x0 + crop_meta["loaded_width"]
+    orig_loaded_y1 = orig_loaded_y0 + crop_meta["loaded_height"]
+
+    inter_x0 = max(full_x0, orig_loaded_x0)
+    inter_y0 = max(full_y0, orig_loaded_y0)
+    inter_x1 = min(full_x1, orig_loaded_x1)
+    inter_y1 = min(full_y1, orig_loaded_y1)
+    if inter_x1 <= inter_x0 or inter_y1 <= inter_y0:
+        return None
+
+    bbox_x0 = int(
+        np.floor(
+            (inter_x0 - orig_loaded_x0)
+            * crop_meta["orig_width"]
+            / crop_meta["loaded_width"]
+        )
+    )
+    bbox_y0 = int(
+        np.floor(
+            (inter_y0 - orig_loaded_y0)
+            * crop_meta["orig_height"]
+            / crop_meta["loaded_height"]
+        )
+    )
+    bbox_x1 = int(
+        np.ceil(
+            (inter_x1 - orig_loaded_x0)
+            * crop_meta["orig_width"]
+            / crop_meta["loaded_width"]
+        )
+    )
+    bbox_y1 = int(
+        np.ceil(
+            (inter_y1 - orig_loaded_y0)
+            * crop_meta["orig_height"]
+            / crop_meta["loaded_height"]
+        )
+    )
+    return [bbox_x0, bbox_y0, bbox_x1, bbox_y1]
+
+
+def compute_paste_mapping(crop_meta, src_width, src_height):
+    full_x0 = crop_meta["x_crop"] - crop_meta["context_pixels"]
+    full_y0 = crop_meta["y_crop"] - crop_meta["context_pixels"]
+    full_x1 = crop_meta["x_crop"] + crop_meta["crop_size"] + crop_meta["context_pixels"]
+    full_y1 = crop_meta["y_crop"] + crop_meta["crop_size"] + crop_meta["context_pixels"]
+    full_width = full_x1 - full_x0
+    full_height = full_y1 - full_y0
+
+    orig_loaded_x0 = crop_meta["x_padding"]
+    orig_loaded_y0 = crop_meta["y_padding"]
+    orig_loaded_x1 = orig_loaded_x0 + crop_meta["loaded_width"]
+    orig_loaded_y1 = orig_loaded_y0 + crop_meta["loaded_height"]
+
+    inter_x0 = max(full_x0, orig_loaded_x0)
+    inter_y0 = max(full_y0, orig_loaded_y0)
+    inter_x1 = min(full_x1, orig_loaded_x1)
+    inter_y1 = min(full_y1, orig_loaded_y1)
+    if inter_x1 <= inter_x0 or inter_y1 <= inter_y0:
+        return None
+
+    src_x0 = int(np.floor((inter_x0 - full_x0) * src_width / full_width))
+    src_y0 = int(np.floor((inter_y0 - full_y0) * src_height / full_height))
+    src_x1 = int(np.ceil((inter_x1 - full_x0) * src_width / full_width))
+    src_y1 = int(np.ceil((inter_y1 - full_y0) * src_height / full_height))
+
+    dst_x0 = int(
+        np.floor(
+            (inter_x0 - orig_loaded_x0)
+            * crop_meta["orig_width"]
+            / crop_meta["loaded_width"]
+        )
+    )
+    dst_y0 = int(
+        np.floor(
+            (inter_y0 - orig_loaded_y0)
+            * crop_meta["orig_height"]
+            / crop_meta["loaded_height"]
+        )
+    )
+    dst_x1 = int(
+        np.ceil(
+            (inter_x1 - orig_loaded_x0)
+            * crop_meta["orig_width"]
+            / crop_meta["loaded_width"]
+        )
+    )
+    dst_y1 = int(
+        np.ceil(
+            (inter_y1 - orig_loaded_y0)
+            * crop_meta["orig_height"]
+            / crop_meta["loaded_height"]
+        )
+    )
+
+    src_x0 = max(0, min(src_x0, src_width))
+    src_x1 = max(src_x0 + 1, min(src_x1, src_width))
+    src_y0 = max(0, min(src_y0, src_height))
+    src_y1 = max(src_y0 + 1, min(src_y1, src_height))
+    dst_x0 = max(0, min(dst_x0, crop_meta["orig_width"]))
+    dst_x1 = max(dst_x0 + 1, min(dst_x1, crop_meta["orig_width"]))
+    dst_y0 = max(0, min(dst_y0, crop_meta["orig_height"]))
+    dst_y1 = max(dst_y0 + 1, min(dst_y1, crop_meta["orig_height"]))
+
+    return {
+        "src": (src_x0, src_y0, src_x1, src_y1),
+        "dst": (dst_x0, dst_y0, dst_x1, dst_y1),
+    }
+
+
 def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, device):
     img_path = os.path.realpath(img_path)
     bbox_path = os.path.realpath(bbox_path)
@@ -303,7 +421,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         min_crop_bbox_ratio=min_crop_bbox_ratio,
     )
 
-    img, mask, _, _ = crop_image(
+    img, mask, _, _, crop_meta = crop_image(
         img_path=img_path,
         bbox_path=bbox_path,
         mask_delta=mask_delta,
@@ -318,16 +436,19 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         crop_center=True,
         bbox_ref_id=bbox_index,
         override_class=cls,
+        return_meta=True,
     )
 
-    bbox_select = compute_bbox_select(
-        bbox=bbox,
-        cls=cls,
-        mask_delta=mask_delta,
-        mask_square=mask_square,
-        crop_coordinates=crop_coordinates,
-        context_pixels=context_pixels,
-    )
+    bbox_select = compute_paste_bbox(crop_meta)
+    if bbox_select is None:
+        bbox_select = compute_bbox_select(
+            bbox=bbox,
+            cls=cls,
+            mask_delta=mask_delta,
+            mask_square=mask_square,
+            crop_coordinates=crop_coordinates,
+            context_pixels=context_pixels,
+        )
 
     img = np.array(img)
     mask = np.array(mask) if mask is not None else None
@@ -380,6 +501,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         "y0_tensor": img_tensor.unsqueeze(0).detach().cpu(),
         "mask": mask_tensor.unsqueeze(0).float().detach().cpu(),
         "img_tensor": img_tensor.unsqueeze(0).detach().cpu(),
+        "crop_meta": crop_meta,
         "has_bbox": True,
         "generated_bbox": None,
     }
@@ -593,14 +715,32 @@ def write_frame(frame_index, out_tensor, frame_data, output_dir):
     if frame_data["mask"] is not None:
         mask_np_for_paste = (mask_to_uint8(frame_data["mask"]) > 0).astype(np.uint8)
 
+    paste_bbox = bbox_select
     if has_bbox:
-        y0 = max(0, min(int(bbox_select[1]), img_orig.shape[0] - 1))
-        y1 = max(y0 + 1, min(int(bbox_select[3]), img_orig.shape[0]))
-        x0 = max(0, min(int(bbox_select[0]), img_orig.shape[1] - 1))
-        x1 = max(x0 + 1, min(int(bbox_select[2]), img_orig.shape[1]))
-        out_img_resized = cv2.resize(out_img_for_paste, (x1 - x0, y1 - y0))
+        mapping = None
+        if frame_data.get("crop_meta") is not None:
+            mapping = compute_paste_mapping(
+                frame_data["crop_meta"],
+                src_width=out_img_for_paste.shape[1],
+                src_height=out_img_for_paste.shape[0],
+            )
+        if mapping is not None:
+            sx0, sy0, sx1, sy1 = mapping["src"]
+            x0, y0, x1, y1 = mapping["dst"]
+            out_img_crop = out_img_for_paste[sy0:sy1, sx0:sx1]
+            out_img_resized = cv2.resize(out_img_crop, (x1 - x0, y1 - y0))
+            paste_bbox = [x0, y0, x1, y1]
+        else:
+            y0 = max(0, min(int(bbox_select[1]), img_orig.shape[0] - 1))
+            y1 = max(y0 + 1, min(int(bbox_select[3]), img_orig.shape[0]))
+            x0 = max(0, min(int(bbox_select[0]), img_orig.shape[1] - 1))
+            x1 = max(x0 + 1, min(int(bbox_select[2]), img_orig.shape[1]))
+            out_img_resized = cv2.resize(out_img_for_paste, (x1 - x0, y1 - y0))
+            paste_bbox = [x0, y0, x1, y1]
         out_img_real_size = img_orig.copy()
         if mask_np_for_paste is not None:
+            if mapping is not None:
+                mask_np_for_paste = mask_np_for_paste[sy0:sy1, sx0:sx1]
             mask_resized = cv2.resize(
                 mask_np_for_paste, (x1 - x0, y1 - y0), interpolation=cv2.INTER_NEAREST
             )
@@ -639,7 +779,7 @@ def write_frame(frame_index, out_tensor, frame_data, output_dir):
         mask_to_uint8(frame_data["mask"]),
     )
     with open(os.path.join(output_dir, name_out + "_bbox_select.json"), "w") as f:
-        json.dump([int(v) for v in bbox_select], f)
+        json.dump([int(v) for v in paste_bbox], f)
     with open(os.path.join(output_dir, name_out + "_orig_bbox.json"), "w") as f:
         json.dump([int(v) for v in frame_data["bbox"]], f)
 
