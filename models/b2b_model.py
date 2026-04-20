@@ -423,11 +423,6 @@ class B2BModel(BaseDiffusionModel):
         self.real_B = self.gt_image
         self.num_classes = getattr(self.opt, "G_vit_num_classes", 1) if self.opt else 1
 
-        #     if self.num_classes != 1:
-        #         raise RuntimeError(
-        #             f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
-        #             "Stopping because this run only supports num_classes=1."
-        #         )
         label_cls = data.get("B_label_cls", data.get("A_label_cls"))
         self.label_cls = self._prepare_b2b_labels(label_cls)
 
@@ -439,19 +434,31 @@ class B2BModel(BaseDiffusionModel):
             return self._default_b2b_labels()
 
         labels = labels.to(torch.long).to(self.device)
+        is_video = self.y_t.ndim == 5
         if labels.ndim == 0:
             labels = labels.unsqueeze(0)
         if labels.ndim == 2 and labels.shape[1] == 1:
             labels = labels.squeeze(1)
+        if labels.ndim == 1:
+            if labels.shape[0] != self.batch_size:
+                raise RuntimeError(
+                    f"Expected class labels batch dim {self.batch_size}, got {tuple(labels.shape)}"
+                )
+            return labels
+        if labels.ndim == 2 and is_video:
+            if labels.shape[0] != self.batch_size:
+                raise RuntimeError(
+                    f"Expected video class labels batch dim {self.batch_size}, got {tuple(labels.shape)}"
+                )
+            if labels.shape[1] != self.y_t.shape[1]:
+                raise RuntimeError(
+                    f"Expected per-frame class labels with {self.y_t.shape[1]} frames, got {tuple(labels.shape)}"
+                )
+            return labels
         if labels.ndim != 1:
             raise RuntimeError(
-                f"Expected image class labels with shape [B], got {tuple(labels.shape)}"
+                f"Expected class labels with shape [B] or [B, F] for video, got {tuple(labels.shape)}"
             )
-        if labels.shape[0] != self.batch_size:
-            raise RuntimeError(
-                f"Expected class labels batch dim {self.batch_size}, got {tuple(labels.shape)}"
-            )
-
         return labels
 
     def _apply_b2b_diff_augment(self):

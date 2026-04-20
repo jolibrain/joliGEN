@@ -47,11 +47,6 @@ class B2BGenerator(nn.Module):
             getattr(opt, "alg_b2b_denoise_timesteps", 50) if opt else 50
         )
         self.num_classes = getattr(opt, "G_vit_num_classes", 1) if opt else 1
-        #     if self.num_classes != 1:
-        #         raise RuntimeError(
-        #             f"Expected G_vit_num_classes == 1, but got {self.num_classes}. "
-        #             "Stopping because this run only supports num_classes=1."
-        #         )
 
         self.label_drop_prob = (
             float(getattr(opt, "alg_diffusion_dropout_prob", 0.0)) if opt else 0.0
@@ -87,11 +82,15 @@ class B2BGenerator(nn.Module):
             return torch.sigmoid(t_z)  # (B,F)
 
     def drop_labels(self, labels: torch.Tensor) -> torch.Tensor:
-        drop = torch.rand(labels.shape[0], device=labels.device) < self.label_drop_prob
+        if self.label_drop_prob <= 0.0:
+            return labels
+        drop = torch.rand(labels.shape, device=labels.device) < self.label_drop_prob
         return torch.where(drop, torch.full_like(labels, self.num_classes), labels)
 
     def b2b_forward(self, x, mask, x_cond=None, label=None, use_gt=None, ref_idx=None):
-        labels_dropped = self.drop_labels(label) if self.training else label
+        labels_dropped = (
+            self.drop_labels(label) if self.training and label is not None else label
+        )
 
         # 1) sample timestep
         B = x.size(0)
