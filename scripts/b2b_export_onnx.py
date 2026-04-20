@@ -365,7 +365,7 @@ def main():
     parser.add_argument(
         "--opset_version",
         type=int,
-        default=17,
+        default=18,
         help="ONNX opset version",
     )
     parser.add_argument(

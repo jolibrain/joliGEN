@@ -34,8 +34,11 @@ def crop_image(
     override_class=-1,
     min_crop_bbox_ratio=None,
     random_bbox=False,
+    return_meta=False,
 ):
     margin = context_pixels * 2
+    x_padding = 0
+    y_padding = 0
 
     try:
         img = load_image(img_path)
@@ -53,6 +56,7 @@ def crop_image(
             ratio_y = 1
 
         img = np.array(img)
+        loaded_img_height, loaded_img_width = img.shape[:2]
     except Exception as e:
         raise ValueError(f"failure with loading image {img_path}") from e
 
@@ -449,6 +453,21 @@ def crop_image(
         int(ref_bbox[2] * (output_dim + margin) / crop_size),
         int(ref_bbox[3] * (output_dim + margin) / crop_size),
     ]
+
+    if return_meta:
+        crop_meta = {
+            "orig_width": int(old_size[0]),
+            "orig_height": int(old_size[1]),
+            "loaded_width": int(loaded_img_width),
+            "loaded_height": int(loaded_img_height),
+            "x_padding": int(x_padding),
+            "y_padding": int(y_padding),
+            "x_crop": int(x_crop),
+            "y_crop": int(y_crop),
+            "crop_size": int(crop_size),
+            "context_pixels": int(context_pixels),
+        }
+        return img, mask, ref_bbox, idx_bbox_ref, crop_meta
 
     return img, mask, ref_bbox, idx_bbox_ref
 
