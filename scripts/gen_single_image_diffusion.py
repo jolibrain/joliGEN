@@ -569,6 +569,8 @@ def generate(
     elif opt.alg_diffusion_cond_image_creation == "y_t":
         if opt.model_type == "palette":
             cond_image = y_t.unsqueeze(0)
+        elif opt.model_type == "b2b" and opt.alg_b2b_mask_as_channel:
+            cond_image = mask.to(device).unsqueeze(0)
         else:
             cond_image = None
     elif opt.alg_diffusion_cond_image_creation == "sketch":
@@ -689,7 +691,7 @@ def generate(
 
         elif opt.model_type == "b2b":
             B = y_t.size(0)
-            labels = torch.zeros(B, device=y_t.device, dtype=torch.long)
+            labels = torch.ones(B, device=y_t.device, dtype=torch.long) * int(cls)
             out_tensor = model.restoration(
                 y_t, cond_image, alg_b2b_denoise_timesteps, mask, labels
             )
