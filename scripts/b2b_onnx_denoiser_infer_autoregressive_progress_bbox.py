@@ -795,6 +795,7 @@ def run_sequence(
     train_json,
     denoise_steps,
     debug_dump_dir,
+    autoregressive_reinject_patch,
 ):
     rng = np.random.default_rng(seed)
     _, crop_h, _, _, _ = get_train_shape(train_json)
@@ -889,10 +890,18 @@ def run_sequence(
         y_t_temp_list = separate_tensors(y_t_batch)
         y0_tensor_temp_list = separate_tensors(y0_tensor_batch)
         mask_temp_list = separate_tensors(mask_batch)
-        last_seq_half_y_t = y_t_temp_list[-seq_half:]
+        if autoregressive_reinject_patch:
+            last_seq_half_y_t = out_img_tensor_list_batch[-seq_half:]
+            last_seq_half_y0_tensor = out_img_tensor_list_batch[-seq_half:]
+            last_seq_half_mask = [
+                torch.zeros_like(mask_tensor)
+                for mask_tensor in mask_temp_list[-seq_half:]
+            ]
+        else:
+            last_seq_half_y_t = y_t_temp_list[-seq_half:]
+            last_seq_half_y0_tensor = y0_tensor_temp_list[-seq_half:]
+            last_seq_half_mask = mask_temp_list[-seq_half:]
         last_seq_half_cond_image = out_img_tensor_list_batch[-seq_half:]
-        last_seq_half_y0_tensor = y0_tensor_temp_list[-seq_half:]
-        last_seq_half_mask = mask_temp_list[-seq_half:]
 
         write_frame(
             prev_frame["index"], out_img_tensor_list_batch[0], prev_frame, output_dir
@@ -949,6 +958,15 @@ def parse_args():
     parser.add_argument(
         "--debug_dump_dir",
         help="Optional directory to dump per-step denoiser ONNX inputs",
+    )
+    parser.add_argument(
+        "--autoregressive_reinject_patch",
+        "--autoregressive-reinject-patch",
+        action="store_true",
+        help=(
+            "Feed the previously generated crop back as known context in the next "
+            "sliding window by replacing its y_t/y_0 tensors and zeroing its mask."
+        ),
     )
     return parser.parse_args()
 
@@ -1014,12 +1032,14 @@ def main():
         train_json=train_json,
         denoise_steps=denoise_steps,
         debug_dump_dir=args.debug_dump_dir,
+        autoregressive_reinject_patch=args.autoregressive_reinject_patch,
     )
 
     print(f"dataset_root : {dataset_root}")
     print(f"train_config : {train_config_path}")
     print(f"provider     : {args.provider}")
     print(f"denoise_steps: {denoise_steps}")
+    print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
     print(f"written      : {len(frames_written)} frames")
     print(f"saved        : {args.output_dir}")
 
