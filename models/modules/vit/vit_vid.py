@@ -706,6 +706,7 @@ class JiTViD(nn.Module):
         input_size=256,
         patch_size=16,
         in_channels=3,
+        out_channels=None,
         hidden_size=768,  # 1024,
         depth=24,
         num_heads=16,
@@ -723,7 +724,8 @@ class JiTViD(nn.Module):
     ):
         super().__init__()
         self.in_channels = in_channels
-        self.out_channels = in_channels
+        self.out_channels = in_channels if out_channels is None else out_channels
+        self.out_channel = self.out_channels
         self.patch_size = patch_size
         self.num_heads = num_heads
         self.hidden_size = hidden_size
