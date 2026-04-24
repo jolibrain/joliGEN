@@ -325,6 +325,7 @@ def define_G(
         model = JiTViD(
             input_size=data_crop_size,
             in_channels=in_channel,
+            out_channels=model_output_nc,
             num_classes=getattr(opt, "G_vit_num_classes", base.get("num_classes", 1)),
             cond_embed_dim=cond_embed_dim,
             **cfg,
