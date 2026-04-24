@@ -114,7 +114,7 @@ if __name__ == "__main__":
         "--test_metrics_list",
         type=str,
         nargs="*",
-        choices=["FID", "KID", "MSID", "PSNR", "LPIPS", "SSIM"],
+        choices=["FID", "KID", "MSID", "PSNR", "LPIPS", "SSIM", "DINOv2"],
         default=["FID", "KID", "MSID", "PSNR", "LPIPS"],
     )
     main_parser.add_argument(

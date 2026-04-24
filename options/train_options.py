@@ -227,7 +227,7 @@ class TrainOptions(CommonOptions):
             type=str,
             default=["FID"],
             nargs="*",
-            choices=["FID", "KID", "MSID", "PSNR", "LPIPS", "SSIM", "FVD"],
+            choices=["FID", "KID", "MSID", "PSNR", "LPIPS", "SSIM", "DINOv2", "FVD"],
             help="metrics on results quality to compute",
         )
         parser.add_argument(

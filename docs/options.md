@@ -378,7 +378,7 @@ Here are all the available options to call with `train.py`
 | --train_lr_policy | string | linear | learning rate policy.<br/><br/> **Values:** linear, step, multistep, plateau, cosine |
 | --train_lr_steps | array | [] | number of epochs between reductions of the learning rate by gamma=0.1 |
 | --train_metrics_every | int | 1000 | compute metrics every N iterations |
-| --train_metrics_list | array | ['FID'] | metrics on results quality to compute<br/><br/> **Values:** FID, KID, MSID, PSNR, LPIPS, SSIM, FVD |
+| --train_metrics_list | array | ['FID'] | metrics on results quality to compute<br/><br/> **Values:** FID, KID, MSID, PSNR, LPIPS, SSIM, DINOv2, FVD |
 | --train_metrics_save_images | flag |  | whether to save images that result form metrics computation |
 | --train_mm_lambda_z | float | 0.5 | weight for random z loss |
 | --train_mm_nz | int | 8 | number of latent vectors |
@@ -451,4 +451,3 @@ Here are all the available options to call with `train.py`
 | --dataaug_flip | string | horizontal | if specified, flip the images for data augmentation, possible values: none, horizontal, vertical, both<br/><br/> **Values:** none, horizontal, vertical, both |
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
 | --dataaug_no_rotate | flag |  | if specified, do not rotate the images for data augmentation |
-
