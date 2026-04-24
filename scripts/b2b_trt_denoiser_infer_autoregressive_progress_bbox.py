@@ -70,9 +70,7 @@ class CudaRuntime:
                 tried.append(f"{name}: {exc}")
         details = "\n".join(f"  - {row}" for row in tried)
         raise RuntimeError(
-            "Failed to load CUDA runtime library (libcudart).\n"
-            "Tried:\n"
-            f"{details}"
+            "Failed to load CUDA runtime library (libcudart).\n" "Tried:\n" f"{details}"
         )
 
     def _bind_symbols(self) -> None:
@@ -751,7 +749,9 @@ def _ensure_static_dims_match(
             )
 
 
-def _make_scalar_input(value, raw_shape: Tuple[int, ...], dtype: np.dtype) -> np.ndarray:
+def _make_scalar_input(
+    value, raw_shape: Tuple[int, ...], dtype: np.dtype
+) -> np.ndarray:
     if len(raw_shape) == 0:
         return np.asarray(value, dtype=dtype)
     shape = tuple(1 if int(dim) < 0 else int(dim) for dim in raw_shape)
@@ -781,7 +781,9 @@ class TensorRTDenoiserSession:
             raise RuntimeError("Failed to create TensorRT execution context")
 
         self.io_rows = describe_engine_io(self.engine)
-        self.input_names = [name for name, mode, _, _ in self.io_rows if mode == "INPUT"]
+        self.input_names = [
+            name for name, mode, _, _ in self.io_rows if mode == "INPUT"
+        ]
         self.output_names = [
             name for name, mode, _, _ in self.io_rows if mode == "OUTPUT"
         ]
@@ -985,7 +987,9 @@ class TensorRTDenoiserSession:
             raw_shape = self._raw_shape_for(name)
             _ensure_static_dims_match(name, raw_shape, tuple(array.shape))
             if _shape_has_dynamic_dims(raw_shape):
-                self.context.set_input_shape(name, tuple(int(dim) for dim in array.shape))
+                self.context.set_input_shape(
+                    name, tuple(int(dim) for dim in array.shape)
+                )
 
         for i in range(self.engine.num_io_tensors):
             name = self.engine.get_tensor_name(i)
@@ -1020,7 +1024,9 @@ class TensorRTDenoiserSession:
 
         if dump_dir and dump_tag:
             os.makedirs(dump_dir, exist_ok=True)
-            np.save(os.path.join(dump_dir, f"{dump_tag}_model_input.npy"), model_input_host)
+            np.save(
+                os.path.join(dump_dir, f"{dump_tag}_model_input.npy"), model_input_host
+            )
             np.save(os.path.join(dump_dir, f"{dump_tag}_timesteps.npy"), timestep_host)
             np.save(os.path.join(dump_dir, f"{dump_tag}_labels.npy"), labels_host)
 
@@ -1319,6 +1325,7 @@ def run_sequence(
     debug_dump_dir,
     warmup,
     repeat,
+    autoregressive_reinject_patch,
 ):
     rng = np.random.default_rng(seed)
     _, crop_h, _, _, _ = get_train_shape(train_json)
@@ -1436,7 +1443,9 @@ def run_sequence(
                 init_noise=init_noise,
                 dump_dir=debug_dump_dir if repeat_index == repeat - 1 else None,
                 dump_prefix=(
-                    f"frame_{sequence_count:06d}" if repeat_index == repeat - 1 else None
+                    f"frame_{sequence_count:06d}"
+                    if repeat_index == repeat - 1
+                    else None
                 ),
             )
             restoration_ms = (time.perf_counter() - restoration_start) * 1000.0
@@ -1458,10 +1467,18 @@ def run_sequence(
         y_t_temp_list = separate_tensors(y_t_batch)
         y0_tensor_temp_list = separate_tensors(y0_tensor_batch)
         mask_temp_list = separate_tensors(mask_batch)
-        last_seq_half_y_t = y_t_temp_list[-seq_half:]
+        if autoregressive_reinject_patch:
+            last_seq_half_y_t = out_img_tensor_list_batch[-seq_half:]
+            last_seq_half_y0_tensor = out_img_tensor_list_batch[-seq_half:]
+            last_seq_half_mask = [
+                torch.zeros_like(mask_tensor)
+                for mask_tensor in mask_temp_list[-seq_half:]
+            ]
+        else:
+            last_seq_half_y_t = y_t_temp_list[-seq_half:]
+            last_seq_half_y0_tensor = y0_tensor_temp_list[-seq_half:]
+            last_seq_half_mask = mask_temp_list[-seq_half:]
         last_seq_half_cond_image = out_img_tensor_list_batch[-seq_half:]
-        last_seq_half_y0_tensor = y0_tensor_temp_list[-seq_half:]
-        last_seq_half_mask = mask_temp_list[-seq_half:]
 
         write_frame(
             prev_frame["index"], out_img_tensor_list_batch[0], prev_frame, output_dir
@@ -1552,6 +1569,15 @@ def parse_args():
         default=1,
         help="Number of timed restoration runs per 2-frame window",
     )
+    parser.add_argument(
+        "--autoregressive_reinject_patch",
+        "--autoregressive-reinject-patch",
+        action="store_true",
+        help=(
+            "Feed the previously generated crop back as known context in the next "
+            "sliding window by replacing its y_t/y_0 tensors and zeroing its mask."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1630,6 +1656,7 @@ def main():
             debug_dump_dir=args.debug_dump_dir,
             warmup=args.warmup,
             repeat=args.repeat,
+            autoregressive_reinject_patch=args.autoregressive_reinject_patch,
         )
     finally:
         session.close()
@@ -1647,6 +1674,7 @@ def main():
     print(f"denoise_steps: {denoise_steps}")
     print(f"warmup       : {args.warmup}")
     print(f"repeat       : {args.repeat}")
+    print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
     if timing_summary["runs"] > 0:
         avg_restoration_ms = timing_summary["restoration_ms"] / timing_summary["runs"]
         avg_frames_per_run = timing_summary["frames"] / timing_summary["runs"]
