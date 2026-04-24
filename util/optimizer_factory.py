@@ -100,6 +100,12 @@ def _build_single_optimizer(opt, params, lr, betas, weight_decay, eps):
     raise ValueError(f"Unsupported optimizer '{opt.train_optim}'")
 
 
+def _uses_parameter_groups(params):
+    return isinstance(params, (list, tuple)) and any(
+        isinstance(param_group, dict) for param_group in params
+    )
+
+
 def build_optimizer_bundle(
     opt,
     params,
@@ -111,20 +117,34 @@ def build_optimizer_bundle(
 ):
     print("Using", opt.train_optim, "as optimizer")
 
-    named_params = build_named_parameters(("", params))
-    if len(named_params) == 0:
-        raise ValueError("Cannot build an optimizer with no trainable parameters.")
-
     base_name = optimizer_name if optimizer_name is not None else "optimizer"
 
     if opt.train_optim != "muon":
-        raw_params = [param for _, param in named_params]
+        if _uses_parameter_groups(params):
+            raw_params = params
+        else:
+            named_params = build_named_parameters(("", params))
+            if len(named_params) == 0:
+                raise ValueError(
+                    "Cannot build an optimizer with no trainable parameters."
+                )
+            raw_params = [param for _, param in named_params]
         return [
             (
                 base_name,
                 _build_single_optimizer(opt, raw_params, lr, betas, weight_decay, eps),
             )
         ]
+
+    if _uses_parameter_groups(params):
+        raise TypeError(
+            "Muon optimizer registration does not support parameter-group dicts. "
+            "Pass named parameters through BaseModel.register_optimizer instead."
+        )
+
+    named_params = build_named_parameters(("", params))
+    if len(named_params) == 0:
+        raise ValueError("Cannot build an optimizer with no trainable parameters.")
 
     if not hasattr(torch.optim, "Muon"):
         raise ValueError("torch.optim.Muon is not available in this PyTorch build.")

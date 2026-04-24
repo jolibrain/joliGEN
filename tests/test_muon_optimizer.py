@@ -53,3 +53,29 @@ def test_muon_optimizer_bundle_splits_parameters():
     assert id(net.embedding.weight) in aux_param_ids
     assert id(net.conv.weight) in aux_param_ids
     assert id(net.norm.weight) in aux_param_ids
+
+
+def test_non_muon_optimizer_preserves_parameter_groups():
+    net = ToyNet()
+    opt = SimpleNamespace(train_optim="adam")
+
+    optimizer_bundle = build_optimizer_bundle(
+        opt,
+        [
+            {"params": [net.linear.weight]},
+            {"params": [net.linear_2.weight], "lr": 2e-3},
+        ],
+        lr=1e-3,
+        betas=(0.9, 0.999),
+        weight_decay=0.0,
+        eps=1e-8,
+        optimizer_name="optimizer_G",
+    )
+
+    assert [name for name, _ in optimizer_bundle] == ["optimizer_G"]
+
+    optimizer = optimizer_bundle[0][1]
+    assert isinstance(optimizer, torch.optim.Adam)
+    assert len(optimizer.param_groups) == 2
+    assert optimizer.param_groups[0]["lr"] == 1e-3
+    assert optimizer.param_groups[1]["lr"] == 2e-3
