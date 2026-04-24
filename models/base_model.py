@@ -1280,13 +1280,16 @@ class BaseModel(ABC):
                 self.iter_calculator.compute_step(loss_name, value)
 
         if self.niter % self.opt.train_iter_size == 0:
-            for optimizer in optimizers:
-                if self.use_cuda:
+            if self.use_cuda:
+                for optimizer in optimizers:
                     self.scaler.step(optimizer)
-                    self.scaler.update()
-                else:
+                self.scaler.update()
+                for optimizer in optimizers:
+                    optimizer.zero_grad()
+            else:
+                for optimizer in optimizers:
                     optimizer.step()
-                optimizer.zero_grad()
+                    optimizer.zero_grad()
             if self.opt.train_iter_size > 1:
                 self.iter_calculator.compute_last_step(loss_names)
                 for loss_name in loss_names:
