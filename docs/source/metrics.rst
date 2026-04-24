@@ -10,7 +10,7 @@ When testing a previously trained model, make sure the ``train_config.json`` fil
    python3 test.py \
         --test_model_dir /path/to/model/directory \
         --test_epoch 1 \
-        --test_metrics_list FID KID MSID PSNR LPIPS \
+        --test_metrics_list FID KID MSID PSNR LPIPS DINOv2 \
         --test_nb_img 1000 \
         --test_batch_size 16 \
         --test_seed 42
@@ -23,6 +23,7 @@ This will output the selected metrics:
    msidB_test: 32.10317674393986
    kidB_test: 0.036237239837646484
    psnr_test: 20.68259048461914
+   dinov2_test: 0.08321705460548401
 
 The metrics are also saved in a ``/path/to/model/directory/metrics/date.json`` file:
 
@@ -32,7 +33,8 @@ The metrics are also saved in a ``/path/to/model/directory/metrics/date.json`` f
     "fidB_test": 136.3628652179921,
     "msidB_test": 32.10317674393986,
     "kidB_test": 0.036237239837646484,
-    "psnr_test": 20.68259048461914
+    "psnr_test": 20.68259048461914,
+    "dinov2_test": 0.08321705460548401
  }
 
 The following options are available:

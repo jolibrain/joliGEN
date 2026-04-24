@@ -26,6 +26,7 @@ from tqdm import tqdm
 from piq import MSID, KID, FID, psnr, ssim
 from lpips import LPIPS
 
+from util.dino_metric import DINOv2Metric
 from util.util import save_image, tensor2im, delete_flop_param
 from util.util import pad_to_lpips_safe
 
@@ -152,6 +153,8 @@ class BaseModel(ABC):
             self.kid_metric = KID()
         if "LPIPS" in self.opt.train_metrics_list:
             self.lpips_metric = LPIPS().to(self.device)
+        if "DINOv2" in self.opt.train_metrics_list:
+            self.dinov2_metric = DINOv2Metric().to(self.device)
         if "FVD" in self.opt.train_metrics_list:
             self.fvd_metric = FrechetVideoDistance()
 
@@ -1662,6 +1665,10 @@ class BaseModel(ABC):
                     metrics_names += [
                         "lpips_test_" + name,
                     ]
+                if "DINOv2" in self.opt.train_metrics_list:
+                    metrics_names += [
+                        "dinov2_test_" + name,
+                    ]
 
             for name in metrics_names:
                 if isinstance(name, str):
@@ -1694,13 +1701,22 @@ class BaseModel(ABC):
                     per_step_lpips = self.lpips_step_results.get(test_name, {})
                     for step, value in sorted(per_step_lpips.items()):
                         metrics[f"lpips_step_{step}_{test_name}"] = float(value)
+            if (
+                hasattr(self, "dinov2_step_results")
+                and "DINOv2" in self.opt.train_metrics_list
+            ):
+                for test_name in test_names:
+                    per_step_dinov2 = self.dinov2_step_results.get(test_name, {})
+                    for step, value in sorted(per_step_dinov2.items()):
+                        metrics[f"dinov2_step_{step}_{test_name}"] = float(value)
 
         return metrics
 
     def _compute_metrics(self, fake_images, gt_images, filter_psnr_78=False):
         compute_lpips = hasattr(self, "lpips_metric")
+        compute_dinov2 = hasattr(self, "dinov2_metric")
         psnr_vals = []
-        ssim_sum, lpips_sum, n = 0.0, 0.0, 0
+        ssim_sum, lpips_sum, dinov2_sum, n = 0.0, 0.0, 0.0, 0
         for fake, gt in zip(fake_images, gt_images):
             if fake.shape != gt.shape:
                 print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
@@ -1721,6 +1737,8 @@ class BaseModel(ABC):
                     fake_lpips = fake
                     gt_lpips = gt
                 lpips_sum += self.lpips_metric(fake_lpips, gt_lpips).item()
+            if compute_dinov2:
+                dinov2_sum += self.dinov2_metric(fake, gt).item()
             n += 1
 
         if filter_psnr_78 and psnr_vals:
@@ -1733,7 +1751,8 @@ class BaseModel(ABC):
             psnr_val = sum(psnr_vals) / len(psnr_vals) if psnr_vals else 0.0
         ssim_val = ssim_sum / n if n else 0.0
         lpips_val = lpips_sum / n if (n and compute_lpips) else 0.0
-        return psnr_val, ssim_val, lpips_val
+        dinov2_val = dinov2_sum / n if (n and compute_dinov2) else 0.0
+        return psnr_val, ssim_val, lpips_val, dinov2_val
 
     def compute_metrics_test(
         self, dataloaders_test, n_epoch, n_iter, save_images=False, test_name=""
@@ -1938,18 +1957,20 @@ class BaseModel(ABC):
             ):
                 fake_images = [img for seq in self.fake_B_dilated for img in seq]
                 gt_images = [img for seq in self.gt_image_dilated for img in seq]
-                psnr_test, ssim_test, lpips_test = self._compute_metrics(
+                psnr_test, ssim_test, lpips_test, dinov2_test = self._compute_metrics(
                     fake_images, gt_images
                 )
                 setattr(self, "psnr_test_" + test_name, psnr_test)
                 setattr(self, "ssim_test_" + test_name, ssim_test)
                 setattr(self, "lpips_test_" + test_name, lpips_test)
+                setattr(self, "dinov2_test_" + test_name, dinov2_test)
 
             elif getattr(self.opt, "alg_sc_metric_mask", False):
 
                 self.psnr_step = {}
                 self.ssim_step = {}
                 self.lpips_step = {}
+                self.dinov2_step = {}
 
                 steps = sorted(self.fake_B_dilated_per_step.keys())
                 for step in steps:
@@ -1962,12 +1983,13 @@ class BaseModel(ABC):
                         for img in seq
                     ]
 
-                    psnr_val, ssim_val, lpips_val = self._compute_metrics(
+                    psnr_val, ssim_val, lpips_val, dinov2_val = self._compute_metrics(
                         fake_crops, gt_crops
                     )
                     self.psnr_step[step] = psnr_val
                     self.ssim_step[step] = ssim_val
                     self.lpips_step[step] = lpips_val
+                    self.dinov2_step[step] = dinov2_val
 
                 if not hasattr(self, "psnr_step_results"):
                     self.psnr_step_results = {}
@@ -1975,6 +1997,8 @@ class BaseModel(ABC):
                     self.ssim_step_results = {}
                 if not hasattr(self, "lpips_step_results"):
                     self.lpips_step_results = {}
+                if not hasattr(self, "dinov2_step_results"):
+                    self.dinov2_step_results = {}
 
                 self.psnr_step_results[test_name] = {
                     step: float(val) for step, val in self.psnr_step.items()
@@ -1985,13 +2009,18 @@ class BaseModel(ABC):
                 self.lpips_step_results[test_name] = {
                     step: float(val) for step, val in self.lpips_step.items()
                 }
+                self.dinov2_step_results[test_name] = {
+                    step: float(val) for step, val in self.dinov2_step.items()
+                }
                 psnr_test = sum(self.psnr_step.values()) / len(self.psnr_step)
                 ssim_test = sum(self.ssim_step.values()) / len(self.ssim_step)
                 lpips_test = sum(self.lpips_step.values()) / len(self.lpips_step)
+                dinov2_test = sum(self.dinov2_step.values()) / len(self.dinov2_step)
 
                 setattr(self, "psnr_test_" + test_name, psnr_test)
                 setattr(self, "ssim_test_" + test_name, ssim_test)
                 setattr(self, "lpips_test_" + test_name, lpips_test)
+                setattr(self, "dinov2_test_" + test_name, dinov2_test)
 
             else:
                 setattr(self, "psnr_test_" + test_name, psnr_test)
@@ -2004,29 +2033,32 @@ class BaseModel(ABC):
             if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
                 self.opt, "alg_cm_metric_mask", False
             ):
-                psnr_test, ssim_test, lpips_test = self._compute_metrics(
+                psnr_test, ssim_test, lpips_test, dinov2_test = self._compute_metrics(
                     self.fake_B_dilated, self.gt_image_dilated
                 )
                 setattr(self, "psnr_test_" + test_name, psnr_test)
                 setattr(self, "ssim_test_" + test_name, ssim_test)
                 setattr(self, "lpips_test_" + test_name, lpips_test)
+                setattr(self, "dinov2_test_" + test_name, dinov2_test)
 
             elif getattr(self.opt, "alg_sc_metric_mask", False):
 
                 self.psnr_step = {}
                 self.ssim_step = {}
                 self.lpips_step = {}
+                self.dinov2_step = {}
                 steps = sorted(self.fake_B_dilated_per_step.keys())
                 for step in steps:
                     fake_crops = self.fake_B_dilated_per_step[step]
                     gt_crops = self.gt_image_dilated_per_step[step]
 
-                    psnr_val, ssim_val, lpips_val = self._compute_metrics(
+                    psnr_val, ssim_val, lpips_val, dinov2_val = self._compute_metrics(
                         fake_crops, gt_crops
                     )
                     self.psnr_step[step] = psnr_val
                     self.ssim_step[step] = ssim_val
                     self.lpips_step[step] = lpips_val
+                    self.dinov2_step[step] = dinov2_val
 
                 if not hasattr(self, "psnr_step_results"):
                     self.psnr_step_results = {}
@@ -2034,6 +2066,8 @@ class BaseModel(ABC):
                     self.ssim_step_results = {}
                 if not hasattr(self, "lpips_step_results"):
                     self.lpips_step_results = {}
+                if not hasattr(self, "dinov2_step_results"):
+                    self.dinov2_step_results = {}
 
                 self.psnr_step_results[test_name] = {
                     step: float(val) for step, val in self.psnr_step.items()
@@ -2044,14 +2078,19 @@ class BaseModel(ABC):
                 self.lpips_step_results[test_name] = {
                     step: float(val) for step, val in self.lpips_step.items()
                 }
+                self.dinov2_step_results[test_name] = {
+                    step: float(val) for step, val in self.dinov2_step.items()
+                }
 
                 # Global average across steps (same logic as palette/cm)
                 psnr_test = sum(self.psnr_step.values()) / len(self.psnr_step)
                 ssim_test = sum(self.ssim_step.values()) / len(self.ssim_step)
                 lpips_test = sum(self.lpips_step.values()) / len(self.lpips_step)
+                dinov2_test = sum(self.dinov2_step.values()) / len(self.dinov2_step)
                 setattr(self, "psnr_test_" + test_name, psnr_test)
                 setattr(self, "ssim_test_" + test_name, ssim_test)
                 setattr(self, "lpips_test_" + test_name, lpips_test)
+                setattr(self, "dinov2_test_" + test_name, dinov2_test)
 
             else:
                 setattr(self, "psnr_test_" + test_name, psnr_test)
@@ -2072,11 +2111,19 @@ class BaseModel(ABC):
             else:
                 lpips_test = self.lpips_metric(real_tensor, fake_tensor).mean()
             setattr(self, "lpips_test_" + test_name, lpips_test)
+        if "DINOv2" in self.opt.train_metrics_list:
+            real_tensor = torch.cat(real_list)
+            fake_tensor = torch.clamp(torch.cat(fake_list), min=-1, max=1)
+            if len(real_tensor.shape) == 5:  # temporal
+                real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
+            dinov2_test = self.dinov2_metric(real_tensor, fake_tensor)
+            setattr(self, "dinov2_test_" + test_name, dinov2_test)
 
         if fake_list_per_step:
             self.psnr_step = {}
             self.ssim_step = {}
             self.lpips_step = {}
+            self.dinov2_step = {}
             filter_psnr_78 = self.opt.G_netG in ["unet_vid", "vit_vid"]
 
             for step in sorted(fake_list_per_step.keys()):
@@ -2086,7 +2133,7 @@ class BaseModel(ABC):
                     continue
 
                 max_count = min(len(fake_images), len(gt_images))
-                psnr_val, ssim_val, lpips_val = self._compute_metrics(
+                psnr_val, ssim_val, lpips_val, dinov2_val = self._compute_metrics(
                     fake_images[:max_count],
                     gt_images[:max_count],
                     filter_psnr_78=filter_psnr_78,
@@ -2095,6 +2142,7 @@ class BaseModel(ABC):
                 self.psnr_step[step] = psnr_val
                 self.ssim_step[step] = ssim_val
                 self.lpips_step[step] = lpips_val
+                self.dinov2_step[step] = dinov2_val
 
             if not hasattr(self, "psnr_step_results"):
                 self.psnr_step_results = {}
@@ -2102,6 +2150,8 @@ class BaseModel(ABC):
                 self.ssim_step_results = {}
             if not hasattr(self, "lpips_step_results"):
                 self.lpips_step_results = {}
+            if not hasattr(self, "dinov2_step_results"):
+                self.dinov2_step_results = {}
 
             self.psnr_step_results[test_name] = {
                 step: float(val) for step, val in self.psnr_step.items()
@@ -2111,6 +2161,9 @@ class BaseModel(ABC):
             }
             self.lpips_step_results[test_name] = {
                 step: float(val) for step, val in self.lpips_step.items()
+            }
+            self.dinov2_step_results[test_name] = {
+                step: float(val) for step, val in self.dinov2_step.items()
             }
 
         if "FVD" in self.opt.train_metrics_list:
