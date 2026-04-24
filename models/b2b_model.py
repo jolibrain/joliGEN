@@ -24,6 +24,26 @@ from torchvision.ops import masks_to_boxes
 import torch.nn.functional as F
 
 
+def _load_fdl_loss_cls():
+    original_cuda = torch.Tensor.cuda
+
+    def _cuda_noop(self, *args, **kwargs):
+        return self
+
+    try:
+        torch.Tensor.cuda = _cuda_noop
+        from FDL_pytorch import FDL_loss
+    except Exception as exc:
+        raise ImportError(
+            "FDL perceptual loss requires the FDL_pytorch package. "
+            "Install it before using --alg_b2b_perceptual_loss FDL."
+        ) from exc
+    finally:
+        torch.Tensor.cuda = original_cuda
+
+    return FDL_loss
+
+
 class B2BModel(BaseDiffusionModel):
 
     @staticmethod
@@ -114,7 +134,7 @@ class B2BModel(BaseDiffusionModel):
             type=str,
             nargs="*",
             default=[""],
-            choices=["", "LPIPS", "DISTS"],
+            choices=["", "LPIPS", "DISTS", "FDL"],
             help="Optional perceptual losses",
         )
 
@@ -357,6 +377,8 @@ class B2BModel(BaseDiffusionModel):
             self.criterionDISTS = DISTS(
                 mean=self.opt.alg_b2b_dists_mean, std=self.opt.alg_b2b_dists_std
             ).to(self.device)
+        if "FDL" in self.opt.alg_b2b_perceptual_loss:
+            self.criterionFDL = _load_fdl_loss_cls()().to(self.device)
 
     def set_input(self, data):
         if (
@@ -515,6 +537,7 @@ class B2BModel(BaseDiffusionModel):
 
         self.loss_G_perceptual_lpips = torch.zeros(size=(), device=y_0.device)
         self.loss_G_perceptual_dists = torch.zeros(size=(), device=y_0.device)
+        self.loss_G_perceptual_fdl = torch.zeros(size=(), device=y_0.device)
         self.loss_G_perceptual = torch.zeros(size=(), device=y_0.device)
 
         if use_perceptual and x_pred is not None:
@@ -529,11 +552,14 @@ class B2BModel(BaseDiffusionModel):
             (
                 self.loss_G_perceptual_lpips,
                 self.loss_G_perceptual_dists,
+                self.loss_G_perceptual_fdl,
             ) = self._compute_perceptual_losses(
                 target_for_perceptual, pred_for_perceptual
             )
             self.loss_G_perceptual = self.opt.alg_b2b_lambda_perceptual * (
-                self.loss_G_perceptual_lpips + self.loss_G_perceptual_dists
+                self.loss_G_perceptual_lpips
+                + self.loss_G_perceptual_dists
+                + self.loss_G_perceptual_fdl
             )
             self.loss_G_tot += self.loss_G_perceptual
 
@@ -565,6 +591,7 @@ class B2BModel(BaseDiffusionModel):
 
         lpips_loss = torch.zeros(size=(), device=target.device)
         dists_loss = torch.zeros(size=(), device=target.device)
+        fdl_loss = torch.zeros(size=(), device=target.device)
 
         if "LPIPS" in self.opt.alg_b2b_perceptual_loss:
             lpips_loss = self._perceptual_loss_by_channel(
@@ -574,8 +601,14 @@ class B2BModel(BaseDiffusionModel):
             dists_loss = self._perceptual_loss_by_channel(
                 self.criterionDISTS, target, pred
             )
+        if "FDL" in self.opt.alg_b2b_perceptual_loss:
+            target_fdl = self._b2b_to_fdl_range(target)
+            pred_fdl = self._b2b_to_fdl_range(pred)
+            fdl_loss = self._fdl_loss_by_channel(
+                self.criterionFDL, target_fdl, pred_fdl
+            )
 
-        return lpips_loss, dists_loss
+        return lpips_loss, dists_loss, fdl_loss
 
     def _perceptual_loss_by_channel(self, criterion, target, pred):
         if pred.size(1) > 3:
@@ -589,6 +622,20 @@ class B2BModel(BaseDiffusionModel):
                 )
             return loss
         return torch.mean(criterion(target, pred))
+
+    def _b2b_to_fdl_range(self, tensor):
+        return ((tensor + 1.0) * 0.5).clamp(0.0, 1.0)
+
+    def _fdl_loss_by_channel(self, criterion, target, pred):
+        if pred.size(1) == 3:
+            return torch.mean(criterion(target, pred))
+
+        loss = torch.zeros(size=(), device=pred.device)
+        for c in range(pred.size(1)):
+            target_c = target[:, c : c + 1, :, :].repeat(1, 3, 1, 1)
+            pred_c = pred[:, c : c + 1, :, :].repeat(1, 3, 1, 1)
+            loss += torch.mean(criterion(target_c, pred_c))
+        return loss
 
     def inference(self, nb_imgs, offset=0):
         offset = 0
