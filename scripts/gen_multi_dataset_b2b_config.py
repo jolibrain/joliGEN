@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import csv
+import glob
 import json
+import random
+import re
 import sys
 from pathlib import Path
 
@@ -70,7 +73,171 @@ def read_manifest(path):
     return rows
 
 
-def build_multi_dataset_config(rows):
+def sanitize_id(value):
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip())
+    return safe.strip("_") or "dataset"
+
+
+def make_test_id(dataset_name, child_test_name):
+    base = sanitize_id(dataset_name)
+    suffix = sanitize_id(child_test_name) if child_test_name else ""
+    return f"{base}__{suffix}" if suffix else base
+
+
+def natural_keys(text):
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", text)]
+
+
+def absolutize_paths_line(line, dataroot):
+    parts = line.strip().split()
+    if not parts:
+        return ""
+
+    absolute_parts = []
+    for part in parts:
+        path = Path(part)
+        if not path.is_absolute():
+            path = Path(dataroot) / path
+        absolute_parts.append(str(path))
+    return " ".join(absolute_parts)
+
+
+def read_paths_file(paths_file):
+    with open(paths_file, "r") as file:
+        return [line.strip() for line in file.readlines() if line.strip()]
+
+
+def discover_existing_test_sets(entry):
+    test_sets = []
+    for test_dir in sorted(glob.glob(str(Path(entry["dataroot"]) / "testA*"))):
+        test_dir_path = Path(test_dir)
+        if not (test_dir_path / "paths.txt").is_file():
+            continue
+        child_test_name = test_dir_path.name[len("testA") :]
+        test_sets.append(
+            {
+                "id": make_test_id(entry["name"], child_test_name),
+                "dataset_name": entry["name"],
+                "dataroot": entry["dataroot"],
+                "child_test_name": child_test_name,
+                "generated": False,
+            }
+        )
+    return test_sets
+
+
+def valid_temporal_windows(lines, num_frames, frame_step, num_common_char):
+    indexed_lines = sorted(enumerate(lines), key=lambda item: natural_keys(item[1]))
+    sorted_indices = [item[0] for item in indexed_lines]
+    sorted_lines = [item[1] for item in indexed_lines]
+    windows = []
+
+    span = (num_frames - 1) * frame_step
+    for start in range(0, len(sorted_lines) - span):
+        selected_positions = [start + frame_idx * frame_step for frame_idx in range(num_frames)]
+        selected_lines = [sorted_lines[position] for position in selected_positions]
+        selected_paths = [Path(line.split()[0]) for line in selected_lines]
+
+        if len({str(path.parent) for path in selected_paths}) != 1:
+            continue
+
+        if num_common_char != -1:
+            ref_prefix = selected_paths[0].name[:num_common_char]
+            if any(path.name[:num_common_char] != ref_prefix for path in selected_paths):
+                continue
+
+        windows.append([sorted_indices[position] for position in selected_positions])
+
+    return windows
+
+
+def generate_holdout_test_set(entry, output_dir, args):
+    dataroot = Path(entry["dataroot"])
+    train_paths_file = dataroot / "trainA" / "paths.txt"
+    if not train_paths_file.is_file():
+        raise ValueError(f"missing train paths file: {train_paths_file}")
+
+    lines = read_paths_file(train_paths_file)
+    num_common_char = entry.get("overrides", {}).get(
+        "data_temporal_num_common_char", -1
+    )
+    windows = valid_temporal_windows(
+        lines,
+        args.data_temporal_number_frames,
+        args.data_temporal_frame_step,
+        num_common_char,
+    )
+    if not windows:
+        raise ValueError(
+            f"dataset '{entry['name']}' has no valid temporal windows to sample"
+        )
+
+    name_seed = sum(ord(char) for char in entry["name"])
+    rng = random.Random(args.auto_test_seed + name_seed)
+    sample_count = min(args.auto_test_samples, len(windows))
+    sampled_windows = rng.sample(windows, sample_count)
+    holdout_indices = sorted({index for window in sampled_windows for index in window})
+
+    train_indices = [index for index in range(len(lines)) if index not in holdout_indices]
+    if not train_indices:
+        raise ValueError(
+            f"dataset '{entry['name']}' automatic holdout would leave no train samples"
+        )
+    train_lines = [lines[index] for index in train_indices]
+    if not valid_temporal_windows(
+        train_lines,
+        args.data_temporal_number_frames,
+        args.data_temporal_frame_step,
+        num_common_char,
+    ):
+        raise ValueError(
+            f"dataset '{entry['name']}' automatic holdout would leave no valid "
+            "train temporal windows"
+        )
+
+    generated_root = output_dir / "generated_test_sets" / sanitize_id(entry["name"])
+    generated_train_dir = generated_root / "trainA"
+    generated_test_dir = generated_root / "testA"
+    generated_train_dir.mkdir(parents=True, exist_ok=True)
+    generated_test_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(generated_train_dir / "paths.txt", "w") as train_file:
+        for line in train_lines:
+            train_file.write(absolutize_paths_line(line, dataroot) + "\n")
+
+    with open(generated_test_dir / "paths.txt", "w") as test_file:
+        for index in holdout_indices:
+            test_file.write(absolutize_paths_line(lines[index], dataroot) + "\n")
+
+    entry["dataroot"] = str(generated_root)
+    return {
+        "id": make_test_id(entry["name"], ""),
+        "dataset_name": entry["name"],
+        "dataroot": str(generated_root),
+        "child_test_name": "",
+        "generated": True,
+    }
+
+
+def add_test_sets(config, output_dir, args):
+    test_sets = []
+    seen_ids = set()
+    for entry in config["datasets"]:
+        entry_test_sets = discover_existing_test_sets(entry)
+        if not entry_test_sets:
+            entry_test_sets = [generate_holdout_test_set(entry, output_dir, args)]
+
+        for test_set in entry_test_sets:
+            if test_set["id"] in seen_ids:
+                raise ValueError(f"duplicate multi_dataset test id '{test_set['id']}'")
+            seen_ids.add(test_set["id"])
+            test_sets.append(test_set)
+
+    config["test_sets"] = test_sets
+    return config
+
+
+def build_multi_dataset_config(rows, output_dir=None, args=None):
     datasets = []
     for row_index, row in enumerate(rows):
         for key in FORBIDDEN_OVERRIDE_COLUMNS:
@@ -94,7 +261,10 @@ def build_multi_dataset_config(rows):
         }
         datasets.append(entry)
 
-    return {"datasets": datasets}
+    config = {"datasets": datasets}
+    if output_dir is not None and args is not None:
+        config = add_test_sets(config, Path(output_dir), args)
+    return config
 
 
 def build_train_config(args, multi_dataset_config_path):
@@ -209,6 +379,8 @@ def parse_args():
     parser.add_argument("--train-n-epochs", type=int, default=1)
     parser.add_argument("--train-n-epochs-decay", type=int, default=0)
     parser.add_argument("--preview-samples", type=int, default=4)
+    parser.add_argument("--auto-test-samples", type=int, default=32)
+    parser.add_argument("--auto-test-seed", type=int, default=1337)
     parser.add_argument("--skip-preview", action="store_true")
     return parser.parse_args()
 
@@ -216,10 +388,10 @@ def parse_args():
 def main():
     args = parse_args()
     rows = read_manifest(args.manifest)
-    multi_config = build_multi_dataset_config(rows)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    multi_config = build_multi_dataset_config(rows, output_dir, args)
     multi_config_path = output_dir / "multi_dataset_config.json"
     train_config_path = output_dir / "train_config.json"
 

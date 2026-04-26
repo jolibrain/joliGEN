@@ -11,7 +11,10 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import data as data_module
 from data.multi_dataset_dataset import MultiDatasetDataset
-from scripts.gen_multi_dataset_b2b_config import build_multi_dataset_config
+from scripts.gen_multi_dataset_b2b_config import (
+    add_test_sets,
+    build_multi_dataset_config,
+)
 
 
 class FakeChildDataset:
@@ -234,3 +237,205 @@ def test_multi_dataset_generator_writes_expected_config_shape():
             }
         ]
     }
+
+
+def test_multi_dataset_list_test_sets_reads_config(tmp_path):
+    config_path = tmp_path / "multi.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "datasets": [
+                    {
+                        "name": "a",
+                        "dataset_mode": "self_supervised_vid_mask_online",
+                        "dataroot": "/data/a",
+                    }
+                ],
+                "test_sets": [
+                    {
+                        "id": "a",
+                        "dataset_name": "a",
+                        "dataroot": "/data/a",
+                        "child_test_name": "",
+                        "generated": False,
+                    },
+                    {
+                        "id": "a__hard",
+                        "dataset_name": "a",
+                        "dataroot": "/data/a",
+                        "child_test_name": "hard",
+                        "generated": False,
+                    },
+                ],
+            }
+        )
+    )
+
+    opt = make_opt(config_path)
+
+    assert data_module.list_test_sets(opt) == ["a", "a__hard"]
+
+
+def test_multi_dataset_test_phase_delegates_to_named_child_test_set(
+    tmp_path, monkeypatch
+):
+    FakeChildDataset.instances = []
+    monkeypatch.setattr(data_module, "find_dataset_using_name", lambda _: FakeChildDataset)
+    config_path = tmp_path / "multi.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "datasets": [
+                    {
+                        "name": "a",
+                        "dataset_mode": "self_supervised_vid_mask_online",
+                        "dataroot": "/data/a",
+                    },
+                    {
+                        "name": "b",
+                        "dataset_mode": "self_supervised_vid_mask_online",
+                        "dataroot": "/data/b",
+                    },
+                ],
+                "test_sets": [
+                    {
+                        "id": "b__hard",
+                        "dataset_name": "b",
+                        "dataroot": "/generated/b",
+                        "child_test_name": "hard",
+                        "generated": True,
+                    }
+                ],
+            }
+        )
+    )
+
+    dataset = MultiDatasetDataset(make_opt(config_path), "test", "b__hard")
+    sample = dataset[1]
+
+    assert len(dataset) == 3
+    assert len(FakeChildDataset.instances) == 1
+    assert FakeChildDataset.instances[0].phase == "test"
+    assert FakeChildDataset.instances[0].name == "hard"
+    assert FakeChildDataset.instances[0].opt.dataroot == "/generated/b"
+    assert sample["dataset_name"] == "b"
+    assert sample["dataset_index"] == 1
+    assert sample["dataset_test_name"] == "b__hard"
+
+
+def test_multi_dataset_test_phase_rejects_unknown_test_set(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_module, "find_dataset_using_name", lambda _: FakeChildDataset)
+    config_path = tmp_path / "multi.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "datasets": [
+                    {
+                        "name": "a",
+                        "dataset_mode": "self_supervised_vid_mask_online",
+                        "dataroot": "/data/a",
+                    }
+                ],
+                "test_sets": [
+                    {
+                        "id": "a",
+                        "dataset_name": "a",
+                        "dataroot": "/data/a",
+                        "child_test_name": "",
+                        "generated": False,
+                    }
+                ],
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="unknown multi_dataset test set"):
+        MultiDatasetDataset(make_opt(config_path), "test", "missing")
+
+
+def test_multi_dataset_generator_discovers_existing_test_sets(tmp_path):
+    dataroot = tmp_path / "dataset"
+    (dataroot / "testA").mkdir(parents=True)
+    (dataroot / "testAhard").mkdir(parents=True)
+    (dataroot / "testA" / "paths.txt").write_text("img0.png mask0.png\n")
+    (dataroot / "testAhard" / "paths.txt").write_text("img1.png mask1.png\n")
+
+    config = {
+        "datasets": [
+            {
+                "name": "dataset a",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": str(dataroot),
+                "weight": 1.0,
+                "overrides": {},
+            }
+        ]
+    }
+
+    add_test_sets(config, tmp_path / "out", SimpleNamespace())
+
+    assert config["test_sets"] == [
+        {
+            "id": "dataset_a",
+            "dataset_name": "dataset a",
+            "dataroot": str(dataroot),
+            "child_test_name": "",
+            "generated": False,
+        },
+        {
+            "id": "dataset_a__hard",
+            "dataset_name": "dataset a",
+            "dataroot": str(dataroot),
+            "child_test_name": "hard",
+            "generated": False,
+        },
+    ]
+
+
+def test_multi_dataset_generator_creates_true_holdout(tmp_path):
+    dataroot = tmp_path / "dataset"
+    (dataroot / "trainA").mkdir(parents=True)
+    lines = [
+        f"vid/frame_{index:03d}.png masks/frame_{index:03d}.png"
+        for index in range(6)
+    ]
+    (dataroot / "trainA" / "paths.txt").write_text("\n".join(lines) + "\n")
+
+    args = SimpleNamespace(
+        data_temporal_number_frames=2,
+        data_temporal_frame_step=1,
+        auto_test_samples=2,
+        auto_test_seed=7,
+    )
+    config = {
+        "datasets": [
+            {
+                "name": "dataset",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": str(dataroot),
+                "weight": 1.0,
+                "overrides": {},
+            }
+        ]
+    }
+
+    add_test_sets(config, tmp_path / "out", args)
+
+    generated_root = tmp_path / "out" / "generated_test_sets" / "dataset"
+    train_lines = (generated_root / "trainA" / "paths.txt").read_text().splitlines()
+    test_lines = (generated_root / "testA" / "paths.txt").read_text().splitlines()
+
+    assert config["datasets"][0]["dataroot"] == str(generated_root)
+    assert config["test_sets"] == [
+        {
+            "id": "dataset",
+            "dataset_name": "dataset",
+            "dataroot": str(generated_root),
+            "child_test_name": "",
+            "generated": True,
+        }
+    ]
+    assert train_lines
+    assert test_lines
+    assert set(train_lines).isdisjoint(set(test_lines))
+    assert all(line.startswith(str(dataroot)) for line in train_lines + test_lines)

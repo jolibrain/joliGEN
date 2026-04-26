@@ -13,6 +13,7 @@ See our template dataset class 'template_dataset.py' for more details.
 
 import importlib
 import glob
+import json
 import torch.utils.data
 from data.base_dataset import BaseDataset
 from torch.utils import data
@@ -86,6 +87,13 @@ def collate_fn(batch):
 
 
 def list_test_sets(opt):
+    if opt.data_dataset_mode == "multi_dataset":
+        with open(opt.data_multi_dataset_config, "r") as config_file:
+            config = json.load(config_file)
+        test_sets = [test_set["id"] for test_set in config.get("test_sets", [])]
+        print(f"Found multi_dataset test sets: {test_sets}")
+        return test_sets
+
     btoA = opt.data_direction == "BtoA"
     lookup = "B" if btoA else "A"
     test_set_dirs = glob.glob(f"{opt.dataroot}/test" + lookup + "*")
