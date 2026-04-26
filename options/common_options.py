@@ -706,6 +706,7 @@ class CommonOptions(BaseOptions):
                 "nuplet_unaligned_labeled_mask",
                 "temporal_labeled_mask_online",
                 "self_supervised_vid_mask_online",
+                "multi_dataset",
                 "self_supervised_vid_labeled_mask_cls_online",
                 "self_supervised_temporal",
                 "single",
@@ -716,6 +717,15 @@ class CommonOptions(BaseOptions):
                 "self_supervised_labeled_mask_online_ref",
             ],
             help="chooses how datasets are loaded.",
+        )
+        parser.add_argument(
+            "--data_multi_dataset_config",
+            type=str,
+            default="",
+            help=(
+                "path to a JSON config describing child datasets for "
+                "data_dataset_mode=multi_dataset"
+            ),
         )
         parser.add_argument(
             "--data_direction",
