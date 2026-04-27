@@ -101,42 +101,71 @@ as ``data_load_size``, ``data_crop_size``, channel counts,
 ****************
 
 ``scripts/gen_multi_dataset_b2b_config.py`` builds the multi-dataset
-JSON from a CSV or TSV manifest. Required columns are:
+JSON directly from dataset roots. Provide either:
 
-- ``name``;
-- ``dataroot``.
+- ``--datasets-root``: a directory containing one subdirectory per
+  dataset root;
+- ``--dataset-dirs``: an explicit list of dataset roots when datasets
+  are not under the same parent directory.
 
-Optional columns are:
+Every dataset root must contain ``trainA/paths.txt`` with
+``<image> <bbox>`` entries. Bbox paths may be relative to the dataset
+root or absolute.
 
-- ``weight``;
-- ``data_online_creation_crop_size_A``;
-- ``data_online_creation_crop_delta_A``;
-- ``data_online_creation_load_size_A``;
-- ``data_online_creation_mask_delta_A``;
-- ``data_online_creation_mask_delta_A_ratio``;
-- ``data_online_creation_mask_random_offset_A``;
-- ``data_online_creation_mask_square_A``;
-- ``data_temporal_num_common_char``.
+Dataset discovery only looks one level below ``--datasets-root`` and
+only treats each direct child as a dataset root. Inside each dataset
+root, only ``trainA`` and ``testA*`` are used for multi-dataset
+configuration; other subdirectories are considered implementation
+details that may hold real files or symlink targets.
+
+For every dataset, the generator reads bbox files from
+``trainA/paths.txt`` and derives:
+
+- ``data_online_creation_crop_size_A`` from bbox long-side statistics;
+- ``data_online_creation_crop_delta_A`` as 10% of the derived crop size.
+
+The size derivation follows the bbox helper workflow:
+
+- compute the HDI over bbox long sides using ``--coverage``;
+- apply ``raw_target = 0.696 * hdi_hi + 124.5``;
+- cap below the maximum bbox long side;
+- floor to a multiple of ``--step``.
+
+Use ``--ignore-categories`` to ignore bbox classes while deriving crop
+size. It defaults to ignoring category ``2``. Passing the flag with no
+values disables category filtering. ``--size`` can be used as a manual
+crop-size override.
 
 The generator writes:
 
 - ``multi_dataset_config.json``;
 - ``train_config.json`` configured with
-  ``data_dataset_mode: "multi_dataset"``;
-- preview grids for every child dataset, unless ``--skip-preview`` is
-  used.
+  ``data_dataset_mode: "multi_dataset"`` and the default B2B video
+  options used by the LV ring workflow, including ``vit_vid``,
+  ``JiT-B/16``, Muon, AMP/TF32, compile, autoregressive B2B, masked
+  pseudo-Huber loss, LPIPS/DISTS perceptual loss, and PSNR/FID test
+  metrics;
+- preview grids for every child dataset when ``--preview-samples`` is
+  greater than zero.
+
+The generated training config intentionally does not set
+``data_online_creation_crop_size_A`` or
+``data_online_creation_crop_delta_A`` globally. Those values are derived
+per child dataset and written into ``multi_dataset_config.json``.
 
 Example:
 
 .. code-block:: bash
 
    python scripts/gen_multi_dataset_b2b_config.py \
-     --manifest datasets.tsv \
+     --datasets-root /path/to/datasets \
      --output-dir runs/b2b_multi_dataset_configs \
      --data-load-size 256 \
      --data-crop-size 256 \
      --data-temporal-number-frames 2 \
-     --data-temporal-frame-step 1
+     --data-temporal-frame-step 1 \
+     --ignore-categories 2 \
+     --preview-samples 4
 
 *****************
  Test set support
