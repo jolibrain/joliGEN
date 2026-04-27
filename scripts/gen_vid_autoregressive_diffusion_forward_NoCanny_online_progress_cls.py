@@ -435,7 +435,7 @@ def generate_streaming(
                         out.write(json.dumps(generated_bbox))
 
         video_frame = (
-            np.concatenate([img_orig, out_img_real_size], axis=1)
+            np.concatenate([out_img_real_size, img_orig], axis=1)
             if compare
             else out_img_real_size
         )
@@ -1201,7 +1201,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--compare",
         action="store_true",
-        help="Put the original frame on the left side of the generated frame in the AVI output",
+        help="Put the generated frame on the left side of the original frame in the AVI output",
     )
     extra_args, _ = parser.parse_known_args()
     args.compare = extra_args.compare

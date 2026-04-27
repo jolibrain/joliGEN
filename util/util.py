@@ -150,7 +150,7 @@ def display_mask(mask):
     mask_dis = np.zeros((mask.shape[0], mask.shape[1], 3))
     # print('mask_dis shape',mask_dis.shape)
     for i in range(mask.shape[0]):
-        for j in range(mask.shape[0]):
+        for j in range(mask.shape[1]):
             cls_display = mask[i, j] % nb_cls_display
             mask_dis[i, j, :] = dict_col[cls_display]
     return mask_dis
