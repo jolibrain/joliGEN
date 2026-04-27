@@ -13,7 +13,9 @@ import data as data_module
 from data.multi_dataset_dataset import MultiDatasetDataset
 from scripts.gen_multi_dataset_b2b_config import (
     add_test_sets,
+    build_train_config,
     build_multi_dataset_config,
+    discover_dataset_roots,
 )
 
 
@@ -87,6 +89,53 @@ def write_config(tmp_path, datasets):
     config_path = tmp_path / "multi.json"
     config_path.write_text(json.dumps({"datasets": datasets}))
     return config_path
+
+
+def make_generator_args(**kwargs):
+    values = {
+        "name": "b2b_multi_dataset",
+        "checkpoints_dir": "./checkpoints",
+        "gpu_ids": "-1",
+        "base_train_config": "",
+        "reference_dataroot": "/data/a",
+        "coverage": 0.75,
+        "step": 16,
+        "size": None,
+        "weight": 1.0,
+        "ignore_categories": ["2"],
+        "data_load_size": 256,
+        "data_crop_size": 256,
+        "data_temporal_number_frames": 2,
+        "data_temporal_frame_step": 1,
+        "data_num_threads": 8,
+        "train_batch_size": 8,
+        "train_iter_size": 4,
+        "train_n_epochs": 6000,
+        "train_n_epochs_decay": 0,
+        "train_save_epoch_freq": 1000,
+        "train_G_lr": 1e-4,
+        "train_metrics_every": 20000,
+        "output_print_freq": 200,
+        "output_display_freq": 1000,
+        "auto_test_samples": 1,
+        "auto_test_seed": 7,
+    }
+    values.update(kwargs)
+    return SimpleNamespace(**values)
+
+
+def write_bbox_dataset(root, name="ring", sizes=(100, 120, 140, 160)):
+    train_dir = root / "trainA"
+    bbox_dir = root / name / "bbox"
+    train_dir.mkdir(parents=True)
+    bbox_dir.mkdir(parents=True)
+    lines = []
+    for index, size in enumerate(sizes):
+        bbox_rel = f"{name}/bbox/frame_{index:03d}.txt"
+        (root / bbox_rel).write_text(f"1 0 0 {size} {size}\n2 0 0 400 400\n")
+        lines.append(f"{name}/imgs/frame_{index:03d}.png {bbox_rel}")
+    (train_dir / "paths.txt").write_text("\n".join(lines) + "\n")
+    return root
 
 
 def test_multi_dataset_parses_config_and_applies_child_overrides(tmp_path, monkeypatch):
@@ -197,46 +246,79 @@ def test_multi_dataset_retries_none_samples(tmp_path, monkeypatch):
     assert sample["dataset_name"] == "flaky"
 
 
-def test_multi_dataset_generator_rejects_manifest_shape_overrides():
-    with pytest.raises(ValueError, match="cannot override shape/model option"):
-        build_multi_dataset_config(
-            [
-                {
-                    "name": "bad",
-                    "dataroot": "/data/bad",
-                    "data_load_size": "512",
-                }
-            ]
-        )
+def test_multi_dataset_generator_discovers_dataset_roots(tmp_path):
+    datasets_root = tmp_path / "datasets"
+    dataset_a = write_bbox_dataset(datasets_root / "a")
+    dataset_b = write_bbox_dataset(datasets_root / "b")
+    (datasets_root / "not_a_dataset").mkdir()
 
-
-def test_multi_dataset_generator_writes_expected_config_shape():
-    config = build_multi_dataset_config(
-        [
-            {
-                "name": "a",
-                "dataroot": "/data/a",
-                "weight": "2",
-                "data_online_creation_crop_size_A": "304",
-                "data_online_creation_mask_delta_A_ratio": "[[0.2, 0.2]]",
-            }
-        ]
+    roots = discover_dataset_roots(
+        SimpleNamespace(datasets_root=str(datasets_root), dataset_dirs=None)
     )
+
+    assert roots == [dataset_a.resolve(), dataset_b.resolve()]
+
+
+def test_multi_dataset_generator_writes_derived_config_shape(tmp_path):
+    dataroot = write_bbox_dataset(tmp_path / "dataset")
+    args = make_generator_args(size=320, weight=2.0)
+
+    config = build_multi_dataset_config([dataroot], args=args)
 
     assert config == {
         "datasets": [
             {
-                "name": "a",
+                "name": "dataset",
                 "dataset_mode": "self_supervised_vid_mask_online",
-                "dataroot": "/data/a",
+                "dataroot": str(dataroot),
                 "weight": 2.0,
                 "overrides": {
-                    "data_online_creation_crop_size_A": 304,
-                    "data_online_creation_mask_delta_A_ratio": [[0.2, 0.2]],
+                    "data_online_creation_crop_size_A": 320,
+                    "data_online_creation_crop_delta_A": 32,
                 },
             }
         ]
     }
+
+
+def test_multi_dataset_generator_ignores_categories_when_deriving_size(tmp_path):
+    dataroot = write_bbox_dataset(tmp_path / "dataset", sizes=(100, 100, 100, 100))
+    args = make_generator_args(ignore_categories=["2"])
+
+    config = build_multi_dataset_config([dataroot], args=args)
+
+    assert config["datasets"][0]["overrides"]["data_online_creation_crop_size_A"] == 96
+
+    args = make_generator_args(ignore_categories=[])
+    config = build_multi_dataset_config([dataroot], args=args)
+
+    assert config["datasets"][0]["overrides"]["data_online_creation_crop_size_A"] == 384
+
+
+def test_multi_dataset_generator_train_config_matches_b2b_defaults(tmp_path):
+    config_path = tmp_path / "multi_dataset_config.json"
+    args = make_generator_args(
+        name="run_name",
+        gpu_ids="1",
+        reference_dataroot="/data/reference",
+    )
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["name"] == "run_name"
+    assert train_config["dataroot"] == "/data/reference"
+    assert train_config["data_dataset_mode"] == "multi_dataset"
+    assert train_config["data_multi_dataset_config"] == str(config_path)
+    assert train_config["train_batch_size"] == 8
+    assert train_config["train_iter_size"] == 4
+    assert train_config["train_n_epochs"] == 6000
+    assert train_config["G_netG"] == "vit_vid"
+    assert train_config["G_vit_variant"] == "JiT-B/16"
+    assert train_config["train_optim"] == "muon"
+    assert train_config["alg_b2b_denoise_timesteps"] == [2, 5, 20]
+    assert train_config["alg_b2b_perceptual_loss"] == ["LPIPS", "DISTS"]
+    assert "data_online_creation_crop_size_A" not in train_config
+    assert "data_online_creation_crop_delta_A" not in train_config
 
 
 def test_multi_dataset_list_test_sets_reads_config(tmp_path):
