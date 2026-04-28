@@ -59,6 +59,14 @@ class B2BModel(BaseDiffusionModel):
             help="Concatenate the inpainting mask as an additional input channel in B2B.",
         )
         parser.add_argument(
+            "--alg_b2b_multi_dataset_class_conditioning",
+            action="store_true",
+            help=(
+                "Use multi_dataset dataset_index as the ViT class-token "
+                "conditioning label instead of object class labels."
+            ),
+        )
+        parser.add_argument(
             "--alg_b2b_denoise_timesteps",
             type=int,
             nargs="+",
@@ -203,6 +211,15 @@ class B2BModel(BaseDiffusionModel):
         use_gt_prob = getattr(opt, "alg_b2b_use_gt_prob", 0.1)
         if not (0.0 <= use_gt_prob <= 1.0):
             raise ValueError("--alg_b2b_use_gt_prob must be in [0, 1]")
+
+        if (
+            getattr(opt, "alg_b2b_multi_dataset_class_conditioning", False)
+            and getattr(opt, "data_dataset_mode", "") != "multi_dataset"
+        ):
+            raise ValueError(
+                "--alg_b2b_multi_dataset_class_conditioning requires "
+                "--data_dataset_mode multi_dataset"
+            )
 
         opt.alg_b2b_denoise_timesteps = steps
         return opt
@@ -423,11 +440,17 @@ class B2BModel(BaseDiffusionModel):
         self.real_B = self.gt_image
         self.num_classes = getattr(self.opt, "G_vit_num_classes", 1) if self.opt else 1
 
-        label_cls = data.get("B_label_cls", data.get("A_label_cls"))
-        self.label_cls = self._prepare_b2b_labels(label_cls)
+        self.label_cls = self._select_b2b_labels(data)
 
     def _default_b2b_labels(self):
         return torch.zeros(self.batch_size, dtype=torch.long, device=self.device)
+
+    def _select_b2b_labels(self, data):
+        if getattr(self.opt, "alg_b2b_multi_dataset_class_conditioning", False):
+            return self._prepare_b2b_dataset_labels(data.get("dataset_index"))
+
+        label_cls = data.get("B_label_cls", data.get("A_label_cls"))
+        return self._prepare_b2b_labels(label_cls)
 
     def _prepare_b2b_labels(self, labels):
         if labels is None:
@@ -458,6 +481,24 @@ class B2BModel(BaseDiffusionModel):
         if labels.ndim != 1:
             raise RuntimeError(
                 f"Expected class labels with shape [B] or [B, F] for video, got {tuple(labels.shape)}"
+            )
+        return labels
+
+    def _prepare_b2b_dataset_labels(self, labels):
+        if labels is None:
+            raise RuntimeError(
+                "--alg_b2b_multi_dataset_class_conditioning requires "
+                "multi_dataset samples with dataset_index"
+            )
+
+        if not torch.is_tensor(labels):
+            labels = torch.as_tensor(labels)
+        labels = self._prepare_b2b_labels(labels)
+        if torch.any(labels < 0) or torch.any(labels >= self.num_classes):
+            raise RuntimeError(
+                "multi_dataset dataset_index labels must be in "
+                f"[0, G_vit_num_classes - 1], got min={labels.min().item()} "
+                f"max={labels.max().item()} with G_vit_num_classes={self.num_classes}"
             )
         return labels
 

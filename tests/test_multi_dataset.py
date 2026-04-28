@@ -11,6 +11,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import data as data_module
 from data.multi_dataset_dataset import MultiDatasetDataset
+from models.b2b_model import B2BModel
 from scripts.gen_multi_dataset_b2b_config import (
     add_test_sets,
     build_train_config,
@@ -69,6 +70,7 @@ def make_opt(config_path, **kwargs):
         "G_vit_num_classes": 1,
         "model_type": "b2b",
         "alg_b2b_mask_as_channel": False,
+        "alg_b2b_multi_dataset_class_conditioning": False,
         "alg_diffusion_cond_image_creation": "y_t",
         "fake_length": 3,
         "fake_value": 0,
@@ -108,6 +110,8 @@ def make_generator_args(**kwargs):
         "data_temporal_number_frames": 2,
         "data_temporal_frame_step": 1,
         "data_num_threads": 8,
+        "alg_b2b_multi_dataset_class_conditioning": False,
+        "multi_dataset_num_datasets": 1,
         "train_batch_size": 8,
         "train_iter_size": 4,
         "train_n_epochs": 6000,
@@ -140,7 +144,9 @@ def write_bbox_dataset(root, name="ring", sizes=(100, 120, 140, 160)):
 
 def test_multi_dataset_parses_config_and_applies_child_overrides(tmp_path, monkeypatch):
     FakeChildDataset.instances = []
-    monkeypatch.setattr(data_module, "find_dataset_using_name", lambda _: FakeChildDataset)
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
     config_path = write_config(
         tmp_path,
         [
@@ -169,7 +175,10 @@ def test_multi_dataset_parses_config_and_applies_child_overrides(tmp_path, monke
     assert dataset.child_names == ["a", "b"]
     assert dataset.child_weights == [1.0, 3.0]
     assert FakeChildDataset.instances[0].opt.dataroot == "/data/a"
-    assert FakeChildDataset.instances[0].opt.data_dataset_mode == "self_supervised_vid_mask_online"
+    assert (
+        FakeChildDataset.instances[0].opt.data_dataset_mode
+        == "self_supervised_vid_mask_online"
+    )
     assert FakeChildDataset.instances[0].opt.data_online_creation_crop_size_A == 12
     assert FakeChildDataset.instances[0].opt.data_temporal_num_common_char == 7
     assert FakeChildDataset.instances[1].opt.dataroot == "/data/b"
@@ -177,7 +186,9 @@ def test_multi_dataset_parses_config_and_applies_child_overrides(tmp_path, monke
 
 
 def test_multi_dataset_rejects_shape_overrides(tmp_path, monkeypatch):
-    monkeypatch.setattr(data_module, "find_dataset_using_name", lambda _: FakeChildDataset)
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
     config_path = write_config(
         tmp_path,
         [
@@ -194,9 +205,43 @@ def test_multi_dataset_rejects_shape_overrides(tmp_path, monkeypatch):
         MultiDatasetDataset(make_opt(config_path), "train")
 
 
+def test_multi_dataset_rejects_too_few_vit_classes_for_dataset_conditioning(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
+    config_path = write_config(
+        tmp_path,
+        [
+            {
+                "name": "a",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": "/data/a",
+            },
+            {
+                "name": "b",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": "/data/b",
+            },
+        ],
+    )
+
+    opt = make_opt(
+        config_path,
+        alg_b2b_multi_dataset_class_conditioning=True,
+        G_vit_num_classes=1,
+    )
+
+    with pytest.raises(ValueError, match="G_vit_num_classes >= number of datasets"):
+        MultiDatasetDataset(opt, "train")
+
+
 def test_multi_dataset_samples_weighted_children_and_collates(tmp_path, monkeypatch):
     FakeChildDataset.instances = []
-    monkeypatch.setattr(data_module, "find_dataset_using_name", lambda _: FakeChildDataset)
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
     config_path = write_config(
         tmp_path,
         [
@@ -227,7 +272,9 @@ def test_multi_dataset_samples_weighted_children_and_collates(tmp_path, monkeypa
 
 
 def test_multi_dataset_retries_none_samples(tmp_path, monkeypatch):
-    monkeypatch.setattr(data_module, "find_dataset_using_name", lambda _: FlakyChildDataset)
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FlakyChildDataset
+    )
     config_path = write_config(
         tmp_path,
         [
@@ -244,6 +291,53 @@ def test_multi_dataset_retries_none_samples(tmp_path, monkeypatch):
 
     assert sample is not None
     assert sample["dataset_name"] == "flaky"
+
+
+def test_b2b_dataset_conditioning_uses_dataset_index_over_object_labels():
+    model = B2BModel.__new__(B2BModel)
+    model.opt = SimpleNamespace(alg_b2b_multi_dataset_class_conditioning=True)
+    model.device = torch.device("cpu")
+    model.y_t = torch.zeros(2, 2, 3, 8, 8)
+    model.batch_size = 2
+    model.num_classes = 3
+
+    labels = model._select_b2b_labels(
+        {
+            "dataset_index": torch.tensor([1, 2]),
+            "B_label_cls": torch.tensor([0, 0]),
+        }
+    )
+
+    assert torch.equal(labels, torch.tensor([1, 2]))
+
+
+def test_b2b_dataset_conditioning_rejects_missing_or_out_of_range_labels():
+    model = B2BModel.__new__(B2BModel)
+    model.opt = SimpleNamespace(alg_b2b_multi_dataset_class_conditioning=True)
+    model.device = torch.device("cpu")
+    model.y_t = torch.zeros(2, 2, 3, 8, 8)
+    model.batch_size = 2
+    model.num_classes = 2
+
+    with pytest.raises(RuntimeError, match="requires multi_dataset samples"):
+        model._select_b2b_labels({})
+
+    with pytest.raises(RuntimeError, match="dataset_index labels must be in"):
+        model._select_b2b_labels({"dataset_index": torch.tensor([0, 2])})
+
+
+def test_b2b_dataset_conditioning_requires_multi_dataset_mode():
+    opt = SimpleNamespace(
+        alg_b2b_denoise_timesteps=[1],
+        alg_b2b_P_std=0.8,
+        alg_b2b_t_eps=0.05,
+        alg_b2b_use_gt_prob=0.1,
+        alg_b2b_multi_dataset_class_conditioning=True,
+        data_dataset_mode="self_supervised_vid_mask_online",
+    )
+
+    with pytest.raises(ValueError, match="requires --data_dataset_mode multi_dataset"):
+        B2BModel.after_parse(opt)
 
 
 def test_multi_dataset_generator_discovers_dataset_roots(tmp_path):
@@ -314,11 +408,30 @@ def test_multi_dataset_generator_train_config_matches_b2b_defaults(tmp_path):
     assert train_config["train_n_epochs"] == 6000
     assert train_config["G_netG"] == "vit_vid"
     assert train_config["G_vit_variant"] == "JiT-B/16"
+    assert train_config["G_vit_num_classes"] == 3
+    assert train_config["f_s_semantic_nclasses"] == 3
     assert train_config["train_optim"] == "muon"
+    assert train_config["alg_b2b_mask_as_channel"] is True
+    assert train_config["alg_b2b_multi_dataset_class_conditioning"] is False
     assert train_config["alg_b2b_denoise_timesteps"] == [2, 5, 20]
     assert train_config["alg_b2b_perceptual_loss"] == ["LPIPS", "DISTS"]
     assert "data_online_creation_crop_size_A" not in train_config
     assert "data_online_creation_crop_delta_A" not in train_config
+
+
+def test_multi_dataset_generator_train_config_can_enable_dataset_conditioning(tmp_path):
+    config_path = tmp_path / "multi_dataset_config.json"
+    args = make_generator_args(
+        alg_b2b_multi_dataset_class_conditioning=True,
+        multi_dataset_num_datasets=5,
+    )
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["alg_b2b_multi_dataset_class_conditioning"] is True
+    assert train_config["G_vit_num_classes"] == 5
+    assert train_config["alg_b2b_mask_as_channel"] is True
+    assert train_config["f_s_semantic_nclasses"] == 3
 
 
 def test_multi_dataset_list_test_sets_reads_config(tmp_path):
@@ -362,7 +475,9 @@ def test_multi_dataset_test_phase_delegates_to_named_child_test_set(
     tmp_path, monkeypatch
 ):
     FakeChildDataset.instances = []
-    monkeypatch.setattr(data_module, "find_dataset_using_name", lambda _: FakeChildDataset)
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
     config_path = tmp_path / "multi.json"
     config_path.write_text(
         json.dumps(
@@ -406,7 +521,9 @@ def test_multi_dataset_test_phase_delegates_to_named_child_test_set(
 
 
 def test_multi_dataset_test_phase_rejects_unknown_test_set(tmp_path, monkeypatch):
-    monkeypatch.setattr(data_module, "find_dataset_using_name", lambda _: FakeChildDataset)
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
     config_path = tmp_path / "multi.json"
     config_path.write_text(
         json.dumps(
@@ -478,8 +595,7 @@ def test_multi_dataset_generator_creates_true_holdout(tmp_path):
     dataroot = tmp_path / "dataset"
     (dataroot / "trainA").mkdir(parents=True)
     lines = [
-        f"vid/frame_{index:03d}.png masks/frame_{index:03d}.png"
-        for index in range(6)
+        f"vid/frame_{index:03d}.png masks/frame_{index:03d}.png" for index in range(6)
     ]
     (dataroot / "trainA" / "paths.txt").write_text("\n".join(lines) + "\n")
 

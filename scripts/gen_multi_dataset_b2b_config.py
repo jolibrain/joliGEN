@@ -55,9 +55,7 @@ def natural_keys(text):
 
 def clean_name(folder_name):
     tokens = [token for token in folder_name.split("_") if token]
-    filtered = [
-        token for token in tokens if token.lower() not in {"online", "clean"}
-    ]
+    filtered = [token for token in tokens if token.lower() not in {"online", "clean"}]
     return "_".join(filtered) if filtered else folder_name
 
 
@@ -115,9 +113,7 @@ def compute_bbox_stats(bbox_files, coverage, step, ignore_categories, source_lab
     capped_target = min(raw_target, max_long - 1e-6)
     final_target = floor_to_multiple(capped_target, step)
     if final_target <= 0:
-        raise ValueError(
-            f"bbox-derived crop size is not positive for: {source_label}"
-        )
+        raise ValueError(f"bbox-derived crop size is not positive for: {source_label}")
 
     LOGGER.info(
         "Derived crop size for %s: size=%s, count=%s, hdi%s=[%.2f, %.2f], "
@@ -183,7 +179,9 @@ def collect_bboxes_from_paths_file(paths_file):
     if not bbox_files:
         raise ValueError(f"No bbox entries found in: {paths_file}")
 
-    LOGGER.info("Found %d bbox files for dataset root %s", len(bbox_files), dataset_root)
+    LOGGER.info(
+        "Found %d bbox files for dataset root %s", len(bbox_files), dataset_root
+    )
     return bbox_files
 
 
@@ -324,7 +322,9 @@ def valid_temporal_windows(lines, num_frames, frame_step, num_common_char):
         leave=False,
         disable=len(sorted_lines) < 1000,
     ):
-        selected_positions = [start + frame_idx * frame_step for frame_idx in range(num_frames)]
+        selected_positions = [
+            start + frame_idx * frame_step for frame_idx in range(num_frames)
+        ]
         selected_lines = [sorted_lines[position] for position in selected_positions]
         selected_paths = [Path(line.split()[0]) for line in selected_lines]
 
@@ -333,7 +333,9 @@ def valid_temporal_windows(lines, num_frames, frame_step, num_common_char):
 
         if num_common_char != -1:
             ref_prefix = selected_paths[0].name[:num_common_char]
-            if any(path.name[:num_common_char] != ref_prefix for path in selected_paths):
+            if any(
+                path.name[:num_common_char] != ref_prefix for path in selected_paths
+            ):
                 continue
 
         windows.append([sorted_indices[position] for position in selected_positions])
@@ -375,7 +377,9 @@ def generate_holdout_test_set(entry, output_dir, args):
         entry["name"],
     )
 
-    train_indices = [index for index in range(len(lines)) if index not in holdout_indices]
+    train_indices = [
+        index for index in range(len(lines)) if index not in holdout_indices
+    ]
     if not train_indices:
         raise ValueError(
             f"dataset '{entry['name']}' automatic holdout would leave no train samples"
@@ -479,7 +483,13 @@ def build_train_config(args, multi_dataset_config_path):
         "data_relative_paths": True,
         "G_netG": "vit_vid",
         "G_vit_variant": "JiT-B/16",
+        "G_vit_num_classes": (
+            int(args.multi_dataset_num_datasets)
+            if args.alg_b2b_multi_dataset_class_conditioning
+            else 3
+        ),
         "G_vit_disable_bottleneck": True,
+        "f_s_semantic_nclasses": 3,
         "data_load_size": args.data_load_size,
         "data_crop_size": args.data_crop_size,
         "data_temporal_number_frames": args.data_temporal_number_frames,
@@ -487,6 +497,7 @@ def build_train_config(args, multi_dataset_config_path):
         "data_online_creation_rand_mask_A": True,
         "data_num_threads": args.data_num_threads,
         "dataaug_flip": "both",
+        "dataaug_no_rotate": True,
         "dataaug_diff_aug_policy": "color",
         "train_batch_size": args.train_batch_size,
         "train_iter_size": args.train_iter_size,
@@ -507,6 +518,10 @@ def build_train_config(args, multi_dataset_config_path):
         "with_amp": True,
         "with_tf32": True,
         "with_torch_compile": True,
+        "alg_b2b_mask_as_channel": True,
+        "alg_b2b_multi_dataset_class_conditioning": (
+            args.alg_b2b_multi_dataset_class_conditioning
+        ),
         "alg_b2b_denoise_timesteps": [2, 5, 20],
         "alg_b2b_cfg_scale": 1.0,
         "alg_b2b_disable_inference_clipping": True,
@@ -543,6 +558,48 @@ def tensor_grid(tensor):
     return tensor.clamp(0, 1)
 
 
+def mask_overlay_grid(image_tensor, mask_tensor):
+    image = tensor_grid(image_tensor)
+    mask = tensor_grid(mask_tensor)[:, :1]
+    color = torch.zeros_like(image)
+    color[:, 0:1] = 1.0
+    return torch.where(mask > 0, image * 0.45 + color * 0.55, image).clamp(0, 1)
+
+
+def sample_source_stem(sample, fallback_index):
+    paths = sample.get("A_img_paths") or sample.get("B_img_paths") or ""
+    if isinstance(paths, (list, tuple)):
+        paths = paths[0] if paths else ""
+    stem = Path(str(paths)).stem if paths else f"sample_{fallback_index:04d}"
+    return sanitize_id(stem) or f"sample_{fallback_index:04d}"
+
+
+def save_named_preview_frames(dataset_dir, sample, sample_index):
+    source_stem = sample_source_stem(sample, sample_index)
+    preview_tensors = {
+        "A": tensor_grid(sample["A"]),
+        "B": tensor_grid(sample["B"]),
+        "B_label_mask": tensor_grid(sample["B_label_mask"]),
+        "B_mask_overlay": mask_overlay_grid(sample["B"], sample["B_label_mask"]),
+    }
+    named_dir = dataset_dir / "by_image"
+    named_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest_entry = {
+        "source_path": str(sample.get("A_img_paths", "")),
+        "files": [],
+    }
+    for kind, tensor in preview_tensors.items():
+        for frame_index, frame in enumerate(tensor):
+            filename = (
+                f"{source_stem}_sample{sample_index:04d}_"
+                f"frame{frame_index:02d}_{kind}.png"
+            )
+            save_image(frame, named_dir / filename)
+            manifest_entry["files"].append(str(Path("by_image") / filename))
+    return manifest_entry
+
+
 def write_previews(train_config, multi_config, preview_dir, num_samples):
     preview_dir.mkdir(parents=True, exist_ok=True)
 
@@ -551,17 +608,27 @@ def write_previews(train_config, multi_config, preview_dir, num_samples):
         desc="Writing previews",
         unit="dataset",
     ):
-        LOGGER.info("Generating %d preview samples for '%s'", num_samples, entry["name"])
+        LOGGER.info(
+            "Generating %d preview samples for '%s'", num_samples, entry["name"]
+        )
         child_config = dict(train_config)
         child_config["data_dataset_mode"] = entry["dataset_mode"]
         child_config["dataroot"] = entry["dataroot"]
+        child_config["dataaug_flip"] = "none"
+        child_config["dataaug_no_rotate"] = True
+        child_config["dataaug_affine"] = 0.0
         for key, value in entry.get("overrides", {}).items():
             child_config[key] = value
 
-        opt = TrainOptions().parse_json(child_config, save_config=False, set_device=False)
+        opt = TrainOptions().parse_json(
+            child_config, save_config=False, set_device=False
+        )
         dataset = create_dataset(opt, "train")
         samples = []
+        targets = []
         masks = []
+        overlays = []
+        manifest = []
         attempts = 0
         progress = iter_progress(
             range(num_samples),
@@ -576,7 +643,16 @@ def write_previews(train_config, multi_config, preview_dir, num_samples):
                 if sample is None:
                     continue
                 samples.append(tensor_grid(sample["A"]))
+                targets.append(tensor_grid(sample["B"]))
                 masks.append(tensor_grid(sample["B_label_mask"]))
+                overlays.append(mask_overlay_grid(sample["B"], sample["B_label_mask"]))
+                manifest.append(
+                    save_named_preview_frames(
+                        preview_dir / entry["name"],
+                        sample,
+                        len(samples) - 1,
+                    )
+                )
                 break
 
         while len(samples) < num_samples and attempts < num_samples * 20:
@@ -585,7 +661,16 @@ def write_previews(train_config, multi_config, preview_dir, num_samples):
             if sample is None:
                 continue
             samples.append(tensor_grid(sample["A"]))
+            targets.append(tensor_grid(sample["B"]))
             masks.append(tensor_grid(sample["B_label_mask"]))
+            overlays.append(mask_overlay_grid(sample["B"], sample["B_label_mask"]))
+            manifest.append(
+                save_named_preview_frames(
+                    preview_dir / entry["name"],
+                    sample,
+                    len(samples) - 1,
+                )
+            )
 
         if len(samples) != num_samples:
             raise RuntimeError(
@@ -601,10 +686,23 @@ def write_previews(train_config, multi_config, preview_dir, num_samples):
             nrow=opt.data_temporal_number_frames,
         )
         save_image(
+            torch.cat(targets, dim=0),
+            dataset_dir / "B.png",
+            nrow=opt.data_temporal_number_frames,
+        )
+        save_image(
             torch.cat(masks, dim=0),
             dataset_dir / "B_label_mask.png",
             nrow=opt.data_temporal_number_frames,
         )
+        save_image(
+            torch.cat(overlays, dim=0),
+            dataset_dir / "B_mask_overlay.png",
+            nrow=opt.data_temporal_number_frames,
+        )
+        with open(dataset_dir / "preview_manifest.json", "w") as manifest_file:
+            json.dump(manifest, manifest_file, indent=2)
+            manifest_file.write("\n")
         LOGGER.info("Wrote previews for '%s' under %s", entry["name"], dataset_dir)
 
 
@@ -623,7 +721,9 @@ def parse_args():
         default=None,
         help="explicit list of dataset roots when they are not under one directory",
     )
-    parser.add_argument("--output-dir", required=True, help="directory for generated files")
+    parser.add_argument(
+        "--output-dir", required=True, help="directory for generated files"
+    )
     parser.add_argument("--name", default="b2b_multi_dataset")
     parser.add_argument("--checkpoints-dir", default="./checkpoints")
     parser.add_argument("--gpu-ids", default="-1")
@@ -656,6 +756,14 @@ def parse_args():
     parser.add_argument("--output-print-freq", type=int, default=200)
     parser.add_argument("--output-display-freq", type=int, default=1000)
     parser.add_argument(
+        "--alg-b2b-multi-dataset-class-conditioning",
+        action="store_true",
+        help=(
+            "condition B2B ViT class tokens on the multi-dataset dataset index "
+            "instead of object labels"
+        ),
+    )
+    parser.add_argument(
         "--preview-samples",
         type=int,
         default=0,
@@ -680,6 +788,7 @@ def main():
     train_config_path = output_dir / "train_config.json"
 
     args.reference_dataroot = multi_config["datasets"][0]["dataroot"]
+    args.multi_dataset_num_datasets = len(multi_config["datasets"])
     train_config = build_train_config(args, multi_config_path)
 
     with open(multi_config_path, "w") as config_file:

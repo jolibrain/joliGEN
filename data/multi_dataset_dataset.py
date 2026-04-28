@@ -43,7 +43,9 @@ class MultiDatasetDataset(BaseDataset):
         if phase not in {"train", "test"}:
             raise ValueError("multi_dataset is currently supported for train/test only")
         if not opt.data_multi_dataset_config:
-            raise ValueError("--data_multi_dataset_config is required for multi_dataset")
+            raise ValueError(
+                "--data_multi_dataset_config is required for multi_dataset"
+            )
 
         BaseDataset.__init__(self, opt, phase, name)
 
@@ -58,6 +60,7 @@ class MultiDatasetDataset(BaseDataset):
         with open(opt.data_multi_dataset_config, "r") as config_file:
             config = json.load(config_file)
 
+        self._validate_dataset_class_conditioning(config)
         entries = self._entries_for_phase(config, name)
 
         for dataset_index, entry in enumerate(entries):
@@ -127,7 +130,9 @@ class MultiDatasetDataset(BaseDataset):
     def _entries_for_phase(self, config, name):
         datasets = config.get("datasets")
         if not isinstance(datasets, list) or not datasets:
-            raise ValueError("multi_dataset config must contain a non-empty datasets list")
+            raise ValueError(
+                "multi_dataset config must contain a non-empty datasets list"
+            )
 
         if self.phase == "train":
             return datasets
@@ -163,6 +168,22 @@ class MultiDatasetDataset(BaseDataset):
             f"multi_dataset test set '{test_set.get('id')}' references unknown "
             f"dataset '{dataset_name}'"
         )
+
+    def _validate_dataset_class_conditioning(self, config):
+        if not getattr(self.opt, "alg_b2b_multi_dataset_class_conditioning", False):
+            return
+
+        datasets = config.get("datasets")
+        if not isinstance(datasets, list) or not datasets:
+            return
+
+        num_classes = int(getattr(self.opt, "G_vit_num_classes", 0))
+        if num_classes < len(datasets):
+            raise ValueError(
+                "--alg_b2b_multi_dataset_class_conditioning requires "
+                f"G_vit_num_classes >= number of datasets ({len(datasets)}), "
+                f"got {num_classes}"
+            )
 
     def _build_child_dataset(self, entry, dataset_index):
         from data import find_dataset_using_name
