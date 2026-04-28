@@ -179,6 +179,15 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+###### multi dataset unit tests
+echo "Running multi dataset unit tests"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_multi_dataset.py"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 
 ###### GAN+supervised super-resolution process test
 echo "Running GAN+supervised super-resolution process test"
