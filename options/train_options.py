@@ -1,3 +1,4 @@
+import argparse
 import warnings
 import torch
 
@@ -189,7 +190,7 @@ class TrainOptions(CommonOptions):
         parser.add_argument(
             "--train_optim",
             default="adam",
-            choices=["adam", "radam", "adamw", "lion", "adam8bit"],
+            choices=["adam", "radam", "adamw", "lion", "adam8bit", "muon"],
             help="optimizer (adam, radam, adamw, ...)",
         )
         parser.add_argument(
@@ -203,6 +204,25 @@ class TrainOptions(CommonOptions):
             type=float,
             default=1e-8,
             help="epsilon for optimizer",
+        )
+        parser.add_argument(
+            "--train_muon_nesterov",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="enable Nesterov momentum for the Muon optimizer",
+        )
+        parser.add_argument(
+            "--train_muon_ns_steps",
+            type=int,
+            default=5,
+            help="number of Newton-Schulz steps used by Muon",
+        )
+        parser.add_argument(
+            "--train_muon_adjust_lr_fn",
+            type=str,
+            default="original",
+            choices=["original", "match_rms_adamw"],
+            help="learning-rate adjustment mode for Muon",
         )
         parser.add_argument(
             "--train_load_iter",

@@ -281,20 +281,16 @@ class B2BModel(BaseDiffusionModel):
         self.model_names_export = ["G_A"]
 
         G_models = ["G_A"]
-        G_parameters = [self.netG_A.parameters()]
-        G_parameters = itertools.chain(*G_parameters)
+        G_parameters = self.get_named_parameters(("G_A", self.netG_A))
 
         # Define optimizer
         if opt.isTrain:
-            self.optimizer_G = opt.optim(
-                opt,
+            optimizer_G_names = self.register_optimizer(
+                "optimizer_G",
                 G_parameters,
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
-                weight_decay=opt.train_optim_weight_decay,
-                eps=opt.train_optim_eps,
             )
-            self.optimizers.append(self.optimizer_G)
 
         # Define loss functions
         losses_G = ["G_tot"]
@@ -335,7 +331,7 @@ class B2BModel(BaseDiffusionModel):
             forward_functions=[],
             backward_functions=["compute_b2b_loss"],
             loss_names_list=["loss_names_G"],
-            optimizer=["optimizer_G"],
+            optimizer=optimizer_G_names if opt.isTrain else [],
             loss_backward=losses_backward,
             networks_to_ema=G_models,
         )

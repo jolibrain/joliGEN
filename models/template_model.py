@@ -75,10 +75,15 @@ class TemplateModel(BaseModel):
             self.criterionLoss = torch.nn.L1Loss()
             # define and initialize optimizers. You can define one optimizer for each network.
             # If two networks are updated at the same time, you can use itertools.chain to group them. See cycle_gan_model.py for an example.
-            self.optimizer = opt.optim(
-                opt, self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
+            self.optimizers = []
+            self.register_optimizer(
+                "optimizer",
+                self.get_named_parameters(("G", self.netG)),
+                lr=opt.lr,
+                betas=(opt.beta1, 0.999),
+                weight_decay=getattr(opt, "weight_decay", 0.0),
+                eps=getattr(opt, "eps", 1e-8),
             )
-            self.optimizers = [self.optimizer]
 
         # Our program will automatically call <model.setup> to define schedulers, load networks, and print networks
 
@@ -111,6 +116,8 @@ class TemplateModel(BaseModel):
     def optimize_parameters(self):
         """Update network weights; it will be called in every training iteration."""
         self.forward()  # first call forward to calculate intermediate results
-        self.optimizer.zero_grad()  # clear network G's existing gradients
+        for optimizer in self.optimizers:
+            optimizer.zero_grad()
         self.backward()  # calculate gradients for network G
-        self.optimizer.step()  # update gradients for network G
+        for optimizer in self.optimizers:
+            optimizer.step()

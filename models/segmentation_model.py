@@ -50,12 +50,16 @@ class SegmentationModel(BaseModel):
             self.criterionf_s = torch.nn.modules.NLLLoss()
             self.criterionf_s = torch.nn.modules.CrossEntropyLoss()
             # initialize optimizers
-            self.optimizer_f_s = opt.optim(
-                opt, self.netf_s.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
+            self.optimizers = []
+            self.register_optimizer(
+                "optimizer_f_s",
+                self.get_named_parameters(("f_s", self.netf_s)),
+                lr=opt.lr,
+                betas=(opt.beta1, 0.999),
+                weight_decay=getattr(opt, "weight_decay", 0.0),
+                eps=getattr(opt, "eps", 1e-8),
             )
             print("f defined")
-            self.optimizers = []
-            self.optimizers.append(self.optimizer_f_s)
 
     def set_input(self, input):
         AtoB = self.opt.direction == "AtoB"
@@ -82,6 +86,8 @@ class SegmentationModel(BaseModel):
 
         # f_s
         self.set_requires_grad([self.netf_s], True)
-        self.optimizer_f_s.zero_grad()
+        for optimizer in self.optimizers:
+            optimizer.zero_grad()
         self.backward_f_s()
-        self.optimizer_f_s.step()
+        for optimizer in self.optimizers:
+            optimizer.step()

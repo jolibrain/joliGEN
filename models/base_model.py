@@ -42,6 +42,7 @@ from util.image_pool import ImagePool
 # Iter Calculator
 from util.iter_calculator import IterCalculator
 from util.network_group import NetworkGroup
+from util.optimizer_factory import build_named_parameters
 from util.util import delete_flop_param, save_image, tensor2im, MAX_INT
 
 from . import base_networks, semantic_networks
@@ -234,13 +235,11 @@ class BaseModel(ABC):
             # define loss functions
             self.criterionCLS = torch.nn.modules.CrossEntropyLoss()
 
-            self.optimizer_CLS = opt.optim(
-                opt,
-                self.netCLS.parameters(),
+            optimizer_cls_names = self.register_optimizer(
+                "optimizer_CLS",
+                self.get_named_parameters(("CLS", self.netCLS)),
                 lr=opt.train_sem_lr_f_s,
                 betas=(opt.train_beta1, opt.train_beta2),
-                weight_decay=opt.train_optim_weight_decay,
-                eps=opt.train_optim_eps,
             )
 
             if opt.train_cls_regression:
@@ -251,15 +250,13 @@ class BaseModel(ABC):
             else:
                 self.criterionCLS = torch.nn.modules.CrossEntropyLoss()
 
-            self.optimizers.append(self.optimizer_CLS)
-
             ###Making groups
             self.group_CLS = NetworkGroup(
                 networks_to_optimize=["CLS"],
                 forward_functions=None,
                 backward_functions=["compute_CLS_loss"],
                 loss_names_list=["loss_names_CLS"],
-                optimizer=["optimizer_CLS"],
+                optimizer=optimizer_cls_names,
                 loss_backward=["loss_CLS"],
             )
             self.networks_groups.append(self.group_CLS)
@@ -335,27 +332,22 @@ class BaseModel(ABC):
 
             if self.opt.f_s_net != "sam":
                 if self.opt.train_mask_disjoint_f_s:
-                    self.optimizer_f_s = opt.optim(
-                        opt,
-                        itertools.chain(
-                            self.netf_s_A.parameters(), self.netf_s_B.parameters()
+                    optimizer_f_s_names = self.register_optimizer(
+                        "optimizer_f_s",
+                        self.get_named_parameters(
+                            ("f_s_A", self.netf_s_A),
+                            ("f_s_B", self.netf_s_B),
                         ),
                         lr=opt.train_sem_lr_f_s,
                         betas=(opt.train_beta1, opt.train_beta2),
-                        weight_decay=opt.train_optim_weight_decay,
-                        eps=opt.train_optim_eps,
                     )
                 else:
-                    self.optimizer_f_s = opt.optim(
-                        opt,
-                        self.netf_s.parameters(),
+                    optimizer_f_s_names = self.register_optimizer(
+                        "optimizer_f_s",
+                        self.get_named_parameters(("f_s", self.netf_s)),
                         lr=opt.train_sem_lr_f_s,
                         betas=(opt.train_beta1, opt.train_beta2),
-                        weight_decay=opt.train_optim_weight_decay,
-                        eps=opt.train_optim_eps,
                     )
-
-                self.optimizers.append(self.optimizer_f_s)
 
             ###Making groups
             if opt.f_s_net != "sam":
@@ -364,7 +356,7 @@ class BaseModel(ABC):
                     forward_functions=None,
                     backward_functions=["compute_f_s_loss"],
                     loss_names_list=["loss_names_f_s"],
-                    optimizer=["optimizer_f_s"],
+                    optimizer=optimizer_f_s_names,
                     loss_backward=["loss_f_s"],
                 )
                 self.networks_groups.append(self.group_f_s)
@@ -1238,6 +1230,41 @@ class BaseModel(ABC):
             self.display_param.append(param)
         self.display_param.sort()
 
+    def get_named_parameters(self, *sources):
+        return build_named_parameters(*sources)
+
+    def register_optimizer(
+        self,
+        optimizer_name,
+        params,
+        lr,
+        betas,
+        weight_decay=None,
+        eps=None,
+    ):
+        if weight_decay is None:
+            weight_decay = self.opt.train_optim_weight_decay
+        if eps is None:
+            eps = self.opt.train_optim_eps
+
+        optimizer_bundle = self.opt.optim(
+            self.opt,
+            params,
+            lr=lr,
+            betas=betas,
+            weight_decay=weight_decay,
+            eps=eps,
+            optimizer_name=optimizer_name,
+        )
+
+        optimizer_names = []
+        for bundle_name, optimizer in optimizer_bundle:
+            setattr(self, bundle_name, optimizer)
+            self.optimizers.append(optimizer)
+            optimizer_names.append(bundle_name)
+
+        return optimizer_names
+
     def compute_step(
         self, optimizers_names, loss_names
     ):  # loss_names are only use to compute average values over iter_size
@@ -1256,13 +1283,16 @@ class BaseModel(ABC):
                 self.iter_calculator.compute_step(loss_name, value)
 
         if self.niter % self.opt.train_iter_size == 0:
-            for optimizer in optimizers:
-                if self.use_cuda:
+            if self.use_cuda:
+                for optimizer in optimizers:
                     self.scaler.step(optimizer)
-                    self.scaler.update()
-                else:
+                self.scaler.update()
+                for optimizer in optimizers:
+                    optimizer.zero_grad()
+            else:
+                for optimizer in optimizers:
                     optimizer.step()
-                optimizer.zero_grad()
+                    optimizer.zero_grad()
             if self.opt.train_iter_size > 1:
                 self.iter_calculator.compute_last_step(loss_names)
                 for loss_name in loss_names:
