@@ -292,8 +292,15 @@ class TrainOptions(CommonOptions):
             "--train_gan_mode",
             type=str,
             default="lsgan",
-            choices=["vanilla", "lsgan", "wgangp", "projected"],
+            choices=["vanilla", "lsgan", "wgangp"],
             help="the type of GAN objective. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.",
+        )
+        parser.add_argument(
+            "--train_gan_mode_proj",
+            type=str,
+            default="projected",
+            choices=["projected", "projected_ra"],
+            help="the type of GAN objective with projected discriminator, hinge loss or relativistic hinge loss",
         )
         parser.add_argument(
             "--train_pool_size",
