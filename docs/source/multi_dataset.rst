@@ -36,8 +36,8 @@ The multi-dataset wrapper keeps existing dataset classes isolated:
 - returned test samples also include ``dataset_test_name``.
 
 The current implementation is scoped to
-``self_supervised_vid_mask_online`` children. It does not add dataset
-conditioning or class labels to the model.
+``self_supervised_vid_mask_online`` children. Dataset-token conditioning
+is optional and only applies to B2B ViT generators.
 
 Mixed batches require every child dataset to return the same dictionary
 keys and tensor shapes. The wrapper validates one dry sample per child
@@ -152,6 +152,37 @@ The generated training config intentionally does not set
 ``data_online_creation_crop_size_A`` or
 ``data_online_creation_crop_delta_A`` globally. Those values are derived
 per child dataset and written into ``multi_dataset_config.json``.
+
+********************************
+ Dataset class-token conditioning
+********************************
+
+B2B can use multi-dataset metadata as ViT class-token conditioning with:
+
+.. code-block:: bash
+
+   --alg_b2b_multi_dataset_class_conditioning
+
+When enabled, B2B ignores ``A_label_cls`` and ``B_label_cls`` for ViT
+class-token conditioning and uses the mixed-batch ``dataset_index``
+instead. Dataset labels are zero-based and follow the order in
+``multi_dataset_config.json``: the first dataset is class ``0``, the
+second is class ``1``, and so on.
+
+The option is intended to be used with ``--alg_b2b_mask_as_channel``.
+The mask remains an input channel, while the dataset number becomes the
+class-token label. ``G_vit_num_classes`` must be at least the number of
+configured datasets.
+
+The config generator can enable this mode and set ``G_vit_num_classes``
+from the discovered dataset count:
+
+.. code-block:: bash
+
+   python scripts/gen_multi_dataset_b2b_config.py \
+     --datasets-root /path/to/datasets \
+     --output-dir runs/b2b_multi_dataset_configs \
+     --alg-b2b-multi-dataset-class-conditioning
 
 Example:
 
