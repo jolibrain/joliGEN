@@ -23,7 +23,7 @@ from .unet_attn_utils import (
 )
 
 from models.modules.diffusion_utils import gamma_embedding
-import xformers, xformers.ops
+#import xformers, xformers.ops
 
 
 class EmbedBlock(nn.Module):

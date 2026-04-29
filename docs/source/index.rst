@@ -154,6 +154,7 @@ Contact: contact@jolibrain.com
 
    datasets
    dataloaders
+   multi_dataset
 
 .. toctree::
    :maxdepth: 2
