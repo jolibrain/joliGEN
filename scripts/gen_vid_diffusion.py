@@ -81,7 +81,7 @@ def load_model(
         opt.data_online_creation_mask_random_offset_A = [0.0]
 
     opt.model_prior_321_backwardcompatibility = model_prior_321_backwardcompatibility
-    if opt.model_type in ["cm", "cm_gan", "sc", "b2b"]:
+    if opt.model_type in ["cm", "cm_gan", "sc", "b2b", "b2b_cafm"]:
         opt.alg_palette_sampling_method = sampling_method
         opt.alg_diffusion_cond_embed_dim = 256
         if (
@@ -95,7 +95,7 @@ def load_model(
 
     # handle old models
     weights_path = os.path.join(model_in_dir, model_in_filename)
-    if opt.model_type == "b2b" and weights_path.endswith(".pth"):
+    if opt.model_type in ["b2b", "b2b_cafm"] and weights_path.endswith(".pth"):
         ema_weights_path = weights_path[:-4] + "_ema.pth"
         if os.path.isfile(ema_weights_path):
             weights_path = ema_weights_path
@@ -759,7 +759,7 @@ def generate(
             out_tensor = model.restoration(
                 y_t, cond_image, alg_sc_denoise_inferstep, mask
             )
-        elif opt.model_type == "b2b":
+        elif opt.model_type in ["b2b", "b2b_cafm"]:
             B = y_t.size(0)
             labels = torch.zeros(B, device=y_t.device, dtype=torch.long)
             out_tensor = model.restoration(

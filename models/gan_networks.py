@@ -30,6 +30,9 @@ from .modules.projected_d.discriminator import (
     ProjectedDiscriminator,
     TemporalProjectedDiscriminator,
 )
+from .modules.cafm_jit_discriminator import CAFMDiscriminatorJVP, CAFMJiTDiscriminator
+from .modules.vit.vit import JiT_VARIANT_CONFIGS
+from .modules.vit.vit_vid import JiTVid_VARIANT_CONFIGS
 from .modules.vision_aided_d import VisionAidedDiscriminator
 from .modules.segformer.segformer_generator import (
     SegformerBackbone,
@@ -286,6 +289,96 @@ def define_G(
     return init_net(net, model_init_type, model_init_gain)
 
 
+def _cafm_option(unused_options, name, fallback, allow_zero=False):
+    value = unused_options.get(name, -1)
+    if value < 0 or (value == 0 and not allow_zero):
+        return fallback
+    return value
+
+
+def _build_cafm_jit_discriminator(
+    model_output_nc,
+    data_crop_size,
+    unused_options,
+):
+    variant = unused_options.get("G_vit_variant", "")
+    if variant in JiT_VARIANT_CONFIGS:
+        base = JiT_VARIANT_CONFIGS[variant]
+    elif variant in JiTVid_VARIANT_CONFIGS:
+        base = JiTVid_VARIANT_CONFIGS[variant]
+    else:
+        base = {}
+
+    hidden_size = _cafm_option(
+        unused_options,
+        "D_cafm_hidden_size",
+        unused_options.get("G_vit_hidden_size", base.get("hidden_size", 768)),
+    )
+    cfg = {
+        "input_size": data_crop_size,
+        "in_channels": model_output_nc,
+        "num_classes": unused_options.get(
+            "G_vit_num_classes", base.get("num_classes", 1)
+        ),
+        "depth": _cafm_option(
+            unused_options,
+            "D_cafm_depth",
+            unused_options.get("G_vit_depth", base.get("depth", 12)),
+        ),
+        "hidden_size": hidden_size,
+        "num_heads": _cafm_option(
+            unused_options,
+            "D_cafm_num_heads",
+            unused_options.get("G_vit_num_heads", base.get("num_heads", 12)),
+        ),
+        "patch_size": _cafm_option(
+            unused_options,
+            "D_cafm_patch_size",
+            unused_options.get("G_vit_patch_size", base.get("patch_size", 16)),
+        ),
+        "bottleneck_dim": _cafm_option(
+            unused_options,
+            "D_cafm_bottleneck_dim",
+            unused_options.get(
+                "G_vit_bottleneck_dim", base.get("bottleneck_dim", 128)
+            ),
+        ),
+        "in_context_len": _cafm_option(
+            unused_options,
+            "D_cafm_in_context_len",
+            unused_options.get(
+                "G_vit_in_context_len", base.get("in_context_len", 32)
+            ),
+            allow_zero=True,
+        ),
+        "in_context_start": _cafm_option(
+            unused_options,
+            "D_cafm_in_context_start",
+            unused_options.get(
+                "G_vit_in_context_start", base.get("in_context_start", 4)
+            ),
+            allow_zero=True,
+        ),
+    }
+    if unused_options.get("G_vit_disable_bottleneck", False):
+        cfg["bottleneck_dim"] = hidden_size
+
+    if cfg["input_size"] % cfg["patch_size"] != 0:
+        raise ValueError(
+            "CAFM JiT discriminator requires input_size divisible by patch_size"
+        )
+    if cfg["hidden_size"] % cfg["num_heads"] != 0:
+        raise ValueError(
+            "CAFM JiT discriminator requires hidden_size divisible by num_heads"
+        )
+
+    discriminator = CAFMJiTDiscriminator(
+        flip_t=unused_options.get("D_cafm_flip_t", False),
+        **cfg,
+    )
+    return CAFMDiscriminatorJVP(discriminator)
+
+
 def define_D(
     D_netDs,
     model_output_nc,
@@ -420,6 +513,14 @@ def define_D(
         elif netD == "vision_aided":
             net = VisionAidedDiscriminator(cv_type=D_vision_aided_backbones)
             return_nets[netD] = net  # no init since partly frozen
+
+        elif netD == "cafm_jit":
+            net = _build_cafm_jit_discriminator(
+                model_output_nc,
+                data_crop_size,
+                unused_options,
+            )
+            return_nets[netD] = net
 
         elif netD == "depth":  # default patch-based on depth
             net = NLayerDiscriminator(

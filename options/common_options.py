@@ -127,6 +127,7 @@ class CommonOptions(BaseOptions):
                 "cm_gan",
                 "sc",
                 "b2b",
+                "b2b_cafm",
                 "mat",
             ],
             help="chooses which model to use.",
@@ -473,11 +474,59 @@ class CommonOptions(BaseOptions):
                 "depth",
                 "mask",
                 "sam",
+                "cafm_jit",
                 "none",
             ]
             + list(TORCH_MODEL_CLASSES.keys()),
-            help="specify discriminator architecture, another option, --D_n_layers allows you to specify the layers in the n_layers discriminator. NB: duplicated arguments are ignored. Values: basic, n_layers, pixel, projected_d, temporal, vision_aided, depth, mask, sam",
+            help="specify discriminator architecture, another option, --D_n_layers allows you to specify the layers in the n_layers discriminator. NB: duplicated arguments are ignored. Values: basic, n_layers, pixel, projected_d, temporal, vision_aided, depth, mask, sam, cafm_jit",
             nargs="+",
+        )
+        parser.add_argument(
+            "--D_cafm_depth",
+            type=int,
+            default=-1,
+            help="CAFM JiT discriminator depth. Use <=0 to mirror the selected G_vit variant.",
+        )
+        parser.add_argument(
+            "--D_cafm_hidden_size",
+            type=int,
+            default=-1,
+            help="CAFM JiT discriminator hidden size. Use <=0 to mirror the selected G_vit variant.",
+        )
+        parser.add_argument(
+            "--D_cafm_num_heads",
+            type=int,
+            default=-1,
+            help="CAFM JiT discriminator attention heads. Use <=0 to mirror the selected G_vit variant.",
+        )
+        parser.add_argument(
+            "--D_cafm_patch_size",
+            type=int,
+            default=-1,
+            help="CAFM JiT discriminator patch size. Use <=0 to mirror the selected G_vit variant.",
+        )
+        parser.add_argument(
+            "--D_cafm_bottleneck_dim",
+            type=int,
+            default=-1,
+            help="CAFM JiT discriminator bottleneck size. Use <=0 to mirror the selected G_vit variant.",
+        )
+        parser.add_argument(
+            "--D_cafm_in_context_len",
+            type=int,
+            default=-1,
+            help="CAFM JiT discriminator in-context token count. Use <0 to mirror the selected G_vit variant.",
+        )
+        parser.add_argument(
+            "--D_cafm_in_context_start",
+            type=int,
+            default=-1,
+            help="CAFM JiT discriminator in-context insertion block. Use <0 to mirror the selected G_vit variant.",
+        )
+        parser.add_argument(
+            "--D_cafm_flip_t",
+            action="store_true",
+            help="Flip t inside the CAFM discriminator for external AFM coordinate compatibility.",
         )
         parser.add_argument(
             "--D_vision_aided_backbones",

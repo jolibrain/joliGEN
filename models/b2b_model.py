@@ -233,7 +233,7 @@ class B2BModel(BaseDiffusionModel):
         ):
             for i in range(self.nb_classes_inference):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
-        elif self.opt.model_type == "b2b":
+        elif self.opt.model_type in ["b2b", "b2b_cafm"]:
             base_names = ["gt_image_", "y_t_", "mask_"]
             step_outputs = [
                 f"output_{ts}_steps_" for ts in self.opt.alg_b2b_denoise_timesteps
