@@ -106,7 +106,7 @@ def load_model(
         opt.data_online_creation_mask_random_offset_A = [0.0]
 
     opt.model_prior_321_backwardcompatibility = model_prior_321_backwardcompatibility
-    if opt.model_type in ["cm", "cm_gan", "b2b"]:
+    if opt.model_type in ["cm", "cm_gan", "b2b", "b2b_cafm"]:
         opt.alg_palette_sampling_method = sampling_method
         opt.alg_diffusion_cond_embed_dim = 256
     model = diffusion_networks.define_G(opt=opt, **vars(opt))
@@ -317,7 +317,7 @@ def generate_streaming(
     video_path = os.path.join(dir_out, f"{name}_generated_video.avi")
     video_writer = None
     video_size = None
-    b2b_mask_condition = opt.model_type == "b2b" and getattr(
+    b2b_mask_condition = opt.model_type in ["b2b", "b2b_cafm"] and getattr(
         opt, "alg_b2b_mask_as_channel", False
     )
 
@@ -781,7 +781,10 @@ def generate_streaming(
             elif opt.alg_diffusion_cond_image_creation == "y_t":
                 if opt.model_type == "palette":
                     cond_image = y_t.unsqueeze(0)
-                elif opt.model_type == "b2b" and opt.alg_b2b_mask_as_channel:
+                elif (
+                    opt.model_type in ["b2b", "b2b_cafm"]
+                    and opt.alg_b2b_mask_as_channel
+                ):
                     # For B2B mask-as-channel checkpoints, cond_image is the
                     # 1-channel mask condition that will be concatenated with
                     # the RGB stream inside the generator.
@@ -990,7 +993,7 @@ def generate_streaming(
                     out_tensor = model.restoration(
                         y_t_batch, cond_image_batch, sampling_sigmas, mask_batch
                     )
-                elif opt.model_type == "b2b":
+                elif opt.model_type in ["b2b", "b2b_cafm"]:
                     if b2b_mask_condition:
                         if y_t_batch.shape[2] != 3 or cond_image_batch.shape[2] != 1:
                             raise RuntimeError(

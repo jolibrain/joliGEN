@@ -882,6 +882,7 @@ class BaseModel(ABC):
                     "cm_gan",
                     "sc",
                     "b2b",
+                    "b2b_cafm",
                 ]:  # Note: export is for generators from GANs only at the moment
                     # For export
                     from util.export import export
@@ -1824,7 +1825,7 @@ class BaseModel(ABC):
                     batch_real_img = self.real_A
 
             if (
-                getattr(self.opt, "model_type", "") == "b2b"
+                getattr(self.opt, "model_type", "") in ["b2b", "b2b_cafm"]
                 and hasattr(self, "outputs_per_step")
                 and isinstance(self.outputs_per_step, dict)
                 and len(self.outputs_per_step) > 0

@@ -100,7 +100,7 @@ def define_G(
 
     if model_type == "palette":
         in_channel = model_input_nc + model_output_nc
-    elif model_type == "b2b":
+    elif model_type in ["b2b", "b2b_cafm"]:
         in_channel = model_input_nc + (1 if alg_b2b_mask_as_channel else 0)
     else:  # CM
         in_channel = model_input_nc
@@ -362,7 +362,7 @@ def define_G(
             G_ngf=G_ngf,
             opt=opt,
         )
-    elif model_type == "b2b":
+    elif model_type in ["b2b", "b2b_cafm"]:
         net = B2BGenerator(
             b2b_model=model,
             sampling_method="",
