@@ -199,6 +199,23 @@ class B2BRestorationWrapperWithCond(torch.nn.Module):
         )
 
 
+class B2BRestorationWrapperMaskCond(torch.nn.Module):
+    def __init__(self, model, denoise_steps):
+        super().__init__()
+        self.model = model
+        self.denoise_steps = int(denoise_steps)
+
+    def forward(self, y, mask, init_noise, labels):
+        return self.model.restoration(
+            y=y,
+            y_cond=mask,
+            denoise_timesteps=self.denoise_steps,
+            mask=mask,
+            labels=labels,
+            init_noise=init_noise,
+        )
+
+
 class B2BDenoiserWrapper(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
@@ -210,11 +227,14 @@ class B2BDenoiserWrapper(torch.nn.Module):
 
 def build_export_wrapper(model, opt, export_mode, denoise_steps):
     cond_creation = getattr(opt, "alg_diffusion_cond_image_creation", "y_t")
+    mask_as_channel = getattr(opt, "alg_b2b_mask_as_channel", False)
     uses_cond = cond_creation != "y_t"
 
     if export_mode == "denoiser":
         return B2BDenoiserWrapper(model), uses_cond
 
+    if cond_creation == "y_t" and mask_as_channel:
+        return B2BRestorationWrapperMaskCond(model, denoise_steps), uses_cond
     if uses_cond:
         return B2BRestorationWrapperWithCond(model, denoise_steps), uses_cond
     return B2BRestorationWrapperNoCond(model, denoise_steps), uses_cond
@@ -397,11 +417,6 @@ def main():
     model_out_file = resolve_output_path(
         args.model_in_file, args.model_out_file, args.export_mode, denoise_steps
     )
-
-    if getattr(opt, "alg_b2b_mask_as_channel", False):
-        raise ValueError(
-            "This exporter does not support alg_b2b_mask_as_channel=True yet"
-        )
 
     model = build_model(opt, weights_path, device)
     wrapper, uses_cond = build_export_wrapper(
