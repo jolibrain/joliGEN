@@ -354,6 +354,17 @@ def get_b2b_params(train_json, image_size):
     return params
 
 
+def expected_model_input_channels(train_json):
+    alg = train_json.get("alg", {})
+    model = train_json.get("model", {})
+    input_nc = int(model.get("input_nc", 3))
+    if bool(alg.get("b2b_mask_as_channel", False)):
+        input_nc += 1
+    if alg.get("diffusion_cond_image_creation", "y_t") != "y_t":
+        input_nc += int(model.get("output_nc", input_nc))
+    return input_nc
+
+
 def select_bbox(boxes, bbox_index):
     if bbox_index < 0 or bbox_index >= len(boxes):
         raise ValueError(f"bbox_index {bbox_index} out of range for {len(boxes)} boxes")
@@ -657,12 +668,15 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
             (1, img_tensor.shape[-2], img_tensor.shape[-1]), device=device
         )
 
-    cond_mode = train_json.get("alg", {}).get("diffusion_cond_image_creation", "y_t")
+    alg = train_json.get("alg", {})
+    cond_mode = alg.get("diffusion_cond_image_creation", "y_t")
     cond_image = None
     if cond_mode != "y_t":
         raise NotImplementedError(
             "This runner currently supports only alg.diffusion_cond_image_creation = 'y_t'."
         )
+    if bool(alg.get("b2b_mask_as_channel", False)):
+        cond_image = mask_tensor.unsqueeze(0).float().detach().cpu()
 
     return {
         "img_path": img_path,
@@ -678,6 +692,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         "crop_meta": crop_meta,
         "has_bbox": True,
         "generated_bbox": None,
+        "label_cls": cls,
     }
 
 
@@ -1076,10 +1091,6 @@ def get_engine_shape(session: TensorRTDenoiserSession):
         raise ValueError(
             f"Expected batch size 1 or dynamic batch for denoiser TensorRT, got {batch}"
         )
-    if channels not in (-1, 3):
-        raise NotImplementedError(
-            f"Expected 3 denoiser input channels for y_t mode, got {channels}"
-        )
     return batch, frames, channels, height, width
 
 
@@ -1113,7 +1124,14 @@ def forward_sample_restoration(
     dump_prefix=None,
 ):
     x_in = project_known_pixels(x, y_known, mask)
-    if y_cond is None:
+    if params["mask_as_channel"]:
+        if mask is None:
+            raise RuntimeError("b2b_mask_as_channel requires a mask tensor")
+        if y_cond is None:
+            model_input = np.concatenate([mask, x_in], axis=2)
+        else:
+            model_input = np.concatenate([y_cond, x_in], axis=2)
+    elif y_cond is None:
         model_input = x_in
     else:
         model_input = np.concatenate([y_cond, x_in], axis=2)
@@ -1385,7 +1403,11 @@ def run_sequence(
                 [prev_frame["y0_tensor"], frame_data["y0_tensor"]]
             )
             mask_batch = prepare_tensors([prev_frame["mask"], frame_data["mask"]])
-            if inputmix:
+            if params["mask_as_channel"]:
+                cond_image_batch = prepare_tensors(
+                    [prev_frame["cond_image"], frame_data["cond_image"]]
+                )
+            elif inputmix:
                 cond_image_batch = prepare_tensors(
                     [y0_noisy_first, frame_data["cond_image"]]
                 )
@@ -1395,15 +1417,17 @@ def run_sequence(
                 )
         else:
             y_t_batch = prepare_tensors(last_seq_half_y_t + [frame_data["y_t"]])
-            cond_image_batch = prepare_tensors(
-                last_seq_half_cond_image + [frame_data["cond_image"]]
-            )
             y0_tensor_batch = prepare_tensors(
                 last_seq_half_y0_tensor + [frame_data["y0_tensor"]]
             )
             mask_batch = prepare_tensors(last_seq_half_mask + [frame_data["mask"]])
+            cond_image_batch = prepare_tensors(
+                last_seq_half_cond_image + [frame_data["cond_image"]]
+            )
 
-        labels = np.asarray([0 if label is None else int(label)], dtype=np.int64)
+        labels = np.asarray(
+            [frame_data["label_cls"] if label is None else int(label)], dtype=np.int64
+        )
         init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
         y_np = y_t_batch.numpy().astype(np.float32)
         y_cond_np = (
@@ -1478,7 +1502,10 @@ def run_sequence(
             last_seq_half_y_t = y_t_temp_list[-seq_half:]
             last_seq_half_y0_tensor = y0_tensor_temp_list[-seq_half:]
             last_seq_half_mask = mask_temp_list[-seq_half:]
-        last_seq_half_cond_image = out_img_tensor_list_batch[-seq_half:]
+        if params["mask_as_channel"]:
+            last_seq_half_cond_image = last_seq_half_mask
+        else:
+            last_seq_half_cond_image = out_img_tensor_list_batch[-seq_half:]
 
         write_frame(
             prev_frame["index"], out_img_tensor_list_batch[0], prev_frame, output_dir
@@ -1622,9 +1649,10 @@ def main():
             f"trt={(trt_frames, trt_height, trt_width)} "
             f"train_config={(train_frames, train_height, train_width)}"
         )
-    if trt_channels not in (-1, 3):
+    expected_channels = expected_model_input_channels(train_json)
+    if trt_channels not in (-1, expected_channels):
         raise NotImplementedError(
-            f"Expected 3 denoiser input channels for y_t mode, got {trt_channels}"
+            f"Expected {expected_channels} denoiser input channels for train_config, got {trt_channels}"
         )
     if trt_batch not in (-1, 1):
         raise ValueError(f"Expected batch size 1 denoiser TensorRT, got {trt_batch}")
