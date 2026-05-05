@@ -58,7 +58,7 @@ def atoi(text):
 
 
 def natural_keys(text):
-    return [atoi(c) for c in re.split("(\d+)", text)]
+    return [atoi(c) for c in re.split(r"(\d+)", text)]
 
 
 def prepare_tensors(tensor_list):
@@ -307,7 +307,7 @@ def generate_streaming(
     cls_tensor = None
 
     # noise parameters
-    num_buckets = 2
+    num_buckets = 10
     max_sigma = 0.71
 
     total_generation_time = 0.0
@@ -332,6 +332,8 @@ def generate_streaming(
         generated_bbox = frame_data.get("generated_bbox")
         has_bbox = frame_data["has_bbox"]
         ref_orig = frame_data.get("ref_orig")
+        noisy_first = frame_data.get("noisy_first")
+        noisy_first_sigma = frame_data.get("noisy_first_sigma")
 
         out_img_for_paste = out_img
         mask_np_for_paste = None
@@ -433,6 +435,57 @@ def generate_streaming(
                         os.path.join(dir_out, name_out + "_generated_bbox.json"), "w"
                     ) as out:
                         out.write(json.dumps(generated_bbox))
+                if noisy_first is not None:
+                    noisy_first_crop = np.clip(to_np(noisy_first), 0, 255).astype(
+                        np.uint8
+                    )
+                    cv2.imwrite(
+                        os.path.join(dir_out, name_out + "_noisy_first_crop.png"),
+                        noisy_first_crop,
+                    )
+
+                    noisy_first_full = noisy_first_crop
+                    if has_bbox:
+                        noisy_first_resized = cv2.resize(
+                            noisy_first_crop,
+                            (
+                                min(
+                                    img_orig.shape[1],
+                                    bbox_select[2] - bbox_select[0],
+                                ),
+                                min(
+                                    img_orig.shape[0],
+                                    bbox_select[3] - bbox_select[1],
+                                ),
+                            ),
+                        )
+                        noisy_first_full = img_orig.copy()
+                        y0, y1 = bbox_select[1], bbox_select[3]
+                        x0, x1 = bbox_select[0], bbox_select[2]
+                        if mask_np_for_paste is not None:
+                            mask_resized = cv2.resize(
+                                mask_np_for_paste,
+                                (x1 - x0, y1 - y0),
+                                interpolation=cv2.INTER_NEAREST,
+                            )
+                            mask_3 = mask_resized.astype(bool)[:, :, None]
+                            orig_crop = noisy_first_full[y0:y1, x0:x1].copy()
+                            noisy_first_full[y0:y1, x0:x1] = np.where(
+                                mask_3, noisy_first_resized, orig_crop
+                            )
+                        else:
+                            noisy_first_full[y0:y1, x0:x1] = noisy_first_resized
+
+                    cv2.imwrite(
+                        os.path.join(dir_out, name_out + "_noisy_first.png"),
+                        noisy_first_full,
+                    )
+                    if noisy_first_sigma is not None:
+                        with open(
+                            os.path.join(dir_out, name_out + "_noisy_first_sigma.json"),
+                            "w",
+                        ) as out:
+                            out.write(json.dumps(noisy_first_sigma))
 
         video_frame = (
             np.concatenate([out_img_real_size, img_orig], axis=1)
@@ -910,6 +963,17 @@ def generate_streaming(
                     sigma = sigma_values.view(B, 1, 1, 1)
                     eps_ctx = torch.randn(B, C, H, W, device=y0_tensor.device)
                     y0_noisy_first = y0_tensor + sigma * eps_ctx
+                    if mask is not None:
+                        noise_mask = torch.clamp(mask, 0, 1).to(dtype=y0_tensor.dtype)
+                        noisy_first_for_save = (
+                            y0_tensor * (1 - noise_mask) + y0_noisy_first * noise_mask
+                        )
+                    else:
+                        noisy_first_for_save = y0_noisy_first
+                    prev_frame["noisy_first"] = noisy_first_for_save.clone().detach()
+                    prev_frame["noisy_first_sigma"] = (
+                        sigma_values.detach().cpu().tolist()
+                    )
                 else:
                     y0_noisy_first = None
                 continue
