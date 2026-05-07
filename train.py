@@ -62,6 +62,29 @@ def optim(opt, params, lr, betas, weight_decay, eps):
         return bnb.optim.Adam8bit(params, lr, betas, weight_decay=weight_decay, eps=eps)
 
 
+def get_current_b2b_validation_loss(model, test_names):
+    if getattr(model.opt, "model_type", "") != "b2b":
+        return {}
+
+    loss_sum = 0.0
+    loss_count = 0
+    for test_name in test_names:
+        loss_name = "G_val_loss_test_" + test_name
+        count_name = "G_val_loss_count_test_" + test_name
+        if not hasattr(model, loss_name):
+            continue
+        count = int(getattr(model, count_name, 1))
+        if count <= 0:
+            continue
+        loss_sum += float(getattr(model, loss_name)) * count
+        loss_count += count
+
+    if loss_count == 0:
+        return {}
+
+    return {"G_val_loss": loss_sum / loss_count}
+
+
 def signal_handler(sig, frame):
     dist.destroy_process_group()
 
@@ -349,6 +372,13 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                         visualizer.plot_current_metrics(
                             epoch, float(epoch_iter) / trainset_size, metrics
                         )
+                        val_losses = get_current_b2b_validation_loss(
+                            model, all_test_sets
+                        )
+                        if val_losses:
+                            visualizer.plot_current_losses(
+                                epoch, float(epoch_iter) / trainset_size, val_losses
+                            )
 
                 if (
                     opt.total_iters % opt.train_D_accuracy_every < batch_size
@@ -430,6 +460,9 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                         test_name=dataloader_test.dataset.name,
                     )
                 cur_metrics = model.get_current_metrics(all_test_sets)
+                cur_metrics.update(
+                    get_current_b2b_validation_loss(model, all_test_sets)
+                )
         finally:
             restore_model_training_modes(saved_training_modes)
         path_json = os.path.join(opt.checkpoints_dir, opt.name, "eval_results.json")

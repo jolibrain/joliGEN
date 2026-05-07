@@ -464,6 +464,11 @@ class Visualizer:
         )
         X = np.stack([np.array(self.plot_data["X"])] * len(legend), 1)
         Y = np.array(self.plot_data["Y"])
+        val_loss_trace_opts = {
+            loss_name: {"connectgaps": True}
+            for loss_name in legend
+            if loss_name == "G_val_loss" or loss_name.startswith("G_val_loss")
+        }
         try:
             # Resize needed due to a bug in visdom 0.1.8.9
             if Y.shape[1] == 1:
@@ -478,6 +483,7 @@ class Visualizer:
                     "legend": legend,
                     "xlabel": "epoch",
                     "ylabel": "loss",
+                    "traceopts": {"plotly": val_loss_trace_opts},
                 },
                 win=self.display_id,
             )
