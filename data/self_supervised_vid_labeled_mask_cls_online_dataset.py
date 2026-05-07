@@ -201,6 +201,9 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                     load_size=self.opt.data_online_creation_load_size_A,
                     get_crop_coordinates=True,
                     fixed_mask_size=self.opt.data_online_fixed_mask_size,
+                    fixed_mask_size_model=getattr(
+                        self.opt, "data_online_creation_mask_fixed_size_A", -1
+                    ),
                     crop_center=True,
                 )
                 cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_image(
@@ -216,6 +219,9 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                     load_size=self.opt.data_online_creation_load_size_A,
                     crop_coordinates=crop_coordinates,
                     fixed_mask_size=self.opt.data_online_fixed_mask_size,
+                    fixed_mask_size_model=getattr(
+                        self.opt, "data_online_creation_mask_fixed_size_A", -1
+                    ),
                     crop_center=True,
                 )
                 A_label_clses.append(int(ref_A_bbox[0]))

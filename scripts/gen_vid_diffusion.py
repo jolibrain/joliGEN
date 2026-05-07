@@ -387,6 +387,9 @@ def generate(
                 crop_center=True,
                 bbox_ref_id=bbox_idx,
                 min_crop_bbox_ratio=min_crop_bbox_ratio,
+                fixed_mask_size_model=getattr(
+                    opt, "data_online_creation_mask_fixed_size_A", -1
+                ),
             )
 
             img, mask, ref_bbox, bbox_ref_id = crop_image(
@@ -404,6 +407,9 @@ def generate(
                 crop_center=True,
                 bbox_ref_id=bbox_idx,
                 override_class=cls,
+                fixed_mask_size_model=getattr(
+                    opt, "data_online_creation_mask_fixed_size_A", -1
+                ),
             )
             x_crop, y_crop, crop_size = crop_coordinates
 

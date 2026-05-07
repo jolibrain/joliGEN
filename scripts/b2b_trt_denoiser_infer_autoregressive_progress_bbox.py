@@ -578,6 +578,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
     mask_delta = normalize_mask_delta(online.get("mask_delta_A", [[]]))
     mask_random_offset = online.get("mask_random_offset_A", [0.0])
     mask_square = online.get("mask_square_A", False)
+    fixed_mask_size_model = int(online.get("mask_fixed_size_A", -1))
     _, crop_h, crop_w, output_h, output_w = get_train_shape(train_json)
     crop_dim = crop_h if crop_h == crop_w else [crop_h, crop_w]
     output_dim = output_h if output_h == output_w else [output_h, output_w]
@@ -604,6 +605,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         crop_center=True,
         bbox_ref_id=bbox_index,
         min_crop_bbox_ratio=min_crop_bbox_ratio,
+        fixed_mask_size_model=fixed_mask_size_model,
     )
 
     img, mask, _, _, crop_meta = crop_image(
@@ -622,6 +624,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         bbox_ref_id=bbox_index,
         override_class=cls,
         return_meta=True,
+        fixed_mask_size_model=fixed_mask_size_model,
     )
 
     bbox_select = compute_paste_bbox(crop_meta)

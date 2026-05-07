@@ -6,7 +6,6 @@ import torch
 
 from data.base_dataset import BaseDataset
 
-
 ALLOWED_CHILD_DATASET_MODES = {"self_supervised_vid_mask_online"}
 
 ALLOWED_CHILD_OVERRIDES = {
@@ -18,6 +17,7 @@ ALLOWED_CHILD_OVERRIDES = {
     "data_online_creation_mask_delta_A_ratio",
     "data_online_creation_mask_random_offset_A",
     "data_online_creation_mask_square_A",
+    "data_online_creation_mask_fixed_size_A",
     "data_temporal_num_common_char",
 }
 
