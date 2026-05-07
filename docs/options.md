@@ -97,6 +97,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_mask_as_channel | flag |  | Concatenate the inpainting mask as an additional input channel in B2B. |
 | --alg_b2b_metric_mask | flag |  | Evaluate metrics only on dilated mask region |
 | --alg_b2b_minsnr | flag |  | use min-SNR weighting |
+| --alg_b2b_multi_dataset_class_conditioning | flag |  | Use multi_dataset dataset_index as the ViT class-token conditioning label instead of object class labels. |
 | --alg_b2b_noise_scale | float | -1.0 | Noise scale for B2B. Use \<=0 for automatic JiT-like defaults (1.0 at \<=256px, else 2.0). |
 | --alg_b2b_perceptual_loss | array | [''] | Optional perceptual losses<br/><br/> **Values:** , LPIPS, DISTS |
 | --alg_b2b_t_eps | float | 0.05 | Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t). |
@@ -236,12 +237,13 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_crop_size | int | 256 | then crop to this size |
-| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_vid_mask_online, self_supervised_vid_labeled_mask_cls_online, self_supervised_temporal, single, unaligned_labeled_mask_ref, self_supervised_labeled_mask_ref, unaligned_labeled_mask_online_ref, unaligned_labeled_mask_online_prompt, self_supervised_labeled_mask_online_ref |
+| --data_dataset_mode | string | unaligned | chooses how datasets are loaded.<br/><br/> **Values:** unaligned, unaligned_labeled_cls, unaligned_labeled_mask, self_supervised_labeled_mask, unaligned_labeled_mask_cls, self_supervised_labeled_mask_cls, unaligned_labeled_mask_online, self_supervised_labeled_mask_online, unaligned_labeled_mask_cls_online, self_supervised_labeled_mask_cls_online, aligned, nuplet_unaligned_labeled_mask, temporal_labeled_mask_online, self_supervised_vid_mask_online, multi_dataset, self_supervised_vid_labeled_mask_cls_online, self_supervised_temporal, single, unaligned_labeled_mask_ref, self_supervised_labeled_mask_ref, unaligned_labeled_mask_online_ref, unaligned_labeled_mask_online_prompt, self_supervised_labeled_mask_online_ref |
 | --data_direction | string | AtoB | AtoB or BtoA<br/><br/> **Values:** AtoB, BtoA |
 | --data_image_bits | int | 8 | number of bits of the image (e.g. 8, 12 or 16) |
 | --data_inverted_mask | flag |  | whether to invert the mask, i.e. around the bbox |
 | --data_load_size | int | 286 | scale images to this size |
 | --data_max_dataset_size | int | 1000000000 | Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded. |
+| --data_multi_dataset_config | string |  | path to a JSON config describing child datasets for data_dataset_mode=multi_dataset |
 | --data_num_threads | int | 4 | \# threads for loading data |
 | --data_online_context_pixels | int | 0 | context pixel band around the crop, unused for generation, only for disc  |
 | --data_online_fixed_mask_size | int | -1 | if \>0, it will be used as fixed bbox size (warning: in dataset resolution ie before resizing)  |
