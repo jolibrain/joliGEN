@@ -1754,6 +1754,31 @@ class BaseModel(ABC):
         dinov2_val = dinov2_sum / n if (n and compute_dinov2) else 0.0
         return psnr_val, ssim_val, lpips_val, dinov2_val
 
+    def _is_b2b_validation_loss_enabled(self):
+        return getattr(self.opt, "model_type", "") == "b2b" and hasattr(
+            self, "compute_b2b_loss"
+        )
+
+    def _compute_current_b2b_validation_loss(self):
+        saved_losses = {
+            name: value
+            for name, value in vars(self).items()
+            if name.startswith("loss_")
+        }
+        try:
+            with torch.no_grad():
+                self.compute_b2b_loss()
+            return float(self.loss_G_tot.detach())
+        finally:
+            current_loss_names = [
+                name for name in vars(self).keys() if name.startswith("loss_")
+            ]
+            for name in current_loss_names:
+                if name not in saved_losses:
+                    delattr(self, name)
+            for name, value in saved_losses.items():
+                setattr(self, name, value)
+
     def compute_metrics_test(
         self, dataloaders_test, n_epoch, n_iter, save_images=False, test_name=""
     ):
@@ -1769,6 +1794,9 @@ class BaseModel(ABC):
         real_list = []
         fake_list_per_step = {}
         real_list_per_step = {}
+        compute_b2b_val_loss = self._is_b2b_validation_loss_enabled()
+        b2b_val_loss_sum = 0.0
+        b2b_val_loss_count = 0
 
         if self.opt.train_nb_img_max_fid != MAX_INT:
             progress = tqdm(
@@ -1783,19 +1811,39 @@ class BaseModel(ABC):
             dataloaders_test
         ):  # inner loop (minibatch) within one epoch
             data_test = data_test_list[0]
-            if self.use_temporal:
-                temporal_data_test = data_test_list[1]
-                self.set_input_temporal(temporal_data_test)
-            else:
-                self.set_input(
-                    data_test
-                )  # unpack data from dataloader and apply preprocessing
+            istrain = self.opt.isTrain
+            if compute_b2b_val_loss:
+                self.opt.isTrain = False
+            try:
+                if self.use_temporal:
+                    temporal_data_test = data_test_list[1]
+                    self.set_input_temporal(temporal_data_test)
+                else:
+                    self.set_input(
+                        data_test
+                    )  # unpack data from dataloader and apply preprocessing
+
+                if compute_b2b_val_loss:
+                    cur_batch_size = self.get_current_batch_size()
+                    if self.opt.train_nb_img_max_fid != MAX_INT:
+                        remaining = self.opt.train_nb_img_max_fid - b2b_val_loss_count
+                        cur_weight = min(cur_batch_size, max(remaining, 0))
+                    else:
+                        cur_weight = cur_batch_size
+                    if cur_weight > 0:
+                        b2b_val_loss_sum += (
+                            self._compute_current_b2b_validation_loss() * cur_weight
+                        )
+                        b2b_val_loss_count += cur_weight
+            finally:
+                self.opt.isTrain = istrain
 
             offset = i * self.opt.test_batch_size
-            istrain = self.opt.isTrain
             self.opt.isTrain = False
-            self.inference(self.opt.test_batch_size, offset=offset)
-            self.opt.isTrain = istrain
+            try:
+                self.inference(self.opt.test_batch_size, offset=offset)
+            finally:
+                self.opt.isTrain = istrain
 
             if save_images:
                 pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (
@@ -1896,6 +1944,17 @@ class BaseModel(ABC):
                 and i < self.opt.test_batch_size
             ):
                 break
+
+        if compute_b2b_val_loss:
+            if b2b_val_loss_count > 0:
+                setattr(
+                    self,
+                    "G_val_loss_test_" + test_name,
+                    b2b_val_loss_sum / b2b_val_loss_count,
+                )
+            else:
+                setattr(self, "G_val_loss_test_" + test_name, 0.0)
+            setattr(self, "G_val_loss_count_test_" + test_name, b2b_val_loss_count)
 
         fake_list = fake_list[: self.opt.train_nb_img_max_fid]
         real_list = real_list[: self.opt.train_nb_img_max_fid]
