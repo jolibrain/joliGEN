@@ -112,7 +112,10 @@ class BaseOptions:
                     # already parsed
                     continue
 
-                if isinstance(action, _StoreConstAction):
+                if isinstance(action, argparse.BooleanOptionalAction):
+                    val = action.default
+                    check_type = bool
+                elif isinstance(action, _StoreConstAction):
                     val = False
                     check_type = bool
                 else:
