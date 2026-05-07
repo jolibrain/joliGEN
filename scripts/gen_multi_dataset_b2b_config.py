@@ -536,6 +536,9 @@ def build_train_config(args, multi_dataset_config_path):
             base_config = json.load(config_file)
         base_config.update(train_config)
         train_config = base_config
+    fixed_mask_size_A = getattr(args, "data_online_creation_mask_fixed_size_A", -1)
+    if fixed_mask_size_A > 0:
+        train_config["data_online_creation_mask_fixed_size_A"] = fixed_mask_size_A
     return train_config
 
 
@@ -742,6 +745,9 @@ def parse_args():
     )
     parser.add_argument("--data-load-size", type=int, default=256)
     parser.add_argument("--data-crop-size", type=int, default=256)
+    parser.add_argument(
+        "--data-online-creation-mask-fixed-size-A", type=int, default=-1
+    )
     parser.add_argument("--data-temporal-number-frames", type=int, default=2)
     parser.add_argument("--data-temporal-frame-step", type=int, default=1)
     parser.add_argument("--data-num-threads", type=int, default=8)

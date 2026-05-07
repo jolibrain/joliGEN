@@ -28,6 +28,7 @@ def crop_image(
     select_cat=-1,
     crop_center=False,
     fixed_mask_size=-1,
+    fixed_mask_size_model=-1,
     bbox_ref_id=-1,
     inverted_mask=False,
     single_bbox=False,
@@ -148,6 +149,7 @@ def crop_image(
 
     # Creation of a blank mask
     mask = np.zeros(img.shape[:2], dtype=np.uint8)
+    processed_bboxes = []
 
     # A bbox of reference will be used to compute the crop
     idx_bbox_ref = random.randint(0, len(bboxes) - 1)
@@ -257,6 +259,16 @@ def crop_image(
         ymax = min(ymax, img.shape[0])
 
         mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cat)
+        processed_bboxes.append(
+            {
+                "index": i,
+                "cat": cat,
+                "xmin": xmin,
+                "ymin": ymin,
+                "xmax": xmax,
+                "ymax": ymax,
+            }
+        )
 
         if i == idx_bbox_ref:
             cat_ref = cat
@@ -286,6 +298,47 @@ def crop_image(
 
     height = y_max_ref - y_min_ref
     width = x_max_ref - x_min_ref
+
+    def apply_fixed_model_mask(crop_size):
+        nonlocal mask
+        nonlocal x_min_ref, x_max_ref, y_min_ref, y_max_ref
+
+        if fixed_mask_size_model <= 0:
+            return
+
+        output_side = output_dim + margin
+        if fixed_mask_size_model > output_side:
+            raise ValueError(
+                f"fixed model mask size {fixed_mask_size_model} is larger than output size {output_side}"
+            )
+        fixed_source_side = int(round(fixed_mask_size_model * crop_size / output_side))
+        fixed_source_side = max(1, fixed_source_side)
+        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        for cur_bbox in processed_bboxes:
+            side = max(
+                fixed_source_side,
+                cur_bbox["xmax"] - cur_bbox["xmin"],
+                cur_bbox["ymax"] - cur_bbox["ymin"],
+            )
+            cx = (cur_bbox["xmin"] + cur_bbox["xmax"]) / 2.0
+            cy = (cur_bbox["ymin"] + cur_bbox["ymax"]) / 2.0
+            xmin = int(round(cx - side / 2.0))
+            ymin = int(round(cy - side / 2.0))
+            xmax = xmin + side
+            ymax = ymin + side
+            xmin = max(0, xmin)
+            ymin = max(0, ymin)
+            xmax = min(xmax, img.shape[1])
+            ymax = min(ymax, img.shape[0])
+            mask[ymin:ymax, xmin:xmax] = np.full(
+                (ymax - ymin, xmax - xmin), cur_bbox["cat"]
+            )
+            cur_bbox.update({"xmin": xmin, "ymin": ymin, "xmax": xmax, "ymax": ymax})
+            if cur_bbox["index"] == idx_bbox_ref:
+                x_min_ref = xmin
+                x_max_ref = xmax
+                y_min_ref = ymin
+                y_max_ref = ymax
 
     # Let's compute crop size
     if crop_coordinates is None:
@@ -321,6 +374,7 @@ def crop_image(
                 crop_size_max = expected_crop_size
 
         crop_size = random.randint(crop_size_min, crop_size_max)
+        apply_fixed_model_mask(crop_size)
 
         if crop_size > min(img.shape[0], img.shape[1]):
             warnings.warn(
@@ -399,6 +453,7 @@ def crop_image(
 
     else:
         x_crop, y_crop, crop_size = crop_coordinates
+        apply_fixed_model_mask(crop_size)
         x_crop = x_crop + x_min_ref
         y_crop = y_crop + y_min_ref
 
@@ -442,8 +497,42 @@ def crop_image(
         mask[mask == 0] = 1
         mask[mask == 2] = 0
 
-    mask = Image.fromarray(mask)
-    mask = F.resize(mask, output_dim + margin, interpolation=InterpolationMode.NEAREST)
+    if fixed_mask_size_model > 0:
+        output_side = output_dim + margin
+        resized_mask = np.zeros((output_side, output_side), dtype=np.uint8)
+        for cur_bbox in processed_bboxes:
+            xmin = cur_bbox["xmin"] - x_crop
+            xmax = cur_bbox["xmax"] - x_crop
+            ymin = cur_bbox["ymin"] - y_crop
+            ymax = cur_bbox["ymax"] - y_crop
+            xmin = int(round(xmin * output_side / crop_size))
+            xmax = int(round(xmax * output_side / crop_size))
+            ymin = int(round(ymin * output_side / crop_size))
+            ymax = int(round(ymax * output_side / crop_size))
+
+            side = max(xmax - xmin, ymax - ymin)
+            side = max(side, fixed_mask_size_model)
+            cx = (xmin + xmax) / 2.0
+            cy = (ymin + ymax) / 2.0
+            xmin = int(round(cx - side / 2.0))
+            ymin = int(round(cy - side / 2.0))
+            xmax = xmin + side
+            ymax = ymin + side
+            xmin = max(0, xmin)
+            ymin = max(0, ymin)
+            xmax = min(xmax, output_side)
+            ymax = min(ymax, output_side)
+            resized_mask[ymin:ymax, xmin:xmax] = cur_bbox["cat"]
+        if inverted_mask:
+            resized_mask[resized_mask > 0] = 2
+            resized_mask[resized_mask == 0] = 1
+            resized_mask[resized_mask == 2] = 0
+        mask = Image.fromarray(resized_mask)
+    else:
+        mask = Image.fromarray(mask)
+        mask = F.resize(
+            mask, output_dim + margin, interpolation=InterpolationMode.NEAREST
+        )
 
     # resize ref_bbox to output_dim + margin
     ref_bbox = [
@@ -522,6 +611,7 @@ def sanitize_paths(
     output_dim,
     context_pixels,
     load_size,
+    fixed_mask_size_model=-1,
     select_cat=-1,
     data_relative_paths=False,
     data_root_path="",
@@ -554,6 +644,7 @@ def sanitize_paths(
                         mask_delta=mask_delta,
                         crop_delta=0,
                         mask_square=mask_square,
+                        fixed_mask_size_model=fixed_mask_size_model,
                         crop_dim=crop_dim + crop_delta,
                         output_dim=output_dim,
                         context_pixels=context_pixels,

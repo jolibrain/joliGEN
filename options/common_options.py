@@ -855,6 +855,12 @@ class CommonOptions(BaseOptions):
             help="whether masks should be squared for domain A",
         )
         parser.add_argument(
+            "--data_online_creation_mask_fixed_size_A",
+            type=int,
+            default=-1,
+            help="if >0, force domain A online masks to this square side in final model pixels; larger boxes keep the closest containing square",
+        )
+        parser.add_argument(
             "--data_online_creation_rand_mask_A",
             action="store_true",
             help="Perform task of replacing noised masks by objects",
@@ -913,6 +919,12 @@ class CommonOptions(BaseOptions):
             "--data_online_creation_mask_square_B",
             action="store_true",
             help="whether masks should be squared for domain B",
+        )
+        parser.add_argument(
+            "--data_online_creation_mask_fixed_size_B",
+            type=int,
+            default=-1,
+            help="if >0, force domain B online masks to this square side in final model pixels; larger boxes keep the closest containing square",
         )
         parser.add_argument(
             "--data_online_context_pixels",

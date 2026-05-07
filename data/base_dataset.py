@@ -330,6 +330,9 @@ class BaseDataset(data.Dataset, ABC):
                 mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                 crop_delta=self.opt.data_online_creation_crop_delta_A,
                 mask_square=self.opt.data_online_creation_mask_square_A,
+                fixed_mask_size_model=getattr(
+                    self.opt, "data_online_creation_mask_fixed_size_A", -1
+                ),
                 crop_dim=self.opt.data_online_creation_crop_size_A,
                 output_dim=self.opt.data_load_size,
                 max_dataset_size=self.opt.data_max_dataset_size,
@@ -354,6 +357,9 @@ class BaseDataset(data.Dataset, ABC):
                     mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
                     crop_delta=self.opt.data_online_creation_crop_delta_B,
                     mask_square=self.opt.data_online_creation_mask_square_B,
+                    fixed_mask_size_model=getattr(
+                        self.opt, "data_online_creation_mask_fixed_size_B", -1
+                    ),
                     crop_dim=self.opt.data_online_creation_crop_size_B,
                     output_dim=self.opt.data_load_size,
                     max_dataset_size=self.opt.data_max_dataset_size,
