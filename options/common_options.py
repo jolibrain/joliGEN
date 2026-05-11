@@ -438,7 +438,13 @@ class CommonOptions(BaseOptions):
             "--G_vit_variant",
             type=str,
             default="JiT-B/16",
-            help="Selects the ViT backbone when --G_netG vit (use JiT-*) or vit_vid (use JiTVid-*)",
+            help="Selects the ViT backbone when --G_netG vit/vit_vid. Use JiT-*, JiTVid-*, or EUPE-T/16|EUPE-S/16|EUPE-B/16.",
+        )
+        parser.add_argument(
+            "--G_vit_pretrained_weights",
+            type=str,
+            default="",
+            help="optional local path or URL to pretrained EUPE ViT weights",
         )
         parser.add_argument(
             "--G_vit_disable_bottleneck",
