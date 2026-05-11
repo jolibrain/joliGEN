@@ -1755,15 +1755,14 @@ class BaseModel(ABC):
         return psnr_val, ssim_val, lpips_val, dinov2_val
 
     def _is_b2b_validation_loss_enabled(self):
-        return getattr(self.opt, "model_type", "") == "b2b" and hasattr(
-            self, "compute_b2b_loss"
+        return (
+            getattr(self.opt, "model_type", "") == "b2b"
+            and hasattr(self, "compute_b2b_loss")
         )
 
     def _compute_current_b2b_validation_loss(self):
         saved_losses = {
-            name: value
-            for name, value in vars(self).items()
-            if name.startswith("loss_")
+            name: value for name, value in vars(self).items() if name.startswith("loss_")
         }
         try:
             with torch.no_grad():
