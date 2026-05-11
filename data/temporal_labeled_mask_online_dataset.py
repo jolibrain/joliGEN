@@ -142,6 +142,11 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                         fixed_mask_size_model=getattr(
                             self.opt, "data_online_creation_mask_fixed_size_A", -1
                         ),
+                        fixed_mask_min_unmasked_border_model=getattr(
+                            self.opt,
+                            "data_online_creation_mask_min_unmasked_border_A",
+                            4,
+                        ),
                     )
 
                 cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_image(
@@ -159,6 +164,9 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                     fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     fixed_mask_size_model=getattr(
                         self.opt, "data_online_creation_mask_fixed_size_A", -1
+                    ),
+                    fixed_mask_min_unmasked_border_model=getattr(
+                        self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
                     ),
                 )
                 if i == 0:
@@ -230,6 +238,11 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                             fixed_mask_size_model=getattr(
                                 self.opt, "data_online_creation_mask_fixed_size_B", -1
                             ),
+                            fixed_mask_min_unmasked_border_model=getattr(
+                                self.opt,
+                                "data_online_creation_mask_min_unmasked_border_B",
+                                4,
+                            ),
                         )
 
                     cur_B_img, cur_B_label, ref_B_bbox, B_ref_bbox_id = crop_image(
@@ -247,6 +260,11 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                         fixed_mask_size=self.opt.data_online_fixed_mask_size,
                         fixed_mask_size_model=getattr(
                             self.opt, "data_online_creation_mask_fixed_size_B", -1
+                        ),
+                        fixed_mask_min_unmasked_border_model=getattr(
+                            self.opt,
+                            "data_online_creation_mask_min_unmasked_border_B",
+                            4,
                         ),
                     )
                     if i == 0:

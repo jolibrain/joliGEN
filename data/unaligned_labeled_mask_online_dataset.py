@@ -112,6 +112,9 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 fixed_mask_size_model=getattr(
                     self.opt, "data_online_creation_mask_fixed_size_A", -1
                 ),
+                fixed_mask_min_unmasked_border_model=getattr(
+                    self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
+                ),
                 inverted_mask=self.opt.data_inverted_mask,
                 single_bbox=self.opt.data_online_single_bbox,
                 random_bbox=self.opt.data_online_random_bbox,
@@ -166,6 +169,11 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         fixed_mask_size=self.opt.data_online_fixed_mask_size,
                         fixed_mask_size_model=getattr(
                             self.opt, "data_online_creation_mask_fixed_size_B", -1
+                        ),
+                        fixed_mask_min_unmasked_border_model=getattr(
+                            self.opt,
+                            "data_online_creation_mask_min_unmasked_border_B",
+                            4,
                         ),
                         inverted_mask=self.opt.data_inverted_mask,
                         single_bbox=self.opt.data_online_single_bbox,

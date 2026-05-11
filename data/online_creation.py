@@ -29,6 +29,7 @@ def crop_image(
     crop_center=False,
     fixed_mask_size=-1,
     fixed_mask_size_model=-1,
+    fixed_mask_min_unmasked_border_model=4,
     bbox_ref_id=-1,
     inverted_mask=False,
     single_bbox=False,
@@ -307,11 +308,17 @@ def crop_image(
             return
 
         output_side = output_dim + margin
+        max_model_mask_side = output_side - 2 * fixed_mask_min_unmasked_border_model
+        if max_model_mask_side < 1:
+            raise ValueError(
+                f"fixed model mask border {fixed_mask_min_unmasked_border_model} is too large for output size {output_side}"
+            )
         if fixed_mask_size_model > output_side:
             raise ValueError(
                 f"fixed model mask size {fixed_mask_size_model} is larger than output size {output_side}"
             )
-        fixed_source_side = int(round(fixed_mask_size_model * crop_size / output_side))
+        fixed_model_side = min(fixed_mask_size_model, max_model_mask_side)
+        fixed_source_side = int(round(fixed_model_side * crop_size / output_side))
         fixed_source_side = max(1, fixed_source_side)
         mask = np.zeros(img.shape[:2], dtype=np.uint8)
         for cur_bbox in processed_bboxes:
@@ -499,6 +506,12 @@ def crop_image(
 
     if fixed_mask_size_model > 0:
         output_side = output_dim + margin
+        border = fixed_mask_min_unmasked_border_model
+        max_mask_side = output_side - 2 * border
+        if max_mask_side < 1:
+            raise ValueError(
+                f"fixed model mask border {border} is too large for output size {output_side}"
+            )
         resized_mask = np.zeros((output_side, output_side), dtype=np.uint8)
         for cur_bbox in processed_bboxes:
             xmin = cur_bbox["xmin"] - x_crop
@@ -512,16 +525,15 @@ def crop_image(
 
             side = max(xmax - xmin, ymax - ymin)
             side = max(side, fixed_mask_size_model)
+            side = min(side, max_mask_side)
             cx = (xmin + xmax) / 2.0
             cy = (ymin + ymax) / 2.0
             xmin = int(round(cx - side / 2.0))
             ymin = int(round(cy - side / 2.0))
+            xmin = min(max(xmin, border), output_side - border - side)
+            ymin = min(max(ymin, border), output_side - border - side)
             xmax = xmin + side
             ymax = ymin + side
-            xmin = max(0, xmin)
-            ymin = max(0, ymin)
-            xmax = min(xmax, output_side)
-            ymax = min(ymax, output_side)
             resized_mask[ymin:ymax, xmin:xmax] = cur_bbox["cat"]
         if inverted_mask:
             resized_mask[resized_mask > 0] = 2
@@ -612,6 +624,7 @@ def sanitize_paths(
     context_pixels,
     load_size,
     fixed_mask_size_model=-1,
+    fixed_mask_min_unmasked_border_model=4,
     select_cat=-1,
     data_relative_paths=False,
     data_root_path="",
@@ -645,6 +658,7 @@ def sanitize_paths(
                         crop_delta=0,
                         mask_square=mask_square,
                         fixed_mask_size_model=fixed_mask_size_model,
+                        fixed_mask_min_unmasked_border_model=fixed_mask_min_unmasked_border_model,
                         crop_dim=crop_dim + crop_delta,
                         output_dim=output_dim,
                         context_pixels=context_pixels,

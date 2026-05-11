@@ -333,6 +333,9 @@ class BaseDataset(data.Dataset, ABC):
                 fixed_mask_size_model=getattr(
                     self.opt, "data_online_creation_mask_fixed_size_A", -1
                 ),
+                fixed_mask_min_unmasked_border_model=getattr(
+                    self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
+                ),
                 crop_dim=self.opt.data_online_creation_crop_size_A,
                 output_dim=self.opt.data_load_size,
                 max_dataset_size=self.opt.data_max_dataset_size,
@@ -359,6 +362,9 @@ class BaseDataset(data.Dataset, ABC):
                     mask_square=self.opt.data_online_creation_mask_square_B,
                     fixed_mask_size_model=getattr(
                         self.opt, "data_online_creation_mask_fixed_size_B", -1
+                    ),
+                    fixed_mask_min_unmasked_border_model=getattr(
+                        self.opt, "data_online_creation_mask_min_unmasked_border_B", 4
                     ),
                     crop_dim=self.opt.data_online_creation_crop_size_B,
                     output_dim=self.opt.data_load_size,

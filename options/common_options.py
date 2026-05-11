@@ -861,6 +861,12 @@ class CommonOptions(BaseOptions):
             help="if >0, force domain A online masks to this square side in final model pixels; larger boxes keep the closest containing square",
         )
         parser.add_argument(
+            "--data_online_creation_mask_min_unmasked_border_A",
+            type=int,
+            default=4,
+            help="minimum unmasked border in final model pixels when data_online_creation_mask_fixed_size_A is enabled",
+        )
+        parser.add_argument(
             "--data_online_creation_rand_mask_A",
             action="store_true",
             help="Perform task of replacing noised masks by objects",
@@ -925,6 +931,12 @@ class CommonOptions(BaseOptions):
             type=int,
             default=-1,
             help="if >0, force domain B online masks to this square side in final model pixels; larger boxes keep the closest containing square",
+        )
+        parser.add_argument(
+            "--data_online_creation_mask_min_unmasked_border_B",
+            type=int,
+            default=4,
+            help="minimum unmasked border in final model pixels when data_online_creation_mask_fixed_size_B is enabled",
         )
         parser.add_argument(
             "--data_online_context_pixels",

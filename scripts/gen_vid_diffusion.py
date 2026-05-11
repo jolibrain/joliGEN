@@ -390,6 +390,9 @@ def generate(
                 fixed_mask_size_model=getattr(
                     opt, "data_online_creation_mask_fixed_size_A", -1
                 ),
+                fixed_mask_min_unmasked_border_model=getattr(
+                    opt, "data_online_creation_mask_min_unmasked_border_A", 4
+                ),
             )
 
             img, mask, ref_bbox, bbox_ref_id = crop_image(
@@ -409,6 +412,9 @@ def generate(
                 override_class=cls,
                 fixed_mask_size_model=getattr(
                     opt, "data_online_creation_mask_fixed_size_A", -1
+                ),
+                fixed_mask_min_unmasked_border_model=getattr(
+                    opt, "data_online_creation_mask_min_unmasked_border_A", 4
                 ),
             )
             x_crop, y_crop, crop_size = crop_coordinates
