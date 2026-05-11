@@ -188,6 +188,15 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+###### online creation fixed mask unit tests
+echo "Running online creation fixed mask unit tests"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_online_creation_fixed_mask.py"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 
 ###### GAN+supervised super-resolution process test
 echo "Running GAN+supervised super-resolution process test"

@@ -18,6 +18,7 @@ ALLOWED_CHILD_OVERRIDES = {
     "data_online_creation_mask_random_offset_A",
     "data_online_creation_mask_square_A",
     "data_online_creation_mask_fixed_size_A",
+    "data_online_creation_mask_min_unmasked_border_A",
     "data_temporal_num_common_char",
 }
 
