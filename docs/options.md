@@ -274,6 +274,10 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_mask_delta_A_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
 | --data_online_creation_mask_delta_B | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
 | --data_online_creation_mask_delta_B_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square |
+| --data_online_creation_mask_fixed_size_A | int | -1 | if \>0, force domain A online masks to this square side in final model pixels; larger boxes keep the closest containing square |
+| --data_online_creation_mask_fixed_size_B | int | -1 | if \>0, force domain B online masks to this square side in final model pixels; larger boxes keep the closest containing square |
+| --data_online_creation_mask_min_unmasked_border_A | int | 4 | minimum unmasked border in final model pixels when data_online_creation_mask_fixed_size_A is enabled |
+| --data_online_creation_mask_min_unmasked_border_B | int | 4 | minimum unmasked border in final model pixels when data_online_creation_mask_fixed_size_B is enabled |
 | --data_online_creation_mask_random_offset_A | array | [0.0] | ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square |
 | --data_online_creation_mask_random_offset_B | array | [0.0] | mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
