@@ -154,10 +154,6 @@ class DiffAugment:
             None if tensor is None else tensor.clamp(-1.0, 1.0)
             for tensor in image_tensors
         ]
-        mask_tensors = [
-            None if tensor is None else tensor.clamp(0.0, 1.0)
-            for tensor in mask_tensors
-        ]
         return image_tensors, mask_tensors
 
     def _apply_color(self, tensor, params):
