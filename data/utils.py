@@ -3,14 +3,15 @@ from PIL import Image
 
 def load_image(img_path, img_bits=8, use_tiff=False):
     if use_tiff:
+        import tifffile
+
         img = tifffile.imread(img_path)
-    else:
-        img = Image.open(img_path)
+        return img
 
-    if img_bits == 8:
-        img = img.convert("RGB")
-
-    return img
+    with Image.open(img_path) as img:
+        if img_bits == 8:
+            return img.convert("RGB")
+        return img.copy()
 
 
 # def load_image(img_path):

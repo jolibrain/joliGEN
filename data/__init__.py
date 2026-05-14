@@ -131,13 +131,17 @@ class CustomDatasetDataLoader:
         else:
             sampler = None
             shuffle = not opt.data_serial_batches
+        persistent_workers = (
+            int(opt.data_num_threads) > 0
+            and getattr(self.dataset, "phase", None) == "train"
+        )
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=batch_size,
             sampler=sampler,
             shuffle=shuffle,
             num_workers=int(opt.data_num_threads),
-            persistent_workers=int(opt.data_num_threads) > 0,
+            persistent_workers=persistent_workers,
             collate_fn=collate_fn,
         )
 
@@ -173,12 +177,16 @@ class IterableCustomDatasetDataLoader:
             print("dataset [%s] was created" % type(self.dataset).__name__)
         sampler = None
         shuffle = not opt.data_serial_batches
+        persistent_workers = (
+            int(opt.data_num_threads) > 0
+            and getattr(self.dataset, "phase", None) == "train"
+        )
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=batch_size,
             sampler=sampler,
             num_workers=int(opt.data_num_threads),
-            persistent_workers=int(opt.data_num_threads) > 0,
+            persistent_workers=persistent_workers,
             collate_fn=collate_fn,
         )
 
