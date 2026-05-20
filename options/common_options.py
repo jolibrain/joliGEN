@@ -814,6 +814,11 @@ class CommonOptions(BaseOptions):
             help="load to this size during online creation, format : width height or only one size if square",
         )
         parser.add_argument(
+            "--data_online_creation_load_size_keep_ratio_A",
+            action="store_true",
+            help="preserve aspect ratio when loading domain A online; load_size_A is used as target pixel area",
+        )
+        parser.add_argument(
             "--data_online_creation_crop_size_A",
             type=int,
             default=512,
@@ -883,6 +888,11 @@ class CommonOptions(BaseOptions):
             nargs="*",
             type=int,
             help="load to this size during online creation, format : width height or only one size if square",
+        )
+        parser.add_argument(
+            "--data_online_creation_load_size_keep_ratio_B",
+            action="store_true",
+            help="preserve aspect ratio when loading domain B online; load_size_B is used as target pixel area",
         )
 
         parser.add_argument(

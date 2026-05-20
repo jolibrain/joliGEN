@@ -12,6 +12,14 @@ def _write_sample(tmp_path, bbox_line):
     return str(img_path), str(bbox_path)
 
 
+def _write_sized_sample(tmp_path, size, bbox_line):
+    img_path = tmp_path / "image.png"
+    bbox_path = tmp_path / "bbox.txt"
+    Image.new("RGB", size, color=(127, 127, 127)).save(img_path)
+    bbox_path.write_text(bbox_line)
+    return str(img_path), str(bbox_path)
+
+
 def _mask_bbox_size(mask):
     bbox = Image.fromarray(np.array(mask)).getbbox()
     assert bbox is not None
@@ -59,6 +67,48 @@ def test_crop_image_fixed_model_mask_size_exact_square_with_crop_coordinates(tmp
     )
 
     assert _mask_bbox_size(mask) == (64, 64)
+
+
+def test_crop_image_keep_ratio_load_size_scales_crop_without_distortion(tmp_path):
+    img_path, bbox_path = _write_sized_sample(tmp_path, (200, 100), "1 50 25 90 65\n")
+    load_size = [100, 100]
+
+    crop_coordinates = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=100,
+        output_dim=100,
+        context_pixels=0,
+        load_size=load_size,
+        load_size_keep_ratio=True,
+        get_crop_coordinates=True,
+        crop_center=True,
+    )
+    _, _, _, _, meta = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=100,
+        output_dim=100,
+        context_pixels=0,
+        load_size=load_size,
+        load_size_keep_ratio=True,
+        crop_coordinates=crop_coordinates,
+        crop_center=True,
+        return_meta=True,
+    )
+
+    assert load_size == [100, 100]
+    assert meta["loaded_width"] == 141
+    assert meta["loaded_height"] == 71
+    assert meta["crop_size"] == 71
 
 
 def test_crop_image_fixed_model_mask_size_keeps_larger_containing_square(tmp_path):

@@ -12,6 +12,22 @@ from tqdm import tqdm
 from data.utils import load_image
 
 
+def _scale_pixel_mask_delta(mask_delta, scale):
+    if mask_delta == [[]]:
+        return mask_delta
+
+    scaled = []
+    for delta in mask_delta:
+        scaled_delta = []
+        for value in delta:
+            if isinstance(value, int):
+                scaled_delta.append(int(round(value * scale)))
+            else:
+                scaled_delta.append(value)
+        scaled.append(scaled_delta)
+    return scaled
+
+
 def crop_image(
     img_path,
     bbox_path,
@@ -23,6 +39,7 @@ def crop_image(
     output_dim,
     context_pixels,
     load_size,
+    load_size_keep_ratio=False,
     get_crop_coordinates=False,
     crop_coordinates=None,
     select_cat=-1,
@@ -44,18 +61,45 @@ def crop_image(
 
     try:
         img = load_image(img_path)
+        old_size = img.size
+        resize_scale = 1.0
+        effective_crop_dim = crop_dim
+        effective_crop_delta = crop_delta
+        effective_fixed_mask_size = fixed_mask_size
+        effective_mask_delta = mask_delta
+
         if load_size != []:
-            if len(load_size) == 1:
-                load_size.extend(load_size)
+            target_width = int(load_size[0])
+            target_height = int(load_size[1] if len(load_size) > 1 else load_size[0])
+            if target_width <= 0 or target_height <= 0:
+                raise ValueError(f"load_size must contain positive values: {load_size}")
+
+            if load_size_keep_ratio:
+                target_area = target_width * target_height
+                source_area = old_size[0] * old_size[1]
+                resize_scale = math.sqrt(target_area / float(source_area))
+                new_width = max(1, int(round(old_size[0] * resize_scale)))
+                new_height = max(1, int(round(old_size[1] * resize_scale)))
+            else:
+                new_width = target_width
+                new_height = target_height
+
             old_size = img.size
-            img = F.resize(img, (load_size[1], load_size[0]))
-            new_size = img.size
+            img = F.resize(img, (new_height, new_width))
             ratio_x = img.size[0] / old_size[0]
             ratio_y = img.size[1] / old_size[1]
         else:
-            old_size = img.size
             ratio_x = 1
             ratio_y = 1
+
+        if load_size_keep_ratio and load_size != []:
+            effective_crop_dim = max(1, int(round(crop_dim * resize_scale)))
+            effective_crop_delta = max(0, int(round(crop_delta * resize_scale)))
+            if fixed_mask_size > 0:
+                effective_fixed_mask_size = max(
+                    1, int(round(fixed_mask_size * resize_scale))
+                )
+            effective_mask_delta = _scale_pixel_mask_delta(mask_delta, resize_scale)
 
         img = np.array(img)
         loaded_img_height, loaded_img_width = img.shape[:2]
@@ -170,36 +214,36 @@ def crop_image(
         bbox_width = xmax - xmin
         bbox_height = ymax - ymin
 
-        if mask_delta != [[]]:
-            if len(mask_delta) == 1:
-                if isinstance(mask_delta[0][0], float):
-                    if len(mask_delta[0]) == 1:
-                        mask_delta_x = mask_delta[0][0] * bbox_width
-                        mask_delta_y = mask_delta[0][0] * bbox_height
+        if effective_mask_delta != [[]]:
+            if len(effective_mask_delta) == 1:
+                if isinstance(effective_mask_delta[0][0], float):
+                    if len(effective_mask_delta[0]) == 1:
+                        mask_delta_x = effective_mask_delta[0][0] * bbox_width
+                        mask_delta_y = effective_mask_delta[0][0] * bbox_height
                     else:
-                        mask_delta_x = mask_delta[0][0] * bbox_width
-                        mask_delta_y = mask_delta[0][1] * bbox_height
-                elif isinstance(mask_delta[0][0], int):
-                    if len(mask_delta[0]) == 1:
-                        mask_delta_x = mask_delta[0][0]
-                        mask_delta_y = mask_delta[0][0]
+                        mask_delta_x = effective_mask_delta[0][0] * bbox_width
+                        mask_delta_y = effective_mask_delta[0][1] * bbox_height
+                elif isinstance(effective_mask_delta[0][0], int):
+                    if len(effective_mask_delta[0]) == 1:
+                        mask_delta_x = effective_mask_delta[0][0]
+                        mask_delta_y = effective_mask_delta[0][0]
                     else:
-                        mask_delta_x = mask_delta[0][0]
-                        mask_delta_y = mask_delta[0][1]
+                        mask_delta_x = effective_mask_delta[0][0]
+                        mask_delta_y = effective_mask_delta[0][1]
                 else:
                     raise ValueError("mask_delta value is incorrect.")
             else:
-                if len(mask_delta) <= cat - 1:
+                if len(effective_mask_delta) <= cat - 1:
                     raise ValueError("too few classes, can't find mask_delta value")
-                mask_delta_cat = mask_delta[cat - 1]
-                if isinstance(mask_delta[0][0], float):
+                mask_delta_cat = effective_mask_delta[cat - 1]
+                if isinstance(effective_mask_delta[0][0], float):
                     if len(mask_delta_cat) == 1:
                         mask_delta_x = mask_delta_cat[0] * bbox_width
                         mask_delta_y = mask_delta_cat[0] * bbox_height
                     else:
                         mask_delta_x = mask_delta_cat[0] * bbox_width
                         mask_delta_y = mask_delta_cat[1] * bbox_height
-                elif isinstance(mask_delta[0][0], int):
+                elif isinstance(effective_mask_delta[0][0], int):
                     if len(mask_delta_cat) == 1:
                         mask_delta_x = mask_delta_cat[0]
                         mask_delta_y = mask_delta_cat[0]
@@ -244,9 +288,9 @@ def crop_image(
                 xmax += -int(sdiff / 2)
                 xmin -= -int(sdiff / 2)
 
-        if fixed_mask_size > 0:
-            xdiff = fixed_mask_size - (xmax - xmin)
-            ydiff = fixed_mask_size - (ymax - ymin)
+        if effective_fixed_mask_size > 0:
+            xdiff = effective_fixed_mask_size - (xmax - xmin)
+            ydiff = effective_fixed_mask_size - (ymax - ymin)
 
             ymax += int(ydiff / 2)
             ymin -= int(ydiff / 2)
@@ -353,10 +397,10 @@ def crop_image(
 
         # Crop size should be > height, width bbox (to keep the bbox within the crop)
         # Crop size should be > crop_dim - delta
-        crop_size_min = max(height, width, crop_dim - crop_delta)
+        crop_size_min = max(height, width, effective_crop_dim - effective_crop_delta)
 
         # Crop size should be < crop_dim - delta
-        crop_size_max = crop_dim + crop_delta
+        crop_size_max = effective_crop_dim + effective_crop_delta
 
         # if bbox is bigger than crop size min, we replace crop size min by bbox
         # So, we'll have bbox size <= crop size <= crop size max
@@ -623,6 +667,7 @@ def sanitize_paths(
     output_dim,
     context_pixels,
     load_size,
+    load_size_keep_ratio=False,
     fixed_mask_size_model=-1,
     fixed_mask_min_unmasked_border_model=4,
     select_cat=-1,
@@ -663,6 +708,7 @@ def sanitize_paths(
                         output_dim=output_dim,
                         context_pixels=context_pixels,
                         load_size=load_size,
+                        load_size_keep_ratio=load_size_keep_ratio,
                         select_cat=select_cat,
                     )
                 except Exception as e:

@@ -107,6 +107,9 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 output_dim=self.opt.data_load_size,
                 context_pixels=self.opt.data_online_context_pixels,
                 load_size=self.opt.data_online_creation_load_size_A,
+                load_size_keep_ratio=getattr(
+                    self.opt, "data_online_creation_load_size_keep_ratio_A", False
+                ),
                 select_cat=self.opt.data_online_select_category,
                 fixed_mask_size=self.opt.data_online_fixed_mask_size,
                 fixed_mask_size_model=getattr(
@@ -166,6 +169,11 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         output_dim=self.opt.data_load_size,
                         context_pixels=self.opt.data_online_context_pixels,
                         load_size=self.opt.data_online_creation_load_size_B,
+                        load_size_keep_ratio=getattr(
+                            self.opt,
+                            "data_online_creation_load_size_keep_ratio_B",
+                            False,
+                        ),
                         fixed_mask_size=self.opt.data_online_fixed_mask_size,
                         fixed_mask_size_model=getattr(
                             self.opt, "data_online_creation_mask_fixed_size_B", -1

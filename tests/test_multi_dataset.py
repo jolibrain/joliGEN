@@ -77,6 +77,7 @@ def make_opt(config_path, **kwargs):
         "data_online_creation_crop_size_A": 8,
         "data_online_creation_crop_delta_A": 0,
         "data_online_creation_load_size_A": [],
+        "data_online_creation_load_size_keep_ratio_A": False,
         "data_online_creation_mask_delta_A": [[]],
         "data_online_creation_mask_delta_A_ratio": [[]],
         "data_online_creation_mask_random_offset_A": [0.0],
@@ -123,6 +124,8 @@ def make_generator_args(**kwargs):
         "output_display_freq": 1000,
         "auto_test_samples": 1,
         "auto_test_seed": 7,
+        "reference_frame_size": None,
+        "keep_ratio_load_size": False,
     }
     values.update(kwargs)
     return SimpleNamespace(**values)
@@ -156,6 +159,7 @@ def test_multi_dataset_parses_config_and_applies_child_overrides(tmp_path, monke
                 "dataroot": "/data/a",
                 "overrides": {
                     "data_online_creation_crop_size_A": 12,
+                    "data_online_creation_load_size_keep_ratio_A": True,
                     "data_temporal_num_common_char": 7,
                 },
             },
@@ -180,6 +184,10 @@ def test_multi_dataset_parses_config_and_applies_child_overrides(tmp_path, monke
         == "self_supervised_vid_mask_online"
     )
     assert FakeChildDataset.instances[0].opt.data_online_creation_crop_size_A == 12
+    assert (
+        FakeChildDataset.instances[0].opt.data_online_creation_load_size_keep_ratio_A
+        is True
+    )
     assert FakeChildDataset.instances[0].opt.data_temporal_num_common_char == 7
     assert FakeChildDataset.instances[1].opt.dataroot == "/data/b"
     assert FakeChildDataset.instances[1].opt.data_online_creation_crop_delta_A == 2
@@ -432,6 +440,19 @@ def test_multi_dataset_generator_train_config_can_enable_dataset_conditioning(tm
     assert train_config["G_vit_num_classes"] == 5
     assert train_config["alg_b2b_mask_as_channel"] is True
     assert train_config["f_s_semantic_nclasses"] == 3
+
+
+def test_multi_dataset_generator_train_config_can_emit_keep_ratio_load_size(tmp_path):
+    config_path = tmp_path / "multi_dataset_config.json"
+    args = make_generator_args(
+        reference_frame_size=[1920, 1080],
+        keep_ratio_load_size=True,
+    )
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["data_online_creation_load_size_A"] == [1920, 1080]
+    assert train_config["data_online_creation_load_size_keep_ratio_A"] is True
 
 
 def test_multi_dataset_list_test_sets_reads_config(tmp_path):
