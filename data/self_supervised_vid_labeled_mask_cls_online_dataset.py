@@ -199,6 +199,9 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                     output_dim=self.opt.data_load_size,
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_A,
+                    load_size_keep_ratio=getattr(
+                        self.opt, "data_online_creation_load_size_keep_ratio_A", False
+                    ),
                     get_crop_coordinates=True,
                     fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     fixed_mask_size_model=getattr(
@@ -220,6 +223,9 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                     output_dim=self.opt.data_load_size,
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_A,
+                    load_size_keep_ratio=getattr(
+                        self.opt, "data_online_creation_load_size_keep_ratio_A", False
+                    ),
                     crop_coordinates=crop_coordinates,
                     fixed_mask_size=self.opt.data_online_fixed_mask_size,
                     fixed_mask_size_model=getattr(

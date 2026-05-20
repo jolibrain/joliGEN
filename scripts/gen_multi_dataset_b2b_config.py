@@ -491,6 +491,14 @@ def build_train_config(args, multi_dataset_config_path):
         "f_s_semantic_nclasses": 3,
         "data_load_size": args.data_load_size,
         "data_crop_size": args.data_crop_size,
+        **(
+            {
+                "data_online_creation_load_size_A": args.reference_frame_size,
+                "data_online_creation_load_size_keep_ratio_A": True,
+            }
+            if args.reference_frame_size is not None and args.keep_ratio_load_size
+            else {}
+        ),
         "data_temporal_number_frames": args.data_temporal_number_frames,
         "data_temporal_frame_step": args.data_temporal_frame_step,
         "data_online_creation_rand_mask_A": True,
@@ -748,6 +756,19 @@ def parse_args():
     )
     parser.add_argument("--data-load-size", type=int, default=256)
     parser.add_argument("--data-crop-size", type=int, default=256)
+    parser.add_argument(
+        "--reference-frame-size",
+        nargs=2,
+        type=int,
+        default=None,
+        metavar=("WIDTH", "HEIGHT"),
+        help="reference frame size for online loading; used as target pixel area with --keep-ratio-load-size",
+    )
+    parser.add_argument(
+        "--keep-ratio-load-size",
+        action="store_true",
+        help="emit aspect-preserving online load-size settings in train_config.json",
+    )
     parser.add_argument(
         "--data-online-creation-mask-fixed-size-A", type=int, default=-1
     )

@@ -341,6 +341,9 @@ class BaseDataset(data.Dataset, ABC):
                 max_dataset_size=self.opt.data_max_dataset_size,
                 context_pixels=self.opt.data_online_context_pixels,
                 load_size=self.opt.data_online_creation_load_size_A,
+                load_size_keep_ratio=getattr(
+                    self.opt, "data_online_creation_load_size_keep_ratio_A", False
+                ),
                 select_cat=self.opt.data_online_select_category,
                 data_relative_paths=self.opt.data_relative_paths,
                 data_root_path=self.opt.dataroot,
@@ -371,6 +374,9 @@ class BaseDataset(data.Dataset, ABC):
                     max_dataset_size=self.opt.data_max_dataset_size,
                     context_pixels=self.opt.data_online_context_pixels,
                     load_size=self.opt.data_online_creation_load_size_B,
+                    load_size_keep_ratio=getattr(
+                        self.opt, "data_online_creation_load_size_keep_ratio_B", False
+                    ),
                     data_relative_paths=self.opt.data_relative_paths,
                     data_root_path=self.opt.dataroot,
                 )

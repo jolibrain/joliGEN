@@ -13,6 +13,7 @@ ALLOWED_CHILD_OVERRIDES = {
     "data_online_creation_crop_size_A",
     "data_online_creation_crop_delta_A",
     "data_online_creation_load_size_A",
+    "data_online_creation_load_size_keep_ratio_A",
     "data_online_creation_mask_delta_A",
     "data_online_creation_mask_delta_A_ratio",
     "data_online_creation_mask_random_offset_A",
