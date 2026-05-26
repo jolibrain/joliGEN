@@ -10,6 +10,7 @@ from torch.utils.data.dataloader import default_collate
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import data as data_module
+import data.multi_dataset_dataset as multi_dataset_module
 import scripts.gen_multi_dataset_b2b_config as generator_module
 from data.multi_dataset_dataset import MultiDatasetDataset
 from models.b2b_model import B2BModel
@@ -49,6 +50,22 @@ class FlakyChildDataset(FakeChildDataset):
         if index == 0:
             return None
         return super().__getitem__(index)
+
+
+class FakeTqdm:
+    calls = []
+
+    def __init__(self, iterable, **kwargs):
+        self.iterable = iterable
+        self.kwargs = kwargs
+        self.postfixes = []
+        FakeTqdm.calls.append(self)
+
+    def __iter__(self):
+        return iter(self.iterable)
+
+    def set_postfix_str(self, value):
+        self.postfixes.append(value)
 
 
 def make_opt(config_path, **kwargs):
@@ -282,6 +299,39 @@ def test_multi_dataset_samples_weighted_children_and_collates(tmp_path, monkeypa
     assert batch["B_label_mask"].shape == (2, 2, 1, 8, 8)
     assert batch["dataset_name"] == ["high", "high"]
     assert torch.equal(batch["dataset_index"], torch.tensor([1, 1]))
+
+
+def test_multi_dataset_creation_uses_progress_for_multiple_children(
+    tmp_path, monkeypatch
+):
+    FakeTqdm.calls = []
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
+    monkeypatch.setattr(multi_dataset_module, "_tqdm", FakeTqdm)
+    config_path = write_config(
+        tmp_path,
+        [
+            {
+                "name": "a",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": "/data/a",
+            },
+            {
+                "name": "b",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": "/data/b",
+            },
+        ],
+    )
+
+    MultiDatasetDataset(make_opt(config_path), "train")
+
+    assert len(FakeTqdm.calls) == 1
+    assert FakeTqdm.calls[0].kwargs["total"] == 2
+    assert FakeTqdm.calls[0].kwargs["desc"] == "Creating multi_dataset train datasets"
+    assert FakeTqdm.calls[0].kwargs["unit"] == "dataset"
+    assert FakeTqdm.calls[0].postfixes == ["a", "b"]
 
 
 def test_multi_dataset_retries_none_samples(tmp_path, monkeypatch):
