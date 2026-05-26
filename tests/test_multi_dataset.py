@@ -717,3 +717,40 @@ def test_multi_dataset_generator_creates_true_holdout(tmp_path):
     assert test_lines
     assert set(train_lines).isdisjoint(set(test_lines))
     assert all(line.startswith(str(dataroot)) for line in train_lines + test_lines)
+
+
+def test_multi_dataset_generator_reduces_holdout_for_small_dataset(tmp_path):
+    dataroot = tmp_path / "dataset"
+    (dataroot / "trainA").mkdir(parents=True)
+    lines = [
+        f"vid/frame_{index:03d}.png masks/frame_{index:03d}.png" for index in range(4)
+    ]
+    (dataroot / "trainA" / "paths.txt").write_text("\n".join(lines) + "\n")
+
+    args = SimpleNamespace(
+        data_temporal_number_frames=2,
+        data_temporal_frame_step=1,
+        auto_test_samples=32,
+        auto_test_seed=7,
+    )
+    config = {
+        "datasets": [
+            {
+                "name": "dataset",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": str(dataroot),
+                "weight": 1.0,
+                "overrides": {},
+            }
+        ]
+    }
+
+    add_test_sets(config, tmp_path / "out", args)
+
+    generated_root = tmp_path / "out" / "generated_test_sets" / "dataset"
+    train_lines = (generated_root / "trainA" / "paths.txt").read_text().splitlines()
+    test_lines = (generated_root / "testA" / "paths.txt").read_text().splitlines()
+
+    assert len(train_lines) >= 2
+    assert test_lines
+    assert set(train_lines).isdisjoint(set(test_lines))

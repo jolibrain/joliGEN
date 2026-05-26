@@ -368,6 +368,52 @@ def valid_temporal_windows(lines, num_frames, frame_step, num_common_char):
     return windows
 
 
+def train_has_temporal_window_after_holdout(windows, holdout_indices):
+    return any(
+        all(index not in holdout_indices for index in window) for window in windows
+    )
+
+
+def sample_holdout_windows_preserving_train(windows, entry_name, args):
+    name_seed = sum(ord(char) for char in entry_name)
+    rng = random.Random(args.auto_test_seed + name_seed)
+    sample_count = min(args.auto_test_samples, len(windows))
+    shuffled_windows = list(windows)
+    rng.shuffle(shuffled_windows)
+
+    sampled_windows = []
+    holdout_indices = set()
+    for window in shuffled_windows:
+        if len(sampled_windows) >= sample_count:
+            break
+
+        candidate_holdout_indices = holdout_indices.union(window)
+        if not train_has_temporal_window_after_holdout(
+            windows, candidate_holdout_indices
+        ):
+            continue
+
+        sampled_windows.append(window)
+        holdout_indices = candidate_holdout_indices
+
+    if not sampled_windows:
+        raise ValueError(
+            f"dataset '{entry_name}' automatic holdout cannot preserve a valid "
+            "train temporal window"
+        )
+
+    if len(sampled_windows) < sample_count:
+        LOGGER.warning(
+            "Reduced automatic holdout for '%s' from %d to %d temporal windows "
+            "to preserve train samples",
+            entry_name,
+            sample_count,
+            len(sampled_windows),
+        )
+
+    return sampled_windows, sorted(holdout_indices)
+
+
 def generate_holdout_test_set(entry, output_dir, args):
     dataroot = Path(entry["dataroot"])
     LOGGER.info("Generating holdout test set for '%s'", entry["name"])
@@ -390,14 +436,12 @@ def generate_holdout_test_set(entry, output_dir, args):
             f"dataset '{entry['name']}' has no valid temporal windows to sample"
         )
 
-    name_seed = sum(ord(char) for char in entry["name"])
-    rng = random.Random(args.auto_test_seed + name_seed)
-    sample_count = min(args.auto_test_samples, len(windows))
-    sampled_windows = rng.sample(windows, sample_count)
-    holdout_indices = sorted({index for window in sampled_windows for index in window})
+    sampled_windows, holdout_indices = sample_holdout_windows_preserving_train(
+        windows, entry["name"], args
+    )
     LOGGER.info(
         "Sampled %d temporal windows (%d frame rows) for '%s'",
-        sample_count,
+        len(sampled_windows),
         len(holdout_indices),
         entry["name"],
     )
