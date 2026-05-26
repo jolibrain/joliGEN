@@ -816,7 +816,7 @@ class CommonOptions(BaseOptions):
         parser.add_argument(
             "--data_online_creation_load_size_keep_ratio_A",
             action="store_true",
-            help="preserve aspect ratio when loading domain A online; load_size_A is used as target pixel area",
+            help="preserve aspect ratio when loading domain A online; the largest load_size_A side is used as the target largest image side",
         )
         parser.add_argument(
             "--data_online_creation_crop_size_A",
@@ -892,7 +892,7 @@ class CommonOptions(BaseOptions):
         parser.add_argument(
             "--data_online_creation_load_size_keep_ratio_B",
             action="store_true",
-            help="preserve aspect ratio when loading domain B online; load_size_B is used as target pixel area",
+            help="preserve aspect ratio when loading domain B online; the largest load_size_B side is used as the target largest image side",
         )
 
         parser.add_argument(
