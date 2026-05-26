@@ -106,9 +106,34 @@ def test_crop_image_keep_ratio_load_size_scales_crop_without_distortion(tmp_path
     )
 
     assert load_size == [100, 100]
-    assert meta["loaded_width"] == 141
-    assert meta["loaded_height"] == 71
-    assert meta["crop_size"] == 71
+    assert meta["loaded_width"] == 100
+    assert meta["loaded_height"] == 50
+    assert meta["crop_size"] == 50
+
+
+def test_crop_image_keep_ratio_load_size_uses_largest_side_for_portrait(tmp_path):
+    img_path, bbox_path = _write_sized_sample(
+        tmp_path, (1080, 1920), "1 400 700 700 1200\n"
+    )
+
+    _, _, _, _, meta = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=512,
+        output_dim=512,
+        context_pixels=0,
+        load_size=[1920, 1080],
+        load_size_keep_ratio=True,
+        crop_center=True,
+        return_meta=True,
+    )
+
+    assert meta["loaded_width"] == 1080
+    assert meta["loaded_height"] == 1920
 
 
 def test_crop_image_fixed_model_mask_size_keeps_larger_containing_square(tmp_path):

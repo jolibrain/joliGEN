@@ -75,9 +75,9 @@ def crop_image(
                 raise ValueError(f"load_size must contain positive values: {load_size}")
 
             if load_size_keep_ratio:
-                target_area = target_width * target_height
-                source_area = old_size[0] * old_size[1]
-                resize_scale = math.sqrt(target_area / float(source_area))
+                target_long_side = max(target_width, target_height)
+                source_long_side = max(old_size)
+                resize_scale = target_long_side / float(source_long_side)
                 new_width = max(1, int(round(old_size[0] * resize_scale)))
                 new_height = max(1, int(round(old_size[1] * resize_scale)))
             else:

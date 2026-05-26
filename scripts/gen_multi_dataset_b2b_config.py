@@ -762,7 +762,7 @@ def parse_args():
         type=int,
         default=None,
         metavar=("WIDTH", "HEIGHT"),
-        help="reference frame size for online loading; used as target pixel area with --keep-ratio-load-size",
+        help="reference frame size for online loading; the largest side is used as target largest image side with --keep-ratio-load-size",
     )
     parser.add_argument(
         "--keep-ratio-load-size",
