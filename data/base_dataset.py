@@ -598,7 +598,7 @@ def get_transform_seg(
     margin = opt.data_online_context_pixels * 2
 
     transform_list = []
-    print("method seg", method)
+    #print("method seg", method)
 
     if grayscale:
         transform_list.append(GrayscaleMask(1))
@@ -1132,7 +1132,7 @@ def get_transform_list(
     margin = opt.data_online_context_pixels * 2
 
     transform_list = []
-    print("method seg", method)
+    #print("method seg", method)
 
     if grayscale:
         transform_list.append(GrayscaleMaskList(1))
