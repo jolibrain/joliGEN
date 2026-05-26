@@ -201,10 +201,18 @@ def discover_dataset_roots(args):
             if (child / "trainA").exists():
                 dataset_roots.append(child)
             else:
-                skipped.append(child)
+                child_dataset_roots = [
+                    grandchild
+                    for grandchild in sorted(child.iterdir())
+                    if grandchild.is_dir() and (grandchild / "trainA").exists()
+                ]
+                if child_dataset_roots:
+                    dataset_roots.extend(child_dataset_roots)
+                else:
+                    skipped.append(child)
         if skipped:
             LOGGER.warning(
-                "Skipping %d direct child directories without trainA: %s",
+                "Skipping %d direct child directories without trainA or nested datasets: %s",
                 len(skipped),
                 ", ".join(path.name for path in skipped),
             )
@@ -224,10 +232,28 @@ def discover_dataset_roots(args):
     return dataset_roots
 
 
+def dataset_entry_name(dataroot, args):
+    datasets_root = getattr(args, "datasets_root", "")
+    if datasets_root:
+        try:
+            relative_parts = dataroot.resolve().relative_to(
+                Path(datasets_root).resolve()
+            ).parts
+        except ValueError:
+            relative_parts = ()
+
+        if len(relative_parts) == 1:
+            return clean_name(relative_parts[0])
+        if len(relative_parts) == 2:
+            return "_".join(clean_name(part) for part in relative_parts)
+
+    return clean_name(dataroot.name)
+
+
 def build_dataset_entry(dataroot, args):
     LOGGER.info("Processing dataset root: %s", dataroot)
     paths_file = dataroot / "trainA" / "paths.txt"
-    name = clean_name(dataroot.name)
+    name = dataset_entry_name(dataroot, args)
     bbox_files = collect_bboxes_from_paths_file(paths_file)
     if args.size is None:
         stats = compute_bbox_stats(
