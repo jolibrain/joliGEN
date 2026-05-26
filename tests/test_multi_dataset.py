@@ -126,6 +126,7 @@ def make_generator_args(**kwargs):
         "auto_test_seed": 7,
         "reference_frame_size": None,
         "keep_ratio_load_size": False,
+        "datasets_root": "",
     }
     values.update(kwargs)
     return SimpleNamespace(**values)
@@ -361,6 +362,50 @@ def test_multi_dataset_generator_discovers_dataset_roots(tmp_path):
     assert roots == [dataset_a.resolve(), dataset_b.resolve()]
 
 
+def test_multi_dataset_generator_discovers_nested_dataset_roots(tmp_path):
+    datasets_root = tmp_path / "datasets"
+    dataset_a = write_bbox_dataset(datasets_root / "type_a" / "ring1")
+    dataset_b = write_bbox_dataset(datasets_root / "type_b" / "ring2")
+    (datasets_root / "type_c" / "not_a_dataset").mkdir(parents=True)
+
+    roots = discover_dataset_roots(
+        SimpleNamespace(datasets_root=str(datasets_root), dataset_dirs=None)
+    )
+
+    assert roots == [dataset_a.resolve(), dataset_b.resolve()]
+
+
+def test_multi_dataset_generator_discovers_mixed_flat_and_nested_roots(tmp_path):
+    datasets_root = tmp_path / "datasets"
+    dataset_a = write_bbox_dataset(datasets_root / "flat")
+    dataset_b = write_bbox_dataset(datasets_root / "group" / "ring")
+
+    roots = discover_dataset_roots(
+        SimpleNamespace(datasets_root=str(datasets_root), dataset_dirs=None)
+    )
+
+    assert roots == [dataset_a.resolve(), dataset_b.resolve()]
+
+
+def test_multi_dataset_generator_dataset_dirs_remain_direct_roots(tmp_path):
+    datasets_root = tmp_path / "datasets"
+    nested_dataset = write_bbox_dataset(datasets_root / "group" / "ring")
+
+    with pytest.raises(ValueError, match="Every --dataset-dirs entry"):
+        discover_dataset_roots(
+            SimpleNamespace(
+                datasets_root="",
+                dataset_dirs=[str(nested_dataset.parent)],
+            )
+        )
+
+    roots = discover_dataset_roots(
+        SimpleNamespace(datasets_root="", dataset_dirs=[str(nested_dataset)])
+    )
+
+    assert roots == [nested_dataset.resolve()]
+
+
 def test_multi_dataset_generator_writes_derived_config_shape(tmp_path):
     dataroot = write_bbox_dataset(tmp_path / "dataset")
     args = make_generator_args(size=320, weight=2.0)
@@ -381,6 +426,20 @@ def test_multi_dataset_generator_writes_derived_config_shape(tmp_path):
             }
         ]
     }
+
+
+def test_multi_dataset_generator_names_nested_datasets_with_parent(tmp_path):
+    datasets_root = tmp_path / "datasets"
+    dataset_a = write_bbox_dataset(datasets_root / "type_a" / "ring1")
+    dataset_b = write_bbox_dataset(datasets_root / "type_b" / "ring1")
+    args = make_generator_args(size=320, datasets_root=str(datasets_root))
+
+    config = build_multi_dataset_config([dataset_a, dataset_b], args=args)
+
+    assert [dataset["name"] for dataset in config["datasets"]] == [
+        "type_a_ring1",
+        "type_b_ring1",
+    ]
 
 
 def test_multi_dataset_generator_ignores_categories_when_deriving_size(tmp_path):
