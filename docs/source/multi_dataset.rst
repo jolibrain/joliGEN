@@ -159,6 +159,10 @@ source ``paths.txt`` metadata and relevant generator arguments still
 match. Missing, partial, stale, or invalid per-dataset outputs are
 recomputed, and the final ``multi_dataset_config.json`` and
 ``train_config.json`` are rewritten from the completed dataset list.
+The generator also updates
+``<output-dir>/resume/multi_dataset_config.progress.json`` after each
+processed dataset, so a crash leaves an ordered partial combined config
+alongside the per-dataset caches.
 Preview grids are also skipped per dataset when their manifest and
 fingerprint are complete.
 
@@ -220,8 +224,15 @@ The generator behavior is:
 
 - if a child dataset already has ``testA`` or ``testA*`` directories,
   use those predefined test sets;
-- if a child dataset has no predefined test set, generate a reproducible
-  true holdout under the generator output directory;
+- pass ``--no-auto-test-holdout`` to disable generated holdouts entirely
+  for datasets without predefined test sets;
+- if a child dataset has no predefined test set and has at least
+  ``--auto-test-min-images`` training rows, generate a reproducible true
+  holdout under the generator output directory;
+- if a child dataset has fewer than ``--auto-test-min-images`` training
+  rows, skip automatic test-set creation for that dataset. The default is
+  ``1000``; pass ``--auto-test-min-images 0`` to attempt automatic
+  holdout creation for every dataset;
 - generated holdouts use absolute paths back to source images and masks,
   so source datasets are not modified;
 - generated training paths exclude frames used by the sampled test
