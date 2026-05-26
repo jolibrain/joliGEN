@@ -565,6 +565,33 @@ def generate_holdout_test_set(entry, output_dir, args):
     }
 
 
+def should_skip_auto_test_set(entry, args):
+    if getattr(args, "no_auto_test_holdout", False):
+        LOGGER.warning(
+            "Skipping automatic test set for '%s': --no-auto-test-holdout is set",
+            entry["name"],
+        )
+        return True
+
+    min_images = getattr(args, "auto_test_min_images", 0)
+    if min_images <= 0:
+        return False
+
+    paths_file = Path(entry["dataroot"]) / "trainA" / "paths.txt"
+    lines = read_paths_file(paths_file)
+    if len(lines) >= min_images:
+        return False
+
+    LOGGER.warning(
+        "Skipping automatic test set for '%s': train rows=%d < "
+        "--auto-test-min-images=%d",
+        entry["name"],
+        len(lines),
+        min_images,
+    )
+    return True
+
+
 def add_test_sets(config, output_dir, args):
     test_sets = []
     seen_ids = set()
@@ -574,7 +601,7 @@ def add_test_sets(config, output_dir, args):
         unit="dataset",
     ):
         entry_test_sets = discover_existing_test_sets(entry)
-        if not entry_test_sets:
+        if not entry_test_sets and not should_skip_auto_test_set(entry, args):
             entry_test_sets = [generate_holdout_test_set(entry, output_dir, args)]
 
         for test_set in entry_test_sets:
@@ -640,6 +667,15 @@ def validate_cached_dataset_artifacts(cache, args):
     return True
 
 
+def resume_cache_without_generated_holdouts(cache):
+    entry = dict(cache["entry"])
+    entry["dataroot"] = cache["source_dataroot"]
+    test_sets = [
+        test_set for test_set in cache.get("test_sets", []) if not test_set.get("generated")
+    ]
+    return entry, test_sets
+
+
 def load_dataset_cache(cache_path, dataroot, name, fingerprint, args):
     if not getattr(args, "resume", False) or not cache_path.is_file():
         return None
@@ -658,6 +694,17 @@ def load_dataset_cache(cache_path, dataroot, name, fingerprint, args):
         return None
     if cache.get("source_dataroot") != str(Path(dataroot).resolve()):
         return None
+    if getattr(args, "no_auto_test_holdout", False) and any(
+        test_set.get("generated") for test_set in cache.get("test_sets", [])
+    ):
+        if not (Path(cache.get("source_dataroot", "")) / "trainA" / "paths.txt").is_file():
+            return None
+        entry, test_sets = resume_cache_without_generated_holdouts(cache)
+        LOGGER.info(
+            "Reusing cached dataset '%s' without generated holdout test sets",
+            name,
+        )
+        return {"entry": entry, "test_sets": test_sets}
     if not validate_cached_dataset_artifacts(cache, args):
         LOGGER.warning("Ignoring incomplete resume cache for '%s'", name)
         return None
@@ -669,7 +716,7 @@ def load_dataset_cache(cache_path, dataroot, name, fingerprint, args):
 def build_dataset_with_test_sets(dataroot, output_dir, args):
     entry = build_dataset_entry(Path(dataroot), args)
     entry_test_sets = discover_existing_test_sets(entry)
-    if not entry_test_sets:
+    if not entry_test_sets and not should_skip_auto_test_set(entry, args):
         entry_test_sets = [generate_holdout_test_set(entry, output_dir, args)]
     return entry, entry_test_sets
 
@@ -696,6 +743,29 @@ def build_or_resume_dataset(dataroot, output_dir, args):
     return entry, test_sets
 
 
+def write_resume_progress_config(output_dir, datasets, test_sets, total_count):
+    progress_config = {
+        "schema_version": RESUME_SCHEMA_VERSION,
+        "complete": len(datasets) == total_count,
+        "completed_count": len(datasets),
+        "total_count": total_count,
+        "datasets": datasets,
+        "test_sets": test_sets,
+    }
+    atomic_write_json(
+        Path(output_dir) / "resume" / "multi_dataset_config.progress.json",
+        progress_config,
+    )
+
+
+def validate_unique_test_set_ids(test_sets):
+    seen_ids = set()
+    for test_set in test_sets:
+        if test_set["id"] in seen_ids:
+            raise ValueError(f"duplicate multi_dataset test id '{test_set['id']}'")
+        seen_ids.add(test_set["id"])
+
+
 def build_multi_dataset_config(dataset_roots, output_dir=None, args=None):
     names = [dataset_entry_name(Path(dataroot), args) for dataroot in dataset_roots]
     ids = [sanitize_id(name) for name in names]
@@ -717,14 +787,12 @@ def build_multi_dataset_config(dataset_roots, output_dir=None, args=None):
         entry, entry_test_sets = build_or_resume_dataset(dataroot, output_dir, args)
         datasets.append(entry)
         test_sets.extend(entry_test_sets)
+        validate_unique_test_set_ids(test_sets)
+        write_resume_progress_config(output_dir, datasets, test_sets, len(dataset_roots))
 
     config = {"datasets": datasets}
     if output_dir is not None and args is not None:
-        seen_ids = set()
-        for test_set in test_sets:
-            if test_set["id"] in seen_ids:
-                raise ValueError(f"duplicate multi_dataset test id '{test_set['id']}'")
-            seen_ids.add(test_set["id"])
+        validate_unique_test_set_ids(test_sets)
         config["test_sets"] = test_sets
         LOGGER.info("Configured %d multi-dataset test sets", len(test_sets))
     return config
@@ -1118,6 +1186,24 @@ def parse_args():
     )
     parser.add_argument("--auto-test-samples", type=int, default=32)
     parser.add_argument("--auto-test-seed", type=int, default=1337)
+    parser.add_argument(
+        "--auto-test-min-images",
+        type=int,
+        default=1000,
+        help=(
+            "minimum train rows required to generate an automatic test holdout; "
+            "datasets below this value and without predefined testA* sets get no "
+            "generated test set"
+        ),
+    )
+    parser.add_argument(
+        "--no-auto-test-holdout",
+        action="store_true",
+        help=(
+            "do not generate automatic holdout test sets for datasets without "
+            "predefined testA* directories"
+        ),
+    )
     parser.add_argument(
         "--resume",
         action="store_true",

@@ -125,6 +125,8 @@ def make_generator_args(**kwargs):
         "output_display_freq": 1000,
         "auto_test_samples": 1,
         "auto_test_seed": 7,
+        "auto_test_min_images": 1000,
+        "no_auto_test_holdout": False,
         "reference_frame_size": None,
         "keep_ratio_load_size": False,
         "datasets_root": "",
@@ -686,6 +688,8 @@ def test_multi_dataset_generator_creates_true_holdout(tmp_path):
         data_temporal_frame_step=1,
         auto_test_samples=2,
         auto_test_seed=7,
+        auto_test_min_images=0,
+        no_auto_test_holdout=False,
     )
     config = {
         "datasets": [
@@ -734,6 +738,8 @@ def test_multi_dataset_generator_reduces_holdout_for_small_dataset(tmp_path):
         data_temporal_frame_step=1,
         auto_test_samples=32,
         auto_test_seed=7,
+        auto_test_min_images=0,
+        no_auto_test_holdout=False,
     )
     config = {
         "datasets": [
@@ -758,10 +764,117 @@ def test_multi_dataset_generator_reduces_holdout_for_small_dataset(tmp_path):
     assert set(train_lines).isdisjoint(set(test_lines))
 
 
+def test_multi_dataset_generator_skips_auto_test_for_small_dataset(tmp_path):
+    dataroot = tmp_path / "dataset"
+    (dataroot / "trainA").mkdir(parents=True)
+    lines = [
+        f"vid/frame_{index:03d}.png masks/frame_{index:03d}.png" for index in range(2)
+    ]
+    (dataroot / "trainA" / "paths.txt").write_text("\n".join(lines) + "\n")
+
+    args = SimpleNamespace(
+        data_temporal_number_frames=2,
+        data_temporal_frame_step=1,
+        auto_test_samples=32,
+        auto_test_seed=7,
+        auto_test_min_images=1000,
+        no_auto_test_holdout=False,
+    )
+    config = {
+        "datasets": [
+            {
+                "name": "dataset",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": str(dataroot),
+                "weight": 1.0,
+                "overrides": {},
+            }
+        ]
+    }
+
+    add_test_sets(config, tmp_path / "out", args)
+
+    assert config["datasets"][0]["dataroot"] == str(dataroot)
+    assert config["test_sets"] == []
+    assert not (tmp_path / "out" / "generated_test_sets" / "dataset").exists()
+
+
+def test_multi_dataset_generator_can_disable_auto_test_holdout(tmp_path):
+    dataroot = tmp_path / "dataset"
+    (dataroot / "trainA").mkdir(parents=True)
+    lines = [
+        f"vid/frame_{index:03d}.png masks/frame_{index:03d}.png" for index in range(6)
+    ]
+    (dataroot / "trainA" / "paths.txt").write_text("\n".join(lines) + "\n")
+
+    args = SimpleNamespace(
+        data_temporal_number_frames=2,
+        data_temporal_frame_step=1,
+        auto_test_samples=2,
+        auto_test_seed=7,
+        auto_test_min_images=0,
+        no_auto_test_holdout=True,
+    )
+    config = {
+        "datasets": [
+            {
+                "name": "dataset",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": str(dataroot),
+                "weight": 1.0,
+                "overrides": {},
+            }
+        ]
+    }
+
+    add_test_sets(config, tmp_path / "out", args)
+
+    assert config["datasets"][0]["dataroot"] == str(dataroot)
+    assert config["test_sets"] == []
+    assert not (tmp_path / "out" / "generated_test_sets" / "dataset").exists()
+
+
+def test_multi_dataset_generator_no_auto_holdout_keeps_existing_test_sets(tmp_path):
+    dataroot = tmp_path / "dataset"
+    (dataroot / "trainA").mkdir(parents=True)
+    (dataroot / "testA").mkdir(parents=True)
+    (dataroot / "trainA" / "paths.txt").write_text(
+        "vid/frame_000.png masks/frame_000.png\n"
+    )
+    (dataroot / "testA" / "paths.txt").write_text(
+        "vid/frame_001.png masks/frame_001.png\n"
+    )
+
+    config = {
+        "datasets": [
+            {
+                "name": "dataset",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": str(dataroot),
+                "weight": 1.0,
+                "overrides": {},
+            }
+        ]
+    }
+    args = SimpleNamespace(no_auto_test_holdout=True)
+
+    add_test_sets(config, tmp_path / "out", args)
+
+    assert config["test_sets"] == [
+        {
+            "id": "dataset",
+            "dataset_name": "dataset",
+            "dataroot": str(dataroot),
+            "child_test_name": "",
+            "generated": False,
+        }
+    ]
+
+
 def test_multi_dataset_generator_writes_resume_cache(tmp_path):
     dataroot = write_bbox_dataset(tmp_path / "dataset")
     output_dir = tmp_path / "out"
-    args = make_generator_args(size=320)
+    args = make_generator_args(size=320, auto_test_min_images=0)
 
     config = build_multi_dataset_config([dataroot], output_dir, args)
 
@@ -772,13 +885,42 @@ def test_multi_dataset_generator_writes_resume_cache(tmp_path):
     assert cache["test_sets"] == config["test_sets"]
 
 
+def test_multi_dataset_generator_writes_resume_progress_after_each_dataset(
+    tmp_path, monkeypatch
+):
+    dataset_a = write_bbox_dataset(tmp_path / "dataset_a")
+    dataset_b = write_bbox_dataset(tmp_path / "dataset_b")
+    output_dir = tmp_path / "out"
+    args = make_generator_args(size=320, auto_test_min_images=0)
+    original_write_progress = generator_module.write_resume_progress_config
+    progress_snapshots = []
+
+    def track_write_progress(output_dir, datasets, test_sets, total_count):
+        original_write_progress(output_dir, datasets, test_sets, total_count)
+        progress = json.loads(
+            (Path(output_dir) / "resume" / "multi_dataset_config.progress.json")
+            .read_text()
+        )
+        progress_snapshots.append(
+            (progress["completed_count"], progress["complete"], len(progress["datasets"]))
+        )
+
+    monkeypatch.setattr(
+        generator_module, "write_resume_progress_config", track_write_progress
+    )
+
+    build_multi_dataset_config([dataset_a, dataset_b], output_dir, args)
+
+    assert progress_snapshots == [(1, False, 1), (2, True, 2)]
+
+
 def test_multi_dataset_generator_resume_recomputes_only_missing_cache(
     tmp_path, monkeypatch
 ):
     dataset_a = write_bbox_dataset(tmp_path / "dataset_a")
     dataset_b = write_bbox_dataset(tmp_path / "dataset_b")
     output_dir = tmp_path / "out"
-    args = make_generator_args(size=320)
+    args = make_generator_args(size=320, auto_test_min_images=0)
     build_multi_dataset_config([dataset_a, dataset_b], output_dir, args)
     (output_dir / "resume" / "datasets" / "dataset_b.json").unlink()
 
@@ -808,7 +950,9 @@ def test_multi_dataset_generator_resume_invalidates_changed_args(
 ):
     dataroot = write_bbox_dataset(tmp_path / "dataset")
     output_dir = tmp_path / "out"
-    args = make_generator_args(size=320, ignore_categories=["2"])
+    args = make_generator_args(
+        size=320, ignore_categories=["2"], auto_test_min_images=0
+    )
     build_multi_dataset_config([dataroot], output_dir, args)
 
     original_build_dataset_entry = generator_module.build_dataset_entry
@@ -821,7 +965,9 @@ def test_multi_dataset_generator_resume_invalidates_changed_args(
     monkeypatch.setattr(
         generator_module, "build_dataset_entry", track_build_dataset_entry
     )
-    args = make_generator_args(size=320, ignore_categories=[], resume=True)
+    args = make_generator_args(
+        size=320, ignore_categories=[], resume=True, auto_test_min_images=0
+    )
 
     build_multi_dataset_config([dataroot], output_dir, args)
 
@@ -833,7 +979,7 @@ def test_multi_dataset_generator_resume_recomputes_missing_holdout(
 ):
     dataroot = write_bbox_dataset(tmp_path / "dataset")
     output_dir = tmp_path / "out"
-    args = make_generator_args(size=320)
+    args = make_generator_args(size=320, auto_test_min_images=0)
     build_multi_dataset_config([dataroot], output_dir, args)
     generated_root = output_dir / "generated_test_sets" / "dataset"
     (generated_root / "testA" / "paths.txt").unlink()
@@ -854,6 +1000,32 @@ def test_multi_dataset_generator_resume_recomputes_missing_holdout(
 
     assert rebuilt == ["dataset"]
     assert (generated_root / "testA" / "paths.txt").is_file()
+
+
+def test_multi_dataset_generator_no_auto_holdout_reuses_generated_cache_overrides(
+    tmp_path, monkeypatch
+):
+    dataroot = write_bbox_dataset(tmp_path / "dataset")
+    output_dir = tmp_path / "out"
+    args = make_generator_args(size=320, auto_test_min_images=0)
+    build_multi_dataset_config([dataroot], output_dir, args)
+    monkeypatch.setattr(
+        generator_module,
+        "build_dataset_entry",
+        lambda *args, **kwargs: pytest.fail("cached dataset should be reused"),
+    )
+
+    args = make_generator_args(
+        size=320,
+        auto_test_min_images=0,
+        no_auto_test_holdout=True,
+        resume=True,
+    )
+    config = build_multi_dataset_config([dataroot], output_dir, args)
+
+    assert config["datasets"][0]["dataroot"] == str(dataroot)
+    assert config["datasets"][0]["overrides"]["data_online_creation_crop_size_A"] == 320
+    assert config["test_sets"] == []
 
 
 def test_multi_dataset_preview_resume_skips_complete_preview(tmp_path, monkeypatch):
