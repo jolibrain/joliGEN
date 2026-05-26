@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import glob
 import json
 import logging
 import math
 import random
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from data import create_dataset
 from options.train_options import TrainOptions
 
 LOGGER = logging.getLogger("gen_multi_dataset_b2b_config")
+RESUME_SCHEMA_VERSION = 1
 
 
 try:
@@ -77,6 +80,36 @@ def hdi(values, coverage=0.75):
 
 def floor_to_multiple(value, step=16):
     return int(math.floor(value / step) * step)
+
+
+def json_fingerprint(payload):
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def path_metadata(path):
+    path = Path(path)
+    if not path.exists():
+        return None
+    stat = path.stat()
+    return {
+        "path": str(path.resolve()),
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def atomic_write_text(path, text):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(path.name + ".tmp")
+    with open(tmp_path, "w") as file:
+        file.write(text)
+    tmp_path.replace(path)
+
+
+def atomic_write_json(path, payload):
+    atomic_write_text(path, json.dumps(payload, indent=2) + "\n")
 
 
 def compute_bbox_stats(bbox_files, coverage, step, ignore_categories, source_label):
@@ -332,6 +365,40 @@ def discover_existing_test_sets(entry):
     return test_sets
 
 
+def existing_test_paths_metadata(dataroot):
+    metadata = []
+    for test_dir in sorted(glob.glob(str(Path(dataroot) / "testA*"))):
+        paths_file = Path(test_dir) / "paths.txt"
+        metadata.append(path_metadata(paths_file))
+    return metadata
+
+
+def dataset_resume_fingerprint(dataroot, name, args):
+    paths_file = Path(dataroot) / "trainA" / "paths.txt"
+    return json_fingerprint(
+        {
+            "schema_version": RESUME_SCHEMA_VERSION,
+            "name": name,
+            "dataroot": str(Path(dataroot).resolve()),
+            "train_paths": path_metadata(paths_file),
+            "test_paths": existing_test_paths_metadata(dataroot),
+            "entry_args": {
+                "coverage": args.coverage,
+                "step": args.step,
+                "size": args.size,
+                "weight": args.weight,
+                "ignore_categories": list(args.ignore_categories),
+            },
+            "holdout_args": {
+                "data_temporal_number_frames": args.data_temporal_number_frames,
+                "data_temporal_frame_step": args.data_temporal_frame_step,
+                "auto_test_samples": args.auto_test_samples,
+                "auto_test_seed": args.auto_test_seed,
+            },
+        }
+    )
+
+
 def valid_temporal_windows(lines, num_frames, frame_step, num_common_char):
     indexed_lines = sorted(enumerate(lines), key=lambda item: natural_keys(item[1]))
     sorted_indices = [item[0] for item in indexed_lines]
@@ -471,13 +538,15 @@ def generate_holdout_test_set(entry, output_dir, args):
     generated_train_dir.mkdir(parents=True, exist_ok=True)
     generated_test_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(generated_train_dir / "paths.txt", "w") as train_file:
-        for line in train_lines:
-            train_file.write(absolutize_paths_line(line, dataroot) + "\n")
-
-    with open(generated_test_dir / "paths.txt", "w") as test_file:
-        for index in holdout_indices:
-            test_file.write(absolutize_paths_line(lines[index], dataroot) + "\n")
+    train_text = "".join(
+        absolutize_paths_line(line, dataroot) + "\n" for line in train_lines
+    )
+    test_text = "".join(
+        absolutize_paths_line(lines[index], dataroot) + "\n"
+        for index in holdout_indices
+    )
+    atomic_write_text(generated_train_dir / "paths.txt", train_text)
+    atomic_write_text(generated_test_dir / "paths.txt", test_text)
 
     entry["dataroot"] = str(generated_root)
     LOGGER.info(
@@ -519,22 +588,145 @@ def add_test_sets(config, output_dir, args):
     return config
 
 
-def build_multi_dataset_config(dataset_roots, output_dir=None, args=None):
-    datasets = [
-        build_dataset_entry(Path(dataroot), args)
-        for dataroot in iter_progress(
-            dataset_roots,
-            desc="Processing datasets",
-            unit="dataset",
+def dataset_cache_path(output_dir, dataset_name):
+    return Path(output_dir) / "resume" / "datasets" / f"{sanitize_id(dataset_name)}.json"
+
+
+def has_valid_temporal_paths(paths_file, args, num_common_char=-1):
+    if not Path(paths_file).is_file():
+        return False
+    lines = read_paths_file(paths_file)
+    return bool(
+        valid_temporal_windows(
+            lines,
+            args.data_temporal_number_frames,
+            args.data_temporal_frame_step,
+            num_common_char,
         )
-    ]
-    ids = [sanitize_id(entry["name"]) for entry in datasets]
+    )
+
+
+def validate_cached_dataset_artifacts(cache, args):
+    entry = cache.get("entry")
+    test_sets = cache.get("test_sets")
+    if not isinstance(entry, dict) or not isinstance(test_sets, list):
+        return False
+
+    source_dataroot = Path(cache.get("source_dataroot", ""))
+    if not (source_dataroot / "trainA" / "paths.txt").is_file():
+        return False
+
+    num_common_char = entry.get("overrides", {}).get(
+        "data_temporal_num_common_char", -1
+    )
+    for test_set in test_sets:
+        paths_file = Path(test_set.get("dataroot", "")) / "testA" / "paths.txt"
+        if test_set.get("generated"):
+            train_paths_file = Path(entry.get("dataroot", "")) / "trainA" / "paths.txt"
+            if not has_valid_temporal_paths(train_paths_file, args, num_common_char):
+                return False
+            if not has_valid_temporal_paths(paths_file, args, num_common_char):
+                return False
+        else:
+            child_test_name = test_set.get("child_test_name", "")
+            paths_file = (
+                Path(test_set.get("dataroot", ""))
+                / f"testA{child_test_name}"
+                / "paths.txt"
+            )
+            if not paths_file.is_file():
+                return False
+
+    return True
+
+
+def load_dataset_cache(cache_path, dataroot, name, fingerprint, args):
+    if not getattr(args, "resume", False) or not cache_path.is_file():
+        return None
+    try:
+        with open(cache_path, "r") as cache_file:
+            cache = json.load(cache_file)
+    except (OSError, json.JSONDecodeError) as error:
+        LOGGER.warning("Ignoring invalid resume cache %s: %s", cache_path, error)
+        return None
+
+    if cache.get("schema_version") != RESUME_SCHEMA_VERSION:
+        return None
+    if cache.get("fingerprint") != fingerprint:
+        return None
+    if cache.get("name") != name:
+        return None
+    if cache.get("source_dataroot") != str(Path(dataroot).resolve()):
+        return None
+    if not validate_cached_dataset_artifacts(cache, args):
+        LOGGER.warning("Ignoring incomplete resume cache for '%s'", name)
+        return None
+
+    LOGGER.info("Reusing completed dataset '%s' from resume cache", name)
+    return cache
+
+
+def build_dataset_with_test_sets(dataroot, output_dir, args):
+    entry = build_dataset_entry(Path(dataroot), args)
+    entry_test_sets = discover_existing_test_sets(entry)
+    if not entry_test_sets:
+        entry_test_sets = [generate_holdout_test_set(entry, output_dir, args)]
+    return entry, entry_test_sets
+
+
+def build_or_resume_dataset(dataroot, output_dir, args):
+    dataroot = Path(dataroot)
+    name = dataset_entry_name(dataroot, args)
+    fingerprint = dataset_resume_fingerprint(dataroot, name, args)
+    cache_path = dataset_cache_path(output_dir, name)
+    cache = load_dataset_cache(cache_path, dataroot, name, fingerprint, args)
+    if cache is not None:
+        return cache["entry"], cache["test_sets"]
+
+    entry, test_sets = build_dataset_with_test_sets(dataroot, output_dir, args)
+    cache_payload = {
+        "schema_version": RESUME_SCHEMA_VERSION,
+        "fingerprint": fingerprint,
+        "name": name,
+        "source_dataroot": str(dataroot.resolve()),
+        "entry": entry,
+        "test_sets": test_sets,
+    }
+    atomic_write_json(cache_path, cache_payload)
+    return entry, test_sets
+
+
+def build_multi_dataset_config(dataset_roots, output_dir=None, args=None):
+    names = [dataset_entry_name(Path(dataroot), args) for dataroot in dataset_roots]
+    ids = [sanitize_id(name) for name in names]
     if len(ids) != len(set(ids)):
         raise ValueError(f"Duplicate dataset names after sanitizing: {ids}")
 
+    datasets = []
+    test_sets = []
+    for dataroot in iter_progress(
+        dataset_roots,
+        desc="Processing datasets",
+        unit="dataset",
+    ):
+        if output_dir is None or args is None:
+            entry = build_dataset_entry(Path(dataroot), args)
+            datasets.append(entry)
+            continue
+
+        entry, entry_test_sets = build_or_resume_dataset(dataroot, output_dir, args)
+        datasets.append(entry)
+        test_sets.extend(entry_test_sets)
+
     config = {"datasets": datasets}
     if output_dir is not None and args is not None:
-        config = add_test_sets(config, Path(output_dir), args)
+        seen_ids = set()
+        for test_set in test_sets:
+            if test_set["id"] in seen_ids:
+                raise ValueError(f"duplicate multi_dataset test id '{test_set['id']}'")
+            seen_ids.add(test_set["id"])
+        config["test_sets"] = test_sets
+        LOGGER.info("Configured %d multi-dataset test sets", len(test_sets))
     return config
 
 
@@ -683,62 +875,81 @@ def save_named_preview_frames(dataset_dir, sample, sample_index):
     return manifest_entry
 
 
-def write_previews(train_config, multi_config, preview_dir, num_samples):
-    preview_dir.mkdir(parents=True, exist_ok=True)
+def preview_resume_fingerprint(train_config, entry, num_samples):
+    return json_fingerprint(
+        {
+            "schema_version": RESUME_SCHEMA_VERSION,
+            "entry": entry,
+            "num_samples": num_samples,
+            "train_config": {
+                "data_temporal_number_frames": train_config.get(
+                    "data_temporal_number_frames"
+                ),
+                "data_temporal_frame_step": train_config.get(
+                    "data_temporal_frame_step"
+                ),
+                "data_load_size": train_config.get("data_load_size"),
+                "data_crop_size": train_config.get("data_crop_size"),
+            },
+        }
+    )
 
-    for entry in iter_progress(
-        multi_config["datasets"],
-        desc="Writing previews",
-        unit="dataset",
-    ):
-        LOGGER.info(
-            "Generating %d preview samples for '%s'", num_samples, entry["name"]
-        )
-        child_config = dict(train_config)
-        child_config["data_dataset_mode"] = entry["dataset_mode"]
-        child_config["dataroot"] = entry["dataroot"]
-        child_config["dataaug_flip"] = "none"
-        child_config["dataaug_no_rotate"] = True
-        child_config["dataaug_affine"] = 0.0
-        for key, value in entry.get("overrides", {}).items():
-            child_config[key] = value
 
-        opt = TrainOptions().parse_json(
-            child_config, save_config=False, set_device=False
-        )
-        dataset = create_dataset(opt, "train")
-        samples = []
-        targets = []
-        masks = []
-        overlays = []
-        manifest = []
-        attempts = 0
-        progress = iter_progress(
-            range(num_samples),
-            desc=f"Preview samples ({entry['name']})",
-            unit="sample",
-            leave=False,
-        )
-        for _ in progress:
-            while attempts < num_samples * 20:
-                sample = dataset[attempts % len(dataset)]
-                attempts += 1
-                if sample is None:
-                    continue
-                samples.append(tensor_grid(sample["A"]))
-                targets.append(tensor_grid(sample["B"]))
-                masks.append(tensor_grid(sample["B_label_mask"]))
-                overlays.append(mask_overlay_grid(sample["B"], sample["B_label_mask"]))
-                manifest.append(
-                    save_named_preview_frames(
-                        preview_dir / entry["name"],
-                        sample,
-                        len(samples) - 1,
-                    )
-                )
-                break
+def preview_complete(dataset_dir, fingerprint, num_samples):
+    dataset_dir = Path(dataset_dir)
+    try:
+        with open(dataset_dir / "preview_resume.json", "r") as cache_file:
+            cache = json.load(cache_file)
+        with open(dataset_dir / "preview_manifest.json", "r") as manifest_file:
+            manifest = json.load(manifest_file)
+    except (OSError, json.JSONDecodeError):
+        return False
 
-        while len(samples) < num_samples and attempts < num_samples * 20:
+    if cache.get("schema_version") != RESUME_SCHEMA_VERSION:
+        return False
+    if cache.get("fingerprint") != fingerprint:
+        return False
+    if not isinstance(manifest, list) or len(manifest) != num_samples:
+        return False
+
+    required_files = ["A.png", "B.png", "B_label_mask.png", "B_mask_overlay.png"]
+    if any(not (dataset_dir / filename).is_file() for filename in required_files):
+        return False
+
+    for manifest_entry in manifest:
+        for filename in manifest_entry.get("files", []):
+            if not (dataset_dir / filename).is_file():
+                return False
+    return True
+
+
+def write_preview_for_entry(dataset_dir, train_config, entry, num_samples, fingerprint):
+    LOGGER.info("Generating %d preview samples for '%s'", num_samples, entry["name"])
+    child_config = dict(train_config)
+    child_config["data_dataset_mode"] = entry["dataset_mode"]
+    child_config["dataroot"] = entry["dataroot"]
+    child_config["dataaug_flip"] = "none"
+    child_config["dataaug_no_rotate"] = True
+    child_config["dataaug_affine"] = 0.0
+    for key, value in entry.get("overrides", {}).items():
+        child_config[key] = value
+
+    opt = TrainOptions().parse_json(child_config, save_config=False, set_device=False)
+    dataset = create_dataset(opt, "train")
+    samples = []
+    targets = []
+    masks = []
+    overlays = []
+    manifest = []
+    attempts = 0
+    progress = iter_progress(
+        range(num_samples),
+        desc=f"Preview samples ({entry['name']})",
+        unit="sample",
+        leave=False,
+    )
+    for _ in progress:
+        while attempts < num_samples * 20:
             sample = dataset[attempts % len(dataset)]
             attempts += 1
             if sample is None:
@@ -748,44 +959,78 @@ def write_previews(train_config, multi_config, preview_dir, num_samples):
             masks.append(tensor_grid(sample["B_label_mask"]))
             overlays.append(mask_overlay_grid(sample["B"], sample["B_label_mask"]))
             manifest.append(
-                save_named_preview_frames(
-                    preview_dir / entry["name"],
-                    sample,
-                    len(samples) - 1,
-                )
+                save_named_preview_frames(dataset_dir, sample, len(samples) - 1)
             )
+            break
 
-        if len(samples) != num_samples:
-            raise RuntimeError(
-                f"dataset '{entry['name']}' produced {len(samples)} valid preview "
-                f"samples out of {num_samples}"
-            )
+    while len(samples) < num_samples and attempts < num_samples * 20:
+        sample = dataset[attempts % len(dataset)]
+        attempts += 1
+        if sample is None:
+            continue
+        samples.append(tensor_grid(sample["A"]))
+        targets.append(tensor_grid(sample["B"]))
+        masks.append(tensor_grid(sample["B_label_mask"]))
+        overlays.append(mask_overlay_grid(sample["B"], sample["B_label_mask"]))
+        manifest.append(save_named_preview_frames(dataset_dir, sample, len(samples) - 1))
 
+    if len(samples) != num_samples:
+        raise RuntimeError(
+            f"dataset '{entry['name']}' produced {len(samples)} valid preview "
+            f"samples out of {num_samples}"
+        )
+
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    save_image(
+        torch.cat(samples, dim=0),
+        dataset_dir / "A.png",
+        nrow=opt.data_temporal_number_frames,
+    )
+    save_image(
+        torch.cat(targets, dim=0),
+        dataset_dir / "B.png",
+        nrow=opt.data_temporal_number_frames,
+    )
+    save_image(
+        torch.cat(masks, dim=0),
+        dataset_dir / "B_label_mask.png",
+        nrow=opt.data_temporal_number_frames,
+    )
+    save_image(
+        torch.cat(overlays, dim=0),
+        dataset_dir / "B_mask_overlay.png",
+        nrow=opt.data_temporal_number_frames,
+    )
+    atomic_write_json(dataset_dir / "preview_manifest.json", manifest)
+    atomic_write_json(
+        dataset_dir / "preview_resume.json",
+        {"schema_version": RESUME_SCHEMA_VERSION, "fingerprint": fingerprint},
+    )
+
+
+def write_previews(train_config, multi_config, preview_dir, num_samples, resume=False):
+    preview_dir.mkdir(parents=True, exist_ok=True)
+
+    for entry in iter_progress(
+        multi_config["datasets"],
+        desc="Writing previews",
+        unit="dataset",
+    ):
         dataset_dir = preview_dir / entry["name"]
-        dataset_dir.mkdir(parents=True, exist_ok=True)
-        save_image(
-            torch.cat(samples, dim=0),
-            dataset_dir / "A.png",
-            nrow=opt.data_temporal_number_frames,
+        fingerprint = preview_resume_fingerprint(train_config, entry, num_samples)
+        if resume and preview_complete(dataset_dir, fingerprint, num_samples):
+            LOGGER.info("Reusing completed previews for '%s'", entry["name"])
+            continue
+
+        tmp_dataset_dir = preview_dir / f".{sanitize_id(entry['name'])}.tmp"
+        if tmp_dataset_dir.exists():
+            shutil.rmtree(tmp_dataset_dir)
+        write_preview_for_entry(
+            tmp_dataset_dir, train_config, entry, num_samples, fingerprint
         )
-        save_image(
-            torch.cat(targets, dim=0),
-            dataset_dir / "B.png",
-            nrow=opt.data_temporal_number_frames,
-        )
-        save_image(
-            torch.cat(masks, dim=0),
-            dataset_dir / "B_label_mask.png",
-            nrow=opt.data_temporal_number_frames,
-        )
-        save_image(
-            torch.cat(overlays, dim=0),
-            dataset_dir / "B_mask_overlay.png",
-            nrow=opt.data_temporal_number_frames,
-        )
-        with open(dataset_dir / "preview_manifest.json", "w") as manifest_file:
-            json.dump(manifest, manifest_file, indent=2)
-            manifest_file.write("\n")
+        if dataset_dir.exists():
+            shutil.rmtree(dataset_dir)
+        tmp_dataset_dir.replace(dataset_dir)
         LOGGER.info("Wrote previews for '%s' under %s", entry["name"], dataset_dir)
 
 
@@ -873,6 +1118,11 @@ def parse_args():
     )
     parser.add_argument("--auto-test-samples", type=int, default=32)
     parser.add_argument("--auto-test-seed", type=int, default=1337)
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="reuse completed per-dataset outputs from --output-dir when valid",
+    )
     parser.add_argument("--skip-preview", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
@@ -893,13 +1143,9 @@ def main():
     args.multi_dataset_num_datasets = len(multi_config["datasets"])
     train_config = build_train_config(args, multi_config_path)
 
-    with open(multi_config_path, "w") as config_file:
-        json.dump(multi_config, config_file, indent=2)
-        config_file.write("\n")
+    atomic_write_json(multi_config_path, multi_config)
     LOGGER.info("Wrote multi-dataset config: %s", multi_config_path)
-    with open(train_config_path, "w") as config_file:
-        json.dump(train_config, config_file, indent=2)
-        config_file.write("\n")
+    atomic_write_json(train_config_path, train_config)
     LOGGER.info("Wrote train config: %s", train_config_path)
 
     if not args.skip_preview and args.preview_samples > 0:
@@ -908,6 +1154,7 @@ def main():
             multi_config,
             output_dir / "previews",
             args.preview_samples,
+            resume=args.resume,
         )
 
     print(f"wrote {multi_config_path}")

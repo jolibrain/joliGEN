@@ -153,6 +153,15 @@ The generated training config intentionally does not set
 ``data_online_creation_crop_delta_A`` globally. Those values are derived
 per child dataset and written into ``multi_dataset_config.json``.
 
+Long generator runs can be resumed with ``--resume``. Resume mode reuses
+completed per-dataset cache entries from ``<output-dir>/resume`` when the
+source ``paths.txt`` metadata and relevant generator arguments still
+match. Missing, partial, stale, or invalid per-dataset outputs are
+recomputed, and the final ``multi_dataset_config.json`` and
+``train_config.json`` are rewritten from the completed dataset list.
+Preview grids are also skipped per dataset when their manifest and
+fingerprint are complete.
+
 ********************************
  Dataset class-token conditioning
 ********************************

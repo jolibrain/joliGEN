@@ -10,6 +10,7 @@ from torch.utils.data.dataloader import default_collate
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import data as data_module
+import scripts.gen_multi_dataset_b2b_config as generator_module
 from data.multi_dataset_dataset import MultiDatasetDataset
 from models.b2b_model import B2BModel
 from scripts.gen_multi_dataset_b2b_config import (
@@ -127,6 +128,7 @@ def make_generator_args(**kwargs):
         "reference_frame_size": None,
         "keep_ratio_load_size": False,
         "datasets_root": "",
+        "resume": False,
     }
     values.update(kwargs)
     return SimpleNamespace(**values)
@@ -754,3 +756,148 @@ def test_multi_dataset_generator_reduces_holdout_for_small_dataset(tmp_path):
     assert len(train_lines) >= 2
     assert test_lines
     assert set(train_lines).isdisjoint(set(test_lines))
+
+
+def test_multi_dataset_generator_writes_resume_cache(tmp_path):
+    dataroot = write_bbox_dataset(tmp_path / "dataset")
+    output_dir = tmp_path / "out"
+    args = make_generator_args(size=320)
+
+    config = build_multi_dataset_config([dataroot], output_dir, args)
+
+    cache_path = output_dir / "resume" / "datasets" / "dataset.json"
+    cache = json.loads(cache_path.read_text())
+    assert cache["schema_version"] == generator_module.RESUME_SCHEMA_VERSION
+    assert cache["entry"] == config["datasets"][0]
+    assert cache["test_sets"] == config["test_sets"]
+
+
+def test_multi_dataset_generator_resume_recomputes_only_missing_cache(
+    tmp_path, monkeypatch
+):
+    dataset_a = write_bbox_dataset(tmp_path / "dataset_a")
+    dataset_b = write_bbox_dataset(tmp_path / "dataset_b")
+    output_dir = tmp_path / "out"
+    args = make_generator_args(size=320)
+    build_multi_dataset_config([dataset_a, dataset_b], output_dir, args)
+    (output_dir / "resume" / "datasets" / "dataset_b.json").unlink()
+
+    original_build_dataset_entry = generator_module.build_dataset_entry
+    rebuilt = []
+
+    def track_build_dataset_entry(dataroot, args):
+        rebuilt.append(Path(dataroot).name)
+        return original_build_dataset_entry(dataroot, args)
+
+    monkeypatch.setattr(
+        generator_module, "build_dataset_entry", track_build_dataset_entry
+    )
+    args.resume = True
+
+    config = build_multi_dataset_config([dataset_a, dataset_b], output_dir, args)
+
+    assert [entry["name"] for entry in config["datasets"]] == [
+        "dataset_a",
+        "dataset_b",
+    ]
+    assert rebuilt == ["dataset_b"]
+
+
+def test_multi_dataset_generator_resume_invalidates_changed_args(
+    tmp_path, monkeypatch
+):
+    dataroot = write_bbox_dataset(tmp_path / "dataset")
+    output_dir = tmp_path / "out"
+    args = make_generator_args(size=320, ignore_categories=["2"])
+    build_multi_dataset_config([dataroot], output_dir, args)
+
+    original_build_dataset_entry = generator_module.build_dataset_entry
+    rebuilt = []
+
+    def track_build_dataset_entry(dataroot, args):
+        rebuilt.append(Path(dataroot).name)
+        return original_build_dataset_entry(dataroot, args)
+
+    monkeypatch.setattr(
+        generator_module, "build_dataset_entry", track_build_dataset_entry
+    )
+    args = make_generator_args(size=320, ignore_categories=[], resume=True)
+
+    build_multi_dataset_config([dataroot], output_dir, args)
+
+    assert rebuilt == ["dataset"]
+
+
+def test_multi_dataset_generator_resume_recomputes_missing_holdout(
+    tmp_path, monkeypatch
+):
+    dataroot = write_bbox_dataset(tmp_path / "dataset")
+    output_dir = tmp_path / "out"
+    args = make_generator_args(size=320)
+    build_multi_dataset_config([dataroot], output_dir, args)
+    generated_root = output_dir / "generated_test_sets" / "dataset"
+    (generated_root / "testA" / "paths.txt").unlink()
+
+    original_build_dataset_entry = generator_module.build_dataset_entry
+    rebuilt = []
+
+    def track_build_dataset_entry(dataroot, args):
+        rebuilt.append(Path(dataroot).name)
+        return original_build_dataset_entry(dataroot, args)
+
+    monkeypatch.setattr(
+        generator_module, "build_dataset_entry", track_build_dataset_entry
+    )
+    args.resume = True
+
+    build_multi_dataset_config([dataroot], output_dir, args)
+
+    assert rebuilt == ["dataset"]
+    assert (generated_root / "testA" / "paths.txt").is_file()
+
+
+def test_multi_dataset_preview_resume_skips_complete_preview(tmp_path, monkeypatch):
+    preview_dir = tmp_path / "previews"
+    entry = {
+        "name": "dataset",
+        "dataset_mode": "self_supervised_vid_mask_online",
+        "dataroot": "/data/dataset",
+        "weight": 1.0,
+        "overrides": {},
+    }
+    train_config = {
+        "data_temporal_number_frames": 2,
+        "data_temporal_frame_step": 1,
+        "data_load_size": 8,
+        "data_crop_size": 8,
+    }
+    dataset_dir = preview_dir / "dataset"
+    (dataset_dir / "by_image").mkdir(parents=True)
+    for filename in ["A.png", "B.png", "B_label_mask.png", "B_mask_overlay.png"]:
+        (dataset_dir / filename).write_text("ok")
+    (dataset_dir / "by_image" / "sample.png").write_text("ok")
+    (dataset_dir / "preview_manifest.json").write_text(
+        json.dumps([{"source_path": "/data/0.png", "files": ["by_image/sample.png"]}])
+    )
+    fingerprint = generator_module.preview_resume_fingerprint(train_config, entry, 1)
+    (dataset_dir / "preview_resume.json").write_text(
+        json.dumps(
+            {
+                "schema_version": generator_module.RESUME_SCHEMA_VERSION,
+                "fingerprint": fingerprint,
+            }
+        )
+    )
+    monkeypatch.setattr(
+        generator_module,
+        "create_dataset",
+        lambda *args, **kwargs: pytest.fail("preview should have been skipped"),
+    )
+
+    generator_module.write_previews(
+        train_config,
+        {"datasets": [entry]},
+        preview_dir,
+        1,
+        resume=True,
+    )
