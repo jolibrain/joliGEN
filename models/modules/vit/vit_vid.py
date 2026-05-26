@@ -717,12 +717,15 @@ class JiTViD(nn.Module):
         bottleneck_dim=128,
         in_context_len=32,
         in_context_start=8,
+        num_register_tokens=0,
         cond_embed_dim=None,
         max_frames=8,
         motion_num_heads=8,
         motion_num_layers=2,
     ):
         super().__init__()
+        if num_register_tokens < 0:
+            raise ValueError("num_register_tokens must be >= 0")
         self.in_channels = in_channels
         self.out_channels = in_channels if out_channels is None else out_channels
         self.out_channel = self.out_channels
@@ -732,6 +735,7 @@ class JiTViD(nn.Module):
         self.input_size = input_size
         self.in_context_len = in_context_len
         self.in_context_start = in_context_start
+        self.num_register_tokens = num_register_tokens
         self.num_classes = num_classes
         self.max_frames = max_frames
 
@@ -751,6 +755,12 @@ class JiTViD(nn.Module):
         )
         # self.temp_embed = nn.Parameter(torch.zeros(1, num_frames, hidden_size), requires_grad=False)
 
+        if self.num_register_tokens > 0:
+            self.register_tokens = nn.Parameter(
+                torch.zeros(1, self.num_register_tokens, hidden_size)
+            )
+            torch.nn.init.normal_(self.register_tokens, std=0.02)
+
         # in-context cls token
         if self.in_context_len > 0:
             self.in_context_posemb = nn.Parameter(
@@ -762,10 +772,14 @@ class JiTViD(nn.Module):
         half_head_dim = hidden_size // num_heads // 2
         hw_seq_len = input_size // patch_size
         self.feat_rope = VisionRotaryEmbeddingFast(
-            dim=half_head_dim, pt_seq_len=hw_seq_len, num_cls_token=0
+            dim=half_head_dim,
+            pt_seq_len=hw_seq_len,
+            num_cls_token=self.num_register_tokens,
         )
         self.feat_rope_incontext = VisionRotaryEmbeddingFast(
-            dim=half_head_dim, pt_seq_len=hw_seq_len, num_cls_token=self.in_context_len
+            dim=half_head_dim,
+            pt_seq_len=hw_seq_len,
+            num_cls_token=self.num_register_tokens + self.in_context_len,
         )
 
         # transformer
@@ -881,6 +895,9 @@ class JiTViD(nn.Module):
 
         x = rearrange(x, "b f c h w -> (b f) c h w")
         x = self.x_embedder(x) + self.pos_embed
+        if self.num_register_tokens > 0:
+            register_tokens = self.register_tokens.expand(x.shape[0], -1, -1)
+            x = torch.cat([register_tokens, x], dim=1)
 
         t = t.reshape(-1)
         if t.shape[0] == B:
@@ -905,12 +922,21 @@ class JiTViD(nn.Module):
         y_emb = self.y_embedder(y2d)  # (B*F, D)
         c = t_emb + y_emb
 
+        inserted_in_context = False
         for i, block in enumerate(self.blocks):
             # in-context
             if self.in_context_len > 0 and i == self.in_context_start:
                 in_context_tokens = y_emb.unsqueeze(1).repeat(1, self.in_context_len, 1)
                 in_context_tokens += self.in_context_posemb
-                x = torch.cat([in_context_tokens, x], dim=1)
+                if self.num_register_tokens > 0:
+                    register_tokens = x[:, : self.num_register_tokens]
+                    patch_tokens = x[:, self.num_register_tokens :]
+                    x = torch.cat(
+                        [register_tokens, in_context_tokens, patch_tokens], dim=1
+                    )
+                else:
+                    x = torch.cat([in_context_tokens, x], dim=1)
+                inserted_in_context = True
             x = block(
                 x,
                 c,
@@ -921,7 +947,10 @@ class JiTViD(nn.Module):
                 ),
             )
 
-        x = x[:, self.in_context_len :]
+        prefix_tokens = self.num_register_tokens
+        if inserted_in_context:
+            prefix_tokens += self.in_context_len
+        x = x[:, prefix_tokens:]
 
         # ======================================================
         # APPLY MOTION MODULE HERE (LAST token layer)

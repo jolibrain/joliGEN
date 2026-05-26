@@ -271,6 +271,7 @@ def define_G(
             "in_context_start": getattr(
                 opt, "G_vit_in_context_start", base.get("in_context_start", 4)
             ),
+            "num_register_tokens": getattr(opt, "G_vit_num_register_tokens", 0),
         }
         if getattr(opt, "G_vit_disable_bottleneck", False):
             cfg["bottleneck_dim"] = cfg["hidden_size"]
@@ -316,6 +317,7 @@ def define_G(
             "in_context_start": getattr(
                 opt, "G_vit_in_context_start", base.get("in_context_start", 4)
             ),
+            "num_register_tokens": getattr(opt, "G_vit_num_register_tokens", 0),
         }
         if getattr(opt, "G_vit_disable_bottleneck", False):
             cfg["bottleneck_dim"] = cfg["hidden_size"]
