@@ -6,6 +6,11 @@ import torch
 
 from data.base_dataset import BaseDataset
 
+try:
+    from tqdm.auto import tqdm as _tqdm
+except Exception:
+    _tqdm = None
+
 ALLOWED_CHILD_DATASET_MODES = {"self_supervised_vid_mask_online"}
 
 ALLOWED_CHILD_OVERRIDES = {
@@ -65,7 +70,18 @@ class MultiDatasetDataset(BaseDataset):
         self._validate_dataset_class_conditioning(config)
         entries = self._entries_for_phase(config, name)
 
-        for dataset_index, entry in enumerate(entries):
+        entry_iter = enumerate(entries)
+        if _tqdm is not None and len(entries) > 1:
+            entry_iter = _tqdm(
+                entry_iter,
+                total=len(entries),
+                desc=f"Creating multi_dataset {phase} datasets",
+                unit="dataset",
+            )
+
+        for dataset_index, entry in entry_iter:
+            if hasattr(entry_iter, "set_postfix_str"):
+                entry_iter.set_postfix_str(entry.get("name", f"dataset_{dataset_index}"))
             child_dataset, child_name, child_weight = self._build_child_dataset(
                 entry, dataset_index
             )
