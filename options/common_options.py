@@ -451,6 +451,12 @@ class CommonOptions(BaseOptions):
             default=1,
             help="number of class labels used by vit/vit_vid class embeddings",
         )
+        parser.add_argument(
+            "--G_vit_num_register_tokens",
+            type=int,
+            default=0,
+            help="number of learned register prefix tokens used by vit/vit_vid; 0 disables them",
+        )
 
         # discriminator
         parser.add_argument(
