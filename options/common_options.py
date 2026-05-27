@@ -831,6 +831,12 @@ class CommonOptions(BaseOptions):
             help="size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain A",
         )
         parser.add_argument(
+            "--data_multi_dataset_crop_delta_scale",
+            type=float,
+            default=1.0,
+            help="scale per-child data_online_creation_crop_delta_A overrides in multi_dataset mode",
+        )
+        parser.add_argument(
             "--data_online_creation_mask_delta_A",
             default=[[]],
             type=pairs_of_ints,

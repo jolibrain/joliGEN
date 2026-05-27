@@ -269,9 +269,9 @@ def dataset_entry_name(dataroot, args):
     datasets_root = getattr(args, "datasets_root", "")
     if datasets_root:
         try:
-            relative_parts = dataroot.resolve().relative_to(
-                Path(datasets_root).resolve()
-            ).parts
+            relative_parts = (
+                dataroot.resolve().relative_to(Path(datasets_root).resolve()).parts
+            )
         except ValueError:
             relative_parts = ()
 
@@ -308,7 +308,9 @@ def build_dataset_entry(dataroot, args):
         "weight": args.weight,
         "overrides": {
             "data_online_creation_crop_size_A": crop_size,
-            "data_online_creation_crop_delta_A": int(round(crop_size * 0.1)),
+            "data_online_creation_crop_delta_A": int(
+                round(crop_size * args.crop_delta_ratio)
+            ),
         },
     }
     LOGGER.info(
@@ -387,6 +389,7 @@ def dataset_resume_fingerprint(dataroot, name, args):
                 "step": args.step,
                 "size": args.size,
                 "weight": args.weight,
+                "crop_delta_ratio": args.crop_delta_ratio,
                 "ignore_categories": list(args.ignore_categories),
             },
             "holdout_args": {
@@ -616,7 +619,9 @@ def add_test_sets(config, output_dir, args):
 
 
 def dataset_cache_path(output_dir, dataset_name):
-    return Path(output_dir) / "resume" / "datasets" / f"{sanitize_id(dataset_name)}.json"
+    return (
+        Path(output_dir) / "resume" / "datasets" / f"{sanitize_id(dataset_name)}.json"
+    )
 
 
 def has_valid_temporal_paths(paths_file, args, num_common_char=-1):
@@ -671,7 +676,9 @@ def resume_cache_without_generated_holdouts(cache):
     entry = dict(cache["entry"])
     entry["dataroot"] = cache["source_dataroot"]
     test_sets = [
-        test_set for test_set in cache.get("test_sets", []) if not test_set.get("generated")
+        test_set
+        for test_set in cache.get("test_sets", [])
+        if not test_set.get("generated")
     ]
     return entry, test_sets
 
@@ -697,7 +704,9 @@ def load_dataset_cache(cache_path, dataroot, name, fingerprint, args):
     if getattr(args, "no_auto_test_holdout", False) and any(
         test_set.get("generated") for test_set in cache.get("test_sets", [])
     ):
-        if not (Path(cache.get("source_dataroot", "")) / "trainA" / "paths.txt").is_file():
+        if not (
+            Path(cache.get("source_dataroot", "")) / "trainA" / "paths.txt"
+        ).is_file():
             return None
         entry, test_sets = resume_cache_without_generated_holdouts(cache)
         LOGGER.info(
@@ -788,7 +797,9 @@ def build_multi_dataset_config(dataset_roots, output_dir=None, args=None):
         datasets.append(entry)
         test_sets.extend(entry_test_sets)
         validate_unique_test_set_ids(test_sets)
-        write_resume_progress_config(output_dir, datasets, test_sets, len(dataset_roots))
+        write_resume_progress_config(
+            output_dir, datasets, test_sets, len(dataset_roots)
+        )
 
     config = {"datasets": datasets}
     if output_dir is not None and args is not None:
@@ -1040,7 +1051,9 @@ def write_preview_for_entry(dataset_dir, train_config, entry, num_samples, finge
         targets.append(tensor_grid(sample["B"]))
         masks.append(tensor_grid(sample["B_label_mask"]))
         overlays.append(mask_overlay_grid(sample["B"], sample["B_label_mask"]))
-        manifest.append(save_named_preview_frames(dataset_dir, sample, len(samples) - 1))
+        manifest.append(
+            save_named_preview_frames(dataset_dir, sample, len(samples) - 1)
+        )
 
     if len(samples) != num_samples:
         raise RuntimeError(
@@ -1128,6 +1141,15 @@ def parse_args():
     parser.add_argument("--step", type=int, default=16)
     parser.add_argument("--size", type=int, default=None)
     parser.add_argument("--weight", type=float, default=1.0)
+    parser.add_argument(
+        "--crop-delta-ratio",
+        type=float,
+        default=0.1,
+        help=(
+            "per-dataset data_online_creation_crop_delta_A ratio relative to "
+            "the derived or manual crop size"
+        ),
+    )
     parser.add_argument(
         "--ignore-categories",
         nargs="*",

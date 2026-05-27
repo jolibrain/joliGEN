@@ -134,7 +134,9 @@ The size derivation follows the bbox helper workflow:
 Use ``--ignore-categories`` to ignore bbox classes while deriving crop
 size. It defaults to ignoring category ``2``. Passing the flag with no
 values disables category filtering. ``--size`` can be used as a manual
-crop-size override.
+crop-size override. Per-dataset ``data_online_creation_crop_delta_A`` is
+computed as ``round(crop_size * --crop-delta-ratio)``; the ratio defaults
+to ``0.1``.
 
 The generator writes:
 
