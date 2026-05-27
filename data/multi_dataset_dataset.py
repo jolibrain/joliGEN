@@ -81,7 +81,9 @@ class MultiDatasetDataset(BaseDataset):
 
         for dataset_index, entry in entry_iter:
             if hasattr(entry_iter, "set_postfix_str"):
-                entry_iter.set_postfix_str(entry.get("name", f"dataset_{dataset_index}"))
+                entry_iter.set_postfix_str(
+                    entry.get("name", f"dataset_{dataset_index}")
+                )
             child_dataset, child_name, child_weight = self._build_child_dataset(
                 entry, dataset_index
             )
@@ -221,6 +223,7 @@ class MultiDatasetDataset(BaseDataset):
             overrides["dataroot"] = entry["dataroot"]
 
         self._validate_overrides(overrides, child_name)
+        self._scale_crop_delta_override(overrides, child_name)
 
         child_opt = copy.deepcopy(self.opt)
         child_opt.data_dataset_mode = child_mode
@@ -237,6 +240,19 @@ class MultiDatasetDataset(BaseDataset):
             raise ValueError(f"child dataset '{child_name}' has a negative weight")
 
         return child_dataset, child_name, child_weight
+
+    def _scale_crop_delta_override(self, overrides, child_name):
+        scale = float(getattr(self.opt, "data_multi_dataset_crop_delta_scale", 1.0))
+        if scale < 0:
+            raise ValueError(
+                "--data_multi_dataset_crop_delta_scale must be >= 0, "
+                f"got {scale} for child dataset '{child_name}'"
+            )
+        if "data_online_creation_crop_delta_A" not in overrides:
+            return
+        overrides["data_online_creation_crop_delta_A"] = int(
+            round(overrides["data_online_creation_crop_delta_A"] * scale)
+        )
 
     def _validate_overrides(self, overrides, child_name):
         for key in overrides:

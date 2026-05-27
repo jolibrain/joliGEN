@@ -94,6 +94,7 @@ def make_opt(config_path, **kwargs):
         "fake_value": 0,
         "data_online_creation_crop_size_A": 8,
         "data_online_creation_crop_delta_A": 0,
+        "data_multi_dataset_crop_delta_scale": 1.0,
         "data_online_creation_load_size_A": [],
         "data_online_creation_load_size_keep_ratio_A": False,
         "data_online_creation_mask_delta_A": [[]],
@@ -123,6 +124,7 @@ def make_generator_args(**kwargs):
         "step": 16,
         "size": None,
         "weight": 1.0,
+        "crop_delta_ratio": 0.1,
         "ignore_categories": ["2"],
         "data_load_size": 256,
         "data_crop_size": 256,
@@ -213,6 +215,90 @@ def test_multi_dataset_parses_config_and_applies_child_overrides(tmp_path, monke
     assert FakeChildDataset.instances[0].opt.data_temporal_num_common_char == 7
     assert FakeChildDataset.instances[1].opt.dataroot == "/data/b"
     assert FakeChildDataset.instances[1].opt.data_online_creation_crop_delta_A == 2
+
+
+def test_multi_dataset_scales_child_crop_delta_overrides(tmp_path, monkeypatch):
+    FakeChildDataset.instances = []
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
+    config_path = write_config(
+        tmp_path,
+        [
+            {
+                "name": "a",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": "/data/a",
+                "overrides": {"data_online_creation_crop_delta_A": 5},
+            },
+            {
+                "name": "b",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": "/data/b",
+                "overrides": {"data_online_creation_crop_delta_A": 6},
+            },
+        ],
+    )
+
+    MultiDatasetDataset(
+        make_opt(config_path, data_multi_dataset_crop_delta_scale=2.0), "train"
+    )
+
+    assert FakeChildDataset.instances[0].opt.data_online_creation_crop_delta_A == 10
+    assert FakeChildDataset.instances[1].opt.data_online_creation_crop_delta_A == 12
+
+
+def test_multi_dataset_crop_delta_scale_leaves_global_delta_without_child_override(
+    tmp_path, monkeypatch
+):
+    FakeChildDataset.instances = []
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
+    config_path = write_config(
+        tmp_path,
+        [
+            {
+                "name": "a",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": "/data/a",
+                "overrides": {},
+            }
+        ],
+    )
+
+    MultiDatasetDataset(
+        make_opt(
+            config_path,
+            data_online_creation_crop_delta_A=7,
+            data_multi_dataset_crop_delta_scale=2.0,
+        ),
+        "train",
+    )
+
+    assert FakeChildDataset.instances[0].opt.data_online_creation_crop_delta_A == 7
+
+
+def test_multi_dataset_crop_delta_scale_rejects_negative_values(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
+    config_path = write_config(
+        tmp_path,
+        [
+            {
+                "name": "a",
+                "dataset_mode": "self_supervised_vid_mask_online",
+                "dataroot": "/data/a",
+                "overrides": {"data_online_creation_crop_delta_A": 5},
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="data_multi_dataset_crop_delta_scale"):
+        MultiDatasetDataset(
+            make_opt(config_path, data_multi_dataset_crop_delta_scale=-1.0), "train"
+        )
 
 
 def test_multi_dataset_rejects_shape_overrides(tmp_path, monkeypatch):
@@ -480,6 +566,15 @@ def test_multi_dataset_generator_writes_derived_config_shape(tmp_path):
             }
         ]
     }
+
+
+def test_multi_dataset_generator_can_configure_crop_delta_ratio(tmp_path):
+    dataroot = write_bbox_dataset(tmp_path / "dataset")
+    args = make_generator_args(size=320, crop_delta_ratio=0.25)
+
+    config = build_multi_dataset_config([dataroot], args=args)
+
+    assert config["datasets"][0]["overrides"]["data_online_creation_crop_delta_A"] == 80
 
 
 def test_multi_dataset_generator_names_nested_datasets_with_parent(tmp_path):
@@ -948,11 +1043,16 @@ def test_multi_dataset_generator_writes_resume_progress_after_each_dataset(
     def track_write_progress(output_dir, datasets, test_sets, total_count):
         original_write_progress(output_dir, datasets, test_sets, total_count)
         progress = json.loads(
-            (Path(output_dir) / "resume" / "multi_dataset_config.progress.json")
-            .read_text()
+            (
+                Path(output_dir) / "resume" / "multi_dataset_config.progress.json"
+            ).read_text()
         )
         progress_snapshots.append(
-            (progress["completed_count"], progress["complete"], len(progress["datasets"]))
+            (
+                progress["completed_count"],
+                progress["complete"],
+                len(progress["datasets"]),
+            )
         )
 
     monkeypatch.setattr(
@@ -995,9 +1095,7 @@ def test_multi_dataset_generator_resume_recomputes_only_missing_cache(
     assert rebuilt == ["dataset_b"]
 
 
-def test_multi_dataset_generator_resume_invalidates_changed_args(
-    tmp_path, monkeypatch
-):
+def test_multi_dataset_generator_resume_invalidates_changed_args(tmp_path, monkeypatch):
     dataroot = write_bbox_dataset(tmp_path / "dataset")
     output_dir = tmp_path / "out"
     args = make_generator_args(
