@@ -270,6 +270,8 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_crop_size_B | int | 512 | crop to this size during online creation, it needs to be greater than bbox size for domain B |
 | --data_online_creation_load_size_A | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
+| --data_online_creation_load_size_keep_ratio_A | flag |  | preserve aspect ratio when loading domain A online; the largest load_size_A side is used as the target largest image side |
+| --data_online_creation_load_size_keep_ratio_B | flag |  | preserve aspect ratio when loading domain B online; the largest load_size_B side is used as the target largest image side |
 | --data_online_creation_mask_delta_A | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
 | --data_online_creation_mask_delta_A_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
 | --data_online_creation_mask_delta_B | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
@@ -458,3 +460,4 @@ Here are all the available options to call with `train.py`
 | --dataaug_flip | string | horizontal | if specified, flip the images for data augmentation, possible values: none, horizontal, vertical, both<br/><br/> **Values:** none, horizontal, vertical, both |
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
 | --dataaug_no_rotate | flag |  | if specified, do not rotate the images for data augmentation |
+
