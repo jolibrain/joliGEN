@@ -774,7 +774,7 @@ class JiTViD(nn.Module):
         self.feat_rope = VisionRotaryEmbeddingFast(
             dim=half_head_dim,
             pt_seq_len=hw_seq_len,
-            num_cls_token=self.num_register_tokens,
+            num_cls_token=0,
         )
         self.feat_rope_incontext = VisionRotaryEmbeddingFast(
             dim=half_head_dim,
@@ -895,9 +895,6 @@ class JiTViD(nn.Module):
 
         x = rearrange(x, "b f c h w -> (b f) c h w")
         x = self.x_embedder(x) + self.pos_embed
-        if self.num_register_tokens > 0:
-            register_tokens = self.register_tokens.expand(x.shape[0], -1, -1)
-            x = torch.cat([register_tokens, x], dim=1)
 
         t = t.reshape(-1)
         if t.shape[0] == B:
@@ -922,21 +919,25 @@ class JiTViD(nn.Module):
         y_emb = self.y_embedder(y2d)  # (B*F, D)
         c = t_emb + y_emb
 
+        inserted_registers = False
         inserted_in_context = False
         for i, block in enumerate(self.blocks):
-            # in-context
-            if self.in_context_len > 0 and i == self.in_context_start:
-                in_context_tokens = y_emb.unsqueeze(1).repeat(1, self.in_context_len, 1)
-                in_context_tokens += self.in_context_posemb
+            if i == self.in_context_start:
+                prefix_tokens = []
                 if self.num_register_tokens > 0:
-                    register_tokens = x[:, : self.num_register_tokens]
-                    patch_tokens = x[:, self.num_register_tokens :]
-                    x = torch.cat(
-                        [register_tokens, in_context_tokens, patch_tokens], dim=1
+                    prefix_tokens.append(
+                        self.register_tokens.expand(x.shape[0], -1, -1)
                     )
-                else:
-                    x = torch.cat([in_context_tokens, x], dim=1)
-                inserted_in_context = True
+                    inserted_registers = True
+                if self.in_context_len > 0:
+                    in_context_tokens = y_emb.unsqueeze(1).repeat(
+                        1, self.in_context_len, 1
+                    )
+                    in_context_tokens += self.in_context_posemb
+                    prefix_tokens.append(in_context_tokens)
+                    inserted_in_context = True
+                if prefix_tokens:
+                    x = torch.cat(prefix_tokens + [x], dim=1)
             x = block(
                 x,
                 c,
@@ -947,7 +948,7 @@ class JiTViD(nn.Module):
                 ),
             )
 
-        prefix_tokens = self.num_register_tokens
+        prefix_tokens = self.num_register_tokens if inserted_registers else 0
         if inserted_in_context:
             prefix_tokens += self.in_context_len
         x = x[:, prefix_tokens:]
