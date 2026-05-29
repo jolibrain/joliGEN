@@ -76,6 +76,7 @@ Here are all the available options to call with `train.py`
 | --G_uvit_num_transformer_blocks | int | 6 | Number of transformer blocks in UViT |
 | --G_vit_disable_bottleneck | flag |  | Disable JiT bottleneck by forcing bottleneck_dim=hidden_size for vit/vit_vid. |
 | --G_vit_num_classes | int | 1 | number of class labels used by vit/vit_vid class embeddings |
+| --G_vit_num_register_tokens | int | 0 | number of learned register prefix tokens used by vit/vit_vid; 0 disables them |
 | --G_vit_variant | string | JiT-B/16 | Selects the ViT backbone when --G_netG vit (use JiT-\*) or vit_vid (use JiTVid-\*) |
 
 ## Algorithm-specific
