@@ -1035,15 +1035,17 @@ class MATModel(BaseModel):
 
         net.load_state_dict(filtered, strict=False)
 
-    def load_networks(self, epoch):
+    def load_networks(self, epoch, load_dir=None):
+        if load_dir is None:
+            load_dir = self.save_dir
         for name in self.model_names:
             if not isinstance(name, str):
                 continue
 
             load_filename = f"{epoch}_net_{name}.pth"
-            load_path = os.path.join(self.save_dir, load_filename)
+            load_path = os.path.join(load_dir, load_filename)
             ema_load_filename = f"{epoch}_net_{name}_ema.pth"
-            ema_load_path = os.path.join(self.save_dir, ema_load_filename)
+            ema_load_path = os.path.join(load_dir, ema_load_filename)
 
             load_path_effective = load_path
             if (

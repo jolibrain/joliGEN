@@ -701,20 +701,22 @@ class BaseModel(ABC):
             self.schedulers = [
                 get_scheduler(optimizer, opt) for optimizer in self.optimizers
             ]
-        if not self.isTrain or opt.train_continue:
+        train_continue_from = getattr(opt, "train_continue_from", "")
+        if not self.isTrain or opt.train_continue or train_continue_from:
             load_suffix = (
                 "iter_%d" % opt.train_load_iter
                 if opt.train_load_iter > 0
                 else opt.train_epoch
             )
+            load_dir = os.path.expanduser(train_continue_from) if self.isTrain else None
             if opt.train_finetune:
                 # allow network to not already exists
                 try:
-                    self.load_networks(load_suffix)
+                    self.load_networks(load_suffix, load_dir=load_dir)
                 except Exception as e:
                     print(e)
             else:
-                self.load_networks(load_suffix)
+                self.load_networks(load_suffix, load_dir=load_dir)
 
     def parallelize(self, rank):
         for name in self.model_names:
@@ -948,18 +950,21 @@ class BaseModel(ABC):
 
         return dummy_input
 
-    def load_networks(self, epoch):
+    def load_networks(self, epoch, load_dir=None):
         """Load all the networks from the disk.
 
         Parameters:
             epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
+            load_dir (str) -- optional checkpoint directory to load from instead of self.save_dir
         """
+        if load_dir is None:
+            load_dir = self.save_dir
         for name in self.model_names:
             if isinstance(name, str):
                 load_filename = "%s_net_%s.pth" % (epoch, name)
-                load_path = os.path.join(self.save_dir, load_filename)
+                load_path = os.path.join(load_dir, load_filename)
                 ema_load_filename = "%s_net_%s_ema.pth" % (epoch, name)
-                ema_load_path = os.path.join(self.save_dir, ema_load_filename)
+                ema_load_path = os.path.join(load_dir, ema_load_filename)
 
                 load_path_effective = load_path
                 if (
