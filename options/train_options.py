@@ -157,6 +157,15 @@ class TrainOptions(CommonOptions):
             action="store_true",
             help="continue training: load the latest model",
         )
+        parser.add_argument(
+            "--train_continue_from",
+            type=str,
+            default="",
+            help=(
+                "initialize this new training run from another checkpoint directory "
+                "without resuming logs or epoch counters"
+            ),
+        )
 
         parser.add_argument(
             "--train_epoch_count",
@@ -681,6 +690,11 @@ class TrainOptions(CommonOptions):
 
     def _after_parse(self, opt, set_device=True):
         opt = super()._after_parse(opt=opt, set_device=set_device)
+
+        if opt.train_continue and opt.train_continue_from:
+            raise ValueError(
+                "--train_continue and --train_continue_from are mutually exclusive"
+            )
 
         # process opt.suffix
         if opt.suffix:

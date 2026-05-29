@@ -179,6 +179,15 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
+###### train continue-from unit tests
+echo "Running train continue-from unit tests"
+python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_train_continue_from.py"
+OUT=$?
+
+if [ $OUT != 0 ]; then
+    exit 1
+fi
+
 ###### mat model unit tests
 echo "Running mat model unit tests"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_mat_model.py"

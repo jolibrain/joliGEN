@@ -89,6 +89,37 @@ def signal_handler(sig, frame):
     dist.destroy_process_group()
 
 
+def get_train_load_suffix(opt):
+    return (
+        "iter_%d" % opt.train_load_iter if opt.train_load_iter > 0 else opt.train_epoch
+    )
+
+
+def save_finetune_source_metadata(opt, command_line, model_names):
+    if not getattr(opt, "train_continue_from", ""):
+        return
+
+    load_suffix = get_train_load_suffix(opt)
+    source_dir = opt.train_continue_from
+    metadata = {
+        "train_continue_from": source_dir,
+        "train_continue_from_abs": os.path.abspath(os.path.expanduser(source_dir)),
+        "load_suffix": load_suffix,
+        "checkpoint_files": [
+            os.path.join(source_dir, "%s_net_%s.pth" % (load_suffix, name))
+            for name in model_names
+            if isinstance(name, str)
+        ],
+        "command_line": command_line,
+    }
+    save_dir = os.path.join(opt.checkpoints_dir, opt.name)
+    os.makedirs(save_dir, exist_ok=True)
+    metadata_path = os.path.join(save_dir, "finetune_source.json")
+    with open(metadata_path, "w") as metadata_file:
+        json.dump(metadata, metadata_file, indent=4)
+    print(f"Finetune source metadata was saved at {metadata_path}")
+
+
 def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     if not opt.warning_mode:
         warnings.simplefilter("ignore")
@@ -199,6 +230,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             file.write(command_line)
 
             print(f"Command line was saved at {sv_path}")
+        save_finetune_source_metadata(opt, command_line, model.model_names)
 
     if rank_0:
         ##TODO: realactB_test at init
