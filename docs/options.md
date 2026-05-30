@@ -377,6 +377,7 @@ Here are all the available options to call with `train.py`
 | --train_compute_D_accuracy | flag |  | whether to compute D accuracy explicitely |
 | --train_compute_metrics_test | flag |  | whether to compute test metrics, e.g. FID, ... |
 | --train_continue | flag |  | continue training: load the latest model |
+| --train_continue_from | string |  | initialize this new training run from another checkpoint directory without resuming logs or epoch counters |
 | --train_epoch | string | latest | which epoch to load? set to latest to use latest cached model |
 | --train_epoch_count | int | 1 | the starting epoch count, we save the model by \<epoch_count\>, \<epoch_count\>+\<save_latest_freq\>, ... |
 | --train_export_jit | flag |  | whether to export model in jit format |
