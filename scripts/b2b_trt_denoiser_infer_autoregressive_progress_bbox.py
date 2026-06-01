@@ -315,6 +315,15 @@ def get_train_shape(train_json):
     return temporal, height, width, load_h, load_w
 
 
+def require_square_crop_size(crop_h, crop_w):
+    if crop_h != crop_w:
+        raise ValueError(
+            "The repo crop helper currently expects a square crop_size_A, "
+            f"got ({crop_h}, {crop_w})"
+        )
+    return crop_h
+
+
 def resolve_denoise_steps(train_json, denoise_steps):
     if denoise_steps is not None:
         return int(denoise_steps)
@@ -583,8 +592,8 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         online.get("mask_min_unmasked_border_A", 4)
     )
     _, crop_h, crop_w, output_h, output_w = get_train_shape(train_json)
-    crop_dim = crop_h if crop_h == crop_w else [crop_h, crop_w]
-    output_dim = output_h if output_h == output_w else [output_h, output_w]
+    crop_dim = require_square_crop_size(crop_h, crop_w)
+    output_dim = crop_dim
     load_size = online.get("load_size_A", output_dim)
     if isinstance(load_size, int):
         load_size = [load_size]
