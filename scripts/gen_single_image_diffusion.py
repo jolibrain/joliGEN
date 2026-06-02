@@ -703,7 +703,15 @@ def generate(
 
         elif opt.model_type == "b2b":
             B = y_t.size(0)
-            label_id = 0 if int(cls) < 0 else int(cls)
+            alg_b2b_force_label_cls = unused_options.get(
+                "alg_b2b_force_label_cls", -1
+            )
+            if int(cls) >= 0:
+                label_id = int(cls)
+            elif int(alg_b2b_force_label_cls) >= 0:
+                label_id = int(alg_b2b_force_label_cls)
+            else:
+                label_id = 0
             labels = torch.ones(B, device=y_t.device, dtype=torch.long) * label_id
             out_tensor = model.restoration(
                 y_t, cond_image, alg_b2b_denoise_timesteps, mask, labels

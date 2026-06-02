@@ -339,6 +339,7 @@ def get_b2b_params(train_json, image_size):
         "t_eps": float(alg.get("b2b_t_eps", 5e-2)),
         "cond_mode": alg.get("diffusion_cond_image_creation", "y_t"),
         "mask_as_channel": bool(alg.get("b2b_mask_as_channel", False)),
+        "force_label_cls": int(alg.get("b2b_force_label_cls", -1)),
     }
     requested_noise_scale = float(alg.get("b2b_noise_scale", -1.0))
     if requested_noise_scale > 0:
@@ -1433,9 +1434,10 @@ def run_sequence(
                 last_seq_half_cond_image + [frame_data["cond_image"]]
             )
 
-        labels = np.asarray(
-            [frame_data["label_cls"] if label is None else int(label)], dtype=np.int64
-        )
+        label_id = frame_data["label_cls"] if label is None else int(label)
+        if label is None and params["force_label_cls"] >= 0:
+            label_id = params["force_label_cls"]
+        labels = np.asarray([label_id], dtype=np.int64)
         init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
         y_np = y_t_batch.numpy().astype(np.float32)
         y_cond_np = (

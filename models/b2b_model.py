@@ -67,6 +67,15 @@ class B2BModel(BaseDiffusionModel):
             ),
         )
         parser.add_argument(
+            "--alg_b2b_force_label_cls",
+            type=int,
+            default=-1,
+            help=(
+                "Override all B2B class-token labels with this id. Use -1 to keep "
+                "dataset labels."
+            ),
+        )
+        parser.add_argument(
             "--alg_b2b_denoise_timesteps",
             type=int,
             nargs="+",
@@ -256,6 +265,17 @@ class B2BModel(BaseDiffusionModel):
                 "--alg_b2b_multi_dataset_class_conditioning requires "
                 "--data_dataset_mode multi_dataset"
             )
+
+        force_label_cls = getattr(opt, "alg_b2b_force_label_cls", -1)
+        if force_label_cls < -1:
+            raise ValueError("--alg_b2b_force_label_cls must be -1 or >= 0")
+        if force_label_cls >= 0:
+            num_classes = int(getattr(opt, "G_vit_num_classes", 1))
+            if force_label_cls >= num_classes:
+                raise ValueError(
+                    "--alg_b2b_force_label_cls must be < G_vit_num_classes "
+                    f"({num_classes}), got {force_label_cls}"
+                )
 
         if getattr(opt, "alg_b2b_lora", False) and getattr(opt, "isTrain", False):
             if getattr(opt, "G_netG", "") not in ["vit", "vit_vid"]:
@@ -703,7 +723,27 @@ class B2BModel(BaseDiffusionModel):
     def _default_b2b_labels(self):
         return torch.zeros(self.batch_size, dtype=torch.long, device=self.device)
 
+    def _forced_b2b_labels(self):
+        force_label_cls = getattr(self.opt, "alg_b2b_force_label_cls", -1)
+        if force_label_cls < 0:
+            return None
+        if force_label_cls >= self.num_classes:
+            raise RuntimeError(
+                "--alg_b2b_force_label_cls must be in [0, G_vit_num_classes - 1], "
+                f"got {force_label_cls} with G_vit_num_classes={self.num_classes}"
+            )
+        return torch.full(
+            (self.batch_size,),
+            int(force_label_cls),
+            dtype=torch.long,
+            device=self.device,
+        )
+
     def _select_b2b_labels(self, data):
+        forced_labels = self._forced_b2b_labels()
+        if forced_labels is not None:
+            return forced_labels
+
         if getattr(self.opt, "alg_b2b_multi_dataset_class_conditioning", False):
             return self._prepare_b2b_dataset_labels(data.get("dataset_index"))
 

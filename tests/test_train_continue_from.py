@@ -101,6 +101,21 @@ def test_train_continue_from_uses_train_load_iter_suffix(tmp_path):
     assert torch.allclose(model.netG_A.bias, torch.full_like(model.netG_A.bias, 5.0))
 
 
+def test_train_continue_loads_from_target_run_when_continue_from_is_empty(tmp_path):
+    target_dir = tmp_path / "target_run"
+    _save_source_checkpoint(target_dir, "latest", fill_value=7.0)
+
+    opt = _opt(tmp_path, train_continue=True, train_continue_from="")
+    model = TinyModel(opt)
+
+    model.setup(opt)
+
+    assert torch.allclose(
+        model.netG_A.weight, torch.full_like(model.netG_A.weight, 7.0)
+    )
+    assert torch.allclose(model.netG_A.bias, torch.full_like(model.netG_A.bias, 7.0))
+
+
 def test_train_continue_and_train_continue_from_are_mutually_exclusive():
     with pytest.raises(ValueError, match="mutually exclusive"):
         TrainOptions().parse_json(

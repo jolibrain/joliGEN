@@ -444,7 +444,10 @@ def test_multi_dataset_retries_none_samples(tmp_path, monkeypatch):
 
 def test_b2b_dataset_conditioning_uses_dataset_index_over_object_labels():
     model = B2BModel.__new__(B2BModel)
-    model.opt = SimpleNamespace(alg_b2b_multi_dataset_class_conditioning=True)
+    model.opt = SimpleNamespace(
+        alg_b2b_multi_dataset_class_conditioning=True,
+        alg_b2b_force_label_cls=-1,
+    )
     model.device = torch.device("cpu")
     model.y_t = torch.zeros(2, 2, 3, 8, 8)
     model.batch_size = 2
@@ -460,9 +463,33 @@ def test_b2b_dataset_conditioning_uses_dataset_index_over_object_labels():
     assert torch.equal(labels, torch.tensor([1, 2]))
 
 
+def test_b2b_force_label_cls_overrides_dataset_and_object_labels():
+    model = B2BModel.__new__(B2BModel)
+    model.opt = SimpleNamespace(
+        alg_b2b_multi_dataset_class_conditioning=True,
+        alg_b2b_force_label_cls=4,
+    )
+    model.device = torch.device("cpu")
+    model.y_t = torch.zeros(2, 2, 3, 8, 8)
+    model.batch_size = 2
+    model.num_classes = 5
+
+    labels = model._select_b2b_labels(
+        {
+            "dataset_index": torch.tensor([1, 2]),
+            "B_label_cls": torch.tensor([0, 0]),
+        }
+    )
+
+    assert torch.equal(labels, torch.tensor([4, 4]))
+
+
 def test_b2b_dataset_conditioning_rejects_missing_or_out_of_range_labels():
     model = B2BModel.__new__(B2BModel)
-    model.opt = SimpleNamespace(alg_b2b_multi_dataset_class_conditioning=True)
+    model.opt = SimpleNamespace(
+        alg_b2b_multi_dataset_class_conditioning=True,
+        alg_b2b_force_label_cls=-1,
+    )
     model.device = torch.device("cpu")
     model.y_t = torch.zeros(2, 2, 3, 8, 8)
     model.batch_size = 2
@@ -482,10 +509,26 @@ def test_b2b_dataset_conditioning_requires_multi_dataset_mode():
         alg_b2b_t_eps=0.05,
         alg_b2b_use_gt_prob=0.1,
         alg_b2b_multi_dataset_class_conditioning=True,
+        alg_b2b_force_label_cls=-1,
         data_dataset_mode="self_supervised_vid_mask_online",
     )
 
     with pytest.raises(ValueError, match="requires --data_dataset_mode multi_dataset"):
+        B2BModel.after_parse(opt)
+
+
+def test_b2b_force_label_cls_rejects_reserved_unconditional_token():
+    opt = SimpleNamespace(
+        alg_b2b_denoise_timesteps=[1],
+        alg_b2b_P_std=0.8,
+        alg_b2b_t_eps=0.05,
+        alg_b2b_use_gt_prob=0.1,
+        alg_b2b_multi_dataset_class_conditioning=False,
+        alg_b2b_force_label_cls=3,
+        G_vit_num_classes=3,
+    )
+
+    with pytest.raises(ValueError, match="must be < G_vit_num_classes"):
         B2BModel.after_parse(opt)
 
 
