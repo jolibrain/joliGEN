@@ -132,33 +132,29 @@ class CycleGanModel(BaseGanModel):
             self.criterionIdt = torch.nn.L1Loss()
 
             # Optimizers
-            self.optimizer_G = opt.optim(
-                opt,
-                itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
+            optimizer_G_names = self.register_optimizer(
+                "optimizer_G",
+                self.get_named_parameters(
+                    ("G_A", self.netG_A),
+                    ("G_B", self.netG_B),
+                ),
                 lr=opt.train_G_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
-                weight_decay=opt.train_optim_weight_decay,
-                eps=opt.train_optim_eps,
             )
 
-            D_parameters = itertools.chain(
+            D_parameters = self.get_named_parameters(
                 *[
-                    getattr(self, "net" + D_name).parameters()
+                    (D_name, getattr(self, "net" + D_name))
                     for D_name in self.discriminators_names
                 ]
             )
 
-            self.optimizer_D = opt.optim(
-                opt,
+            optimizer_D_names = self.register_optimizer(
+                "optimizer_D",
                 D_parameters,
                 lr=opt.train_D_lr,
                 betas=(opt.train_beta1, opt.train_beta2),
-                weight_decay=opt.train_optim_weight_decay,
-                eps=opt.train_optim_eps,
             )
-
-            self.optimizers.append(self.optimizer_G)
-            self.optimizers.append(self.optimizer_D)
 
             # Making groups
 
@@ -169,7 +165,7 @@ class CycleGanModel(BaseGanModel):
                 forward_functions=["forward"],
                 backward_functions=["compute_G_loss"],
                 loss_names_list=["loss_names_G"],
-                optimizer=["optimizer_G"],
+                optimizer=optimizer_G_names,
                 loss_backward=["loss_G_tot"],
                 networks_to_ema=["G_A", "G_B"],
             )
@@ -180,7 +176,7 @@ class CycleGanModel(BaseGanModel):
                 forward_functions=None,
                 backward_functions=["compute_D_loss"],
                 loss_names_list=["loss_names_D"],
-                optimizer=["optimizer_D"],
+                optimizer=optimizer_D_names,
                 loss_backward=["loss_D_tot"],
             )
             self.networks_groups.append(self.group_D)
