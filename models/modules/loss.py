@@ -34,7 +34,7 @@ class GANLoss(nn.Module):
             self.loss = nn.MSELoss()
         elif gan_mode == "vanilla":
             self.loss = nn.BCEWithLogitsLoss()
-        elif gan_mode in ["wgangp", "projected"]:
+        elif gan_mode in ["wgangp", "projected", "projected_ra"]:
             self.loss = None
         else:
             raise NotImplementedError("gan mode %s not implemented" % gan_mode)
@@ -56,7 +56,7 @@ class GANLoss(nn.Module):
             target_tensor = self.fake_label
         return target_tensor.expand_as(prediction)
 
-    def __call__(self, prediction, target_is_real, relu=True):
+    def __call__(self, prediction, target_is_real, relu=True, opp_prediction=None):
         """Calculate loss given Discriminator's output and grount truth labels.
 
         Parameters:
@@ -74,17 +74,39 @@ class GANLoss(nn.Module):
                 loss = -prediction.mean()
             else:
                 loss = prediction.mean()
-        elif self.gan_mode == "projected":
-            if relu:
-                if target_is_real:
-                    loss = (F.relu(torch.ones_like(prediction) - prediction)).mean()
+        elif self.gan_mode == "projected" or self.gan_mode == "projected_ra":
+            if opp_prediction is None:
+                if relu:
+                    if target_is_real:
+                        loss = (F.relu(torch.ones_like(prediction) - prediction)).mean()
+                    else:
+                        loss = (F.relu(torch.ones_like(prediction) + prediction)).mean()
                 else:
-                    loss = (F.relu(torch.ones_like(prediction) + prediction)).mean()
+                    loss = (-prediction).mean()
             else:
-                loss = (-prediction).mean()
+                # relativistic hinge gan loss
+                if relu:
+                    if target_is_real:
+                        loss = (
+                            F.relu(
+                                torch.ones_like(prediction)
+                                - (opp_prediction - prediction.mean())
+                            )
+                        ).mean()
+                    else:
+                        loss = (
+                            F.relu(
+                                torch.ones_like(prediction)
+                                + (opp_prediction - prediction.mean())
+                            )
+                        ).mean()
+                else:
+                    # loss = (-prediction).mean()
+                    loss = (prediction - opp_prediction).mean()
         return loss
 
 
+## Unused
 def cal_gradient_penalty(
     netD, real_data, fake_data, device, type="mixed", constant=1.0, lambda_gp=10.0
 ):
@@ -295,13 +317,25 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
         We also call loss_D.backward() to calculate the gradients.
         """
         super().compute_loss_D(netD, real, fake, fake_2)
-        # Real
+        # Real and fake inference
         self.pred_real = netD(self.real)
-        self.loss_D_real = self.criterionGAN(self.pred_real, True)
+        pred_fake = netD(self.fake.detach())
+
+        # Real
+        if self.gan_mode == "projected_ra":
+            self.loss_D_real = self.criterionGAN(
+                self.pred_real, True, relu=True, opp_prediction=pred_fake
+            )
+        else:
+            self.loss_D_real = self.criterionGAN(self.pred_real, True)
         # Fake
         lambda_loss = 0.5
-        pred_fake = netD(self.fake.detach())
-        loss_D_fake = self.criterionGAN(pred_fake, False)
+        if self.gan_mode == "projected_ra":
+            loss_D_fake = self.criterionGAN(
+                pred_fake, False, relu=True, opp_prediction=self.pred_real
+            )
+        else:
+            loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss and calculate gradients
         loss_D = (self.loss_D_real + loss_D_fake) * lambda_loss
         return loss_D
@@ -309,7 +343,13 @@ class DiscriminatorGANLoss(DiscriminatorLoss):
     def compute_loss_G(self, netD, real, fake):
         super().compute_loss_G(netD, real, fake)
         pred_fake = netD(self.fake)
-        loss_D_fake = self.criterionGAN(pred_fake, True, relu=False)
+        if self.gan_mode == "projected_ra":
+            pred_real = netD(self.real)
+            loss_D_fake = self.criterionGAN(
+                pred_fake, True, relu=False, opp_prediction=pred_real
+            )
+        else:
+            loss_D_fake = self.criterionGAN(pred_fake, True, relu=False)
         return loss_D_fake
 
     def update(self, niter):
