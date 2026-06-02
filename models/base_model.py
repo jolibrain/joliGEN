@@ -708,7 +708,11 @@ class BaseModel(ABC):
                 if opt.train_load_iter > 0
                 else opt.train_epoch
             )
-            load_dir = os.path.expanduser(train_continue_from) if self.isTrain else None
+            load_dir = (
+                os.path.expanduser(train_continue_from)
+                if self.isTrain and train_continue_from
+                else None
+            )
             if opt.train_finetune:
                 # allow network to not already exists
                 try:
