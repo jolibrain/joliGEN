@@ -257,6 +257,9 @@ class B2BModel(BaseDiffusionModel):
                 "--data_dataset_mode multi_dataset"
             )
 
+        if getattr(opt, "G_vit_vid_motion_every", 0) < 0:
+            raise ValueError("--G_vit_vid_motion_every must be >= 0")
+
         if getattr(opt, "alg_b2b_lora", False) and getattr(opt, "isTrain", False):
             if getattr(opt, "G_netG", "") not in ["vit", "vit_vid"]:
                 raise ValueError(

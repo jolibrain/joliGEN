@@ -457,6 +457,16 @@ class CommonOptions(BaseOptions):
             default=0,
             help="number of learned register prefix tokens used by vit/vit_vid; 0 disables them",
         )
+        parser.add_argument(
+            "--G_vit_vid_motion_every",
+            type=int,
+            default=0,
+            help=(
+                "JiTViD temporal motion insertion interval. 0 keeps the default "
+                "last-layer-only motion module; 1 inserts after every ViT block; "
+                "2 inserts after every two blocks."
+            ),
+        )
 
         # discriminator
         parser.add_argument(
