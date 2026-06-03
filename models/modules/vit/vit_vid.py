@@ -14,7 +14,6 @@ import numpy as np
 from models.modules.unet_generator_attn.unet_attn_utils import zero_module
 from .vit_vid_per_layer_motion import MotionModule as SharedMotionModule
 
-
 # ============================================================
 # Helpers
 # ============================================================
@@ -722,10 +721,13 @@ class JiTViD(nn.Module):
         max_frames=8,
         motion_num_heads=8,
         motion_num_layers=2,
+        motion_every=0,
     ):
         super().__init__()
         if num_register_tokens < 0:
             raise ValueError("num_register_tokens must be >= 0")
+        if motion_every < 0:
+            raise ValueError("motion_every must be >= 0")
         self.in_channels = in_channels
         self.out_channels = in_channels if out_channels is None else out_channels
         self.out_channel = self.out_channels
@@ -738,6 +740,7 @@ class JiTViD(nn.Module):
         self.num_register_tokens = num_register_tokens
         self.num_classes = num_classes
         self.max_frames = max_frames
+        self.motion_every = motion_every
 
         # time and class embed as input c
         self.t_embedder = TimestepEmbedder(hidden_size)
@@ -796,7 +799,7 @@ class JiTViD(nn.Module):
             ]
         )
 
-        self.motion_module = SharedMotionModule(
+        motion_module_kwargs = dict(
             in_channels=hidden_size,
             num_attention_heads=motion_num_heads,
             num_transformer_block=motion_num_layers,
@@ -806,11 +809,40 @@ class JiTViD(nn.Module):
             temporal_attention_dim_div=1,
             zero_initialize=True,
         )
+        if self.motion_every == 0:
+            self.motion_insert_layers = [depth - 1]
+            self.motion_module = SharedMotionModule(**motion_module_kwargs)
+        else:
+            self.motion_insert_layers = [
+                i
+                for i in range(depth)
+                if ((i + 1) % self.motion_every) == 0 or i == depth - 1
+            ]
+            self.motion_modules = nn.ModuleList(
+                [
+                    SharedMotionModule(**motion_module_kwargs)
+                    for _ in self.motion_insert_layers
+                ]
+            )
 
         # linear predict
         self.final_layer = FinalLayer(hidden_size, patch_size, self.out_channels)
 
         self.initialize_weights()
+
+    def _apply_motion_on_patches(self, x, B, F, Hp, Wp, motion_module, prefix_tokens):
+        if prefix_tokens > 0:
+            prefix = x[:, :prefix_tokens]
+            patches = x[:, prefix_tokens:]
+        else:
+            prefix = None
+            patches = x
+
+        patches = rearrange(patches, "(b f) (h w) d -> b f d h w", b=B, f=F, h=Hp, w=Wp)
+        patches = motion_module(patches)
+        patches = rearrange(patches, "b f d h w -> (b f) (h w) d")
+
+        return torch.cat([prefix, patches], dim=1) if prefix is not None else patches
 
     def initialize_weights(self):
         # Initialize transformer layers:
@@ -823,9 +855,15 @@ class JiTViD(nn.Module):
         self.apply(_basic_init)
 
         # restore identity-like start for motion module
-        self.motion_module.temporal_transformer.proj_out = zero_module(
-            self.motion_module.temporal_transformer.proj_out
-        )
+        if hasattr(self, "motion_module"):
+            self.motion_module.temporal_transformer.proj_out = zero_module(
+                self.motion_module.temporal_transformer.proj_out
+            )
+        if hasattr(self, "motion_modules"):
+            for motion_module in self.motion_modules:
+                motion_module.temporal_transformer.proj_out = zero_module(
+                    motion_module.temporal_transformer.proj_out
+                )
 
         # Initialize (and freeze) pos_embed by sin-cos embedding:
         pos_embed = get_2d_sincos_pos_embed(
@@ -892,6 +930,8 @@ class JiTViD(nn.Module):
         assert x.dim() == 5, f"expected video input (B,F,C,H,W), got {x.shape}"
         B, F, C, H, W = x.shape
         assert F <= self.max_frames, f"frames={F} > max_frames={self.max_frames}"
+        Hp = H // self.patch_size
+        Wp = W // self.patch_size
 
         x = rearrange(x, "b f c h w -> (b f) c h w")
         x = self.x_embedder(x) + self.pos_embed
@@ -921,6 +961,7 @@ class JiTViD(nn.Module):
 
         inserted_registers = False
         inserted_in_context = False
+        motion_idx = 0
         for i, block in enumerate(self.blocks):
             if i == self.in_context_start:
                 prefix_tokens = []
@@ -947,26 +988,24 @@ class JiTViD(nn.Module):
                     else self.feat_rope_incontext
                 ),
             )
+            if self.motion_every > 0 and i in self.motion_insert_layers:
+                prefix_tokens = self.num_register_tokens if inserted_registers else 0
+                if inserted_in_context:
+                    prefix_tokens += self.in_context_len
+                x = self._apply_motion_on_patches(
+                    x, B, F, Hp, Wp, self.motion_modules[motion_idx], prefix_tokens
+                )
+                motion_idx += 1
 
         prefix_tokens = self.num_register_tokens if inserted_registers else 0
         if inserted_in_context:
             prefix_tokens += self.in_context_len
         x = x[:, prefix_tokens:]
 
-        # ======================================================
-        # APPLY MOTION MODULE HERE (LAST token layer)
-        # ======================================================
-
-        BF, Patches, hiddenD = x.shape
-        hp = int(Patches**0.5)
-        assert hp * hp == Patches
-        wp = hp
-
-        x = rearrange(x, "(b f) (h w) d -> b f d h w", b=B, f=F, h=hp, w=wp)
-
-        x = self.motion_module(x)
-
-        x = rearrange(x, "b f d h w -> (b f) (h w) d")
+        if self.motion_every == 0:
+            x = self._apply_motion_on_patches(
+                x, B, F, Hp, Wp, self.motion_module, prefix_tokens=0
+            )
 
         x = self.final_layer(x, c)
         output = self.unpatchify(x, self.patch_size, B=B, F=F)
