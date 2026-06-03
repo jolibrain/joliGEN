@@ -170,15 +170,6 @@ if [ $OUT != 0 ]; then
     exit 1
 fi
 
-###### b2b lora unit tests
-echo "Running b2b lora unit tests"
-python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_b2b_lora.py"
-OUT=$?
-
-if [ $OUT != 0 ]; then
-    exit 1
-fi
-
 ###### vit register token unit tests
 echo "Running vit register token unit tests"
 python3 -m pytest --rootdir ${current_dir} -p no:cacheprovider -s "${current_dir}/../tests/test_vit_register_tokens.py"

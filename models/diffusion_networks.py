@@ -318,6 +318,7 @@ def define_G(
                 opt, "G_vit_in_context_start", base.get("in_context_start", 4)
             ),
             "num_register_tokens": getattr(opt, "G_vit_num_register_tokens", 0),
+            "motion_every": getattr(opt, "G_vit_vid_motion_every", 0),
         }
         if getattr(opt, "G_vit_disable_bottleneck", False):
             cfg["bottleneck_dim"] = cfg["hidden_size"]
