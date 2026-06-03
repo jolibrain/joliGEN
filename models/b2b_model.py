@@ -1,7 +1,7 @@
 import copy
 import hashlib
-import itertools
 import math
+import os
 import random
 import warnings
 
@@ -179,6 +179,42 @@ class B2BModel(BaseDiffusionModel):
             action="store_true",
             help="Normalize B2B loss over masked pixels only (instead of all image pixels).",
         )
+        parser.add_argument(
+            "--alg_b2b_lora",
+            action="store_true",
+            help=(
+                "Train B2B JiT/JiTViD with PEFT LoRA adapters while saving merged "
+                "full checkpoints."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_lora_rank",
+            type=int,
+            default=8,
+            help="LoRA rank for B2B JiT/JiTViD finetuning.",
+        )
+        parser.add_argument(
+            "--alg_b2b_lora_alpha",
+            type=int,
+            default=16,
+            help="LoRA alpha scaling for B2B JiT/JiTViD finetuning.",
+        )
+        parser.add_argument(
+            "--alg_b2b_lora_dropout",
+            type=float,
+            default=0.05,
+            help="LoRA dropout for B2B JiT/JiTViD finetuning.",
+        )
+        parser.add_argument(
+            "--alg_b2b_lora_target_modules",
+            type=str,
+            nargs="+",
+            default=["attn.qkv", "attn.proj", "mlp.w12", "mlp.w3"],
+            help=(
+                "Module suffixes targeted by B2B LoRA. Defaults to attention and "
+                "MLP projections in JiT/JiTViD blocks."
+            ),
+        )
 
         return parser
 
@@ -220,6 +256,27 @@ class B2BModel(BaseDiffusionModel):
                 "--alg_b2b_multi_dataset_class_conditioning requires "
                 "--data_dataset_mode multi_dataset"
             )
+
+        if getattr(opt, "G_vit_vid_motion_every", 0) < 0:
+            raise ValueError("--G_vit_vid_motion_every must be >= 0")
+
+        if getattr(opt, "alg_b2b_lora", False) and getattr(opt, "isTrain", False):
+            if getattr(opt, "G_netG", "") not in ["vit", "vit_vid"]:
+                raise ValueError(
+                    "--alg_b2b_lora is only supported with vit/vit_vid B2B"
+                )
+            if getattr(opt, "alg_b2b_lora_rank", 8) <= 0:
+                raise ValueError("--alg_b2b_lora_rank must be > 0")
+            if getattr(opt, "alg_b2b_lora_alpha", 16) <= 0:
+                raise ValueError("--alg_b2b_lora_alpha must be > 0")
+            lora_dropout = getattr(opt, "alg_b2b_lora_dropout", 0.05)
+            if not (0.0 <= lora_dropout < 1.0):
+                raise ValueError("--alg_b2b_lora_dropout must be in [0, 1)")
+            lora_targets = getattr(opt, "alg_b2b_lora_target_modules", [])
+            if not lora_targets or any(not target for target in lora_targets):
+                raise ValueError(
+                    "--alg_b2b_lora_target_modules must contain at least one module"
+                )
 
         opt.alg_b2b_denoise_timesteps = steps
         return opt
@@ -288,6 +345,7 @@ class B2BModel(BaseDiffusionModel):
         opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
         opt.alg_diffusion_cond_embed_dim = 256
         self.netG_A = diffusion_networks.define_G(opt=opt, **vars(opt)).to(self.device)
+        self._apply_b2b_lora()
         if opt.isTrain:
             self.netG_A.current_t = max(self.netG_A.current_t, opt.total_iters)
         else:
@@ -298,8 +356,7 @@ class B2BModel(BaseDiffusionModel):
         self.model_names_export = ["G_A"]
 
         G_models = ["G_A"]
-        G_parameters = [self.netG_A.parameters()]
-        G_parameters = itertools.chain(*G_parameters)
+        G_parameters = self._iter_trainable_generator_parameters()
 
         # Define optimizer
         if opt.isTrain:
@@ -374,6 +431,210 @@ class B2BModel(BaseDiffusionModel):
             self.criterionDISTS = DISTS(
                 mean=self.opt.alg_b2b_dists_mean, std=self.opt.alg_b2b_dists_std
             ).to(self.device)
+
+    def _should_apply_b2b_lora(self):
+        return bool(getattr(self.opt, "alg_b2b_lora", False)) and bool(
+            getattr(self.opt, "isTrain", False)
+        )
+
+    def _apply_b2b_lora(self):
+        if not self._should_apply_b2b_lora():
+            return
+        try:
+            from peft import LoraConfig, get_peft_model
+        except ImportError as exc:
+            raise ImportError(
+                "--alg_b2b_lora requires the peft package to be installed"
+            ) from exc
+
+        config = LoraConfig(
+            r=self.opt.alg_b2b_lora_rank,
+            lora_alpha=self.opt.alg_b2b_lora_alpha,
+            lora_dropout=self.opt.alg_b2b_lora_dropout,
+            target_modules=list(self.opt.alg_b2b_lora_target_modules),
+            bias="none",
+        )
+        self.netG_A.b2b_model = get_peft_model(self.netG_A.b2b_model, config)
+        self.netG_A.b2b_lora_enabled = True
+        self._set_b2b_lora_trainability(self.netG_A)
+
+    def _unwrap_net(self, net):
+        if hasattr(net, "module"):
+            return net.module
+        return net
+
+    def _set_b2b_lora_trainability(self, net=None):
+        if not self._should_apply_b2b_lora():
+            return
+        if net is None:
+            net = self.netG_A
+        net = self._unwrap_net(net)
+        for param in net.parameters():
+            param.requires_grad = False
+        trainable = []
+        for name, param in net.named_parameters():
+            if "lora_" in name:
+                param.requires_grad = True
+                trainable.append(name)
+        if not trainable:
+            raise RuntimeError(
+                "B2B LoRA is enabled but no LoRA parameters were found on netG_A"
+            )
+
+    def _iter_trainable_generator_parameters(self):
+        if self._should_apply_b2b_lora():
+            self._set_b2b_lora_trainability(self.netG_A)
+        params = [param for param in self.netG_A.parameters() if param.requires_grad]
+        if not params:
+            raise RuntimeError("No trainable B2B generator parameters found")
+        return params
+
+    def parallelize(self, rank):
+        if not self._should_apply_b2b_lora():
+            super().parallelize(rank)
+            return
+
+        for name in self.model_names:
+            if isinstance(name, str):
+                net = getattr(self, "net" + name).to(self.gpu_ids[rank])
+                self._set_b2b_lora_trainability(net)
+                net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
+                self._set_b2b_lora_trainability(net)
+                setattr(
+                    self,
+                    "net" + name,
+                    torch.nn.parallel.DistributedDataParallel(
+                        net, device_ids=[self.gpu_ids[rank]], broadcast_buffers=False
+                    ),
+                )
+
+    def single_gpu(self):
+        super().single_gpu()
+        self._set_b2b_lora_trainability(self.netG_A)
+
+    def _b2b_lora_target_modules(self):
+        return list(getattr(self.opt, "alg_b2b_lora_target_modules", []))
+
+    def _is_b2b_lora_target(self, module_path):
+        return any(
+            module_path.endswith(target) for target in self._b2b_lora_target_modules()
+        )
+
+    def _map_raw_b2b_key_to_lora_key(self, key):
+        prefix = "b2b_model."
+        if not key.startswith(prefix):
+            return key
+
+        rest = key[len(prefix) :]
+        for suffix in [".weight", ".bias"]:
+            if rest.endswith(suffix):
+                module_path = rest[: -len(suffix)]
+                if self._is_b2b_lora_target(module_path):
+                    return (
+                        "b2b_model.base_model.model."
+                        + module_path
+                        + ".base_layer"
+                        + suffix
+                    )
+        return "b2b_model.base_model.model." + rest
+
+    def _checkpoint_has_b2b_lora_keys(self, state_dict):
+        return any(
+            "base_model.model" in key or "base_layer" in key or "lora_" in key
+            for key in state_dict.keys()
+        )
+
+    def _load_raw_b2b_checkpoint_into_lora(self, net, state_dict, name):
+        model_dict = net.state_dict()
+        mapped_state = {}
+        skipped = []
+        for key, value in state_dict.items():
+            new_key = self._map_raw_b2b_key_to_lora_key(key)
+            if new_key in model_dict and value.shape == model_dict[new_key].shape:
+                mapped_state[new_key] = value
+            else:
+                skipped.append((key, new_key))
+
+        self._adjust_positional_embeddings(mapped_state, model_dict, name)
+        missing = set(model_dict.keys()) - set(mapped_state.keys())
+        non_lora_missing = [key for key in missing if "lora_" not in key]
+
+        print(
+            f"\n===== B2B LoRA raw checkpoint load report for {name} =====",
+            flush=True,
+        )
+        print(f"Model params keys: {len(model_dict)}")
+        print(f"Checkpoint keys:   {len(state_dict)}")
+        print(f"Mapped keys:       {len(mapped_state)}")
+        print(f"Missing LoRA keys: {len(missing) - len(non_lora_missing)}")
+        print(f"Missing base keys: {len(non_lora_missing)}")
+        print(f"Skipped ckpt keys: {len(skipped)}")
+        print("=====================================================\n")
+
+        if self.opt.model_load_no_strictness and non_lora_missing:
+            preview = "\n".join(sorted(non_lora_missing)[:20])
+            raise RuntimeError(
+                "Missing non-LoRA keys while loading raw B2B checkpoint into LoRA "
+                f"model:\n{preview}"
+            )
+        net.load_state_dict(mapped_state, strict=False)
+
+    def _merged_b2b_lora_state_dict(self, net):
+        net = self._unwrap_net(net)
+        net_to_save = copy.deepcopy(net).to("cpu")
+        if hasattr(net_to_save.b2b_model, "merge_and_unload"):
+            net_to_save.b2b_model = net_to_save.b2b_model.merge_and_unload()
+        return net_to_save.state_dict()
+
+    def save_networks(self, epoch):
+        if not self._should_apply_b2b_lora():
+            super().save_networks(epoch)
+            return
+
+        for name in self.model_names:
+            if not isinstance(name, str):
+                continue
+            save_filename = "%s_net_%s.pth" % (epoch, name)
+            save_path = os.path.join(self.save_dir, save_filename)
+            net = getattr(self, "net" + name)
+            torch.save(self._merged_b2b_lora_state_dict(net), save_path)
+
+            if self.opt.train_G_ema:
+                net_ema = getattr(self, "net" + name + "_ema", None)
+                if net_ema is not None:
+                    ema_save_filename = "%s_net_%s_ema.pth" % (epoch, name)
+                    ema_save_path = os.path.join(self.save_dir, ema_save_filename)
+                    torch.save(self._merged_b2b_lora_state_dict(net_ema), ema_save_path)
+
+    def load_networks(self, epoch, load_dir=None):
+        if not self._should_apply_b2b_lora():
+            super().load_networks(epoch, load_dir=load_dir)
+            return
+
+        if load_dir is None:
+            load_dir = self.save_dir
+        for name in self.model_names:
+            if not isinstance(name, str):
+                continue
+
+            load_filename = "%s_net_%s.pth" % (epoch, name)
+            load_path = os.path.join(load_dir, load_filename)
+            print("loading the model from %s" % load_path)
+
+            net = self._unwrap_net(getattr(self, "net" + name))
+            state_dict = torch.load(load_path, map_location=str(self.device))
+            if hasattr(state_dict, "_metadata"):
+                del state_dict._metadata
+            if isinstance(state_dict, dict) and "_ema" in state_dict:
+                state_dict = state_dict["_ema"]
+
+            if self._checkpoint_has_b2b_lora_keys(state_dict):
+                net.load_state_dict(
+                    state_dict, strict=self.opt.model_load_no_strictness
+                )
+                continue
+
+            self._load_raw_b2b_checkpoint_into_lora(net, state_dict, name)
 
     def set_input(self, data):
         if (
