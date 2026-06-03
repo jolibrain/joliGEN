@@ -167,6 +167,56 @@ class B2BGenerator(nn.Module):
             return x
         return x * mask + y_known * (1.0 - mask)
 
+    def _restoration_model_timesteps(self, t, x, use_gt=None, ref_idx=None):
+        if x.ndim != 5:
+            return t.flatten()
+
+        B, F = x.shape[:2]
+        t_model = t
+        while t_model.ndim > 2 and t_model.shape[-1] == 1:
+            t_model = t_model.squeeze(-1)
+
+        if t_model.ndim == 1:
+            if t_model.shape[0] != B:
+                raise RuntimeError(
+                    f"Expected timestep batch dim {B}, got {tuple(t_model.shape)}"
+                )
+            t_model = t_model[:, None].expand(B, F).clone()
+        elif t_model.ndim == 2:
+            if t_model.shape == (B, 1):
+                t_model = t_model.expand(B, F).clone()
+            elif t_model.shape == (B, F):
+                t_model = t_model.clone()
+            else:
+                raise RuntimeError(
+                    f"Expected video timesteps with shape {(B, F)} or {(B, 1)}, "
+                    f"got {tuple(t_model.shape)}"
+                )
+        else:
+            raise RuntimeError(
+                "Expected restoration timesteps with 1 or 2 non-singleton dims, "
+                f"got {tuple(t.shape)}"
+            )
+
+        if use_gt is not None and ref_idx is not None:
+            use_gt = use_gt.to(device=x.device, dtype=torch.bool).reshape(-1)
+            ref_idx = ref_idx.to(device=x.device, dtype=torch.long).reshape(-1)
+            if use_gt.shape[0] != B or ref_idx.shape[0] != B:
+                raise RuntimeError(
+                    f"Expected use_gt/ref_idx batch dim {B}, got "
+                    f"{tuple(use_gt.shape)} and {tuple(ref_idx.shape)}"
+                )
+            if use_gt.any():
+                selected_ref_idx = ref_idx[use_gt]
+                if torch.any((selected_ref_idx < 0) | (selected_ref_idx >= F)):
+                    raise RuntimeError(
+                        f"ref_idx must be in [0, {F - 1}], got {selected_ref_idx}"
+                    )
+                b_idx = torch.arange(B, device=x.device)
+                t_model[b_idx[use_gt], selected_ref_idx] = 1.0
+
+        return t_model.reshape(B * F)
+
     @torch.no_grad()
     def restoration(
         self,
@@ -218,7 +268,9 @@ class B2BGenerator(nn.Module):
         for i in range(steps - 1):
             t = timesteps[i]
             t_next = timesteps[i + 1]
-            x = self._heun_step_restoration(x, t, t_next, y_cond, mask, labels, y_known)
+            x = self._heun_step_restoration(
+                x, t, t_next, y_cond, mask, labels, y_known, use_gt, ref_idx
+            )
 
             if clip_denoised:
                 x = x.clamp(-1.0, 1.0)
@@ -227,7 +279,15 @@ class B2BGenerator(nn.Module):
 
         # Last step with euler
         x = self._euler_step_restoration(
-            x, timesteps[-2], timesteps[-1], y_cond, mask, labels, y_known
+            x,
+            timesteps[-2],
+            timesteps[-1],
+            y_cond,
+            mask,
+            labels,
+            y_known,
+            use_gt,
+            ref_idx,
         )
         if clip_denoised:
             x = x.clamp(-1.0, 1.0)
@@ -240,7 +300,9 @@ class B2BGenerator(nn.Module):
         return x
 
     @torch.no_grad()
-    def _forward_sample_restoration(self, x, t, y_cond, mask, labels, y_known):
+    def _forward_sample_restoration(
+        self, x, t, y_cond, mask, labels, y_known, use_gt=None, ref_idx=None
+    ):
         """
         JIT-equivalent CFG:
           v = v_uncond + scale(t) * (v_cond - v_uncond)
@@ -255,8 +317,10 @@ class B2BGenerator(nn.Module):
         else:
             model_input = torch.cat([y_cond, x_in], dim=2)
 
+        model_t = self._restoration_model_timesteps(t, model_input, use_gt, ref_idx)
+
         # --- conditional ---
-        x_cond = self.b2b_model(model_input, t.flatten(), labels)
+        x_cond = self.b2b_model(model_input, model_t, labels)
         x_cond = self._match_prediction_channels(x_cond, x_in)
         x_cond = self._project_known_pixels(x_cond, y_known, mask)
 
@@ -277,7 +341,7 @@ class B2BGenerator(nn.Module):
         # --- unconditional ---
         num_classes = int(self.b2b_model.num_classes)
         x_uncond = self.b2b_model(
-            model_input, t.flatten(), torch.full_like(labels, num_classes)
+            model_input, model_t, torch.full_like(labels, num_classes)
         )
         x_uncond = self._match_prediction_channels(x_uncond, x_in)
         x_uncond = self._project_known_pixels(x_uncond, y_known, mask)
@@ -293,16 +357,24 @@ class B2BGenerator(nn.Module):
     #        return (x_pred - x) / (1.0 - t).clamp_min(self.t_eps)
 
     @torch.no_grad()
-    def _euler_step_restoration(self, x, t, t_next, y_cond, mask, labels, y_known):
-        v = self._forward_sample_restoration(x, t, y_cond, mask, labels, y_known)
+    def _euler_step_restoration(
+        self, x, t, t_next, y_cond, mask, labels, y_known, use_gt=None, ref_idx=None
+    ):
+        v = self._forward_sample_restoration(
+            x, t, y_cond, mask, labels, y_known, use_gt, ref_idx
+        )
         return x + (t_next - t) * v
 
     @torch.no_grad()
-    def _heun_step_restoration(self, x, t, t_next, y_cond, mask, labels, y_known):
-        v_t = self._forward_sample_restoration(x, t, y_cond, mask, labels, y_known)
+    def _heun_step_restoration(
+        self, x, t, t_next, y_cond, mask, labels, y_known, use_gt=None, ref_idx=None
+    ):
+        v_t = self._forward_sample_restoration(
+            x, t, y_cond, mask, labels, y_known, use_gt, ref_idx
+        )
         x_euler = x + (t_next - t) * v_t
         v_t_next = self._forward_sample_restoration(
-            x_euler, t_next, y_cond, mask, labels, y_known
+            x_euler, t_next, y_cond, mask, labels, y_known, use_gt, ref_idx
         )
         v = 0.5 * (v_t + v_t_next)
         return x + (t_next - t) * v
