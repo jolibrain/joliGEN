@@ -151,13 +151,17 @@ class B2BGenerator(nn.Module):
         use_gt=None,
         ref_idx=None,
         return_x_pred=False,
+        return_raw_x_pred=False,
     ):
         x_pred, z, v, t, x_target = self.b2b_forward(
             x, mask, x_cond, label, use_gt, ref_idx
         )
+        raw_x_pred = x_pred
         if mask is not None:
             x_pred = x_pred * mask + (1 - mask) * x_target
         v_pred = (x_pred - z) / (1 - t).clamp_min(self.t_eps)
+        if return_raw_x_pred:
+            return v_pred, v, x_pred, raw_x_pred
         if return_x_pred:
             return v_pred, v, x_pred
         return v_pred, v

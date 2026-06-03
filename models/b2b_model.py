@@ -180,6 +180,30 @@ class B2BModel(BaseDiffusionModel):
             help="Normalize B2B loss over masked pixels only (instead of all image pixels).",
         )
         parser.add_argument(
+            "--alg_b2b_lambda_ref_copy",
+            type=float,
+            default=0.0,
+            help=(
+                "Weight for an image-space copy loss on autoregressive B2B "
+                "reference frames before mask projection. 0 disables it."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_ref_degrade_prob",
+            type=float,
+            default=0.0,
+            help=(
+                "Probability of adding Gaussian noise to selected autoregressive "
+                "reference frames in the model input."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_ref_degrade_noise_std",
+            type=float,
+            default=0.05,
+            help="Gaussian noise std for degraded autoregressive reference frames.",
+        )
+        parser.add_argument(
             "--alg_b2b_lora",
             action="store_true",
             help=(
@@ -259,6 +283,14 @@ class B2BModel(BaseDiffusionModel):
 
         if getattr(opt, "G_vit_vid_motion_every", 0) < 0:
             raise ValueError("--G_vit_vid_motion_every must be >= 0")
+
+        if getattr(opt, "alg_b2b_lambda_ref_copy", 0.0) < 0:
+            raise ValueError("--alg_b2b_lambda_ref_copy must be >= 0")
+        ref_degrade_prob = getattr(opt, "alg_b2b_ref_degrade_prob", 0.0)
+        if not (0.0 <= ref_degrade_prob <= 1.0):
+            raise ValueError("--alg_b2b_ref_degrade_prob must be in [0, 1]")
+        if getattr(opt, "alg_b2b_ref_degrade_noise_std", 0.05) < 0:
+            raise ValueError("--alg_b2b_ref_degrade_noise_std must be >= 0")
 
         if getattr(opt, "alg_b2b_lora", False) and getattr(opt, "isTrain", False):
             if getattr(opt, "G_netG", "") not in ["vit", "vit_vid"]:
@@ -418,6 +450,8 @@ class B2BModel(BaseDiffusionModel):
         losses_G = []
         if opt.alg_b2b_perceptual_loss != [""]:
             losses_G += ["G_perceptual"]
+        if getattr(opt, "alg_b2b_lambda_ref_copy", 0.0) > 0:
+            losses_G += ["G_ref_copy"]
         self.loss_names_G += losses_G
         self.loss_names = self.loss_names_G.copy()
 
@@ -675,6 +709,9 @@ class B2BModel(BaseDiffusionModel):
 
                     # replace y_t frame by GT for selected samples
                     gt_image_mix[sel, idx[use_gt]] = self.gt_image[sel, idx[use_gt]]
+                    gt_image_mix = self._degrade_b2b_reference_frames(
+                        gt_image_mix, use_gt, idx
+                    )
                     self.y_t = gt_image_mix
 
                     # mask: keep that GT frame clean (0), diffuse the rest (1)
@@ -776,12 +813,64 @@ class B2BModel(BaseDiffusionModel):
         if self.mask is not None:
             self.mask = aug_masks[0]
 
+    def _degrade_b2b_reference_frames(self, y_t, use_gt, ref_idx):
+        prob = getattr(self.opt, "alg_b2b_ref_degrade_prob", 0.0)
+        std = getattr(self.opt, "alg_b2b_ref_degrade_noise_std", 0.05)
+        if prob <= 0.0 or std <= 0.0 or use_gt is None or ref_idx is None:
+            return y_t
+
+        degrade = use_gt & (torch.rand(use_gt.shape, device=use_gt.device) < prob)
+        if not degrade.any():
+            return y_t
+
+        y_t = y_t.clone()
+        batch_idx = torch.arange(y_t.shape[0], device=y_t.device)
+        sel = batch_idx[degrade]
+        frame_idx = ref_idx[degrade]
+        noisy_ref = y_t[sel, frame_idx] + torch.randn_like(y_t[sel, frame_idx]) * std
+        y_t[sel, frame_idx] = noisy_ref.clamp(-1.0, 1.0)
+        return y_t
+
+    def _b2b_reference_copy_loss(self, raw_x_pred, target, use_gt, ref_idx):
+        if raw_x_pred is None or use_gt is None or ref_idx is None or target.ndim != 5:
+            return torch.zeros(size=(), device=target.device)
+
+        use_gt = use_gt.to(device=target.device, dtype=torch.bool).reshape(-1)
+        ref_idx = ref_idx.to(device=target.device, dtype=torch.long).reshape(-1)
+        if not use_gt.any():
+            return torch.zeros(size=(), device=target.device)
+        batch_idx = torch.arange(target.shape[0], device=target.device)
+        sel = batch_idx[use_gt]
+        if sel.numel() == 0:
+            return torch.zeros(size=(), device=target.device)
+
+        pred_ref = raw_x_pred[sel, ref_idx[use_gt]]
+        target_ref = target[sel, ref_idx[use_gt]]
+        if self.opt.alg_b2b_loss in ["MSE", "multiscale_MSE"]:
+            return F.mse_loss(pred_ref, target_ref)
+        if self.opt.alg_b2b_loss in ["L1", "multiscale_L1"]:
+            return F.l1_loss(pred_ref, target_ref)
+        if self.opt.alg_b2b_loss == "pseudo_huber":
+            return self._pseudo_huber_loss(pred_ref, target_ref)
+        raise NotImplementedError(
+            f"Unsupported alg_b2b_loss for reference copy loss: {self.opt.alg_b2b_loss}"
+        )
+
     def compute_b2b_loss(self):
         y_0 = self.gt_image
         y_cond = self.cond_image
         mask = self.mask
         B = y_0.shape[0]
         use_perceptual = self.opt.alg_b2b_perceptual_loss != [""]
+        ref_copy_use_gt = getattr(self, "use_gt", None)
+        ref_copy_idx = getattr(self, "ref_idx", None)
+        use_ref_copy = (
+            getattr(self.opt, "alg_b2b_lambda_ref_copy", 0.0) > 0
+            and y_0.ndim == 5
+            and ref_copy_use_gt is not None
+            and ref_copy_idx is not None
+            and bool(ref_copy_use_gt.any().item())
+        )
 
         if self.num_classes > 0:
             labels = self.label_cls
@@ -795,9 +884,13 @@ class B2BModel(BaseDiffusionModel):
             label=labels,
             use_gt=getattr(self, "use_gt", None),
             ref_idx=getattr(self, "ref_idx", None),
-            return_x_pred=use_perceptual,
+            return_x_pred=use_perceptual or use_ref_copy,
+            return_raw_x_pred=use_ref_copy,
         )
-        if use_perceptual:
+        raw_x_pred = None
+        if use_ref_copy:
+            v_pred, v, x_pred, raw_x_pred = net_out
+        elif use_perceptual:
             v_pred, v, x_pred = net_out
         else:
             v_pred, v = net_out
@@ -844,6 +937,7 @@ class B2BModel(BaseDiffusionModel):
         self.loss_G_perceptual_lpips = torch.zeros(size=(), device=y_0.device)
         self.loss_G_perceptual_dists = torch.zeros(size=(), device=y_0.device)
         self.loss_G_perceptual = torch.zeros(size=(), device=y_0.device)
+        self.loss_G_ref_copy = torch.zeros(size=(), device=y_0.device)
 
         if use_perceptual and x_pred is not None:
             if mask is not None:
@@ -864,6 +958,16 @@ class B2BModel(BaseDiffusionModel):
                 self.loss_G_perceptual_lpips + self.loss_G_perceptual_dists
             )
             self.loss_G_tot += self.loss_G_perceptual
+
+        if use_ref_copy:
+            ref_copy_loss = self._b2b_reference_copy_loss(
+                raw_x_pred,
+                y_0,
+                ref_copy_use_gt,
+                ref_copy_idx,
+            )
+            self.loss_G_ref_copy = self.opt.alg_b2b_lambda_ref_copy * ref_copy_loss
+            self.loss_G_tot += self.loss_G_ref_copy
 
     def _masked_region_loss(self, pred, target, mask, eps=1e-8):
         if self.opt.alg_b2b_loss in ["MSE", "multiscale_MSE"]:
