@@ -21,6 +21,15 @@ from options.train_options import TrainOptions
 
 LOGGER = logging.getLogger("gen_multi_dataset_b2b_config")
 RESUME_SCHEMA_VERSION = 1
+VIDEO_CHILD_DATASET_MODE = "self_supervised_vid_mask_online"
+NON_VIDEO_CHILD_DATASET_MODES = {
+    "self_supervised_labeled_mask_online",
+    "self_supervised_labeled_mask_cls_online",
+}
+SUPPORTED_CHILD_DATASET_MODES = {
+    VIDEO_CHILD_DATASET_MODE,
+    *NON_VIDEO_CHILD_DATASET_MODES,
+}
 
 
 try:
@@ -38,6 +47,23 @@ def iter_progress(iterable, **kwargs):
 def setup_logging(verbose=False):
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=level, format="%(levelname)s: %(message)s")
+
+
+def is_video_child_dataset_mode(dataset_mode):
+    return dataset_mode == VIDEO_CHILD_DATASET_MODE
+
+
+def child_dataset_mode(args):
+    return getattr(args, "child_dataset_mode", VIDEO_CHILD_DATASET_MODE)
+
+
+def train_netG(args):
+    explicit_netG = getattr(args, "G_netG", None)
+    if explicit_netG:
+        return explicit_netG
+    if is_video_child_dataset_mode(child_dataset_mode(args)):
+        return "vit_vid"
+    return "vit"
 
 
 def sanitize_id(value):
@@ -303,7 +329,7 @@ def build_dataset_entry(dataroot, args):
 
     entry = {
         "name": name,
-        "dataset_mode": "self_supervised_vid_mask_online",
+        "dataset_mode": child_dataset_mode(args),
         "dataroot": str(dataroot),
         "weight": args.weight,
         "overrides": {
@@ -385,6 +411,7 @@ def dataset_resume_fingerprint(dataroot, name, args):
             "train_paths": path_metadata(paths_file),
             "test_paths": existing_test_paths_metadata(dataroot),
             "entry_args": {
+                "child_dataset_mode": child_dataset_mode(args),
                 "coverage": args.coverage,
                 "step": args.step,
                 "size": args.size,
@@ -484,6 +511,24 @@ def sample_holdout_windows_preserving_train(windows, entry_name, args):
     return sampled_windows, sorted(holdout_indices)
 
 
+def sample_holdout_rows_preserving_train(lines, entry_name, args):
+    name_seed = sum(ord(char) for char in entry_name)
+    rng = random.Random(args.auto_test_seed + name_seed)
+    sample_count = min(args.auto_test_samples, len(lines))
+    if sample_count <= 0:
+        raise ValueError(f"dataset '{entry_name}' has no rows to sample")
+    if sample_count >= len(lines):
+        if len(lines) == 1:
+            raise ValueError(
+                f"dataset '{entry_name}' automatic holdout would leave no train samples"
+            )
+        sample_count = len(lines) - 1
+
+    indices = list(range(len(lines)))
+    rng.shuffle(indices)
+    return sorted(indices[:sample_count])
+
+
 def generate_holdout_test_set(entry, output_dir, args):
     dataroot = Path(entry["dataroot"])
     LOGGER.info("Generating holdout test set for '%s'", entry["name"])
@@ -492,29 +537,40 @@ def generate_holdout_test_set(entry, output_dir, args):
         raise ValueError(f"missing train paths file: {train_paths_file}")
 
     lines = read_paths_file(train_paths_file)
-    num_common_char = entry.get("overrides", {}).get(
-        "data_temporal_num_common_char", -1
-    )
-    windows = valid_temporal_windows(
-        lines,
-        args.data_temporal_number_frames,
-        args.data_temporal_frame_step,
-        num_common_char,
-    )
-    if not windows:
-        raise ValueError(
-            f"dataset '{entry['name']}' has no valid temporal windows to sample"
+    if is_video_child_dataset_mode(entry["dataset_mode"]):
+        num_common_char = entry.get("overrides", {}).get(
+            "data_temporal_num_common_char", -1
         )
+        windows = valid_temporal_windows(
+            lines,
+            args.data_temporal_number_frames,
+            args.data_temporal_frame_step,
+            num_common_char,
+        )
+        if not windows:
+            raise ValueError(
+                f"dataset '{entry['name']}' has no valid temporal windows to sample"
+            )
 
-    sampled_windows, holdout_indices = sample_holdout_windows_preserving_train(
-        windows, entry["name"], args
-    )
-    LOGGER.info(
-        "Sampled %d temporal windows (%d frame rows) for '%s'",
-        len(sampled_windows),
-        len(holdout_indices),
-        entry["name"],
-    )
+        sampled_windows, holdout_indices = sample_holdout_windows_preserving_train(
+            windows, entry["name"], args
+        )
+        LOGGER.info(
+            "Sampled %d temporal windows (%d frame rows) for '%s'",
+            len(sampled_windows),
+            len(holdout_indices),
+            entry["name"],
+        )
+    else:
+        num_common_char = -1
+        holdout_indices = sample_holdout_rows_preserving_train(
+            lines, entry["name"], args
+        )
+        LOGGER.info(
+            "Sampled %d image rows for '%s'",
+            len(holdout_indices),
+            entry["name"],
+        )
 
     train_indices = [
         index for index in range(len(lines)) if index not in holdout_indices
@@ -524,7 +580,9 @@ def generate_holdout_test_set(entry, output_dir, args):
             f"dataset '{entry['name']}' automatic holdout would leave no train samples"
         )
     train_lines = [lines[index] for index in train_indices]
-    if not valid_temporal_windows(
+    if is_video_child_dataset_mode(
+        entry["dataset_mode"]
+    ) and not valid_temporal_windows(
         train_lines,
         args.data_temporal_number_frames,
         args.data_temporal_frame_step,
@@ -638,6 +696,10 @@ def has_valid_temporal_paths(paths_file, args, num_common_char=-1):
     )
 
 
+def has_valid_image_paths(paths_file):
+    return Path(paths_file).is_file() and bool(read_paths_file(paths_file))
+
+
 def validate_cached_dataset_artifacts(cache, args):
     entry = cache.get("entry")
     test_sets = cache.get("test_sets")
@@ -651,14 +713,23 @@ def validate_cached_dataset_artifacts(cache, args):
     num_common_char = entry.get("overrides", {}).get(
         "data_temporal_num_common_char", -1
     )
+    is_video_mode = is_video_child_dataset_mode(entry.get("dataset_mode", ""))
     for test_set in test_sets:
         paths_file = Path(test_set.get("dataroot", "")) / "testA" / "paths.txt"
         if test_set.get("generated"):
             train_paths_file = Path(entry.get("dataroot", "")) / "trainA" / "paths.txt"
-            if not has_valid_temporal_paths(train_paths_file, args, num_common_char):
-                return False
-            if not has_valid_temporal_paths(paths_file, args, num_common_char):
-                return False
+            if is_video_mode:
+                if not has_valid_temporal_paths(
+                    train_paths_file, args, num_common_char
+                ):
+                    return False
+                if not has_valid_temporal_paths(paths_file, args, num_common_char):
+                    return False
+            else:
+                if not has_valid_image_paths(train_paths_file):
+                    return False
+                if not has_valid_image_paths(paths_file):
+                    return False
         else:
             child_test_name = test_set.get("child_test_name", "")
             paths_file = (
@@ -810,6 +881,10 @@ def build_multi_dataset_config(dataset_roots, output_dir=None, args=None):
 
 
 def build_train_config(args, multi_dataset_config_path):
+    netG = train_netG(args)
+    emit_temporal_options = (
+        is_video_child_dataset_mode(child_dataset_mode(args)) or netG == "vit_vid"
+    )
     train_config = {
         "name": args.name,
         "model_type": "b2b",
@@ -821,7 +896,7 @@ def build_train_config(args, multi_dataset_config_path):
         "data_multi_dataset_config": str(multi_dataset_config_path),
         "dataroot": args.reference_dataroot,
         "data_relative_paths": True,
-        "G_netG": "vit_vid",
+        "G_netG": netG,
         "G_vit_variant": "JiT-B/16",
         "G_vit_num_classes": (
             int(args.multi_dataset_num_datasets)
@@ -840,8 +915,6 @@ def build_train_config(args, multi_dataset_config_path):
             if args.reference_frame_size is not None and args.keep_ratio_load_size
             else {}
         ),
-        "data_temporal_number_frames": args.data_temporal_number_frames,
-        "data_temporal_frame_step": args.data_temporal_frame_step,
         "data_online_creation_rand_mask_A": True,
         "data_num_threads": args.data_num_threads,
         "dataaug_flip": "both",
@@ -880,11 +953,17 @@ def build_train_config(args, multi_dataset_config_path):
         "alg_b2b_autoregressive": True,
         "alg_b2b_use_gt_prob": 0.1,
     }
+    if emit_temporal_options:
+        train_config["data_temporal_number_frames"] = args.data_temporal_number_frames
+        train_config["data_temporal_frame_step"] = args.data_temporal_frame_step
     if args.base_train_config:
         with open(args.base_train_config, "r") as config_file:
             base_config = json.load(config_file)
         base_config.update(train_config)
         train_config = base_config
+    if not emit_temporal_options:
+        train_config.pop("data_temporal_number_frames", None)
+        train_config.pop("data_temporal_frame_step", None)
     fixed_mask_size_A = getattr(args, "data_online_creation_mask_fixed_size_A", -1)
     if fixed_mask_size_A > 0:
         train_config["data_online_creation_mask_fixed_size_A"] = fixed_mask_size_A
@@ -1161,6 +1240,21 @@ def parse_args():
     )
     parser.add_argument("--data-load-size", type=int, default=256)
     parser.add_argument("--data-crop-size", type=int, default=256)
+    parser.add_argument(
+        "--child-dataset-mode",
+        choices=sorted(SUPPORTED_CHILD_DATASET_MODES),
+        default=VIDEO_CHILD_DATASET_MODE,
+        help="dataset mode used for every generated multi_dataset child entry",
+    )
+    parser.add_argument(
+        "--G-netG",
+        choices=["vit_vid", "vit"],
+        default=None,
+        help=(
+            "network type for train_config.json; defaults to vit_vid for video "
+            "children and vit for non-video children"
+        ),
+    )
     parser.add_argument(
         "--reference-frame-size",
         nargs=2,
