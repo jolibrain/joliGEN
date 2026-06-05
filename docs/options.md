@@ -93,6 +93,11 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_dists_mean | array | [0.485, 0.456, 0.406] | Mean normalization for DISTS |
 | --alg_b2b_dists_std | array | [0.229, 0.224, 0.225] | Std normalization for DISTS |
 | --alg_b2b_lambda_perceptual | float | 1.0 | Weight for perceptual loss |
+| --alg_b2b_lora | flag |  | Train B2B JiT/JiTViD with PEFT LoRA adapters while saving merged full checkpoints. |
+| --alg_b2b_lora_alpha | int | 16 | LoRA alpha scaling for B2B JiT/JiTViD finetuning. |
+| --alg_b2b_lora_dropout | float | 0.05 | LoRA dropout for B2B JiT/JiTViD finetuning. |
+| --alg_b2b_lora_rank | int | 8 | LoRA rank for B2B JiT/JiTViD finetuning. |
+| --alg_b2b_lora_target_modules | array | ['attn.qkv', 'attn.proj', 'mlp.w12', 'mlp.w3'] | Module suffixes targeted by B2B LoRA. Defaults to attention and MLP projections in JiT/JiTViD blocks. |
 | --alg_b2b_loss | string | MSE | Loss type for B2B denoising<br/><br/> **Values:** L1, MSE, pseudo_huber, multiscale_L1, multiscale_MSE |
 | --alg_b2b_loss_masked_region_only | flag |  | Normalize B2B loss over masked pixels only (instead of all image pixels). |
 | --alg_b2b_mask_as_channel | flag |  | Concatenate the inpainting mask as an additional input channel in B2B. |
