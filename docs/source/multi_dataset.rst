@@ -78,6 +78,12 @@ The multi-dataset config contains one entry per child dataset:
 The ``weight`` controls the expected training composition. It is not an
 exact per-epoch quota.
 
+``dataset_mode`` may be ``self_supervised_vid_mask_online`` for temporal
+children, or ``self_supervised_labeled_mask_online`` /
+``self_supervised_labeled_mask_cls_online`` for image-only children. All
+children in one multi-dataset config must return compatible sample keys
+and tensor shapes.
+
 The supported per-child overrides are deliberately narrow:
 
 - ``dataroot``;
@@ -142,8 +148,8 @@ The generator writes:
 
 - ``multi_dataset_config.json``;
 - ``train_config.json`` configured with
-  ``data_dataset_mode: "multi_dataset"`` and the default B2B video
-  options used by the LV ring workflow, including ``vit_vid``,
+  ``data_dataset_mode: "multi_dataset"`` and the default B2B
+  options used by the LV ring workflow, including
   ``JiT-B/16``, Muon, AMP/TF32, compile, autoregressive B2B, masked
   pseudo-Huber loss, LPIPS/DISTS perceptual loss, and PSNR/FID test
   metrics;
@@ -154,6 +160,13 @@ The generated training config intentionally does not set
 ``data_online_creation_crop_size_A`` or
 ``data_online_creation_crop_delta_A`` globally. Those values are derived
 per child dataset and written into ``multi_dataset_config.json``.
+
+By default the generator emits video children with
+``self_supervised_vid_mask_online`` and infers ``G_netG: "vit_vid"``.
+Use ``--child-dataset-mode self_supervised_labeled_mask_online`` for
+image-only B2B children; in that case the generated training config
+infers ``G_netG: "vit"`` and omits temporal frame options. ``--G-netG``
+can be used to override the inferred network type.
 
 Long generator runs can be resumed with ``--resume``. Resume mode reuses
 completed per-dataset cache entries from ``<output-dir>/resume`` when the

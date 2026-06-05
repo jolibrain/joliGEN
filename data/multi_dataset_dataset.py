@@ -11,7 +11,11 @@ try:
 except Exception:
     _tqdm = None
 
-ALLOWED_CHILD_DATASET_MODES = {"self_supervised_vid_mask_online"}
+ALLOWED_CHILD_DATASET_MODES = {
+    "self_supervised_vid_mask_online",
+    "self_supervised_labeled_mask_online",
+    "self_supervised_labeled_mask_cls_online",
+}
 
 ALLOWED_CHILD_OVERRIDES = {
     "dataroot",

@@ -128,6 +128,8 @@ def make_generator_args(**kwargs):
         "ignore_categories": ["2"],
         "data_load_size": 256,
         "data_crop_size": 256,
+        "child_dataset_mode": "self_supervised_vid_mask_online",
+        "G_netG": None,
         "data_temporal_number_frames": 2,
         "data_temporal_frame_step": 1,
         "data_num_threads": 8,
@@ -215,6 +217,34 @@ def test_multi_dataset_parses_config_and_applies_child_overrides(tmp_path, monke
     assert FakeChildDataset.instances[0].opt.data_temporal_num_common_char == 7
     assert FakeChildDataset.instances[1].opt.dataroot == "/data/b"
     assert FakeChildDataset.instances[1].opt.data_online_creation_crop_delta_A == 2
+
+
+@pytest.mark.parametrize(
+    "child_mode",
+    [
+        "self_supervised_labeled_mask_online",
+        "self_supervised_labeled_mask_cls_online",
+    ],
+)
+def test_multi_dataset_accepts_non_video_child_modes(tmp_path, monkeypatch, child_mode):
+    FakeChildDataset.instances = []
+    monkeypatch.setattr(
+        data_module, "find_dataset_using_name", lambda _: FakeChildDataset
+    )
+    config_path = write_config(
+        tmp_path,
+        [
+            {
+                "name": "a",
+                "dataset_mode": child_mode,
+                "dataroot": "/data/a",
+            }
+        ],
+    )
+
+    MultiDatasetDataset(make_opt(config_path, G_netG="vit"), "train")
+
+    assert FakeChildDataset.instances[0].opt.data_dataset_mode == child_mode
 
 
 def test_multi_dataset_scales_child_crop_delta_overrides(tmp_path, monkeypatch):
@@ -568,6 +598,20 @@ def test_multi_dataset_generator_writes_derived_config_shape(tmp_path):
     }
 
 
+def test_multi_dataset_generator_can_write_non_video_child_mode(tmp_path):
+    dataroot = write_bbox_dataset(tmp_path / "dataset")
+    args = make_generator_args(
+        size=320,
+        child_dataset_mode="self_supervised_labeled_mask_online",
+    )
+
+    config = build_multi_dataset_config([dataroot], args=args)
+
+    assert (
+        config["datasets"][0]["dataset_mode"] == "self_supervised_labeled_mask_online"
+    )
+
+
 def test_multi_dataset_generator_can_configure_crop_delta_ratio(tmp_path):
     dataroot = write_bbox_dataset(tmp_path / "dataset")
     args = make_generator_args(size=320, crop_delta_ratio=0.25)
@@ -633,6 +677,61 @@ def test_multi_dataset_generator_train_config_matches_b2b_defaults(tmp_path):
     assert train_config["alg_b2b_perceptual_loss"] == ["LPIPS", "DISTS"]
     assert "data_online_creation_crop_size_A" not in train_config
     assert "data_online_creation_crop_delta_A" not in train_config
+    assert train_config["data_temporal_number_frames"] == 2
+    assert train_config["data_temporal_frame_step"] == 1
+
+
+def test_multi_dataset_generator_train_config_infers_image_model_for_non_video(
+    tmp_path,
+):
+    config_path = tmp_path / "multi_dataset_config.json"
+    args = make_generator_args(
+        child_dataset_mode="self_supervised_labeled_mask_online",
+    )
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["G_netG"] == "vit"
+    assert "data_temporal_number_frames" not in train_config
+    assert "data_temporal_frame_step" not in train_config
+
+
+def test_multi_dataset_generator_train_config_can_override_inferred_netG(tmp_path):
+    config_path = tmp_path / "multi_dataset_config.json"
+    args = make_generator_args(
+        child_dataset_mode="self_supervised_labeled_mask_online",
+        G_netG="vit_vid",
+    )
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["G_netG"] == "vit_vid"
+    assert train_config["data_temporal_number_frames"] == 2
+    assert train_config["data_temporal_frame_step"] == 1
+
+
+def test_multi_dataset_generator_non_video_removes_base_temporal_keys(tmp_path):
+    config_path = tmp_path / "multi_dataset_config.json"
+    base_config_path = tmp_path / "base_config.json"
+    base_config_path.write_text(
+        json.dumps(
+            {
+                "G_netG": "vit_vid",
+                "data_temporal_number_frames": 5,
+                "data_temporal_frame_step": 30,
+            }
+        )
+    )
+    args = make_generator_args(
+        base_train_config=str(base_config_path),
+        child_dataset_mode="self_supervised_labeled_mask_online",
+    )
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["G_netG"] == "vit"
+    assert "data_temporal_number_frames" not in train_config
+    assert "data_temporal_frame_step" not in train_config
 
 
 def test_multi_dataset_generator_train_config_can_enable_dataset_conditioning(tmp_path):
@@ -866,6 +965,44 @@ def test_multi_dataset_generator_creates_true_holdout(tmp_path):
     ]
     assert train_lines
     assert test_lines
+    assert set(train_lines).isdisjoint(set(test_lines))
+    assert all(line.startswith(str(dataroot)) for line in train_lines + test_lines)
+
+
+def test_multi_dataset_generator_creates_non_video_holdout_by_row(tmp_path):
+    dataroot = tmp_path / "dataset"
+    (dataroot / "trainA").mkdir(parents=True)
+    lines = [
+        f"imgs/image_{index:03d}.png masks/image_{index:03d}.png" for index in range(4)
+    ]
+    (dataroot / "trainA" / "paths.txt").write_text("\n".join(lines) + "\n")
+
+    args = SimpleNamespace(
+        auto_test_samples=2,
+        auto_test_seed=7,
+        auto_test_min_images=0,
+        no_auto_test_holdout=False,
+    )
+    config = {
+        "datasets": [
+            {
+                "name": "dataset",
+                "dataset_mode": "self_supervised_labeled_mask_online",
+                "dataroot": str(dataroot),
+                "weight": 1.0,
+                "overrides": {},
+            }
+        ]
+    }
+
+    add_test_sets(config, tmp_path / "out", args)
+
+    generated_root = tmp_path / "out" / "generated_test_sets" / "dataset"
+    train_lines = (generated_root / "trainA" / "paths.txt").read_text().splitlines()
+    test_lines = (generated_root / "testA" / "paths.txt").read_text().splitlines()
+
+    assert len(train_lines) == 2
+    assert len(test_lines) == 2
     assert set(train_lines).isdisjoint(set(test_lines))
     assert all(line.startswith(str(dataroot)) for line in train_lines + test_lines)
 
