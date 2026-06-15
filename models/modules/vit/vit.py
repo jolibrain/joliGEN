@@ -280,6 +280,7 @@ class JiT(nn.Module):
         in_context_start=8,
         num_register_tokens=0,
         cond_embed_dim=None,
+        mask_size_conditioning=False,
     ):
         super().__init__()
         if num_register_tokens < 0:
@@ -294,9 +295,19 @@ class JiT(nn.Module):
         self.in_context_start = in_context_start
         self.num_register_tokens = num_register_tokens
         self.num_classes = num_classes
+        self.mask_size_conditioning = mask_size_conditioning
         # time and class embed
         self.t_embedder = TimestepEmbedder(hidden_size)
         self.y_embedder = LabelEmbedder(num_classes, hidden_size)
+        self.mask_size_embedder = (
+            nn.Sequential(
+                nn.Linear(6, hidden_size),
+                nn.SiLU(),
+                nn.Linear(hidden_size, hidden_size),
+            )
+            if mask_size_conditioning
+            else None
+        )
         ################### check
         # linear embed
         self.x_embedder = BottleneckPatchEmbed(
@@ -384,6 +395,10 @@ class JiT(nn.Module):
         nn.init.normal_(self.t_embedder.mlp[0].weight, std=0.02)
         nn.init.normal_(self.t_embedder.mlp[2].weight, std=0.02)
 
+        if self.mask_size_embedder is not None:
+            nn.init.constant_(self.mask_size_embedder[-1].weight, 0)
+            nn.init.constant_(self.mask_size_embedder[-1].bias, 0)
+
         # Zero-out adaLN modulation layers:
         for block in self.blocks:
             nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
@@ -410,7 +425,22 @@ class JiT(nn.Module):
         imgs = x.reshape(shape=(x.shape[0], c, h * p, h * p))
         return imgs
 
-    def forward(self, x, t, y):
+    def _mask_size_embedding(self, x, c, mask_size_cond):
+        if self.mask_size_embedder is None:
+            return c
+        if mask_size_cond is None:
+            mask_size_cond = torch.zeros(
+                x.shape[0], 6, device=c.device, dtype=c.dtype
+            )
+        if mask_size_cond.shape != (x.shape[0], 6):
+            raise RuntimeError(
+                f"Expected mask_size_cond shape {(x.shape[0], 6)}, "
+                f"got {tuple(mask_size_cond.shape)}"
+            )
+        mask_size_cond = mask_size_cond.to(device=c.device, dtype=c.dtype)
+        return c + self.mask_size_embedder(mask_size_cond)
+
+    def forward(self, x, t, y, mask_size_cond=None):
         """
         x: (N, C, H, W)
         t: (N,)
@@ -421,6 +451,7 @@ class JiT(nn.Module):
         t_emb = self.t_embedder(t)
         y_emb = self.y_embedder(y)
         c = t_emb + y_emb
+        c = self._mask_size_embedding(x, c, mask_size_cond)
 
         # forward JiT
         x = self.x_embedder(x)

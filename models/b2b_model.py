@@ -59,6 +59,14 @@ class B2BModel(BaseDiffusionModel):
             help="Concatenate the inpainting mask as an additional input channel in B2B.",
         )
         parser.add_argument(
+            "--alg_b2b_mask_size_conditioning",
+            action="store_true",
+            help=(
+                "Condition JiT/JiTViD B2B denoisers on normalized mask bbox "
+                "geometry (center, size, area, aspect)."
+            ),
+        )
+        parser.add_argument(
             "--alg_b2b_multi_dataset_class_conditioning",
             action="store_true",
             help=(
@@ -279,6 +287,14 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError(
                 "--alg_b2b_multi_dataset_class_conditioning requires "
                 "--data_dataset_mode multi_dataset"
+            )
+
+        if (
+            getattr(opt, "alg_b2b_mask_size_conditioning", False)
+            and getattr(opt, "G_netG", "") not in ["vit", "vit_vid"]
+        ):
+            raise ValueError(
+                "--alg_b2b_mask_size_conditioning is only supported with vit/vit_vid B2B"
             )
 
         if getattr(opt, "G_vit_vid_motion_every", 0) < 0:

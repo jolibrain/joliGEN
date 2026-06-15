@@ -35,9 +35,10 @@ def resolve_train_config(model_in_file, train_config):
 class PthDenoiserSession:
     """Small ONNX Runtime-compatible adapter around a JoliGEN B2B .pth model."""
 
-    def __init__(self, model, device):
+    def __init__(self, model, device, mask_size_conditioning=False):
         self.model = model.b2b_model
         self.device = device
+        self.mask_size_conditioning = mask_size_conditioning
         self.model.eval()
 
     @torch.no_grad()
@@ -53,7 +54,20 @@ class PthDenoiserSession:
         )
         labels = torch.from_numpy(inputs["labels"]).to(self.device, dtype=torch.long)
 
-        output = self.model(model_input, timesteps.flatten(), labels)
+        if self.mask_size_conditioning:
+            if "mask_size_cond" not in inputs:
+                raise ValueError("mask_size_cond input is required by this checkpoint")
+            mask_size_cond = torch.from_numpy(inputs["mask_size_cond"]).to(
+                self.device, dtype=torch.float32
+            )
+            output = self.model(
+                model_input,
+                timesteps.flatten(),
+                labels,
+                mask_size_cond,
+            )
+        else:
+            output = self.model(model_input, timesteps.flatten(), labels)
         return [output.detach().cpu().numpy()]
 
 
@@ -65,7 +79,17 @@ def load_pth_session(model_in_file, train_config, device, use_ema):
     opt = load_train_options(train_config_path, device)
     weights_path = resolve_weights_path(model_in_file, use_ema)
     model = build_model(opt, weights_path, device)
-    return PthDenoiserSession(model, device), weights_path, train_config_path
+    return (
+        PthDenoiserSession(
+            model,
+            device,
+            mask_size_conditioning=bool(
+                getattr(opt, "alg_b2b_mask_size_conditioning", False)
+            ),
+        ),
+        weights_path,
+        train_config_path,
+    )
 
 
 def parse_args():
