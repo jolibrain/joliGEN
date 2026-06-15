@@ -944,6 +944,7 @@ def build_train_config(args, multi_dataset_config_path):
             args.alg_b2b_multi_dataset_class_conditioning
         ),
         "alg_b2b_denoise_timesteps": [2, 5, 20],
+        "alg_b2b_timestep_uniform_mix_prob": 0.1,
         "alg_b2b_cfg_scale": 1.0,
         "alg_b2b_disable_inference_clipping": True,
         "alg_b2b_perceptual_loss": ["LPIPS", "DISTS"],
