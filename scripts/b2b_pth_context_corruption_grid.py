@@ -318,8 +318,10 @@ def tensor_to_hwc_float(tensor):
 
 def hwc_float_to_tensor(arr, reference):
     chw = np.transpose(arr.astype(np.float32), (2, 0, 1))
-    return torch.from_numpy(chw).unsqueeze(0).to(
-        dtype=reference.dtype, device=reference.device
+    return (
+        torch.from_numpy(chw)
+        .unsqueeze(0)
+        .to(dtype=reference.dtype, device=reference.device)
     )
 
 
@@ -437,7 +439,9 @@ def load_two_frames(args, train_json):
     return frames, dataset_root
 
 
-def infer_second_generated_crop(session, frames, label, seed, train_json, denoise_steps):
+def infer_second_generated_crop(
+    session, frames, label, seed, train_json, denoise_steps
+):
     rng = np.random.default_rng(seed)
     _, crop_h, _, _, _ = onnx_runner.get_train_shape(train_json)
     params = onnx_runner.get_b2b_params(train_json, crop_h)
@@ -485,9 +489,7 @@ def infer_second_generated_crop(session, frames, label, seed, train_json, denois
 
 
 def draw_label(tile, label, label_height):
-    out = np.full(
-        (tile.shape[0] + label_height, tile.shape[1], 3), 255, dtype=np.uint8
-    )
+    out = np.full((tile.shape[0] + label_height, tile.shape[1], 3), 255, dtype=np.uint8)
     out[label_height:] = tile
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.45
@@ -645,7 +647,9 @@ def run_variant_grid(
     cv2.imwrite(grid_path, make_grid(tiles, labels, args.grid_cols, args.label_height))
     mask_grid_path = None
     if save_mask_tiles:
-        mask_grid_path = os.path.join(args.output_dir, "mask_perturbation_masks_grid.png")
+        mask_grid_path = os.path.join(
+            args.output_dir, "mask_perturbation_masks_grid.png"
+        )
         cv2.imwrite(
             mask_grid_path,
             make_grid(mask_tiles, labels, args.grid_cols, args.label_height),
@@ -763,9 +767,7 @@ def main():
     session, weights_path, train_config_path = pth_runner.load_pth_session(
         args.model_in_file, args.train_config, device, args.use_ema
     )
-    train_json, _ = onnx_runner.load_train_config(
-        args.model_in_file, train_config_path
-    )
+    train_json, _ = onnx_runner.load_train_config(args.model_in_file, train_config_path)
     if train_json.get("alg", {}).get("diffusion_cond_image_creation", "y_t") != "y_t":
         raise NotImplementedError(
             "This runner currently supports only alg.diffusion_cond_image_creation = 'y_t'."
@@ -836,7 +838,9 @@ def main():
             mask_variants = mask_variants[: args.max_variants]
 
         def transform_mask(variant, rng):
-            return [apply_mask_variant_to_frame(frame, variant, rng) for frame in frames]
+            return [
+                apply_mask_variant_to_frame(frame, variant, rng) for frame in frames
+            ]
 
         mask_result = run_variant_grid(
             session=session,

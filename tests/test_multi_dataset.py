@@ -150,6 +150,7 @@ def make_generator_args(**kwargs):
         "no_auto_test_holdout": False,
         "reference_frame_size": None,
         "keep_ratio_load_size": False,
+        "data_online_creation_mask_broaden_rect_aug_A": False,
         "datasets_root": "",
         "resume": False,
     }

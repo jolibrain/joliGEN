@@ -80,7 +80,7 @@ def _broaden_rect_bbox(xmin, ymin, xmax, ymax, img_width, img_height):
         new_xmax = xmax + random.uniform(0.0, max_side_expand) * width
         new_ymin = ymin - random.uniform(0.0, max_side_expand) * height
         new_ymax = ymax + random.uniform(0.0, max_side_expand) * height
-    elif roll < 0.75:
+    elif roll < 0.80:
         mode = "area_expand"
         scale = math.sqrt(random.uniform(1.0, 4.0))
         new_width = width * scale
@@ -89,7 +89,7 @@ def _broaden_rect_bbox(xmin, ymin, xmax, ymax, img_width, img_height):
         new_xmax = cx + new_width / 2.0
         new_ymin = cy - new_height / 2.0
         new_ymax = cy + new_height / 2.0
-    elif roll < 0.90:
+    else:
         mode = "aspect_expand"
         target_aspect = random.uniform(0.35, 2.85)
         current_aspect = width / float(height)
@@ -103,18 +103,6 @@ def _broaden_rect_bbox(xmin, ymin, xmax, ymax, img_width, img_height):
         new_xmax = cx + new_width / 2.0
         new_ymin = cy - new_height / 2.0
         new_ymax = cy + new_height / 2.0
-    else:
-        mode = "edge_clip"
-        new_xmin, new_ymin, new_xmax, new_ymax = xmin, ymin, xmax, ymax
-        side = random.choice(["left", "right", "top", "bottom"])
-        if side == "left":
-            new_xmin = 0
-        elif side == "right":
-            new_xmax = img_width
-        elif side == "top":
-            new_ymin = 0
-        else:
-            new_ymax = img_height
 
     new_xmin, new_ymin, new_xmax, new_ymax = _fit_rect_to_image(
         new_xmin, new_ymin, new_xmax, new_ymax, img_width, img_height

@@ -164,9 +164,7 @@ def main():
     session, weights_path, train_config_path = load_pth_session(
         args.model_in_file, args.train_config, device, args.use_ema
     )
-    train_json, _ = onnx_runner.load_train_config(
-        args.model_in_file, train_config_path
-    )
+    train_json, _ = onnx_runner.load_train_config(args.model_in_file, train_config_path)
 
     train_frames, train_height, train_width, _, _ = onnx_runner.get_train_shape(
         train_json
@@ -189,9 +187,7 @@ def main():
     else:
         pairs = pairs[args.start_index :]
 
-    denoise_steps = onnx_runner.resolve_denoise_steps(
-        train_json, args.denoise_steps
-    )
+    denoise_steps = onnx_runner.resolve_denoise_steps(train_json, args.denoise_steps)
     frames_written = onnx_runner.run_sequence(
         session=session,
         pairs=pairs,

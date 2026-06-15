@@ -176,9 +176,7 @@ def get_b2b_params(train_json, image_size):
         "t_eps": float(alg.get("b2b_t_eps", 5e-2)),
         "cond_mode": alg.get("diffusion_cond_image_creation", "y_t"),
         "mask_as_channel": bool(alg.get("b2b_mask_as_channel", False)),
-        "mask_size_conditioning": bool(
-            alg.get("b2b_mask_size_conditioning", False)
-        ),
+        "mask_size_conditioning": bool(alg.get("b2b_mask_size_conditioning", False)),
     }
     requested_noise_scale = float(alg.get("b2b_noise_scale", -1.0))
     if requested_noise_scale > 0:
