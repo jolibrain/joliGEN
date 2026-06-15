@@ -971,7 +971,7 @@ def build_train_config(args, multi_dataset_config_path):
         train_config["data_online_creation_mask_min_unmasked_border_A"] = (
             args.data_online_creation_mask_min_unmasked_border_A
         )
-    if args.data_online_creation_mask_broaden_rect_aug_A:
+    if getattr(args, "data_online_creation_mask_broaden_rect_aug_A", False):
         train_config["data_online_creation_mask_broaden_rect_aug_A"] = True
     return train_config
 

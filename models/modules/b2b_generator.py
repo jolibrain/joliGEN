@@ -121,10 +121,26 @@ class B2BGenerator(nn.Module):
         x_any = flat.any(dim=1)
         y_idx = torch.arange(H, device=device, dtype=dtype)
         x_idx = torch.arange(W, device=device, dtype=dtype)
-        y_min = torch.where(y_any, y_idx[None], torch.full_like(y_idx[None], H)).min(1).values
-        y_max = torch.where(y_any, y_idx[None], torch.full_like(y_idx[None], -1)).max(1).values
-        x_min = torch.where(x_any, x_idx[None], torch.full_like(x_idx[None], W)).min(1).values
-        x_max = torch.where(x_any, x_idx[None], torch.full_like(x_idx[None], -1)).max(1).values
+        y_min = (
+            torch.where(y_any, y_idx[None], torch.full_like(y_idx[None], H))
+            .min(1)
+            .values
+        )
+        y_max = (
+            torch.where(y_any, y_idx[None], torch.full_like(y_idx[None], -1))
+            .max(1)
+            .values
+        )
+        x_min = (
+            torch.where(x_any, x_idx[None], torch.full_like(x_idx[None], W))
+            .min(1)
+            .values
+        )
+        x_max = (
+            torch.where(x_any, x_idx[None], torch.full_like(x_idx[None], -1))
+            .max(1)
+            .values
+        )
 
         width = (x_max - x_min + 1.0) / max(1, W)
         height = (y_max - y_min + 1.0) / max(1, H)

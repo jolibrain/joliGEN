@@ -244,7 +244,9 @@ def test_crop_image_broaden_rect_aug_disabled_is_noop(tmp_path):
     assert _mask_bbox_size(mask) == (20, 20)
 
 
-def test_crop_image_broaden_rect_aug_side_expand_contains_original(tmp_path, monkeypatch):
+def test_crop_image_broaden_rect_aug_side_expand_contains_original(
+    tmp_path, monkeypatch
+):
     img_path, bbox_path = _write_sample(tmp_path, "1 96 96 116 116\n")
     monkeypatch.setattr(online_creation.random, "random", lambda: 0.30)
     monkeypatch.setattr(online_creation.random, "uniform", lambda _low, _high: 0.50)
@@ -313,10 +315,12 @@ def test_crop_image_broaden_rect_aug_target_aspect(tmp_path, monkeypatch):
     assert _mask_bbox_size(mask) == (40, 20)
 
 
-def test_crop_image_broaden_rect_aug_edge_clip(tmp_path, monkeypatch):
+def test_crop_image_broaden_rect_aug_high_roll_uses_bounded_aspect(
+    tmp_path, monkeypatch
+):
     img_path, bbox_path = _write_sample(tmp_path, "1 32 96 52 116\n")
     monkeypatch.setattr(online_creation.random, "random", lambda: 0.95)
-    monkeypatch.setattr(online_creation.random, "choice", lambda _choices: "left")
+    monkeypatch.setattr(online_creation.random, "uniform", lambda _low, _high: 2.85)
 
     _, mask, _, _ = crop_image(
         img_path,
@@ -333,10 +337,15 @@ def test_crop_image_broaden_rect_aug_edge_clip(tmp_path, monkeypatch):
         broaden_rect_aug=True,
     )
 
-    assert _mask_bbox(mask)[0] == 0
+    width, height = _mask_bbox_size(mask)
+    assert width > 20
+    assert height == 20
+    assert width < 128
 
 
-def test_crop_image_broaden_rect_aug_reuses_crop_coordinate_state(tmp_path, monkeypatch):
+def test_crop_image_broaden_rect_aug_reuses_crop_coordinate_state(
+    tmp_path, monkeypatch
+):
     img_path, bbox_path = _write_sample(tmp_path, "1 96 96 116 116\n")
     monkeypatch.setattr(online_creation.random, "random", lambda: 0.30)
     monkeypatch.setattr(online_creation.random, "uniform", lambda _low, _high: 0.50)

@@ -302,10 +302,9 @@ class B2BModel(BaseDiffusionModel):
                 "--data_dataset_mode multi_dataset"
             )
 
-        if (
-            getattr(opt, "alg_b2b_mask_size_conditioning", False)
-            and getattr(opt, "G_netG", "") not in ["vit", "vit_vid"]
-        ):
+        if getattr(opt, "alg_b2b_mask_size_conditioning", False) and getattr(
+            opt, "G_netG", ""
+        ) not in ["vit", "vit_vid"]:
             raise ValueError(
                 "--alg_b2b_mask_size_conditioning is only supported with vit/vit_vid B2B"
             )

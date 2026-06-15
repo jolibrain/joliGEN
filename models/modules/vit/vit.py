@@ -429,9 +429,7 @@ class JiT(nn.Module):
         if self.mask_size_embedder is None:
             return c
         if mask_size_cond is None:
-            mask_size_cond = torch.zeros(
-                x.shape[0], 6, device=c.device, dtype=c.dtype
-            )
+            mask_size_cond = torch.zeros(x.shape[0], 6, device=c.device, dtype=c.dtype)
         if mask_size_cond.shape != (x.shape[0], 6):
             raise RuntimeError(
                 f"Expected mask_size_cond shape {(x.shape[0], 6)}, "

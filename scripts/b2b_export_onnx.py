@@ -6,7 +6,6 @@ import sys
 
 import torch
 
-
 JG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../")
 sys.path.append(JG_DIR)
 
@@ -52,9 +51,7 @@ def patch_b2b_tracing_compatibility():
         if mask_size_cond is None:
             x_cond = self.b2b_model(model_input, t.flatten(), labels)
         else:
-            x_cond = self.b2b_model(
-                model_input, t.flatten(), labels, mask_size_cond
-            )
+            x_cond = self.b2b_model(model_input, t.flatten(), labels, mask_size_cond)
         x_cond = self._match_prediction_channels(x_cond, x_in)
         x_cond = self._project_known_pixels(x_cond, y_known, mask)
 
