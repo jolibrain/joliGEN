@@ -100,6 +100,15 @@ class B2BModel(BaseDiffusionModel):
             help="Std of the logistic-normal timestep distribution used at B2B training time.",
         )
         parser.add_argument(
+            "--alg_b2b_timestep_uniform_mix_prob",
+            type=float,
+            default=0.1,
+            help=(
+                "Probability of replacing a logistic-normal B2B training timestep "
+                "with a uniform sample in [0, 1]."
+            ),
+        )
+        parser.add_argument(
             "--alg_b2b_t_eps",
             type=float,
             default=5e-2,
@@ -269,6 +278,10 @@ class B2BModel(BaseDiffusionModel):
         p_std = getattr(opt, "alg_b2b_P_std", 0.8)
         if p_std <= 0:
             raise ValueError("--alg_b2b_P_std must be > 0")
+
+        uniform_mix_prob = getattr(opt, "alg_b2b_timestep_uniform_mix_prob", 0.1)
+        if not (0.0 <= uniform_mix_prob <= 1.0):
+            raise ValueError("--alg_b2b_timestep_uniform_mix_prob must be in [0, 1]")
 
         t_eps = getattr(opt, "alg_b2b_t_eps", 5e-2)
         if t_eps <= 0:

@@ -24,6 +24,11 @@ class B2BGenerator(nn.Module):
         self.opt = opt
         self.P_mean = float(getattr(opt, "alg_b2b_P_mean", -0.8)) if opt else -0.8
         self.P_std = float(getattr(opt, "alg_b2b_P_std", 0.8)) if opt else 0.8
+        self.timestep_uniform_mix_prob = (
+            float(getattr(opt, "alg_b2b_timestep_uniform_mix_prob", 0.1))
+            if opt
+            else 0.1
+        )
         requested_noise_scale = (
             getattr(opt, "alg_b2b_noise_scale", -1.0) if opt else -1.0
         )
@@ -158,10 +163,19 @@ class B2BGenerator(nn.Module):
         # returns t_cont in [0,1]
         if F is None:
             t_z = torch.randn(B, device=device) * self.P_std + self.P_mean
-            return torch.sigmoid(t_z)  # (B,)
+            t = torch.sigmoid(t_z)  # (B,)
         else:
             t_z = torch.randn(B, F, device=device) * self.P_std + self.P_mean
-            return torch.sigmoid(t_z)  # (B,F)
+            t = torch.sigmoid(t_z)  # (B,F)
+
+        if self.timestep_uniform_mix_prob <= 0.0:
+            return t
+        if self.timestep_uniform_mix_prob >= 1.0:
+            return torch.rand_like(t)
+
+        t_uniform = torch.rand_like(t)
+        use_uniform = torch.rand_like(t) < self.timestep_uniform_mix_prob
+        return torch.where(use_uniform, t_uniform, t)
 
     def drop_labels(self, labels: torch.Tensor) -> torch.Tensor:
         if self.label_drop_prob <= 0.0:
