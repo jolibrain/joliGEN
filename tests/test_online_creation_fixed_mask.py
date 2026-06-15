@@ -1,6 +1,7 @@
 import numpy as np
 from PIL import Image
 
+import data.online_creation as online_creation
 from data.online_creation import crop_image
 
 
@@ -220,3 +221,157 @@ def test_crop_image_fixed_model_mask_size_clamps_large_bbox_to_border(tmp_path):
     )
 
     assert _mask_bbox(mask) == (4, 4, 124, 124)
+
+
+def test_crop_image_broaden_rect_aug_disabled_is_noop(tmp_path):
+    img_path, bbox_path = _write_sample(tmp_path, "1 96 96 116 116\n")
+
+    _, mask, _, _ = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=128,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        broaden_rect_aug=False,
+    )
+
+    assert _mask_bbox_size(mask) == (20, 20)
+
+
+def test_crop_image_broaden_rect_aug_side_expand_contains_original(tmp_path, monkeypatch):
+    img_path, bbox_path = _write_sample(tmp_path, "1 96 96 116 116\n")
+    monkeypatch.setattr(online_creation.random, "random", lambda: 0.30)
+    monkeypatch.setattr(online_creation.random, "uniform", lambda _low, _high: 0.50)
+
+    _, mask, _, _ = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=128,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        broaden_rect_aug=True,
+    )
+
+    assert _mask_bbox_size(mask) == (40, 40)
+
+
+def test_crop_image_broaden_rect_aug_target_area(tmp_path, monkeypatch):
+    img_path, bbox_path = _write_sample(tmp_path, "1 96 96 116 116\n")
+    monkeypatch.setattr(online_creation.random, "random", lambda: 0.60)
+    monkeypatch.setattr(online_creation.random, "uniform", lambda _low, _high: 4.0)
+
+    _, mask, _, _ = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=128,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        broaden_rect_aug=True,
+    )
+
+    assert _mask_bbox_size(mask) == (40, 40)
+
+
+def test_crop_image_broaden_rect_aug_target_aspect(tmp_path, monkeypatch):
+    img_path, bbox_path = _write_sample(tmp_path, "1 96 96 116 116\n")
+    monkeypatch.setattr(online_creation.random, "random", lambda: 0.80)
+    monkeypatch.setattr(online_creation.random, "uniform", lambda _low, _high: 2.0)
+
+    _, mask, _, _ = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=128,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        broaden_rect_aug=True,
+    )
+
+    assert _mask_bbox_size(mask) == (40, 20)
+
+
+def test_crop_image_broaden_rect_aug_edge_clip(tmp_path, monkeypatch):
+    img_path, bbox_path = _write_sample(tmp_path, "1 32 96 52 116\n")
+    monkeypatch.setattr(online_creation.random, "random", lambda: 0.95)
+    monkeypatch.setattr(online_creation.random, "choice", lambda _choices: "left")
+
+    _, mask, _, _ = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=128,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        broaden_rect_aug=True,
+    )
+
+    assert _mask_bbox(mask)[0] == 0
+
+
+def test_crop_image_broaden_rect_aug_reuses_crop_coordinate_state(tmp_path, monkeypatch):
+    img_path, bbox_path = _write_sample(tmp_path, "1 96 96 116 116\n")
+    monkeypatch.setattr(online_creation.random, "random", lambda: 0.30)
+    monkeypatch.setattr(online_creation.random, "uniform", lambda _low, _high: 0.50)
+
+    crop_coordinates = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=128,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        get_crop_coordinates=True,
+        crop_center=True,
+        broaden_rect_aug=True,
+    )
+
+    monkeypatch.setattr(online_creation.random, "random", lambda: 0.0)
+    _, mask, _, _ = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=128,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        crop_coordinates=crop_coordinates,
+        crop_center=True,
+        broaden_rect_aug=True,
+    )
+
+    assert _mask_bbox_size(mask) == (40, 40)

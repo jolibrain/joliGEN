@@ -877,6 +877,12 @@ class CommonOptions(BaseOptions):
         )
 
         parser.add_argument(
+            "--data_online_creation_mask_broaden_rect_aug_A",
+            action="store_true",
+            help="randomly broaden online rectangular masks with detector-like bbox augmentations for domain A",
+        )
+
+        parser.add_argument(
             "--data_online_creation_mask_square_A",
             action="store_true",
             help="whether masks should be squared for domain A",
@@ -951,6 +957,12 @@ class CommonOptions(BaseOptions):
             default=[0.0],
             nargs="*",
             help="mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square",
+        )
+
+        parser.add_argument(
+            "--data_online_creation_mask_broaden_rect_aug_B",
+            action="store_true",
+            help="randomly broaden online rectangular masks with detector-like bbox augmentations for domain B",
         )
 
         parser.add_argument(

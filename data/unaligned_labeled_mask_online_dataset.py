@@ -103,6 +103,9 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                 crop_delta=self.opt.data_online_creation_crop_delta_A,
                 mask_square=self.opt.data_online_creation_mask_square_A,
+                broaden_rect_aug=getattr(
+                    self.opt, "data_online_creation_mask_broaden_rect_aug_A", False
+                ),
                 crop_dim=self.opt.data_online_creation_crop_size_A,
                 output_dim=self.opt.data_load_size,
                 context_pixels=self.opt.data_online_context_pixels,
@@ -165,6 +168,11 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         mask_random_offset=self.opt.data_online_creation_mask_random_offset_B,
                         crop_delta=self.opt.data_online_creation_crop_delta_B,
                         mask_square=self.opt.data_online_creation_mask_square_B,
+                        broaden_rect_aug=getattr(
+                            self.opt,
+                            "data_online_creation_mask_broaden_rect_aug_B",
+                            False,
+                        ),
                         crop_dim=self.opt.data_online_creation_crop_size_B,
                         output_dim=self.opt.data_load_size,
                         context_pixels=self.opt.data_online_context_pixels,

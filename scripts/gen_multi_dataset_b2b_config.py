@@ -970,6 +970,8 @@ def build_train_config(args, multi_dataset_config_path):
         train_config["data_online_creation_mask_min_unmasked_border_A"] = (
             args.data_online_creation_mask_min_unmasked_border_A
         )
+    if args.data_online_creation_mask_broaden_rect_aug_A:
+        train_config["data_online_creation_mask_broaden_rect_aug_A"] = True
     return train_config
 
 
@@ -1273,6 +1275,11 @@ def parse_args():
     )
     parser.add_argument(
         "--data-online-creation-mask-min-unmasked-border-A", type=int, default=4
+    )
+    parser.add_argument(
+        "--data-online-creation-mask-broaden-rect-aug-A",
+        action="store_true",
+        help="emit rectangular bbox broadening augmentation for domain A online masks",
     )
     parser.add_argument("--data-temporal-number-frames", type=int, default=2)
     parser.add_argument("--data-temporal-frame-step", type=int, default=1)
