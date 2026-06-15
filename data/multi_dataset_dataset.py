@@ -26,6 +26,7 @@ ALLOWED_CHILD_OVERRIDES = {
     "data_online_creation_mask_delta_A",
     "data_online_creation_mask_delta_A_ratio",
     "data_online_creation_mask_random_offset_A",
+    "data_online_creation_mask_broaden_rect_aug_A",
     "data_online_creation_mask_square_A",
     "data_online_creation_mask_fixed_size_A",
     "data_online_creation_mask_min_unmasked_border_A",

@@ -195,6 +195,9 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                     mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                     crop_delta=0,
                     mask_square=self.opt.data_online_creation_mask_square_A,
+                    broaden_rect_aug=getattr(
+                        self.opt, "data_online_creation_mask_broaden_rect_aug_A", False
+                    ),
                     crop_dim=crop_size,
                     output_dim=self.opt.data_load_size,
                     context_pixels=self.opt.data_online_context_pixels,
@@ -219,6 +222,9 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                     mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
                     crop_delta=0,
                     mask_square=self.opt.data_online_creation_mask_square_A,
+                    broaden_rect_aug=getattr(
+                        self.opt, "data_online_creation_mask_broaden_rect_aug_A", False
+                    ),
                     crop_dim=crop_size,
                     output_dim=self.opt.data_load_size,
                     context_pixels=self.opt.data_online_context_pixels,

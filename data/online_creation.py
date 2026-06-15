@@ -28,6 +28,115 @@ def _scale_pixel_mask_delta(mask_delta, scale):
     return scaled
 
 
+def _fit_rect_to_image(xmin, ymin, xmax, ymax, img_width, img_height):
+    width = max(1, int(math.ceil(xmax - xmin)))
+    height = max(1, int(math.ceil(ymax - ymin)))
+
+    xmin = int(math.floor(xmin))
+    ymin = int(math.floor(ymin))
+
+    if width >= img_width:
+        xmin = 0
+        xmax = img_width
+    else:
+        xmax = xmin + width
+        if xmin < 0:
+            xmax -= xmin
+            xmin = 0
+        if xmax > img_width:
+            xmin -= xmax - img_width
+            xmax = img_width
+
+    if height >= img_height:
+        ymin = 0
+        ymax = img_height
+    else:
+        ymax = ymin + height
+        if ymin < 0:
+            ymax -= ymin
+            ymin = 0
+        if ymax > img_height:
+            ymin -= ymax - img_height
+            ymax = img_height
+
+    return int(xmin), int(ymin), int(xmax), int(ymax)
+
+
+def _broaden_rect_bbox(xmin, ymin, xmax, ymax, img_width, img_height):
+    """Return a detector-style rectangle that contains the input bbox."""
+    width = max(1, xmax - xmin)
+    height = max(1, ymax - ymin)
+    cx = (xmin + xmax) / 2.0
+    cy = (ymin + ymax) / 2.0
+
+    roll = random.random()
+    if roll < 0.20:
+        mode = "none"
+        new_xmin, new_ymin, new_xmax, new_ymax = xmin, ymin, xmax, ymax
+    elif roll < 0.55:
+        mode = "side_expand"
+        max_side_expand = 0.75
+        new_xmin = xmin - random.uniform(0.0, max_side_expand) * width
+        new_xmax = xmax + random.uniform(0.0, max_side_expand) * width
+        new_ymin = ymin - random.uniform(0.0, max_side_expand) * height
+        new_ymax = ymax + random.uniform(0.0, max_side_expand) * height
+    elif roll < 0.75:
+        mode = "area_expand"
+        scale = math.sqrt(random.uniform(1.0, 4.0))
+        new_width = width * scale
+        new_height = height * scale
+        new_xmin = cx - new_width / 2.0
+        new_xmax = cx + new_width / 2.0
+        new_ymin = cy - new_height / 2.0
+        new_ymax = cy + new_height / 2.0
+    elif roll < 0.90:
+        mode = "aspect_expand"
+        target_aspect = random.uniform(0.35, 2.85)
+        current_aspect = width / float(height)
+        if target_aspect > current_aspect:
+            new_width = height * target_aspect
+            new_height = height
+        else:
+            new_width = width
+            new_height = width / target_aspect
+        new_xmin = cx - new_width / 2.0
+        new_xmax = cx + new_width / 2.0
+        new_ymin = cy - new_height / 2.0
+        new_ymax = cy + new_height / 2.0
+    else:
+        mode = "edge_clip"
+        new_xmin, new_ymin, new_xmax, new_ymax = xmin, ymin, xmax, ymax
+        side = random.choice(["left", "right", "top", "bottom"])
+        if side == "left":
+            new_xmin = 0
+        elif side == "right":
+            new_xmax = img_width
+        elif side == "top":
+            new_ymin = 0
+        else:
+            new_ymax = img_height
+
+    new_xmin, new_ymin, new_xmax, new_ymax = _fit_rect_to_image(
+        new_xmin, new_ymin, new_xmax, new_ymax, img_width, img_height
+    )
+    return new_xmin, new_ymin, new_xmax, new_ymax, mode
+
+
+def _normalise_crop_coordinates(crop_coordinates):
+    if crop_coordinates is None:
+        return None, None
+    if len(crop_coordinates) >= 4 and isinstance(crop_coordinates[3], dict):
+        return crop_coordinates[:3], crop_coordinates[3]
+    return crop_coordinates, None
+
+
+def _make_crop_state(processed_bboxes, idx_bbox_ref):
+    return {
+        "idx_bbox_ref": int(idx_bbox_ref),
+        "processed_bboxes": [dict(cur_bbox) for cur_bbox in processed_bboxes],
+    }
+
+
 def crop_image(
     img_path,
     bbox_path,
@@ -54,6 +163,7 @@ def crop_image(
     min_crop_bbox_ratio=None,
     random_bbox=False,
     return_meta=False,
+    broaden_rect_aug=False,
 ):
     margin = context_pixels * 2
     x_padding = 0
@@ -179,6 +289,8 @@ def crop_image(
 
         bboxes = [cat + " " + xmin + " " + ymin + " " + xmax + " " + ymax]
 
+    crop_coordinates, crop_state = _normalise_crop_coordinates(crop_coordinates)
+
     # If one bbox only per crop
     if single_bbox and bbox_ref_id == -1:
         bbox_ref_id = np.random.randint(low=0, high=len(bboxes))
@@ -197,7 +309,15 @@ def crop_image(
     processed_bboxes = []
 
     # A bbox of reference will be used to compute the crop
-    idx_bbox_ref = random.randint(0, len(bboxes) - 1)
+    if crop_state is not None and "idx_bbox_ref" in crop_state:
+        idx_bbox_ref = crop_state["idx_bbox_ref"]
+    else:
+        idx_bbox_ref = random.randint(0, len(bboxes) - 1)
+
+    processed_bbox_state = {}
+    if crop_state is not None:
+        for cur_bbox in crop_state.get("processed_bboxes", []):
+            processed_bbox_state[cur_bbox["index"]] = cur_bbox
 
     for i, cur_bbox in enumerate(bboxes):
         bbox = cur_bbox.split()
@@ -213,90 +333,111 @@ def crop_image(
 
         bbox_width = xmax - xmin
         bbox_height = ymax - ymin
+        original_xmin, original_ymin, original_xmax, original_ymax = (
+            xmin,
+            ymin,
+            xmax,
+            ymax,
+        )
 
-        if effective_mask_delta != [[]]:
-            if len(effective_mask_delta) == 1:
-                if isinstance(effective_mask_delta[0][0], float):
-                    if len(effective_mask_delta[0]) == 1:
-                        mask_delta_x = effective_mask_delta[0][0] * bbox_width
-                        mask_delta_y = effective_mask_delta[0][0] * bbox_height
+        if i in processed_bbox_state:
+            state_bbox = processed_bbox_state[i]
+            xmin = state_bbox["xmin"]
+            ymin = state_bbox["ymin"]
+            xmax = state_bbox["xmax"]
+            ymax = state_bbox["ymax"]
+            augment_mode = state_bbox.get("augment_mode", "reused")
+        else:
+            augment_mode = "none"
+
+            if effective_mask_delta != [[]]:
+                if len(effective_mask_delta) == 1:
+                    if isinstance(effective_mask_delta[0][0], float):
+                        if len(effective_mask_delta[0]) == 1:
+                            mask_delta_x = effective_mask_delta[0][0] * bbox_width
+                            mask_delta_y = effective_mask_delta[0][0] * bbox_height
+                        else:
+                            mask_delta_x = effective_mask_delta[0][0] * bbox_width
+                            mask_delta_y = effective_mask_delta[0][1] * bbox_height
+                    elif isinstance(effective_mask_delta[0][0], int):
+                        if len(effective_mask_delta[0]) == 1:
+                            mask_delta_x = effective_mask_delta[0][0]
+                            mask_delta_y = effective_mask_delta[0][0]
+                        else:
+                            mask_delta_x = effective_mask_delta[0][0]
+                            mask_delta_y = effective_mask_delta[0][1]
                     else:
-                        mask_delta_x = effective_mask_delta[0][0] * bbox_width
-                        mask_delta_y = effective_mask_delta[0][1] * bbox_height
-                elif isinstance(effective_mask_delta[0][0], int):
-                    if len(effective_mask_delta[0]) == 1:
-                        mask_delta_x = effective_mask_delta[0][0]
-                        mask_delta_y = effective_mask_delta[0][0]
-                    else:
-                        mask_delta_x = effective_mask_delta[0][0]
-                        mask_delta_y = effective_mask_delta[0][1]
+                        raise ValueError("mask_delta value is incorrect.")
                 else:
-                    raise ValueError("mask_delta value is incorrect.")
-            else:
-                if len(effective_mask_delta) <= cat - 1:
-                    raise ValueError("too few classes, can't find mask_delta value")
-                mask_delta_cat = effective_mask_delta[cat - 1]
-                if isinstance(effective_mask_delta[0][0], float):
-                    if len(mask_delta_cat) == 1:
-                        mask_delta_x = mask_delta_cat[0] * bbox_width
-                        mask_delta_y = mask_delta_cat[0] * bbox_height
+                    if len(effective_mask_delta) <= cat - 1:
+                        raise ValueError("too few classes, can't find mask_delta value")
+                    mask_delta_cat = effective_mask_delta[cat - 1]
+                    if isinstance(effective_mask_delta[0][0], float):
+                        if len(mask_delta_cat) == 1:
+                            mask_delta_x = mask_delta_cat[0] * bbox_width
+                            mask_delta_y = mask_delta_cat[0] * bbox_height
+                        else:
+                            mask_delta_x = mask_delta_cat[0] * bbox_width
+                            mask_delta_y = mask_delta_cat[1] * bbox_height
+                    elif isinstance(effective_mask_delta[0][0], int):
+                        if len(mask_delta_cat) == 1:
+                            mask_delta_x = mask_delta_cat[0]
+                            mask_delta_y = mask_delta_cat[0]
+                        else:
+                            mask_delta_x = mask_delta_cat[0]
+                            mask_delta_y = mask_delta_cat[1]
                     else:
-                        mask_delta_x = mask_delta_cat[0] * bbox_width
-                        mask_delta_y = mask_delta_cat[1] * bbox_height
-                elif isinstance(effective_mask_delta[0][0], int):
-                    if len(mask_delta_cat) == 1:
-                        mask_delta_x = mask_delta_cat[0]
-                        mask_delta_y = mask_delta_cat[0]
-                    else:
-                        mask_delta_x = mask_delta_cat[0]
-                        mask_delta_y = mask_delta_cat[1]
+                        raise ValueError("mask_delta value is incorrect.")
+
+                mask_delta_x = int(mask_delta_x)
+                mask_delta_y = int(mask_delta_y)
+
+                if mask_delta_x > 0 or mask_delta_y > 0:
+                    ymin -= mask_delta_y
+                    ymax += mask_delta_y
+                    xmin -= mask_delta_x
+                    xmax += mask_delta_x
+
+            if len(mask_random_offset) == 1:
+                mask_random_offset_x = mask_random_offset[0]
+                mask_random_offset_y = mask_random_offset[0]
+            elif len(mask_random_offset) == 2:
+                mask_random_offset_x = mask_random_offset[0]
+                mask_random_offset_y = mask_random_offset[1]
+
+            # from ratio to pixel gap
+            mask_random_offset_x = round(mask_random_offset_x * (xmax - xmin))
+            mask_random_offset_y = round(mask_random_offset_y * (ymax - ymin))
+
+            if mask_random_offset_x > 0 or mask_random_offset_y > 0:
+                ymin -= random.randint(0, mask_random_offset_y)
+                ymax += random.randint(0, mask_random_offset_y)
+                xmin -= random.randint(0, mask_random_offset_x)
+                xmax += random.randint(0, mask_random_offset_x)
+
+            if broaden_rect_aug:
+                xmin, ymin, xmax, ymax, augment_mode = _broaden_rect_bbox(
+                    xmin, ymin, xmax, ymax, img.shape[1], img.shape[0]
+                )
+
+            if mask_square:
+                sdiff = (xmax - xmin) - (ymax - ymin)
+                if sdiff > 0:
+                    ymax += int(sdiff / 2)
+                    ymin -= int(sdiff / 2)
                 else:
-                    raise ValueError("mask_delta value is incorrect.")
+                    xmax += -int(sdiff / 2)
+                    xmin -= -int(sdiff / 2)
 
-            mask_delta_x = int(mask_delta_x)
-            mask_delta_y = int(mask_delta_y)
+            if effective_fixed_mask_size > 0:
+                xdiff = effective_fixed_mask_size - (xmax - xmin)
+                ydiff = effective_fixed_mask_size - (ymax - ymin)
 
-            if mask_delta_x > 0 or mask_delta_y > 0:
-                ymin -= mask_delta_y
-                ymax += mask_delta_y
-                xmin -= mask_delta_x
-                xmax += mask_delta_x
+                ymax += int(ydiff / 2)
+                ymin -= int(ydiff / 2)
 
-        if len(mask_random_offset) == 1:
-            mask_random_offset_x = mask_random_offset[0]
-            mask_random_offset_y = mask_random_offset[0]
-        elif len(mask_random_offset) == 2:
-            mask_random_offset_x = mask_random_offset[0]
-            mask_random_offset_y = mask_random_offset[1]
-
-        # from ratio to pixel gap
-        mask_random_offset_x = round(mask_random_offset_x * (xmax - xmin))
-        mask_random_offset_y = round(mask_random_offset_y * (ymax - ymin))
-
-        if mask_random_offset_x > 0 or mask_random_offset_y > 0:
-            ymin -= random.randint(0, mask_random_offset_y)
-            ymax += random.randint(0, mask_random_offset_y)
-            xmin -= random.randint(0, mask_random_offset_x)
-            xmax += random.randint(0, mask_random_offset_x)
-
-        if mask_square:
-            sdiff = (xmax - xmin) - (ymax - ymin)
-            if sdiff > 0:
-                ymax += int(sdiff / 2)
-                ymin -= int(sdiff / 2)
-            else:
-                xmax += -int(sdiff / 2)
-                xmin -= -int(sdiff / 2)
-
-        if effective_fixed_mask_size > 0:
-            xdiff = effective_fixed_mask_size - (xmax - xmin)
-            ydiff = effective_fixed_mask_size - (ymax - ymin)
-
-            ymax += int(ydiff / 2)
-            ymin -= int(ydiff / 2)
-
-            xmax += int(xdiff / 2)
-            xmin -= int(xdiff / 2)
+                xmax += int(xdiff / 2)
+                xmin -= int(xdiff / 2)
 
         xmin = max(0, xmin)
         ymin = max(0, ymin)
@@ -312,6 +453,11 @@ def crop_image(
                 "ymin": ymin,
                 "xmax": xmax,
                 "ymax": ymax,
+                "original_xmin": original_xmin,
+                "original_ymin": original_ymin,
+                "original_xmax": original_xmax,
+                "original_ymax": original_ymax,
+                "augment_mode": augment_mode,
             }
         )
 
@@ -500,6 +646,13 @@ def crop_image(
             )
 
         if get_crop_coordinates:
+            if broaden_rect_aug or crop_state is not None:
+                return (
+                    x_crop - x_min_ref,
+                    y_crop - y_min_ref,
+                    crop_size,
+                    _make_crop_state(processed_bboxes, idx_bbox_ref),
+                )
             return x_crop - x_min_ref, y_crop - y_min_ref, crop_size
 
     else:
@@ -611,6 +764,8 @@ def crop_image(
             "y_crop": int(y_crop),
             "crop_size": int(crop_size),
             "context_pixels": int(context_pixels),
+            "mask_broaden_rect_aug": bool(broaden_rect_aug),
+            "processed_bboxes": [dict(cur_bbox) for cur_bbox in processed_bboxes],
         }
         return img, mask, ref_bbox, idx_bbox_ref, crop_meta
 
@@ -670,6 +825,7 @@ def sanitize_paths(
     load_size_keep_ratio=False,
     fixed_mask_size_model=-1,
     fixed_mask_min_unmasked_border_model=4,
+    broaden_rect_aug=False,
     select_cat=-1,
     data_relative_paths=False,
     data_root_path="",
@@ -704,6 +860,7 @@ def sanitize_paths(
                         mask_square=mask_square,
                         fixed_mask_size_model=fixed_mask_size_model,
                         fixed_mask_min_unmasked_border_model=fixed_mask_min_unmasked_border_model,
+                        broaden_rect_aug=broaden_rect_aug,
                         crop_dim=crop_dim + crop_delta,
                         output_dim=output_dim,
                         context_pixels=context_pixels,
