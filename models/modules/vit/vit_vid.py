@@ -718,6 +718,7 @@ class JiTViD(nn.Module):
         in_context_start=8,
         num_register_tokens=0,
         cond_embed_dim=None,
+        mask_size_conditioning=False,
         max_frames=8,
         motion_num_heads=8,
         motion_num_layers=2,
@@ -741,10 +742,20 @@ class JiTViD(nn.Module):
         self.num_classes = num_classes
         self.max_frames = max_frames
         self.motion_every = motion_every
+        self.mask_size_conditioning = mask_size_conditioning
 
         # time and class embed as input c
         self.t_embedder = TimestepEmbedder(hidden_size)
         self.y_embedder = LabelEmbedder(num_classes, hidden_size)
+        self.mask_size_embedder = (
+            nn.Sequential(
+                nn.Linear(6, hidden_size),
+                nn.SiLU(),
+                nn.Linear(hidden_size, hidden_size),
+            )
+            if mask_size_conditioning
+            else None
+        )
 
         # linear embed
         self.x_embedder = BottleneckPatchEmbed(
@@ -886,6 +897,10 @@ class JiTViD(nn.Module):
         nn.init.normal_(self.t_embedder.mlp[0].weight, std=0.02)
         nn.init.normal_(self.t_embedder.mlp[2].weight, std=0.02)
 
+        if self.mask_size_embedder is not None:
+            nn.init.constant_(self.mask_size_embedder[-1].weight, 0)
+            nn.init.constant_(self.mask_size_embedder[-1].bias, 0)
+
         # Zero-out adaLN modulation layers:
         for block in self.blocks:
             nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
@@ -920,7 +935,28 @@ class JiTViD(nn.Module):
     # ---------------------------
     #  forward video
     # ---------------------------
-    def forward(self, x, t, y):
+    def _mask_size_embedding(self, B, F, c, mask_size_cond):
+        if self.mask_size_embedder is None:
+            return c
+        if mask_size_cond is None:
+            mask_size_cond = torch.zeros(B * F, 6, device=c.device, dtype=c.dtype)
+        else:
+            if mask_size_cond.ndim == 2 and mask_size_cond.shape == (B, 6):
+                mask_size_cond = repeat(mask_size_cond, "b d -> (b f) d", f=F)
+            elif mask_size_cond.ndim == 3 and mask_size_cond.shape == (B, F, 6):
+                mask_size_cond = rearrange(mask_size_cond, "b f d -> (b f) d")
+            elif mask_size_cond.ndim == 2 and mask_size_cond.shape == (B * F, 6):
+                pass
+            else:
+                raise RuntimeError(
+                    "Expected mask_size_cond shape "
+                    f"{(B, 6)}, {(B, F, 6)}, or {(B * F, 6)}, "
+                    f"got {tuple(mask_size_cond.shape)}"
+                )
+            mask_size_cond = mask_size_cond.to(device=c.device, dtype=c.dtype)
+        return c + self.mask_size_embedder(mask_size_cond)
+
+    def forward(self, x, t, y, mask_size_cond=None):
         """
         x: (B, F, C, H, W) tensor of video inputs
         t: (B,)  tensor of diffusion timesteps
@@ -958,6 +994,7 @@ class JiTViD(nn.Module):
         t_emb = self.t_embedder(t2d)  # (B*F, D )
         y_emb = self.y_embedder(y2d)  # (B*F, D)
         c = t_emb + y_emb
+        c = self._mask_size_embedding(B, F, c, mask_size_cond)
 
         inserted_registers = False
         inserted_in_context = False

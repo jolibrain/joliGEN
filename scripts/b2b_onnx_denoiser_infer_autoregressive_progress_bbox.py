@@ -45,9 +45,11 @@ def load_session(model_in_file, provider):
     return ort.InferenceSession(model_in_file, providers=[provider])
 
 
-def require_denoiser_model(session):
+def require_denoiser_model(session, mask_size_conditioning=False):
     input_names = [x.name for x in session.get_inputs()]
     expected = ["model_input", "timesteps", "labels"]
+    if mask_size_conditioning:
+        expected.append("mask_size_cond")
     if input_names != expected:
         raise ValueError(
             "This helper expects a denoiser ONNX with inputs "
@@ -174,6 +176,9 @@ def get_b2b_params(train_json, image_size):
         "t_eps": float(alg.get("b2b_t_eps", 5e-2)),
         "cond_mode": alg.get("diffusion_cond_image_creation", "y_t"),
         "mask_as_channel": bool(alg.get("b2b_mask_as_channel", False)),
+        "mask_size_conditioning": bool(
+            alg.get("b2b_mask_size_conditioning", False)
+        ),
     }
     requested_noise_scale = float(alg.get("b2b_noise_scale", -1.0))
     if requested_noise_scale > 0:
@@ -585,8 +590,54 @@ def match_prediction_channels(pred, reference):
     )
 
 
+def mask_size_condition_from_mask(mask):
+    if mask is None:
+        return None
+    if mask.ndim == 4:
+        leading_shape = mask.shape[:1]
+        flat = mask[:, :1] > 0.5
+        flat = flat[:, 0]
+    elif mask.ndim == 5:
+        leading_shape = mask.shape[:2]
+        B, F, _, H, W = mask.shape
+        flat = (mask[:, :, :1] > 0.5).reshape(B * F, H, W)
+    else:
+        raise RuntimeError(f"Expected mask rank 4 or 5, got {mask.shape}")
+
+    N, H, W = flat.shape
+    positive = flat.reshape(N, -1).any(axis=1)
+    area = flat.astype(np.float32).mean(axis=(1, 2))
+
+    y_any = flat.any(axis=2)
+    x_any = flat.any(axis=1)
+    y_idx = np.arange(H, dtype=np.float32)[None, :]
+    x_idx = np.arange(W, dtype=np.float32)[None, :]
+    y_min = np.where(y_any, y_idx, float(H)).min(axis=1)
+    y_max = np.where(y_any, y_idx, -1.0).max(axis=1)
+    x_min = np.where(x_any, x_idx, float(W)).min(axis=1)
+    x_max = np.where(x_any, x_idx, -1.0).max(axis=1)
+
+    width = (x_max - x_min + 1.0) / max(1, W)
+    height = (y_max - y_min + 1.0) / max(1, H)
+    cx = (x_min + x_max + 1.0) / (2.0 * max(1, W))
+    cy = (y_min + y_max + 1.0) / (2.0 * max(1, H))
+    log_aspect = np.clip(np.log((width + 1e-6) / (height + 1e-6)), -3.0, 3.0) / 3.0
+
+    features = np.stack([cx, cy, width, height, area, log_aspect], axis=1).astype(
+        np.float32
+    )
+    features[~positive] = 0.0
+    return features.reshape(*leading_shape, 6)
+
+
 def denoiser_forward(
-    session, model_input, t_scalar, labels, dump_dir=None, dump_tag=None
+    session,
+    model_input,
+    t_scalar,
+    labels,
+    mask_size_cond=None,
+    dump_dir=None,
+    dump_tag=None,
 ):
     timestep = np.asarray([t_scalar], dtype=np.float32)
     if dump_dir and dump_tag:
@@ -594,13 +645,21 @@ def denoiser_forward(
         np.save(os.path.join(dump_dir, f"{dump_tag}_model_input.npy"), model_input)
         np.save(os.path.join(dump_dir, f"{dump_tag}_timesteps.npy"), timestep)
         np.save(os.path.join(dump_dir, f"{dump_tag}_labels.npy"), labels)
+        if mask_size_cond is not None:
+            np.save(
+                os.path.join(dump_dir, f"{dump_tag}_mask_size_cond.npy"),
+                mask_size_cond,
+            )
+    inputs = {
+        "model_input": model_input.astype(np.float32),
+        "timesteps": timestep,
+        "labels": labels,
+    }
+    if mask_size_cond is not None:
+        inputs["mask_size_cond"] = mask_size_cond.astype(np.float32)
     return session.run(
         ["output"],
-        {
-            "model_input": model_input.astype(np.float32),
-            "timesteps": timestep,
-            "labels": labels,
-        },
+        inputs,
     )[0]
 
 
@@ -629,11 +688,18 @@ def forward_sample_restoration(
     else:
         model_input = np.concatenate([y_cond, x_in], axis=2)
 
+    mask_size_cond = (
+        mask_size_condition_from_mask(mask)
+        if params["mask_size_conditioning"]
+        else None
+    )
+
     x_cond = denoiser_forward(
         session,
         model_input,
         t_scalar,
         labels,
+        mask_size_cond=mask_size_cond,
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_cond" if dump_prefix else None,
     )
@@ -658,6 +724,7 @@ def forward_sample_restoration(
         model_input,
         t_scalar,
         np.full_like(labels, params["num_classes"]),
+        mask_size_cond=mask_size_cond,
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_uncond" if dump_prefix else None,
     )
@@ -1027,16 +1094,21 @@ def main():
     args = parse_args()
 
     session = load_session(args.model_in_file, args.provider)
-    require_denoiser_model(session)
+    train_json, train_config_path = load_train_config(
+        args.model_in_file, args.train_config
+    )
+    require_denoiser_model(
+        session,
+        mask_size_conditioning=bool(
+            train_json.get("alg", {}).get("b2b_mask_size_conditioning", False)
+        ),
+    )
     onnx_batch, onnx_frames, onnx_channels, onnx_height, onnx_width = get_onnx_shape(
         session
     )
     if onnx_batch != 1:
         raise ValueError(f"Expected batch size 1 denoiser ONNX, got {onnx_batch}")
 
-    train_json, train_config_path = load_train_config(
-        args.model_in_file, args.train_config
-    )
     train_frames, train_height, train_width, _, _ = get_train_shape(train_json)
     if train_json.get("alg", {}).get("diffusion_cond_image_creation", "y_t") != "y_t":
         raise NotImplementedError(

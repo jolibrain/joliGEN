@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as Fnn
 import math
 
 
@@ -42,6 +43,11 @@ class B2BGenerator(nn.Module):
             if opt
             else False
         )
+        self.mask_size_conditioning = (
+            bool(getattr(opt, "alg_b2b_mask_size_conditioning", False))
+            if opt
+            else False
+        )
 
         self.denoise_timesteps = (
             getattr(opt, "alg_b2b_denoise_timesteps", 50) if opt else 50
@@ -52,6 +58,82 @@ class B2BGenerator(nn.Module):
             float(getattr(opt, "alg_diffusion_dropout_prob", 0.0)) if opt else 0.0
         )
         self.label_drop_prob = min(max(self.label_drop_prob, 0.0), 1.0)
+
+    def _mask_size_condition(self, mask, reference):
+        if not self.mask_size_conditioning:
+            return None
+        if mask is None:
+            return None
+
+        if reference.ndim == 4:
+            B, _, H, W = reference.shape
+            if mask.ndim != 4:
+                raise RuntimeError(
+                    f"Expected image mask rank 4, got {tuple(mask.shape)}"
+                )
+            mask = mask[:, :1]
+            target_shape = (B, 1, H, W)
+            leading_shape = (B,)
+        elif reference.ndim == 5:
+            B, F, _, H, W = reference.shape
+            if mask.ndim == 4:
+                mask = mask[:, None]
+            if mask.ndim != 5:
+                raise RuntimeError(
+                    f"Expected video mask rank 5, got {tuple(mask.shape)}"
+                )
+            mask = mask[:, :, :1]
+            target_shape = (B, F, 1, H, W)
+            leading_shape = (B, F)
+        else:
+            raise RuntimeError(
+                f"Expected reference rank 4 or 5, got {tuple(reference.shape)}"
+            )
+
+        leading_target_shape = target_shape[:-2]
+        if any(
+            src not in (1, dst)
+            for src, dst in zip(mask.shape[:-2], leading_target_shape)
+        ):
+            raise RuntimeError(
+                f"Mask shape {tuple(mask.shape)} cannot broadcast to {target_shape}"
+            )
+
+        if mask.shape[-2:] != (H, W):
+            flat_mask = mask.reshape(-1, 1, mask.shape[-2], mask.shape[-1])
+            flat_mask = Fnn.interpolate(flat_mask.float(), size=(H, W), mode="nearest")
+            mask = flat_mask.reshape(*mask.shape[:-2], H, W)
+
+        mask = mask.expand(target_shape)
+        flat = (mask > 0.5).reshape(-1, H, W)
+        dtype = reference.dtype if reference.is_floating_point() else torch.float32
+        device = reference.device
+
+        positive = flat.any(dim=(1, 2))
+        area = flat.to(dtype=dtype).mean(dim=(1, 2))
+
+        y_any = flat.any(dim=2)
+        x_any = flat.any(dim=1)
+        y_idx = torch.arange(H, device=device, dtype=dtype)
+        x_idx = torch.arange(W, device=device, dtype=dtype)
+        y_min = torch.where(y_any, y_idx[None], torch.full_like(y_idx[None], H)).min(1).values
+        y_max = torch.where(y_any, y_idx[None], torch.full_like(y_idx[None], -1)).max(1).values
+        x_min = torch.where(x_any, x_idx[None], torch.full_like(x_idx[None], W)).min(1).values
+        x_max = torch.where(x_any, x_idx[None], torch.full_like(x_idx[None], -1)).max(1).values
+
+        width = (x_max - x_min + 1.0) / max(1, W)
+        height = (y_max - y_min + 1.0) / max(1, H)
+        cx = (x_min + x_max + 1.0) / (2.0 * max(1, W))
+        cy = (y_min + y_max + 1.0) / (2.0 * max(1, H))
+        log_aspect = torch.log((width + 1e-6) / (height + 1e-6)).clamp(-3.0, 3.0) / 3.0
+
+        features = torch.stack([cx, cy, width, height, area, log_aspect], dim=1)
+        features = torch.where(
+            positive[:, None],
+            features,
+            torch.zeros_like(features),
+        )
+        return features.reshape(*leading_shape, 6)
 
     def _match_prediction_channels(self, pred, reference):
         if pred.ndim != reference.ndim:
@@ -137,7 +219,11 @@ class B2BGenerator(nn.Module):
         v = (x - z) / (1.0 - t).clamp_min(self.t_eps)
 
         # 6) predict image
-        x_pred = self.b2b_model(z_model, t_flat, labels_dropped)
+        mask_size_cond = self._mask_size_condition(mask, z_model)
+        if mask_size_cond is None:
+            x_pred = self.b2b_model(z_model, t_flat, labels_dropped)
+        else:
+            x_pred = self.b2b_model(z_model, t_flat, labels_dropped, mask_size_cond)
         x_pred = self._match_prediction_channels(x_pred, x)
 
         return x_pred, z, v, t, x
@@ -323,8 +409,13 @@ class B2BGenerator(nn.Module):
 
         model_t = self._restoration_model_timesteps(t, model_input, use_gt, ref_idx)
 
+        mask_size_cond = self._mask_size_condition(mask, model_input)
+
         # --- conditional ---
-        x_cond = self.b2b_model(model_input, model_t, labels)
+        if mask_size_cond is None:
+            x_cond = self.b2b_model(model_input, model_t, labels)
+        else:
+            x_cond = self.b2b_model(model_input, model_t, labels, mask_size_cond)
         x_cond = self._match_prediction_channels(x_cond, x_in)
         x_cond = self._project_known_pixels(x_cond, y_known, mask)
 
@@ -344,9 +435,16 @@ class B2BGenerator(nn.Module):
 
         # --- unconditional ---
         num_classes = int(self.b2b_model.num_classes)
-        x_uncond = self.b2b_model(
-            model_input, model_t, torch.full_like(labels, num_classes)
-        )
+        uncond_labels = torch.full_like(labels, num_classes)
+        if mask_size_cond is None:
+            x_uncond = self.b2b_model(model_input, model_t, uncond_labels)
+        else:
+            x_uncond = self.b2b_model(
+                model_input,
+                model_t,
+                uncond_labels,
+                mask_size_cond,
+            )
         x_uncond = self._match_prediction_channels(x_uncond, x_in)
         x_uncond = self._project_known_pixels(x_uncond, y_known, mask)
         v_uncond = (x_uncond - x_in) / den

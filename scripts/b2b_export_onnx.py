@@ -48,7 +48,13 @@ def patch_b2b_tracing_compatibility():
         else:
             model_input = torch.cat([y_cond, x_in], dim=2)
 
-        x_cond = self.b2b_model(model_input, t.flatten(), labels)
+        mask_size_cond = self._mask_size_condition(mask, model_input)
+        if mask_size_cond is None:
+            x_cond = self.b2b_model(model_input, t.flatten(), labels)
+        else:
+            x_cond = self.b2b_model(
+                model_input, t.flatten(), labels, mask_size_cond
+            )
         x_cond = self._match_prediction_channels(x_cond, x_in)
         x_cond = self._project_known_pixels(x_cond, y_known, mask)
 
@@ -66,9 +72,13 @@ def patch_b2b_tracing_compatibility():
             interval_mask = interval_mask & (t > low)
 
         num_classes = int(self.b2b_model.num_classes)
-        x_uncond = self.b2b_model(
-            model_input, t.flatten(), torch.full_like(labels, num_classes)
-        )
+        uncond_labels = torch.full_like(labels, num_classes)
+        if mask_size_cond is None:
+            x_uncond = self.b2b_model(model_input, t.flatten(), uncond_labels)
+        else:
+            x_uncond = self.b2b_model(
+                model_input, t.flatten(), uncond_labels, mask_size_cond
+            )
         x_uncond = self._match_prediction_channels(x_uncond, x_in)
         x_uncond = self._project_known_pixels(x_uncond, y_known, mask)
         v_uncond = (x_uncond - x_in) / den
@@ -217,11 +227,14 @@ class B2BRestorationWrapperMaskCond(torch.nn.Module):
 
 
 class B2BDenoiserWrapper(torch.nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, mask_size_conditioning=False):
         super().__init__()
         self.model = model.b2b_model
+        self.mask_size_conditioning = mask_size_conditioning
 
-    def forward(self, model_input, timesteps, labels):
+    def forward(self, model_input, timesteps, labels, mask_size_cond=None):
+        if self.mask_size_conditioning:
+            return self.model(model_input, timesteps, labels, mask_size_cond)
         return self.model(model_input, timesteps, labels)
 
 
@@ -231,7 +244,15 @@ def build_export_wrapper(model, opt, export_mode, denoise_steps):
     uses_cond = cond_creation != "y_t"
 
     if export_mode == "denoiser":
-        return B2BDenoiserWrapper(model), uses_cond
+        return (
+            B2BDenoiserWrapper(
+                model,
+                mask_size_conditioning=getattr(
+                    opt, "alg_b2b_mask_size_conditioning", False
+                ),
+            ),
+            uses_cond,
+        )
 
     if cond_creation == "y_t" and mask_as_channel:
         return B2BRestorationWrapperMaskCond(model, denoise_steps), uses_cond
@@ -256,6 +277,11 @@ def make_dummy_inputs(opt, device, export_mode, uses_cond, batch_size, num_frame
             batch_size, num_frames, in_channels, height, width, device=device
         )
         timesteps = torch.full((batch_size,), 0.5, dtype=torch.float32, device=device)
+        if getattr(opt, "alg_b2b_mask_size_conditioning", False):
+            mask_size_cond = torch.zeros(
+                batch_size, num_frames, 6, dtype=torch.float32, device=device
+            )
+            return (model_input, timesteps, labels, mask_size_cond)
         return (model_input, timesteps, labels)
 
     if uses_cond:
@@ -286,6 +312,8 @@ def export_to_onnx(
 ):
     if export_mode == "denoiser":
         input_names = ["model_input", "timesteps", "labels"]
+        if len(dummy_inputs) == 4:
+            input_names.append("mask_size_cond")
     elif uses_cond:
         input_names = ["y", "cond_image", "mask", "init_noise", "labels"]
     else:
@@ -298,6 +326,8 @@ def export_to_onnx(
         for name in input_names:
             if name == "labels" or name == "timesteps":
                 dynamic_axes[name] = {0: "batch"}
+            elif name == "mask_size_cond":
+                dynamic_axes[name] = {0: "batch", 1: "frames"}
             else:
                 dynamic_axes[name] = {0: "batch", 1: "frames"}
 

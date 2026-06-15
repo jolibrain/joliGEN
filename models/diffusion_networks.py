@@ -283,6 +283,9 @@ def define_G(
             in_channels=in_channel,
             num_classes=getattr(opt, "G_vit_num_classes", base.get("num_classes", 1)),
             cond_embed_dim=cond_embed_dim,
+            mask_size_conditioning=getattr(
+                opt, "alg_b2b_mask_size_conditioning", False
+            ),
             **cfg,
         )
         # Ensure SC/CM wrappers can query the conditioning width.
@@ -331,6 +334,9 @@ def define_G(
             out_channels=model_output_nc,
             num_classes=getattr(opt, "G_vit_num_classes", base.get("num_classes", 1)),
             cond_embed_dim=cond_embed_dim,
+            mask_size_conditioning=getattr(
+                opt, "alg_b2b_mask_size_conditioning", False
+            ),
             **cfg,
         )
         # Ensure SC/CM wrappers can query the conditioning width.
