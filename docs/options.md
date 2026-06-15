@@ -78,6 +78,7 @@ Here are all the available options to call with `train.py`
 | --G_vit_num_classes | int | 1 | number of class labels used by vit/vit_vid class embeddings |
 | --G_vit_num_register_tokens | int | 0 | number of learned register prefix tokens used by vit/vit_vid; 0 disables them |
 | --G_vit_variant | string | JiT-B/16 | Selects the ViT backbone when --G_netG vit (use JiT-\*) or vit_vid (use JiTVid-\*) |
+| --G_vit_vid_motion_every | int | 0 | JiTViD temporal motion insertion interval. 0 keeps the default last-layer-only motion module; 1 inserts after every ViT block; 2 inserts after every two blocks. |
 
 ## Algorithm-specific
 
@@ -93,6 +94,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_dists_mean | array | [0.485, 0.456, 0.406] | Mean normalization for DISTS |
 | --alg_b2b_dists_std | array | [0.229, 0.224, 0.225] | Std normalization for DISTS |
 | --alg_b2b_lambda_perceptual | float | 1.0 | Weight for perceptual loss |
+| --alg_b2b_lambda_ref_copy | float | 0.0 | Weight for an image-space copy loss on autoregressive B2B reference frames before mask projection. 0 disables it. |
 | --alg_b2b_lora | flag |  | Train B2B JiT/JiTViD with PEFT LoRA adapters while saving merged full checkpoints. |
 | --alg_b2b_lora_alpha | int | 16 | LoRA alpha scaling for B2B JiT/JiTViD finetuning. |
 | --alg_b2b_lora_dropout | float | 0.05 | LoRA dropout for B2B JiT/JiTViD finetuning. |
@@ -106,6 +108,8 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_multi_dataset_class_conditioning | flag |  | Use multi_dataset dataset_index as the ViT class-token conditioning label instead of object class labels. |
 | --alg_b2b_noise_scale | float | -1.0 | Noise scale for B2B. Use \<=0 for automatic JiT-like defaults (1.0 at \<=256px, else 2.0). |
 | --alg_b2b_perceptual_loss | array | [''] | Optional perceptual losses<br/><br/> **Values:** , LPIPS, DISTS |
+| --alg_b2b_ref_degrade_noise_std | float | 0.05 | Gaussian noise std for degraded autoregressive reference frames. |
+| --alg_b2b_ref_degrade_prob | float | 0.0 | Probability of adding Gaussian noise to selected autoregressive reference frames in the model input. |
 | --alg_b2b_t_eps | float | 0.05 | Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t). |
 | --alg_b2b_use_gt_prob | float | 0.1 | Probability of selecting a sample to use a GT frame in autoregressive B2B training. |
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
