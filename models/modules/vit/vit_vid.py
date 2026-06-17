@@ -140,6 +140,33 @@ class LabelEmbedder(nn.Module):
         return embeddings
 
 
+class GlobalContextEncoder(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        mid_channels = min(256, max(64, hidden_size // 4))
+        self.net = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1),
+            nn.GroupNorm(8, 32),
+            nn.SiLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.GroupNorm(8, 64),
+            nn.SiLU(),
+            nn.Conv2d(64, mid_channels, kernel_size=3, stride=2, padding=1),
+            nn.GroupNorm(8, mid_channels),
+            nn.SiLU(),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten(),
+        )
+        self.proj = nn.Sequential(
+            nn.Linear(mid_channels, hidden_size),
+            nn.SiLU(),
+            nn.Linear(hidden_size, hidden_size),
+        )
+
+    def forward(self, x):
+        return self.proj(self.net(x))
+
+
 # ============================================================
 # JiT Attention / MLP blocks
 # ============================================================
@@ -723,6 +750,8 @@ class JiTViD(nn.Module):
         motion_num_heads=8,
         motion_num_layers=2,
         motion_every=0,
+        global_context_conditioning=False,
+        global_context_size=128,
     ):
         super().__init__()
         if num_register_tokens < 0:
@@ -743,6 +772,8 @@ class JiTViD(nn.Module):
         self.max_frames = max_frames
         self.motion_every = motion_every
         self.mask_size_conditioning = mask_size_conditioning
+        self.global_context_conditioning = global_context_conditioning
+        self.global_context_size = global_context_size
 
         # time and class embed as input c
         self.t_embedder = TimestepEmbedder(hidden_size)
@@ -755,6 +786,9 @@ class JiTViD(nn.Module):
             )
             if mask_size_conditioning
             else None
+        )
+        self.global_context_encoder = (
+            GlobalContextEncoder(hidden_size) if global_context_conditioning else None
         )
 
         # linear embed
@@ -900,6 +934,9 @@ class JiTViD(nn.Module):
         if self.mask_size_embedder is not None:
             nn.init.constant_(self.mask_size_embedder[-1].weight, 0)
             nn.init.constant_(self.mask_size_embedder[-1].bias, 0)
+        if self.global_context_encoder is not None:
+            nn.init.constant_(self.global_context_encoder.proj[-1].weight, 0)
+            nn.init.constant_(self.global_context_encoder.proj[-1].bias, 0)
 
         # Zero-out adaLN modulation layers:
         for block in self.blocks:
@@ -956,7 +993,27 @@ class JiTViD(nn.Module):
             mask_size_cond = mask_size_cond.to(device=c.device, dtype=c.dtype)
         return c + self.mask_size_embedder(mask_size_cond)
 
-    def forward(self, x, t, y, mask_size_cond=None):
+    def _global_context_embedding(self, B, F, c, global_context):
+        if self.global_context_encoder is None or global_context is None:
+            return c
+        if global_context.ndim == 4 and global_context.shape[0] == B:
+            global_context = repeat(global_context, "b c h w -> b f c h w", f=F)
+        elif global_context.ndim != 5 or global_context.shape[:2] != (B, F):
+            raise RuntimeError(
+                "Expected global_context shape "
+                f"{(B, F, 3, self.global_context_size, self.global_context_size)} "
+                f"or {(B, 3, self.global_context_size, self.global_context_size)}, "
+                f"got {tuple(global_context.shape)}"
+            )
+        if global_context.shape[2] != 3:
+            raise RuntimeError(
+                f"Expected global_context with 3 channels, got {global_context.shape[2]}"
+            )
+        global_context = global_context.to(device=c.device, dtype=c.dtype)
+        flat_context = rearrange(global_context, "b f c h w -> (b f) c h w")
+        return c + self.global_context_encoder(flat_context)
+
+    def forward(self, x, t, y, mask_size_cond=None, global_context=None):
         """
         x: (B, F, C, H, W) tensor of video inputs
         t: (B,)  tensor of diffusion timesteps
@@ -995,6 +1052,7 @@ class JiTViD(nn.Module):
         y_emb = self.y_embedder(y2d)  # (B*F, D)
         c = t_emb + y_emb
         c = self._mask_size_embedding(B, F, c, mask_size_cond)
+        c = self._global_context_embedding(B, F, c, global_context)
 
         inserted_registers = False
         inserted_in_context = False
