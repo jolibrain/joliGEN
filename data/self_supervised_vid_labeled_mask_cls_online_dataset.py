@@ -4,7 +4,12 @@ import re
 import bisect
 import torch
 from collections import OrderedDict
-from data.base_dataset import BaseDataset, get_transform_list
+from data.base_dataset import (
+    BaseDataset,
+    build_masked_global_context_image,
+    get_transform_list,
+    transform_global_context_images,
+)
 from data.image_folder import make_labeled_path_dataset
 from data.online_creation import crop_image
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
@@ -150,6 +155,7 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
 
         images_A = []
         labels_A = []
+        global_context_A = []
         A_label_clses = []
         ref_A_img_path = self.A_img_paths[index_A]
         ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
@@ -215,7 +221,7 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                     ),
                     crop_center=True,
                 )
-                cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_image(
+                crop_result = crop_image(
                     cur_A_img_path,
                     cur_A_label_path,
                     mask_delta=mask_delta_A,
@@ -241,7 +247,32 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                         self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
                     ),
                     crop_center=True,
+                    return_meta=getattr(
+                        self.opt, "alg_b2b_global_context_conditioning", False
+                    ),
                 )
+                if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+                    (
+                        cur_A_img,
+                        cur_A_label,
+                        ref_A_bbox,
+                        A_ref_bbox_id,
+                        crop_meta,
+                    ) = crop_result
+                    global_context_A.append(
+                        build_masked_global_context_image(
+                            cur_A_img_path,
+                            crop_meta,
+                            self.opt.data_online_creation_load_size_A,
+                            getattr(
+                                self.opt,
+                                "data_online_creation_load_size_keep_ratio_A",
+                                False,
+                            ),
+                        )
+                    )
+                else:
+                    cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_result
                 A_label_clses.append(int(ref_A_bbox[0]))
                 images_A.append(cur_A_img)
                 labels_A.append(cur_A_label)
@@ -254,6 +285,13 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
                 return None
 
         images_A, labels_A, A_ref_bbox = self.transform(images_A, labels_A, A_ref_bbox)
+        if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+            global_context_A = transform_global_context_images(
+                self.opt,
+                global_context_A,
+                getattr(self.transform, "last_geometry_state", {}),
+                getattr(self.opt, "alg_b2b_global_context_size", 128),
+            )
         A_ref_label = labels_A[0]
         A_ref_img = images_A[0]
         images_A = torch.stack(images_A)
@@ -277,6 +315,9 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(BaseDataset):
             "B_ref_label_mask": A_ref_label,
             "B_label_cls": A_label_clses,
         }
+        if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+            result["A_global_context"] = global_context_A
+            result["B_global_context"] = global_context_A
 
         try:
             if self.opt.data_online_creation_rand_mask_A:

@@ -13,6 +13,7 @@ import torch
 import torchvision
 from torchvision.transforms import InterpolationMode
 import torchvision.transforms as transforms
+from data.utils import load_image
 
 if torch.__version__[0] == "2":
     torchvision.disable_beta_transforms_warning()
@@ -1186,6 +1187,66 @@ def get_transform_list(
     return ComposeMaskList(transform_list)
 
 
+def build_masked_global_context_image(
+    img_path,
+    crop_meta,
+    load_size,
+    load_size_keep_ratio=False,
+):
+    img = load_image(img_path).convert("RGB")
+    old_width, old_height = img.size
+
+    if load_size not in (None, []):
+        target_width = int(load_size[0])
+        target_height = int(load_size[1] if len(load_size) > 1 else load_size[0])
+        if load_size_keep_ratio:
+            scale = max(target_width, target_height) / float(max(old_width, old_height))
+            new_width = max(1, int(round(old_width * scale)))
+            new_height = max(1, int(round(old_height * scale)))
+        else:
+            new_width = target_width
+            new_height = target_height
+        img = F.resize(img, (new_height, new_width))
+
+    arr = np.array(img).copy()
+    height, width = arr.shape[:2]
+    for bbox in crop_meta.get("processed_bboxes", []):
+        xmin = max(0, min(width, int(bbox["xmin"])))
+        xmax = max(0, min(width, int(bbox["xmax"])))
+        ymin = max(0, min(height, int(bbox["ymin"])))
+        ymax = max(0, min(height, int(bbox["ymax"])))
+        if xmax > xmin and ymax > ymin:
+            arr[ymin:ymax, xmin:xmax, :] = 0
+    return Image.fromarray(arr)
+
+
+def transform_global_context_images(
+    opt,
+    imgs,
+    geometry_state,
+    context_size,
+):
+    transformed = []
+    size = [int(context_size), int(context_size)]
+    for img in imgs:
+        img = F.resize(img, size, interpolation=InterpolationMode.BICUBIC)
+        if geometry_state.get("fliph", False):
+            img = F.hflip(img)
+        if geometry_state.get("flipv", False):
+            img = F.vflip(img)
+        angle = geometry_state.get("angle", 0)
+        if angle:
+            img = F.rotate(img, angle)
+        tensor_img = F.to_tensor(img)
+        tensor_img = F.normalize(
+            tensor_img,
+            (0.5, 0.5, 0.5),
+            (0.5, 0.5, 0.5),
+        )
+        transformed.append(tensor_img)
+    return torch.stack(transformed)
+
+
 class ComposeMaskList(transforms.Compose):
     """Composes several transforms together.
 
@@ -1200,6 +1261,7 @@ class ComposeMaskList(transforms.Compose):
     """
 
     def __call__(self, imgs, masks=None, bbox=None):
+        self.last_geometry_state = {}
         if bbox is None:
             w, h = imgs[0].size
             bbox = np.array([0, 0, w, h])  # sets bbox to full image size
@@ -1213,6 +1275,8 @@ class ComposeMaskList(transforms.Compose):
             tbbox = bbox  # placeholder
         for t in self.transforms:
             imgs, masks, tbbox = t(imgs, masks, tbbox)
+            if hasattr(t, "last_geometry_state"):
+                self.last_geometry_state.update(t.last_geometry_state)
         return imgs, masks, tbbox
 
 
@@ -1379,7 +1443,9 @@ class RandomHorizontalFlipMaskList(transforms.RandomHorizontalFlip):
         Returns:
             PIL Image: Randomly flipped image.
         """
-        if random.random() < self.p:
+        should_flip = random.random() < self.p
+        self.last_geometry_state = {"fliph": should_flip}
+        if should_flip:
             return_imgs, return_masks = [], []
             for img in imgs:
                 return_imgs.append(F.hflip(img))
@@ -1409,7 +1475,9 @@ class RandomVerticalFlipMaskList(transforms.RandomVerticalFlip):
         Returns:
             PIL Image: Randomly flipped image.
         """
-        if random.random() < self.p:
+        should_flip = random.random() < self.p
+        self.last_geometry_state = {"flipv": should_flip}
+        if should_flip:
             return_imgs, return_masks = [], []
             for img in imgs:
                 return_imgs.append(F.vflip(img))
@@ -1500,6 +1568,7 @@ class RandomRotationMaskList(transforms.RandomRotation):
             PIL Image: Rotated image.
         """
         angle = random.choice([0, 90, 180, 270])
+        self.last_geometry_state = {"angle": angle}
 
         return_imgs, return_masks = [], []
         for img in imgs:

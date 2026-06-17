@@ -67,6 +67,20 @@ class B2BModel(BaseDiffusionModel):
             ),
         )
         parser.add_argument(
+            "--alg_b2b_global_context_conditioning",
+            action="store_true",
+            help=(
+                "Condition JiTViD B2B denoisers on masked full-frame context "
+                "encoded by a small CNN."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_global_context_size",
+            type=int,
+            default=128,
+            help="Square input size for the masked full-frame B2B context encoder.",
+        )
+        parser.add_argument(
             "--alg_b2b_multi_dataset_class_conditioning",
             action="store_true",
             help=(
@@ -308,6 +322,17 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError(
                 "--alg_b2b_mask_size_conditioning is only supported with vit/vit_vid B2B"
             )
+        if getattr(opt, "alg_b2b_global_context_conditioning", False):
+            if getattr(opt, "G_netG", "") != "vit_vid":
+                raise ValueError(
+                    "--alg_b2b_global_context_conditioning is only supported with vit_vid B2B"
+                )
+            if getattr(opt, "alg_b2b_global_context_size", 128) <= 0:
+                raise ValueError("--alg_b2b_global_context_size must be > 0")
+            if getattr(opt, "dataaug_affine", 0):
+                raise ValueError(
+                    "--alg_b2b_global_context_conditioning does not support dataaug_affine"
+                )
 
         if getattr(opt, "G_vit_vid_motion_every", 0) < 0:
             raise ValueError("--G_vit_vid_motion_every must be >= 0")
@@ -698,7 +723,21 @@ class B2BModel(BaseDiffusionModel):
 
             self._load_raw_b2b_checkpoint_into_lora(net, state_dict, name)
 
+    def _b2b_global_context_from_data(self, data):
+        if not getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+            return None
+        global_context = data.get("B_global_context", data.get("A_global_context"))
+        if global_context is None:
+            if getattr(self.opt, "isTrain", False):
+                raise RuntimeError(
+                    "--alg_b2b_global_context_conditioning requires "
+                    "B_global_context or A_global_context from the dataset"
+                )
+            return None
+        return global_context.to(self.device)
+
     def set_input(self, data):
+        self.global_context = self._b2b_global_context_from_data(data)
         if (
             len(data["A"].to(self.device).shape) == 5
         ) and self.opt.G_netG != "vit_vid":  # we're using temporal successive frames
@@ -905,6 +944,10 @@ class B2BModel(BaseDiffusionModel):
         else:
             labels = None
 
+        net_kwargs = {}
+        if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+            net_kwargs["global_context"] = getattr(self, "global_context", None)
+
         net_out = self.netG_A(
             y_0,
             mask,
@@ -914,6 +957,7 @@ class B2BModel(BaseDiffusionModel):
             ref_idx=getattr(self, "ref_idx", None),
             return_x_pred=use_perceptual or use_ref_copy,
             return_raw_x_pred=use_ref_copy,
+            **net_kwargs,
         )
         raw_x_pred = None
         if use_ref_copy:
@@ -1077,6 +1121,9 @@ class B2BModel(BaseDiffusionModel):
             y_cond = self.cond_image[:nb_imgs]
         else:
             y_cond = None
+        global_context = getattr(self, "global_context", None)
+        if global_context is not None:
+            global_context = global_context[:nb_imgs]
         if self.task == "pix2pix":  #
             out_shape = list(y_cond.shape)
             out_shape[1] = netG.b2b_model.out_channel
@@ -1098,7 +1145,11 @@ class B2BModel(BaseDiffusionModel):
                     else:
                         cur_mask = self.mask[:nb_imgs]
                     self.output = netG.restoration(
-                        y_t, y_cond, self.opt.alg_b2b_denoise_timesteps, cur_mask
+                        y_t,
+                        y_cond,
+                        self.opt.alg_b2b_denoise_timesteps,
+                        cur_mask,
+                        global_context=global_context,
                     )
                     name = "output_" + str(i + 1)
                     setattr(self, name, self.output)
@@ -1125,6 +1176,7 @@ class B2BModel(BaseDiffusionModel):
                         use_gt=use_gt,
                         ref_idx=ref_idx,
                         init_noise=shared_init_noise,
+                        global_context=global_context,
                     )
                     self.outputs_per_step[steps] = self.output
                     name = "output_" + str(steps) + "_steps"

@@ -4,7 +4,12 @@ import re
 
 import torch
 
-from data.base_dataset import BaseDataset, get_transform_list
+from data.base_dataset import (
+    BaseDataset,
+    build_masked_global_context_image,
+    get_transform_list,
+    transform_global_context_images,
+)
 from data.image_folder import make_labeled_path_dataset
 from data.online_creation import crop_image
 
@@ -94,6 +99,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
 
         images_A = []
         labels_A = []
+        global_context_A = []
 
         ref_A_img_path = self.A_img_paths[index_A]
 
@@ -159,7 +165,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                         ),
                     )
 
-                cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_image(
+                crop_result = crop_image(
                     cur_A_img_path,
                     cur_A_label_path,
                     mask_delta=mask_delta_A,
@@ -184,7 +190,32 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                     fixed_mask_min_unmasked_border_model=getattr(
                         self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
                     ),
+                    return_meta=getattr(
+                        self.opt, "alg_b2b_global_context_conditioning", False
+                    ),
                 )
+                if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+                    (
+                        cur_A_img,
+                        cur_A_label,
+                        ref_A_bbox,
+                        A_ref_bbox_id,
+                        crop_meta,
+                    ) = crop_result
+                    global_context_A.append(
+                        build_masked_global_context_image(
+                            cur_A_img_path,
+                            crop_meta,
+                            self.opt.data_online_creation_load_size_A,
+                            getattr(
+                                self.opt,
+                                "data_online_creation_load_size_keep_ratio_A",
+                                False,
+                            ),
+                        )
+                    )
+                else:
+                    cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_result
                 if i == 0:
                     A_ref_bbox = ref_A_bbox[1:]
 
@@ -196,6 +227,13 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
             labels_A.append(cur_A_label)
 
         images_A, labels_A, A_ref_bbox = self.transform(images_A, labels_A, A_ref_bbox)
+        if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+            global_context_A = transform_global_context_images(
+                self.opt,
+                global_context_A,
+                getattr(self.transform, "last_geometry_state", {}),
+                getattr(self.opt, "alg_b2b_global_context_size", 128),
+            )
         A_ref_label = labels_A[0]
         A_ref_img = images_A[0]
         images_A = torch.stack(images_A)
@@ -206,6 +244,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
 
             images_B = []
             labels_B = []
+            global_context_B = []
 
             ref_B_img_path = self.B_img_paths[index_B]
 
@@ -271,7 +310,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                             ),
                         )
 
-                    cur_B_img, cur_B_label, ref_B_bbox, B_ref_bbox_id = crop_image(
+                    crop_result = crop_image(
                         cur_B_img_path,
                         cur_B_label_path,
                         mask_delta=mask_delta_B,
@@ -302,7 +341,32 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
                             "data_online_creation_mask_min_unmasked_border_B",
                             4,
                         ),
+                        return_meta=getattr(
+                            self.opt, "alg_b2b_global_context_conditioning", False
+                        ),
                     )
+                    if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+                        (
+                            cur_B_img,
+                            cur_B_label,
+                            ref_B_bbox,
+                            B_ref_bbox_id,
+                            crop_meta,
+                        ) = crop_result
+                        global_context_B.append(
+                            build_masked_global_context_image(
+                                cur_B_img_path,
+                                crop_meta,
+                                self.opt.data_online_creation_load_size_B,
+                                getattr(
+                                    self.opt,
+                                    "data_online_creation_load_size_keep_ratio_B",
+                                    False,
+                                ),
+                            )
+                        )
+                    else:
+                        cur_B_img, cur_B_label, ref_B_bbox, B_ref_bbox_id = crop_result
                     if i == 0:
                         B_ref_bbox = ref_B_bbox[1:]
 
@@ -316,6 +380,13 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
             images_B, labels_B, B_ref_bbox = self.transform(
                 images_B, labels_B, B_ref_bbox
             )
+            if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+                global_context_B = transform_global_context_images(
+                    self.opt,
+                    global_context_B,
+                    getattr(self.transform, "last_geometry_state", {}),
+                    getattr(self.opt, "alg_b2b_global_context_size", 128),
+                )
             B_ref_label = labels_B[0]
             B_ref_img = images_B[0]
             images_B = torch.stack(images_B)
@@ -328,6 +399,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
             ref_B_img_path = ""
             B_ref_bbox = ""
             B_ref_label = ""
+            global_context_B = None
 
         result = {
             "A_ref": A_ref_img,
@@ -337,16 +409,19 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
             "A_label_mask": labels_A,
             "A_ref_label_mask": A_ref_label,
         }
+        if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+            result["A_global_context"] = global_context_A
         if not images_B is None:
-            result.update(
-                {
-                    "B_ref": B_ref_img,
-                    "B": images_B,
-                    "B_img_paths": ref_B_img_path,
-                    "B_ref_bbox": B_ref_bbox,
-                    "B_label_mask": labels_B,
-                    "B_ref_label_mask": B_ref_label,
-                }
-            )
+            b_result = {
+                "B_ref": B_ref_img,
+                "B": images_B,
+                "B_img_paths": ref_B_img_path,
+                "B_ref_bbox": B_ref_bbox,
+                "B_label_mask": labels_B,
+                "B_ref_label_mask": B_ref_label,
+            }
+            if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+                b_result["B_global_context"] = global_context_B
+            result.update(b_result)
 
         return result

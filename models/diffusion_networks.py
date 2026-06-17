@@ -337,6 +337,10 @@ def define_G(
             mask_size_conditioning=getattr(
                 opt, "alg_b2b_mask_size_conditioning", False
             ),
+            global_context_conditioning=getattr(
+                opt, "alg_b2b_global_context_conditioning", False
+            ),
+            global_context_size=getattr(opt, "alg_b2b_global_context_size", 128),
             **cfg,
         )
         # Ensure SC/CM wrappers can query the conditioning width.
