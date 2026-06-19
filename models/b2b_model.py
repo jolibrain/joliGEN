@@ -22,6 +22,7 @@ from .modules.loss import MultiScaleDiffusionLoss
 from piq import DISTS, LPIPS
 from torchvision.ops import masks_to_boxes
 import torch.nn.functional as F
+from data.base_dataset import transform_object_reference_images
 
 
 class B2BModel(BaseDiffusionModel):
@@ -79,6 +80,25 @@ class B2BModel(BaseDiffusionModel):
             type=int,
             default=128,
             help="Square input size for the masked full-frame B2B context encoder.",
+        )
+        parser.add_argument(
+            "--alg_b2b_object_ref_paths",
+            type=str,
+            nargs="*",
+            default=[],
+            help=(
+                "Static object reference image paths. Providing one or more paths "
+                "enables object-reference token conditioning for vit_vid B2B."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_object_ref_size",
+            type=int,
+            default=64,
+            help=(
+                "Square padded input size for object-reference token conditioning. "
+                "Must be divisible by the ViT patch size."
+            ),
         )
         parser.add_argument(
             "--alg_b2b_multi_dataset_class_conditioning",
@@ -334,6 +354,21 @@ class B2BModel(BaseDiffusionModel):
                     "--alg_b2b_global_context_conditioning does not support dataaug_affine"
                 )
 
+        object_ref_paths = getattr(opt, "alg_b2b_object_ref_paths", []) or []
+        if object_ref_paths:
+            if getattr(opt, "G_netG", "") != "vit_vid":
+                raise ValueError(
+                    "--alg_b2b_object_ref_paths is only supported with vit_vid B2B"
+                )
+            object_ref_size = int(getattr(opt, "alg_b2b_object_ref_size", 64))
+            if object_ref_size <= 0:
+                raise ValueError("--alg_b2b_object_ref_size must be > 0")
+            patch_size = int(getattr(opt, "G_vit_patch_size", 16))
+            if object_ref_size % patch_size != 0:
+                raise ValueError(
+                    "--alg_b2b_object_ref_size must be divisible by --G_vit_patch_size"
+                )
+
         if getattr(opt, "G_vit_vid_motion_every", 0) < 0:
             raise ValueError("--G_vit_vid_motion_every must be >= 0")
 
@@ -430,6 +465,7 @@ class B2BModel(BaseDiffusionModel):
         opt.alg_diffusion_cond_embed = opt.alg_diffusion_cond_image_creation
         opt.alg_diffusion_cond_embed_dim = 256
         self.netG_A = diffusion_networks.define_G(opt=opt, **vars(opt)).to(self.device)
+        self.object_refs = self._load_b2b_object_references()
         self._apply_b2b_lora()
         if opt.isTrain:
             self.netG_A.current_t = max(self.netG_A.current_t, opt.total_iters)
@@ -736,6 +772,15 @@ class B2BModel(BaseDiffusionModel):
             return None
         return global_context.to(self.device)
 
+    def _load_b2b_object_references(self):
+        paths = getattr(self.opt, "alg_b2b_object_ref_paths", []) or []
+        if not paths:
+            return None
+        refs = transform_object_reference_images(
+            list(paths), int(getattr(self.opt, "alg_b2b_object_ref_size", 64))
+        )
+        return refs.to(self.device)
+
     def set_input(self, data):
         self.global_context = self._b2b_global_context_from_data(data)
         if (
@@ -947,6 +992,8 @@ class B2BModel(BaseDiffusionModel):
         net_kwargs = {}
         if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
             net_kwargs["global_context"] = getattr(self, "global_context", None)
+        if getattr(self, "object_refs", None) is not None:
+            net_kwargs["object_refs"] = self.object_refs
 
         net_out = self.netG_A(
             y_0,
@@ -1124,6 +1171,7 @@ class B2BModel(BaseDiffusionModel):
         global_context = getattr(self, "global_context", None)
         if global_context is not None:
             global_context = global_context[:nb_imgs]
+        object_refs = getattr(self, "object_refs", None)
         if self.task == "pix2pix":  #
             out_shape = list(y_cond.shape)
             out_shape[1] = netG.b2b_model.out_channel
@@ -1150,6 +1198,7 @@ class B2BModel(BaseDiffusionModel):
                         self.opt.alg_b2b_denoise_timesteps,
                         cur_mask,
                         global_context=global_context,
+                        object_refs=object_refs,
                     )
                     name = "output_" + str(i + 1)
                     setattr(self, name, self.output)
@@ -1177,6 +1226,7 @@ class B2BModel(BaseDiffusionModel):
                         ref_idx=ref_idx,
                         init_noise=shared_init_noise,
                         global_context=global_context,
+                        object_refs=object_refs,
                     )
                     self.outputs_per_step[steps] = self.output
                     name = "output_" + str(steps) + "_steps"

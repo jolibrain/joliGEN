@@ -41,11 +41,13 @@ class PthDenoiserSession:
         device,
         mask_size_conditioning=False,
         global_context_conditioning=False,
+        object_ref_conditioning=False,
     ):
         self.model = model.b2b_model
         self.device = device
         self.mask_size_conditioning = mask_size_conditioning
         self.global_context_conditioning = global_context_conditioning
+        self.object_ref_conditioning = object_ref_conditioning
         self.model.eval()
 
     @torch.no_grad()
@@ -77,6 +79,13 @@ class PthDenoiserSession:
                 self.device,
                 dtype=torch.float32,
             )
+        if self.object_ref_conditioning:
+            if "object_refs" not in inputs:
+                raise ValueError("object_refs input is required by this checkpoint")
+            model_kwargs["object_refs"] = torch.from_numpy(inputs["object_refs"]).to(
+                self.device,
+                dtype=torch.float32,
+            )
         output = self.model(model_input, timesteps.flatten(), labels, **model_kwargs)
         return [output.detach().cpu().numpy()]
 
@@ -98,6 +107,9 @@ def load_pth_session(model_in_file, train_config, device, use_ema):
             ),
             global_context_conditioning=bool(
                 getattr(opt, "alg_b2b_global_context_conditioning", False)
+            ),
+            object_ref_conditioning=bool(
+                getattr(opt, "alg_b2b_object_ref_paths", None)
             ),
         ),
         weights_path,
@@ -159,6 +171,16 @@ def parse_args():
         help="Optional directory to dump per-step denoiser inputs as .npy files",
     )
     parser.add_argument(
+        "--alg_b2b_object_ref_paths",
+        type=str,
+        nargs="*",
+        default=None,
+        help=(
+            "Override static object reference image paths for checkpoints trained "
+            "with alg.b2b_object_ref_paths."
+        ),
+    )
+    parser.add_argument(
         "--autoregressive_reinject_patch",
         "--autoregressive-reinject-patch",
         action="store_true",
@@ -200,7 +222,12 @@ def main():
     else:
         pairs = pairs[args.start_index :]
 
-    denoise_steps = onnx_runner.resolve_denoise_steps(train_json, args.denoise_steps)
+    denoise_steps = onnx_runner.resolve_denoise_steps(
+        train_json, args.denoise_steps
+    )
+    object_refs = onnx_runner.load_object_refs_for_inference(
+        train_json, args.alg_b2b_object_ref_paths
+    )
     frames_written = onnx_runner.run_sequence(
         session=session,
         pairs=pairs,
@@ -213,6 +240,7 @@ def main():
         denoise_steps=denoise_steps,
         debug_dump_dir=args.debug_dump_dir,
         autoregressive_reinject_patch=args.autoregressive_reinject_patch,
+        object_refs=object_refs,
     )
 
     print(f"dataset_root : {dataset_root}")
@@ -221,6 +249,10 @@ def main():
     print(f"device       : {device}")
     print(f"train_shape  : {(train_frames, train_height, train_width)}")
     print(f"denoise_steps: {denoise_steps}")
+    print(
+        "object_refs  : "
+        f"{0 if object_refs is None else int(object_refs.shape[0])}"
+    )
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
     print(f"written      : {len(frames_written)} frames")
     print(f"saved        : {args.output_dir}")

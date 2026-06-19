@@ -1247,6 +1247,41 @@ def transform_global_context_images(
     return torch.stack(transformed)
 
 
+def transform_object_reference_images(paths, ref_size):
+    size = int(ref_size)
+    if size <= 0:
+        raise ValueError("object reference size must be > 0")
+    if not paths:
+        return None
+
+    transformed = []
+    for path in paths:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"object reference image not found: {path}")
+        img = load_image(path).convert("RGB")
+        width, height = img.size
+        scale = min(size / float(width), size / float(height))
+        new_width = max(1, int(round(width * scale)))
+        new_height = max(1, int(round(height * scale)))
+        img = F.resize(
+            img,
+            (new_height, new_width),
+            interpolation=InterpolationMode.BICUBIC,
+        )
+        canvas = Image.new("RGB", (size, size), (0, 0, 0))
+        paste_x = (size - new_width) // 2
+        paste_y = (size - new_height) // 2
+        canvas.paste(img, (paste_x, paste_y))
+        tensor_img = F.to_tensor(canvas)
+        tensor_img = F.normalize(
+            tensor_img,
+            (0.5, 0.5, 0.5),
+            (0.5, 0.5, 0.5),
+        )
+        transformed.append(tensor_img)
+    return torch.stack(transformed)
+
+
 class ComposeMaskList(transforms.Compose):
     """Composes several transforms together.
 

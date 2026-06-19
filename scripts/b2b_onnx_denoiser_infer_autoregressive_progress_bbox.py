@@ -15,6 +15,7 @@ sys.path.append(JG_DIR)
 
 from data.base_dataset import (
     build_masked_global_context_image,
+    transform_object_reference_images,
     transform_global_context_images,
 )
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
@@ -53,6 +54,7 @@ def require_denoiser_model(
     session,
     mask_size_conditioning=False,
     global_context_conditioning=False,
+    object_ref_conditioning=False,
 ):
     input_names = [x.name for x in session.get_inputs()]
     expected = ["model_input", "timesteps", "labels"]
@@ -60,6 +62,8 @@ def require_denoiser_model(
         expected.append("mask_size_cond")
     if global_context_conditioning:
         expected.append("global_context")
+    if object_ref_conditioning:
+        expected.append("object_refs")
     if input_names != expected:
         raise ValueError(
             "This helper expects a denoiser ONNX with inputs "
@@ -175,6 +179,7 @@ def resolve_denoise_steps(train_json, denoise_steps):
 
 def get_b2b_params(train_json, image_size):
     alg = train_json.get("alg", {})
+    object_ref_paths = alg.get("b2b_object_ref_paths", []) or []
     params = {
         "P_mean": float(alg.get("b2b_P_mean", -0.8)),
         "P_std": float(alg.get("b2b_P_std", 0.8)),
@@ -193,6 +198,8 @@ def get_b2b_params(train_json, image_size):
             alg.get("b2b_global_context_conditioning", False)
         ),
         "global_context_size": int(alg.get("b2b_global_context_size", 128)),
+        "object_ref_conditioning": bool(object_ref_paths),
+        "object_ref_size": int(alg.get("b2b_object_ref_size", 64)),
     }
     requested_noise_scale = float(alg.get("b2b_noise_scale", -1.0))
     if requested_noise_scale > 0:
@@ -206,6 +213,23 @@ def get_b2b_params(train_json, image_size):
     )
     params["cfg_interval"] = (0.1, 1.0)
     return params
+
+
+def resolve_object_ref_paths(train_json, override_paths=None):
+    if override_paths is not None:
+        return list(override_paths)
+    paths = train_json.get("alg", {}).get("b2b_object_ref_paths", []) or []
+    if isinstance(paths, str):
+        return [paths]
+    return list(paths)
+
+
+def load_object_refs_for_inference(train_json, override_paths=None):
+    paths = resolve_object_ref_paths(train_json, override_paths)
+    if not paths:
+        return None
+    ref_size = int(train_json.get("alg", {}).get("b2b_object_ref_size", 64))
+    return transform_object_reference_images(paths, ref_size)
 
 
 def expected_model_input_channels(train_json):
@@ -683,6 +707,7 @@ def denoiser_forward(
     labels,
     mask_size_cond=None,
     global_context=None,
+    object_refs=None,
     dump_dir=None,
     dump_tag=None,
 ):
@@ -702,6 +727,11 @@ def denoiser_forward(
                 os.path.join(dump_dir, f"{dump_tag}_global_context.npy"),
                 global_context,
             )
+        if object_refs is not None:
+            np.save(
+                os.path.join(dump_dir, f"{dump_tag}_object_refs.npy"),
+                object_refs,
+            )
     inputs = {
         "model_input": model_input.astype(np.float32),
         "timesteps": timestep,
@@ -711,6 +741,8 @@ def denoiser_forward(
         inputs["mask_size_cond"] = mask_size_cond.astype(np.float32)
     if global_context is not None:
         inputs["global_context"] = global_context.astype(np.float32)
+    if object_refs is not None:
+        inputs["object_refs"] = object_refs.astype(np.float32)
     return session.run(
         ["output"],
         inputs,
@@ -727,6 +759,7 @@ def forward_sample_restoration(
     y_known,
     params,
     global_context=None,
+    object_refs=None,
     dump_dir=None,
     dump_prefix=None,
 ):
@@ -756,6 +789,7 @@ def forward_sample_restoration(
         labels,
         mask_size_cond=mask_size_cond,
         global_context=global_context,
+        object_refs=object_refs,
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_cond" if dump_prefix else None,
     )
@@ -782,6 +816,7 @@ def forward_sample_restoration(
         np.full_like(labels, params["num_classes"]),
         mask_size_cond=mask_size_cond,
         global_context=global_context,
+        object_refs=object_refs,
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_uncond" if dump_prefix else None,
     )
@@ -801,6 +836,7 @@ def restoration_with_denoiser(
     params,
     init_noise,
     global_context=None,
+    object_refs=None,
     dump_dir=None,
     dump_prefix=None,
 ):
@@ -829,6 +865,7 @@ def restoration_with_denoiser(
             y_known,
             params,
             global_context=global_context,
+            object_refs=object_refs,
             dump_dir=dump_dir,
             dump_prefix=f"{dump_prefix}_step{i}_a" if dump_prefix else None,
         )
@@ -843,6 +880,7 @@ def restoration_with_denoiser(
             y_known,
             params,
             global_context=global_context,
+            object_refs=object_refs,
             dump_dir=dump_dir,
             dump_prefix=f"{dump_prefix}_step{i}_b" if dump_prefix else None,
         )
@@ -862,6 +900,7 @@ def restoration_with_denoiser(
         y_known,
         params,
         global_context=global_context,
+        object_refs=object_refs,
         dump_dir=dump_dir,
         dump_prefix=f"{dump_prefix}_final" if dump_prefix else None,
     )
@@ -963,6 +1002,7 @@ def run_sequence(
     denoise_steps,
     debug_dump_dir,
     autoregressive_reinject_patch,
+    object_refs=None,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = get_train_shape(train_json)
@@ -1064,6 +1104,9 @@ def run_sequence(
                 None
                 if global_context_batch is None
                 else global_context_batch.numpy().astype(np.float32)
+            ),
+            object_refs=(
+                None if object_refs is None else object_refs.numpy().astype(np.float32)
             ),
             dump_dir=debug_dump_dir,
             dump_prefix=f"frame_{sequence_count:06d}",

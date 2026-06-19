@@ -441,7 +441,13 @@ def load_two_frames(args, train_json):
 
 
 def infer_second_generated_crop(
-    session, frames, label, seed, train_json, denoise_steps
+    session,
+    frames,
+    label,
+    seed,
+    train_json,
+    denoise_steps,
+    object_refs=None,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = onnx_runner.get_train_shape(train_json)
@@ -493,6 +499,9 @@ def infer_second_generated_crop(
             None
             if global_context_batch is None
             else global_context_batch.numpy().astype(np.float32)
+        ),
+        object_refs=(
+            None if object_refs is None else object_refs.numpy().astype(np.float32)
         ),
     )
 
@@ -615,6 +624,7 @@ def run_variant_grid(
     manifest_key,
     save_mask_tiles=False,
     overlay_mask_boundaries=False,
+    object_refs=None,
 ):
     tiles = []
     labels = []
@@ -631,6 +641,7 @@ def run_variant_grid(
             seed=args.seed,
             train_json=train_json,
             denoise_steps=denoise_steps,
+            object_refs=object_refs,
         )
         tile = onnx_runner.chw_to_bgr_uint8(generated)
         if overlay_mask_boundaries:
@@ -726,6 +737,16 @@ def parse_args():
         help="Use the sibling *_ema.pth checkpoint instead of model_in_file",
     )
     parser.add_argument(
+        "--alg_b2b_object_ref_paths",
+        type=str,
+        nargs="*",
+        default=None,
+        help=(
+            "Override static object reference image paths for checkpoints trained "
+            "with alg.b2b_object_ref_paths."
+        ),
+    )
+    parser.add_argument(
         "--study_mode",
         choices=["contour", "mask", "both"],
         default="contour",
@@ -795,6 +816,9 @@ def main():
 
     frames, dataset_root = load_two_frames(args, train_json)
     denoise_steps = onnx_runner.resolve_denoise_steps(train_json, args.denoise_steps)
+    object_refs = onnx_runner.load_object_refs_for_inference(
+        train_json, args.alg_b2b_object_ref_paths
+    )
     if args.max_variants is not None and args.max_variants <= 0:
         raise ValueError("--max_variants must be positive when provided")
 
@@ -813,6 +837,7 @@ def main():
         "global_context_conditioning": bool(
             train_json.get("alg", {}).get("b2b_global_context_conditioning", False)
         ),
+        "object_ref_count": 0 if object_refs is None else int(object_refs.shape[0]),
         "study_mode": args.study_mode,
         "contour_width": args.contour_width,
         "contour_side": args.contour_side,
@@ -853,6 +878,7 @@ def main():
             denoise_steps=denoise_steps,
             grid_name=output_name_for_group(args, "contour"),
             manifest_key="contour",
+            object_refs=object_refs,
         )
         manifest["outputs"]["contour"] = contour_result
 
@@ -878,6 +904,7 @@ def main():
             manifest_key="mask",
             save_mask_tiles=args.save_masks,
             overlay_mask_boundaries=True,
+            object_refs=object_refs,
         )
         manifest["outputs"]["mask"] = mask_result
 
@@ -888,6 +915,10 @@ def main():
     print(f"checkpoint   : {weights_path}")
     print(f"train_config : {train_config_path}")
     print(f"device       : {device}")
+    print(
+        "object_refs  : "
+        f"{0 if object_refs is None else int(object_refs.shape[0])}"
+    )
     for group_name, group_result in manifest["outputs"].items():
         print(f"{group_name}_variants: {len(group_result['variants'])}")
         print(f"{group_name}_grid    : {group_result['grid']}")
