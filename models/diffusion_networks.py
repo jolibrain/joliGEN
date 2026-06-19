@@ -341,6 +341,10 @@ def define_G(
                 opt, "alg_b2b_global_context_conditioning", False
             ),
             global_context_size=getattr(opt, "alg_b2b_global_context_size", 128),
+            object_ref_num_images=len(
+                getattr(opt, "alg_b2b_object_ref_paths", []) or []
+            ),
+            object_ref_size=getattr(opt, "alg_b2b_object_ref_size", 64),
             **cfg,
         )
         # Ensure SC/CM wrappers can query the conditioning width.

@@ -58,6 +58,9 @@ class B2BGenerator(nn.Module):
             if opt
             else False
         )
+        self.object_ref_conditioning = (
+            bool(getattr(opt, "alg_b2b_object_ref_paths", None)) if opt else False
+        )
 
         self.denoise_timesteps = (
             getattr(opt, "alg_b2b_denoise_timesteps", 50) if opt else 50
@@ -204,12 +207,14 @@ class B2BGenerator(nn.Module):
         drop = torch.rand(labels.shape, device=labels.device) < self.label_drop_prob
         return torch.where(drop, torch.full_like(labels, self.num_classes), labels)
 
-    def _model_kwargs(self, mask_size_cond, global_context):
+    def _model_kwargs(self, mask_size_cond, global_context, object_refs):
         kwargs = {}
         if self.mask_size_conditioning:
             kwargs["mask_size_cond"] = mask_size_cond
         if self.global_context_conditioning:
             kwargs["global_context"] = global_context
+        if self.object_ref_conditioning:
+            kwargs["object_refs"] = object_refs
         return kwargs
 
     def b2b_forward(
@@ -221,6 +226,7 @@ class B2BGenerator(nn.Module):
         use_gt=None,
         ref_idx=None,
         global_context=None,
+        object_refs=None,
     ):
         labels_dropped = (
             self.drop_labels(label) if self.training and label is not None else label
@@ -276,7 +282,7 @@ class B2BGenerator(nn.Module):
             z_model,
             t_flat,
             labels_dropped,
-            **self._model_kwargs(mask_size_cond, global_context),
+            **self._model_kwargs(mask_size_cond, global_context, object_refs),
         )
         x_pred = self._match_prediction_channels(x_pred, x)
 
@@ -291,11 +297,12 @@ class B2BGenerator(nn.Module):
         use_gt=None,
         ref_idx=None,
         global_context=None,
+        object_refs=None,
         return_x_pred=False,
         return_raw_x_pred=False,
     ):
         x_pred, z, v, t, x_target = self.b2b_forward(
-            x, mask, x_cond, label, use_gt, ref_idx, global_context
+            x, mask, x_cond, label, use_gt, ref_idx, global_context, object_refs
         )
         raw_x_pred = x_pred
         if mask is not None:
@@ -375,6 +382,7 @@ class B2BGenerator(nn.Module):
         ref_idx=None,
         init_noise=None,
         global_context=None,
+        object_refs=None,
     ):
         B = y.shape[0]
         device = y.device
@@ -425,6 +433,7 @@ class B2BGenerator(nn.Module):
                 use_gt,
                 ref_idx,
                 global_context,
+                object_refs,
             )
 
             if clip_denoised:
@@ -444,6 +453,7 @@ class B2BGenerator(nn.Module):
             use_gt,
             ref_idx,
             global_context,
+            object_refs,
         )
         if clip_denoised:
             x = x.clamp(-1.0, 1.0)
@@ -467,6 +477,7 @@ class B2BGenerator(nn.Module):
         use_gt=None,
         ref_idx=None,
         global_context=None,
+        object_refs=None,
     ):
         """
         JIT-equivalent CFG:
@@ -485,7 +496,7 @@ class B2BGenerator(nn.Module):
         model_t = self._restoration_model_timesteps(t, model_input, use_gt, ref_idx)
 
         mask_size_cond = self._mask_size_condition(mask, model_input)
-        model_kwargs = self._model_kwargs(mask_size_cond, global_context)
+        model_kwargs = self._model_kwargs(mask_size_cond, global_context, object_refs)
 
         # --- conditional ---
         x_cond = self.b2b_model(model_input, model_t, labels, **model_kwargs)
@@ -536,9 +547,19 @@ class B2BGenerator(nn.Module):
         use_gt=None,
         ref_idx=None,
         global_context=None,
+        object_refs=None,
     ):
         v = self._forward_sample_restoration(
-            x, t, y_cond, mask, labels, y_known, use_gt, ref_idx, global_context
+            x,
+            t,
+            y_cond,
+            mask,
+            labels,
+            y_known,
+            use_gt,
+            ref_idx,
+            global_context,
+            object_refs,
         )
         return x + (t_next - t) * v
 
@@ -555,9 +576,19 @@ class B2BGenerator(nn.Module):
         use_gt=None,
         ref_idx=None,
         global_context=None,
+        object_refs=None,
     ):
         v_t = self._forward_sample_restoration(
-            x, t, y_cond, mask, labels, y_known, use_gt, ref_idx, global_context
+            x,
+            t,
+            y_cond,
+            mask,
+            labels,
+            y_known,
+            use_gt,
+            ref_idx,
+            global_context,
+            object_refs,
         )
         x_euler = x + (t_next - t) * v_t
         v_t_next = self._forward_sample_restoration(
@@ -570,6 +601,7 @@ class B2BGenerator(nn.Module):
             use_gt,
             ref_idx,
             global_context,
+            object_refs,
         )
         v = 0.5 * (v_t + v_t_next)
         return x + (t_next - t) * v

@@ -752,12 +752,18 @@ class JiTViD(nn.Module):
         motion_every=0,
         global_context_conditioning=False,
         global_context_size=128,
+        object_ref_num_images=0,
+        object_ref_size=64,
     ):
         super().__init__()
         if num_register_tokens < 0:
             raise ValueError("num_register_tokens must be >= 0")
         if motion_every < 0:
             raise ValueError("motion_every must be >= 0")
+        if object_ref_num_images < 0:
+            raise ValueError("object_ref_num_images must be >= 0")
+        if object_ref_num_images > 0 and object_ref_size % patch_size != 0:
+            raise ValueError("object_ref_size must be divisible by patch_size")
         self.in_channels = in_channels
         self.out_channels = in_channels if out_channels is None else out_channels
         self.out_channel = self.out_channels
@@ -774,6 +780,16 @@ class JiTViD(nn.Module):
         self.mask_size_conditioning = mask_size_conditioning
         self.global_context_conditioning = global_context_conditioning
         self.global_context_size = global_context_size
+        self.object_ref_num_images = int(object_ref_num_images)
+        self.object_ref_size = int(object_ref_size)
+        self.object_ref_tokens_per_image = (
+            (self.object_ref_size // patch_size) ** 2
+            if self.object_ref_num_images > 0
+            else 0
+        )
+        self.object_ref_token_count = (
+            self.object_ref_num_images * self.object_ref_tokens_per_image
+        )
 
         # time and class embed as input c
         self.t_embedder = TimestepEmbedder(hidden_size)
@@ -789,6 +805,18 @@ class JiTViD(nn.Module):
         )
         self.global_context_encoder = (
             GlobalContextEncoder(hidden_size) if global_context_conditioning else None
+        )
+        self.object_ref_embedder = (
+            BottleneckPatchEmbed(
+                self.object_ref_size,
+                patch_size,
+                3,
+                bottleneck_dim,
+                hidden_size,
+                bias=True,
+            )
+            if self.object_ref_num_images > 0
+            else None
         )
 
         # linear embed
@@ -815,6 +843,16 @@ class JiTViD(nn.Module):
                 torch.zeros(1, self.in_context_len, hidden_size), requires_grad=True
             )
             torch.nn.init.normal_(self.in_context_posemb, std=0.02)
+        if self.object_ref_token_count > 0:
+            self.object_ref_posemb = nn.Parameter(
+                torch.zeros(1, self.object_ref_token_count, hidden_size),
+                requires_grad=True,
+            )
+            self.object_ref_type_embed = nn.Parameter(
+                torch.zeros(1, 1, hidden_size), requires_grad=True
+            )
+            torch.nn.init.normal_(self.object_ref_posemb, std=0.02)
+            torch.nn.init.normal_(self.object_ref_type_embed, std=0.02)
 
         # rope
         half_head_dim = hidden_size // num_heads // 2
@@ -827,7 +865,11 @@ class JiTViD(nn.Module):
         self.feat_rope_incontext = VisionRotaryEmbeddingFast(
             dim=half_head_dim,
             pt_seq_len=hw_seq_len,
-            num_cls_token=self.num_register_tokens + self.in_context_len,
+            num_cls_token=(
+                self.num_register_tokens
+                + self.object_ref_token_count
+                + self.in_context_len
+            ),
         )
 
         # transformer
@@ -937,6 +979,12 @@ class JiTViD(nn.Module):
         if self.global_context_encoder is not None:
             nn.init.constant_(self.global_context_encoder.proj[-1].weight, 0)
             nn.init.constant_(self.global_context_encoder.proj[-1].bias, 0)
+        if self.object_ref_embedder is not None:
+            w1 = self.object_ref_embedder.proj1.weight.data
+            nn.init.xavier_uniform_(w1.view([w1.shape[0], -1]))
+            w2 = self.object_ref_embedder.proj2.weight.data
+            nn.init.xavier_uniform_(w2.view([w2.shape[0], -1]))
+            nn.init.constant_(self.object_ref_embedder.proj2.bias, 0)
 
         # Zero-out adaLN modulation layers:
         for block in self.blocks:
@@ -1013,7 +1061,50 @@ class JiTViD(nn.Module):
         flat_context = rearrange(global_context, "b f c h w -> (b f) c h w")
         return c + self.global_context_encoder(flat_context)
 
-    def forward(self, x, t, y, mask_size_cond=None, global_context=None):
+    def _object_reference_tokens(self, B, F, object_refs, device, dtype):
+        if self.object_ref_embedder is None:
+            return None
+
+        R = self.object_ref_num_images
+        S = self.object_ref_size
+        if object_refs is None:
+            object_refs = torch.zeros(B, F, R, 3, S, S, device=device, dtype=dtype)
+        elif object_refs.ndim == 4 and object_refs.shape == (R, 3, S, S):
+            object_refs = object_refs[None, None].expand(B, F, -1, -1, -1, -1)
+        elif object_refs.ndim == 5 and object_refs.shape == (B, R, 3, S, S):
+            object_refs = object_refs[:, None].expand(-1, F, -1, -1, -1, -1)
+        elif object_refs.ndim == 5 and object_refs.shape == (B * F, R, 3, S, S):
+            object_refs = rearrange(object_refs, "(b f) r c h w -> b f r c h w", b=B, f=F)
+        elif object_refs.ndim == 6 and object_refs.shape == (B, F, R, 3, S, S):
+            pass
+        else:
+            raise RuntimeError(
+                "Expected object_refs shape "
+                f"{(R, 3, S, S)}, {(B, R, 3, S, S)}, "
+                f"{(B * F, R, 3, S, S)}, or {(B, F, R, 3, S, S)}, "
+                f"got {tuple(object_refs.shape)}"
+            )
+
+        object_refs = object_refs.to(device=device, dtype=dtype)
+        flat_refs = rearrange(object_refs, "b f r c h w -> (b f r) c h w")
+        ref_tokens = self.object_ref_embedder(flat_refs)
+        ref_tokens = rearrange(
+            ref_tokens,
+            "(bf r) p d -> bf (r p) d",
+            bf=B * F,
+            r=R,
+        )
+        return ref_tokens + self.object_ref_posemb + self.object_ref_type_embed
+
+    def forward(
+        self,
+        x,
+        t,
+        y,
+        mask_size_cond=None,
+        global_context=None,
+        object_refs=None,
+    ):
         """
         x: (B, F, C, H, W) tensor of video inputs
         t: (B,)  tensor of diffusion timesteps
@@ -1053,8 +1144,12 @@ class JiTViD(nn.Module):
         c = t_emb + y_emb
         c = self._mask_size_embedding(B, F, c, mask_size_cond)
         c = self._global_context_embedding(B, F, c, global_context)
+        object_ref_tokens = self._object_reference_tokens(
+            B, F, object_refs, x.device, x.dtype
+        )
 
         inserted_registers = False
+        inserted_object_refs = False
         inserted_in_context = False
         motion_idx = 0
         for i, block in enumerate(self.blocks):
@@ -1065,6 +1160,9 @@ class JiTViD(nn.Module):
                         self.register_tokens.expand(x.shape[0], -1, -1)
                     )
                     inserted_registers = True
+                if object_ref_tokens is not None:
+                    prefix_tokens.append(object_ref_tokens)
+                    inserted_object_refs = True
                 if self.in_context_len > 0:
                     in_context_tokens = y_emb.unsqueeze(1).repeat(
                         1, self.in_context_len, 1
@@ -1085,6 +1183,8 @@ class JiTViD(nn.Module):
             )
             if self.motion_every > 0 and i in self.motion_insert_layers:
                 prefix_tokens = self.num_register_tokens if inserted_registers else 0
+                if inserted_object_refs:
+                    prefix_tokens += self.object_ref_token_count
                 if inserted_in_context:
                     prefix_tokens += self.in_context_len
                 x = self._apply_motion_on_patches(
@@ -1093,6 +1193,8 @@ class JiTViD(nn.Module):
                 motion_idx += 1
 
         prefix_tokens = self.num_register_tokens if inserted_registers else 0
+        if inserted_object_refs:
+            prefix_tokens += self.object_ref_token_count
         if inserted_in_context:
             prefix_tokens += self.in_context_len
         x = x[:, prefix_tokens:]
