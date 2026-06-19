@@ -13,6 +13,10 @@ from torchvision import transforms
 JG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../")
 sys.path.append(JG_DIR)
 
+from data.base_dataset import (
+    build_masked_global_context_image,
+    transform_global_context_images,
+)
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
 
 
@@ -45,11 +49,17 @@ def load_session(model_in_file, provider):
     return ort.InferenceSession(model_in_file, providers=[provider])
 
 
-def require_denoiser_model(session, mask_size_conditioning=False):
+def require_denoiser_model(
+    session,
+    mask_size_conditioning=False,
+    global_context_conditioning=False,
+):
     input_names = [x.name for x in session.get_inputs()]
     expected = ["model_input", "timesteps", "labels"]
     if mask_size_conditioning:
         expected.append("mask_size_cond")
+    if global_context_conditioning:
+        expected.append("global_context")
     if input_names != expected:
         raise ValueError(
             "This helper expects a denoiser ONNX with inputs "
@@ -119,7 +129,7 @@ def get_train_shape(train_json):
     data = train_json.get("data", {})
     online = data.get("online_creation", {})
     crop_size = online.get("crop_size_A", data.get("crop_size", 256))
-    load_size = online.get("load_size_A", data.get("load_size", crop_size))
+    model_size = data.get("load_size", crop_size)
     temporal = data.get("temporal_number_frames", 2)
 
     if isinstance(crop_size, (list, tuple)):
@@ -130,15 +140,15 @@ def get_train_shape(train_json):
     else:
         height = width = int(crop_size)
 
-    if isinstance(load_size, (list, tuple)):
-        if len(load_size) == 0:
+    if isinstance(model_size, (list, tuple)):
+        if len(model_size) == 0:
             load_h = load_w = int(height)
-        elif len(load_size) >= 2:
-            load_h, load_w = int(load_size[0]), int(load_size[1])
+        elif len(model_size) >= 2:
+            load_h, load_w = int(model_size[0]), int(model_size[1])
         else:
-            load_h = load_w = int(load_size[0])
+            load_h = load_w = int(model_size[0])
     else:
-        load_h = load_w = int(load_size)
+        load_h = load_w = int(model_size)
 
     return temporal, height, width, load_h, load_w
 
@@ -176,7 +186,13 @@ def get_b2b_params(train_json, image_size):
         "t_eps": float(alg.get("b2b_t_eps", 5e-2)),
         "cond_mode": alg.get("diffusion_cond_image_creation", "y_t"),
         "mask_as_channel": bool(alg.get("b2b_mask_as_channel", False)),
-        "mask_size_conditioning": bool(alg.get("b2b_mask_size_conditioning", False)),
+        "mask_size_conditioning": bool(
+            alg.get("b2b_mask_size_conditioning", False)
+        ),
+        "global_context_conditioning": bool(
+            alg.get("b2b_global_context_conditioning", False)
+        ),
+        "global_context_size": int(alg.get("b2b_global_context_size", 128)),
     }
     requested_noise_scale = float(alg.get("b2b_noise_scale", -1.0))
     if requested_noise_scale > 0:
@@ -398,10 +414,18 @@ def compute_paste_mapping(crop_meta, src_width, src_height):
     }
 
 
-def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, device):
+def preprocess_with_repo_crop(
+    img_path,
+    bbox_path,
+    bbox_index,
+    train_json,
+    device,
+    crop_size_override=None,
+):
     img_path = os.path.realpath(img_path)
     bbox_path = os.path.realpath(bbox_path)
     data = train_json.get("data", {})
+    alg = train_json.get("alg", {})
     online = data.get("online_creation", {})
 
     img_orig = cv2.imread(img_path)
@@ -421,13 +445,21 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         online.get("mask_min_unmasked_border_A", 4)
     )
     _, crop_h, crop_w, output_h, output_w = get_train_shape(train_json)
+    if crop_size_override is not None:
+        crop_size_override = int(crop_size_override)
+        if crop_size_override <= 0:
+            raise ValueError(
+                f"crop_size_override must be positive, got {crop_size_override}"
+            )
+        crop_h = crop_w = crop_size_override
     crop_dim = require_square_crop_size(crop_h, crop_w)
-    output_dim = crop_dim
+    output_dim = require_square_crop_size(output_h, output_w)
     load_size = online.get("load_size_A", output_dim)
     if isinstance(load_size, int):
         load_size = [load_size]
     elif isinstance(load_size, tuple):
         load_size = list(load_size)
+    load_size_keep_ratio = bool(online.get("load_size_keep_ratio_A", False))
     context_pixels = data.get("online_context_pixels", 0)
     min_crop_bbox_ratio = online.get("min_crop_bbox_ratio_A", 0)
 
@@ -442,6 +474,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         output_dim=output_dim,
         context_pixels=context_pixels,
         load_size=load_size,
+        load_size_keep_ratio=load_size_keep_ratio,
         get_crop_coordinates=True,
         crop_center=True,
         bbox_ref_id=bbox_index,
@@ -461,6 +494,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         output_dim=output_dim,
         context_pixels=context_pixels,
         load_size=load_size,
+        load_size_keep_ratio=load_size_keep_ratio,
         crop_coordinates=crop_coordinates,
         crop_center=True,
         bbox_ref_id=bbox_index,
@@ -483,6 +517,20 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
 
     img = np.array(img)
     mask = np.array(mask) if mask is not None else None
+    global_context = None
+    if bool(alg.get("b2b_global_context_conditioning", False)):
+        context_img = build_masked_global_context_image(
+            img_path,
+            crop_meta,
+            load_size,
+            load_size_keep_ratio,
+        )
+        global_context = transform_global_context_images(
+            None,
+            [context_img],
+            {},
+            int(alg.get("b2b_global_context_size", 128)),
+        ).detach().cpu()
 
     if mask is not None and data.get("inverted_mask", False):
         mask = mask.copy()
@@ -514,7 +562,6 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
             (1, img_tensor.shape[-2], img_tensor.shape[-1]), device=device
         )
 
-    alg = train_json.get("alg", {})
     cond_mode = alg.get("diffusion_cond_image_creation", "y_t")
     cond_image = None
     if cond_mode != "y_t":
@@ -535,6 +582,7 @@ def preprocess_with_repo_crop(img_path, bbox_path, bbox_index, train_json, devic
         "y0_tensor": img_tensor.unsqueeze(0).detach().cpu(),
         "mask": mask_tensor.unsqueeze(0).float().detach().cpu(),
         "img_tensor": img_tensor.unsqueeze(0).detach().cpu(),
+        "global_context": global_context,
         "crop_meta": crop_meta,
         "has_bbox": True,
         "generated_bbox": None,
@@ -634,6 +682,7 @@ def denoiser_forward(
     t_scalar,
     labels,
     mask_size_cond=None,
+    global_context=None,
     dump_dir=None,
     dump_tag=None,
 ):
@@ -648,6 +697,11 @@ def denoiser_forward(
                 os.path.join(dump_dir, f"{dump_tag}_mask_size_cond.npy"),
                 mask_size_cond,
             )
+        if global_context is not None:
+            np.save(
+                os.path.join(dump_dir, f"{dump_tag}_global_context.npy"),
+                global_context,
+            )
     inputs = {
         "model_input": model_input.astype(np.float32),
         "timesteps": timestep,
@@ -655,6 +709,8 @@ def denoiser_forward(
     }
     if mask_size_cond is not None:
         inputs["mask_size_cond"] = mask_size_cond.astype(np.float32)
+    if global_context is not None:
+        inputs["global_context"] = global_context.astype(np.float32)
     return session.run(
         ["output"],
         inputs,
@@ -670,6 +726,7 @@ def forward_sample_restoration(
     labels,
     y_known,
     params,
+    global_context=None,
     dump_dir=None,
     dump_prefix=None,
 ):
@@ -698,6 +755,7 @@ def forward_sample_restoration(
         t_scalar,
         labels,
         mask_size_cond=mask_size_cond,
+        global_context=global_context,
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_cond" if dump_prefix else None,
     )
@@ -723,6 +781,7 @@ def forward_sample_restoration(
         t_scalar,
         np.full_like(labels, params["num_classes"]),
         mask_size_cond=mask_size_cond,
+        global_context=global_context,
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_uncond" if dump_prefix else None,
     )
@@ -741,6 +800,7 @@ def restoration_with_denoiser(
     labels,
     params,
     init_noise,
+    global_context=None,
     dump_dir=None,
     dump_prefix=None,
 ):
@@ -768,6 +828,7 @@ def restoration_with_denoiser(
             labels,
             y_known,
             params,
+            global_context=global_context,
             dump_dir=dump_dir,
             dump_prefix=f"{dump_prefix}_step{i}_a" if dump_prefix else None,
         )
@@ -781,6 +842,7 @@ def restoration_with_denoiser(
             labels,
             y_known,
             params,
+            global_context=global_context,
             dump_dir=dump_dir,
             dump_prefix=f"{dump_prefix}_step{i}_b" if dump_prefix else None,
         )
@@ -799,6 +861,7 @@ def restoration_with_denoiser(
         labels,
         y_known,
         params,
+        global_context=global_context,
         dump_dir=dump_dir,
         dump_prefix=f"{dump_prefix}_final" if dump_prefix else None,
     )
@@ -902,14 +965,15 @@ def run_sequence(
     autoregressive_reinject_patch,
 ):
     rng = np.random.default_rng(seed)
-    _, crop_h, _, _, _ = get_train_shape(train_json)
-    params = get_b2b_params(train_json, crop_h)
+    _, _, _, output_h, output_w = get_train_shape(train_json)
+    params = get_b2b_params(train_json, require_square_crop_size(output_h, output_w))
     inputmix = True
     prev_frame = None
     last_seq_half_y_t = None
     last_seq_half_cond_image = None
     last_seq_half_y0_tensor = None
     last_seq_half_mask = None
+    last_seq_half_global_context = None
     frames_written = []
     seq_half = 1
     num_buckets = 2
@@ -949,6 +1013,9 @@ def run_sequence(
                 [prev_frame["y0_tensor"], frame_data["y0_tensor"]]
             )
             mask_batch = prepare_tensors([prev_frame["mask"], frame_data["mask"]])
+            global_context_batch = prepare_tensors(
+                [prev_frame.get("global_context"), frame_data.get("global_context")]
+            )
             if params["mask_as_channel"]:
                 cond_image_batch = prepare_tensors(
                     [prev_frame["cond_image"], frame_data["cond_image"]]
@@ -967,6 +1034,11 @@ def run_sequence(
                 last_seq_half_y0_tensor + [frame_data["y0_tensor"]]
             )
             mask_batch = prepare_tensors(last_seq_half_mask + [frame_data["mask"]])
+            global_context_batch = prepare_tensors(
+                last_seq_half_global_context + [frame_data.get("global_context")]
+                if last_seq_half_global_context is not None
+                else [None, frame_data.get("global_context")]
+            )
             cond_image_batch = prepare_tensors(
                 last_seq_half_cond_image + [frame_data["cond_image"]]
             )
@@ -988,6 +1060,11 @@ def run_sequence(
             labels=labels,
             params=params,
             init_noise=init_noise,
+            global_context=(
+                None
+                if global_context_batch is None
+                else global_context_batch.numpy().astype(np.float32)
+            ),
             dump_dir=debug_dump_dir,
             dump_prefix=f"frame_{sequence_count:06d}",
         )
@@ -1000,6 +1077,7 @@ def run_sequence(
         y_t_temp_list = separate_tensors(y_t_batch)
         y0_tensor_temp_list = separate_tensors(y0_tensor_batch)
         mask_temp_list = separate_tensors(mask_batch)
+        global_context_temp_list = separate_tensors(global_context_batch)
         if autoregressive_reinject_patch:
             last_seq_half_y_t = out_img_tensor_list_batch[-seq_half:]
             last_seq_half_y0_tensor = out_img_tensor_list_batch[-seq_half:]
@@ -1011,6 +1089,11 @@ def run_sequence(
             last_seq_half_y_t = y_t_temp_list[-seq_half:]
             last_seq_half_y0_tensor = y0_tensor_temp_list[-seq_half:]
             last_seq_half_mask = mask_temp_list[-seq_half:]
+        last_seq_half_global_context = (
+            global_context_temp_list[-seq_half:]
+            if global_context_temp_list is not None
+            else None
+        )
         if params["mask_as_channel"]:
             last_seq_half_cond_image = last_seq_half_mask
         else:
@@ -1100,6 +1183,9 @@ def main():
         mask_size_conditioning=bool(
             train_json.get("alg", {}).get("b2b_mask_size_conditioning", False)
         ),
+        global_context_conditioning=bool(
+            train_json.get("alg", {}).get("b2b_global_context_conditioning", False)
+        ),
     )
     onnx_batch, onnx_frames, onnx_channels, onnx_height, onnx_width = get_onnx_shape(
         session
@@ -1107,7 +1193,7 @@ def main():
     if onnx_batch != 1:
         raise ValueError(f"Expected batch size 1 denoiser ONNX, got {onnx_batch}")
 
-    train_frames, train_height, train_width, _, _ = get_train_shape(train_json)
+    train_frames, _, _, train_height, train_width = get_train_shape(train_json)
     if train_json.get("alg", {}).get("diffusion_cond_image_creation", "y_t") != "y_t":
         raise NotImplementedError(
             "This runner currently supports only alg.diffusion_cond_image_creation = 'y_t'."

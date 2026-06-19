@@ -431,6 +431,7 @@ def load_two_frames(args, train_json):
             bbox_index=args.bbox_index,
             train_json=train_json,
             device=torch.device("cpu"),
+            crop_size_override=args.crop_size,
         )
         frame_data["index"] = args.start_index + offset
         frame_data["img_rel"] = img_rel
@@ -443,8 +444,11 @@ def infer_second_generated_crop(
     session, frames, label, seed, train_json, denoise_steps
 ):
     rng = np.random.default_rng(seed)
-    _, crop_h, _, _, _ = onnx_runner.get_train_shape(train_json)
-    params = onnx_runner.get_b2b_params(train_json, crop_h)
+    _, _, _, output_h, output_w = onnx_runner.get_train_shape(train_json)
+    params = onnx_runner.get_b2b_params(
+        train_json,
+        onnx_runner.require_square_crop_size(output_h, output_w),
+    )
     prev_frame, frame_data = frames
 
     y0_np = prev_frame["y0_tensor"].numpy()
@@ -456,6 +460,9 @@ def infer_second_generated_crop(
 
     y_t_batch = onnx_runner.prepare_tensors([prev_frame["y_t"], frame_data["y_t"]])
     mask_batch = onnx_runner.prepare_tensors([prev_frame["mask"], frame_data["mask"]])
+    global_context_batch = onnx_runner.prepare_tensors(
+        [prev_frame.get("global_context"), frame_data.get("global_context")]
+    )
     if params["mask_as_channel"]:
         cond_image_batch = onnx_runner.prepare_tensors(
             [prev_frame["cond_image"], frame_data["cond_image"]]
@@ -482,6 +489,11 @@ def infer_second_generated_crop(
         labels=labels,
         params=params,
         init_noise=init_noise,
+        global_context=(
+            None
+            if global_context_batch is None
+            else global_context_batch.numpy().astype(np.float32)
+        ),
     )
 
     out_tensor_torch = torch.from_numpy(out_tensor).squeeze(0)
@@ -688,6 +700,14 @@ def parse_args():
     parser.add_argument(
         "--bbox_index", type=int, default=0, help="Which bbox line to use"
     )
+    parser.add_argument(
+        "--crop_size",
+        type=int,
+        help=(
+            "Override the square crop window size before resizing to the model input "
+            "size. Useful for debugging crop context."
+        ),
+    )
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for all runs")
     parser.add_argument(
@@ -787,8 +807,12 @@ def main():
         "dataset_root": dataset_root,
         "start_index": args.start_index,
         "bbox_index": args.bbox_index,
+        "crop_size_override": args.crop_size,
         "seed": args.seed,
         "denoise_steps": denoise_steps,
+        "global_context_conditioning": bool(
+            train_json.get("alg", {}).get("b2b_global_context_conditioning", False)
+        ),
         "study_mode": args.study_mode,
         "contour_width": args.contour_width,
         "contour_side": args.contour_side,
