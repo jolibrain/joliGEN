@@ -35,10 +35,17 @@ def resolve_train_config(model_in_file, train_config):
 class PthDenoiserSession:
     """Small ONNX Runtime-compatible adapter around a JoliGEN B2B .pth model."""
 
-    def __init__(self, model, device, mask_size_conditioning=False):
+    def __init__(
+        self,
+        model,
+        device,
+        mask_size_conditioning=False,
+        global_context_conditioning=False,
+    ):
         self.model = model.b2b_model
         self.device = device
         self.mask_size_conditioning = mask_size_conditioning
+        self.global_context_conditioning = global_context_conditioning
         self.model.eval()
 
     @torch.no_grad()
@@ -54,20 +61,23 @@ class PthDenoiserSession:
         )
         labels = torch.from_numpy(inputs["labels"]).to(self.device, dtype=torch.long)
 
+        model_kwargs = {}
         if self.mask_size_conditioning:
             if "mask_size_cond" not in inputs:
                 raise ValueError("mask_size_cond input is required by this checkpoint")
-            mask_size_cond = torch.from_numpy(inputs["mask_size_cond"]).to(
-                self.device, dtype=torch.float32
+            model_kwargs["mask_size_cond"] = torch.from_numpy(
+                inputs["mask_size_cond"]
+            ).to(self.device, dtype=torch.float32)
+        if self.global_context_conditioning:
+            if "global_context" not in inputs:
+                raise ValueError("global_context input is required by this checkpoint")
+            model_kwargs["global_context"] = torch.from_numpy(
+                inputs["global_context"]
+            ).to(
+                self.device,
+                dtype=torch.float32,
             )
-            output = self.model(
-                model_input,
-                timesteps.flatten(),
-                labels,
-                mask_size_cond,
-            )
-        else:
-            output = self.model(model_input, timesteps.flatten(), labels)
+        output = self.model(model_input, timesteps.flatten(), labels, **model_kwargs)
         return [output.detach().cpu().numpy()]
 
 
@@ -85,6 +95,9 @@ def load_pth_session(model_in_file, train_config, device, use_ema):
             device,
             mask_size_conditioning=bool(
                 getattr(opt, "alg_b2b_mask_size_conditioning", False)
+            ),
+            global_context_conditioning=bool(
+                getattr(opt, "alg_b2b_global_context_conditioning", False)
             ),
         ),
         weights_path,
