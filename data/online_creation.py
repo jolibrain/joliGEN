@@ -125,6 +125,63 @@ def _make_crop_state(processed_bboxes, idx_bbox_ref):
     }
 
 
+def _interval_containing_required(
+    required_min,
+    required_max,
+    desired_center,
+    side,
+    limit_min,
+    limit_max,
+):
+    required_min = int(required_min)
+    required_max = int(required_max)
+    side = max(int(side), required_max - required_min, 1)
+    low = max(int(limit_min), required_max - side)
+    high = min(int(required_min), int(limit_max) - side)
+    if low > high:
+        low = required_max - side
+        high = required_min
+    start = int(round(float(desired_center) - side / 2.0))
+    start = min(max(start, low), high)
+    return start, start + side
+
+
+def _square_bbox_containing_required(
+    required_bbox,
+    desired_bbox,
+    side,
+    width,
+    height,
+    border=0,
+):
+    req_xmin, req_ymin, req_xmax, req_ymax = required_bbox
+    des_xmin, des_ymin, des_xmax, des_ymax = desired_bbox
+    side = max(
+        int(side),
+        int(req_xmax) - int(req_xmin),
+        int(req_ymax) - int(req_ymin),
+        1,
+    )
+    desired_cx = (float(des_xmin) + float(des_xmax)) / 2.0
+    desired_cy = (float(des_ymin) + float(des_ymax)) / 2.0
+    xmin, xmax = _interval_containing_required(
+        req_xmin, req_xmax, desired_cx, side, border, width - border
+    )
+    ymin, ymax = _interval_containing_required(
+        req_ymin, req_ymax, desired_cy, side, border, height - border
+    )
+    return xmin, ymin, xmax, ymax
+
+
+def _shift_processed_bbox(cur_bbox, dx, dy):
+    for x_key in ["xmin", "xmax", "original_xmin", "original_xmax"]:
+        if x_key in cur_bbox:
+            cur_bbox[x_key] += dx
+    for y_key in ["ymin", "ymax", "original_ymin", "original_ymax"]:
+        if y_key in cur_bbox:
+            cur_bbox[y_key] += dy
+
+
 def crop_image(
     img_path,
     bbox_path,
@@ -295,6 +352,11 @@ def crop_image(
     # Creation of a blank mask
     mask = np.zeros(img.shape[:2], dtype=np.uint8)
     processed_bboxes = []
+    square_model_border_active = (
+        bool(mask_square)
+        and fixed_mask_size_model <= 0
+        and fixed_mask_min_unmasked_border_model > 0
+    )
 
     # A bbox of reference will be used to compute the crop
     if crop_state is not None and "idx_bbox_ref" in crop_state:
@@ -477,6 +539,151 @@ def crop_image(
 
     height = y_max_ref - y_min_ref
     width = x_max_ref - x_min_ref
+    source_img_width = None
+    source_img_height = None
+
+    def clipped_original_bbox(cur_bbox):
+        if source_img_width is not None and source_img_height is not None:
+            width_limit = source_img_width
+            height_limit = source_img_height
+        elif hasattr(img, "shape"):
+            height_limit, width_limit = img.shape[:2]
+        else:
+            width_limit, height_limit = img.size
+        return (
+            max(0, min(cur_bbox["original_xmin"], width_limit)),
+            max(0, min(cur_bbox["original_ymin"], height_limit)),
+            max(0, min(cur_bbox["original_xmax"], width_limit)),
+            max(0, min(cur_bbox["original_ymax"], height_limit)),
+        )
+
+    def square_model_border_params(crop_size):
+        output_side = output_dim + margin
+        border = int(fixed_mask_min_unmasked_border_model)
+        max_model_mask_side = output_side - 2 * border
+        if max_model_mask_side < 1:
+            raise ValueError(
+                f"square model mask border {border} is too large for output size {output_side}"
+            )
+        max_source_side = int(math.floor(max_model_mask_side * crop_size / output_side))
+        return output_side, border, max_model_mask_side, max(1, max_source_side)
+
+    def ref_original_side():
+        for cur_bbox in processed_bboxes:
+            if cur_bbox["index"] == idx_bbox_ref:
+                oxmin, oymin, oxmax, oymax = clipped_original_bbox(cur_bbox)
+                return max(oxmax - oxmin, oymax - oymin)
+        return max(width, height)
+
+    def apply_square_model_border_mask(crop_size):
+        nonlocal mask
+        nonlocal x_min_ref, x_max_ref, y_min_ref, y_max_ref
+
+        if not square_model_border_active:
+            return
+
+        _, _, _, max_source_side = square_model_border_params(crop_size)
+        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        for cur_bbox in processed_bboxes:
+            oxmin, oymin, oxmax, oymax = clipped_original_bbox(cur_bbox)
+            candidate_side = max(
+                cur_bbox["xmax"] - cur_bbox["xmin"],
+                cur_bbox["ymax"] - cur_bbox["ymin"],
+            )
+            original_side = max(oxmax - oxmin, oymax - oymin)
+            side = max(original_side, min(candidate_side, max_source_side))
+            xmin, ymin, xmax, ymax = _square_bbox_containing_required(
+                (oxmin, oymin, oxmax, oymax),
+                (
+                    cur_bbox["xmin"],
+                    cur_bbox["ymin"],
+                    cur_bbox["xmax"],
+                    cur_bbox["ymax"],
+                ),
+                side,
+                img.shape[1],
+                img.shape[0],
+            )
+            cur_bbox.update({"xmin": xmin, "ymin": ymin, "xmax": xmax, "ymax": ymax})
+            mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cur_bbox["cat"])
+            if cur_bbox["index"] == idx_bbox_ref:
+                x_min_ref = xmin
+                x_max_ref = xmax
+                y_min_ref = ymin
+                y_max_ref = ymax
+
+    def pad_image_and_mask(left=0, right=0, top=0, bottom=0):
+        nonlocal img, mask
+        nonlocal x_padding, y_padding
+        nonlocal x_min_ref, x_max_ref, y_min_ref, y_max_ref
+
+        left = int(max(0, left))
+        right = int(max(0, right))
+        top = int(max(0, top))
+        bottom = int(max(0, bottom))
+        if left == 0 and right == 0 and top == 0 and bottom == 0:
+            return
+
+        img = np.pad(
+            img,
+            ((top, bottom), (left, right), (0, 0)),
+            "constant",
+            constant_values=0,
+        )
+        mask = np.pad(
+            mask,
+            ((top, bottom), (left, right)),
+            "constant",
+            constant_values=0,
+        )
+
+        x_padding += left
+        y_padding += top
+        x_max_ref += left
+        x_min_ref += left
+        y_max_ref += top
+        y_min_ref += top
+        for cur_bbox in processed_bboxes:
+            _shift_processed_bbox(cur_bbox, left, top)
+
+    def ensure_crop_canvas(crop_size, source_border=0):
+        left = max(0, context_pixels + source_border - x_min_ref)
+        right = max(0, x_max_ref + source_border + context_pixels - img.shape[1])
+        top = max(0, context_pixels + source_border - y_min_ref)
+        bottom = max(0, y_max_ref + source_border + context_pixels - img.shape[0])
+
+        min_side = crop_size + 2 * context_pixels
+        extra_w = max(0, min_side - (img.shape[1] + left + right))
+        extra_h = max(0, min_side - (img.shape[0] + top + bottom))
+        left += int(math.ceil(extra_w / 2.0))
+        right += int(math.floor(extra_w / 2.0))
+        top += int(math.ceil(extra_h / 2.0))
+        bottom += int(math.floor(extra_h / 2.0))
+        pad_image_and_mask(left=left, right=right, top=top, bottom=bottom)
+
+    def source_border_for_crop(crop_size):
+        if not square_model_border_active:
+            return 0
+        output_side, border, _, _ = square_model_border_params(crop_size)
+        return int(math.ceil(border * crop_size / output_side))
+
+    def ensure_crop_size_for_square_border(crop_size):
+        if not square_model_border_active:
+            return crop_size
+
+        crop_size = int(crop_size)
+        for _ in range(16):
+            apply_square_model_border_mask(crop_size)
+            source_border = source_border_for_crop(crop_size)
+            required_size = max(
+                x_max_ref - x_min_ref + 2 * source_border,
+                y_max_ref - y_min_ref + 2 * source_border,
+                1,
+            )
+            if required_size <= crop_size:
+                return crop_size
+            crop_size = int(required_size)
+        raise ValueError(f"Crop size cannot be computed for {img_path}")
 
     def apply_fixed_model_mask(crop_size):
         nonlocal mask
@@ -531,7 +738,11 @@ def crop_image(
 
         # Crop size should be > height, width bbox (to keep the bbox within the crop)
         # Crop size should be > crop_dim - delta
-        crop_size_min = max(height, width, effective_crop_dim - effective_crop_delta)
+        if square_model_border_active:
+            required_bbox_side = ref_original_side()
+        else:
+            required_bbox_side = max(height, width)
+        crop_size_min = max(required_bbox_side, effective_crop_dim - effective_crop_delta)
 
         # Crop size should be < crop_dim - delta
         crop_size_max = effective_crop_dim + effective_crop_delta
@@ -542,8 +753,8 @@ def crop_image(
         # if bbox is bigger than crop size max, we replace crop size max by bbox
         # So, we'll have bbox size == crop size
 
-        if crop_size_max < max(height, width):
-            crop_size_max = max(height, width)
+        if crop_size_max < required_bbox_side:
+            crop_size_max = required_bbox_side
             warnings.warn(
                 f"Bbox size ({height}, {width}) > crop dim {crop_size_max} for {img_path}, using crop_dim = bbox size"
             )
@@ -558,8 +769,24 @@ def crop_image(
                 crop_size_min = expected_crop_size
                 crop_size_max = expected_crop_size
 
+        if square_model_border_active:
+            output_side, _, max_model_mask_side, _ = square_model_border_params(
+                max(1, crop_size_min)
+            )
+            required_crop_size = int(
+                math.ceil(ref_original_side() * output_side / max_model_mask_side)
+            )
+            if required_crop_size > crop_size_min:
+                crop_size_min = required_crop_size
+            if crop_size_max < crop_size_min:
+                warnings.warn(
+                    "Enlarging crop to satisfy data_online_creation_mask_min_unmasked_border with square masks"
+                )
+                crop_size_max = crop_size_min
+
         crop_size = random.randint(crop_size_min, crop_size_max)
         apply_fixed_model_mask(crop_size)
+        crop_size = ensure_crop_size_for_square_border(crop_size)
 
         if crop_size > min(img.shape[0], img.shape[1]):
             warnings.warn(
@@ -567,36 +794,23 @@ def crop_image(
             )
 
             if crop_size > img.shape[0]:
-                y_padding = crop_size - img.shape[0]
+                pad_y = crop_size - img.shape[0]
             else:
-                y_padding = 0
+                pad_y = 0
 
             if crop_size > img.shape[1]:
-                x_padding = crop_size - img.shape[1]
+                pad_x = crop_size - img.shape[1]
             else:
-                x_padding = 0
+                pad_x = 0
 
-            x_padding = math.ceil(x_padding / 2)
-            y_padding = math.ceil(y_padding / 2)
-
-            img = np.pad(
-                img,
-                ((y_padding, y_padding), (x_padding, x_padding), (0, 0)),
-                "constant",
-                constant_values=0,
+            pad_x = math.ceil(pad_x / 2)
+            pad_y = math.ceil(pad_y / 2)
+            pad_image_and_mask(
+                left=pad_x,
+                right=pad_x,
+                top=pad_y,
+                bottom=pad_y,
             )
-
-            mask = np.pad(
-                mask,
-                ((y_padding, y_padding), (x_padding, x_padding)),
-                "constant",
-                constant_values=0,
-            )
-
-            x_max_ref += x_padding
-            x_min_ref += x_padding
-            y_max_ref += y_padding
-            y_min_ref += y_padding
 
         # Let's compute crop position
         # The final crop coordinates will be [x_crop:x_crop+crop_size+margin,y_crop:y_crop+crop_size+margin)
@@ -607,11 +821,21 @@ def crop_image(
         # The crop with context needs to fit in the img
         # So x_crop - context_pixels >=0 and x_crop + crop_size + context_pixels <= img_size-1
 
-        x_crop_min = max(context_pixels, x_max_ref - crop_size)
-        x_crop_max = min(x_min_ref, img.shape[1] - crop_size - context_pixels)
+        if square_model_border_active:
+            source_border = source_border_for_crop(crop_size)
+        else:
+            source_border = 0
+        ensure_crop_canvas(crop_size, source_border)
 
-        y_crop_min = max(context_pixels, y_max_ref - crop_size)
-        y_crop_max = min(y_min_ref, img.shape[0] - crop_size - context_pixels)
+        x_crop_min = max(context_pixels, x_max_ref + source_border - crop_size)
+        x_crop_max = min(
+            x_min_ref - source_border, img.shape[1] - crop_size - context_pixels
+        )
+
+        y_crop_min = max(context_pixels, y_max_ref + source_border - crop_size)
+        y_crop_max = min(
+            y_min_ref - source_border, img.shape[0] - crop_size - context_pixels
+        )
 
         if x_crop_min > x_crop_max or y_crop_min > y_crop_max:
             raise ValueError(f"Crop position cannot be computed for {img_path}")
@@ -646,6 +870,7 @@ def crop_image(
     else:
         x_crop, y_crop, crop_size = crop_coordinates
         apply_fixed_model_mask(crop_size)
+        crop_size = ensure_crop_size_for_square_border(crop_size)
         x_crop = x_crop + x_min_ref
         y_crop = y_crop + y_min_ref
 
@@ -661,6 +886,23 @@ def crop_image(
         if y_crop + crop_size + context_pixels > img.shape[0]:
             y_crop = img.shape[0] - (crop_size + context_pixels)
 
+        if square_model_border_active:
+            source_border = source_border_for_crop(crop_size)
+            ensure_crop_canvas(crop_size, source_border)
+            x_crop_min = max(context_pixels, x_max_ref + source_border - crop_size)
+            x_crop_max = min(
+                x_min_ref - source_border, img.shape[1] - crop_size - context_pixels
+            )
+            y_crop_min = max(context_pixels, y_max_ref + source_border - crop_size)
+            y_crop_max = min(
+                y_min_ref - source_border, img.shape[0] - crop_size - context_pixels
+            )
+            if x_crop_min > x_crop_max or y_crop_min > y_crop_max:
+                raise ValueError(f"Crop position cannot be computed for {img_path}")
+            x_crop = min(max(x_crop, x_crop_min), x_crop_max)
+            y_crop = min(max(y_crop, y_crop_min), y_crop_max)
+
+    source_img_height, source_img_width = img.shape[:2]
     img = img[
         y_crop - context_pixels : y_crop + crop_size + context_pixels,
         x_crop - context_pixels : x_crop + crop_size + context_pixels,
@@ -719,6 +961,46 @@ def crop_image(
             ymin = min(max(ymin, border), output_side - border - side)
             xmax = xmin + side
             ymax = ymin + side
+            resized_mask[ymin:ymax, xmin:xmax] = cur_bbox["cat"]
+        if inverted_mask:
+            resized_mask[resized_mask > 0] = 2
+            resized_mask[resized_mask == 0] = 1
+            resized_mask[resized_mask == 2] = 0
+        mask = Image.fromarray(resized_mask)
+    elif square_model_border_active:
+        output_side, border, max_mask_side, _ = square_model_border_params(crop_size)
+        resized_mask = np.zeros((output_side, output_side), dtype=np.uint8)
+        for cur_bbox in processed_bboxes:
+            oxmin_src, oymin_src, oxmax_src, oymax_src = clipped_original_bbox(cur_bbox)
+            xmin = cur_bbox["xmin"] - x_crop
+            xmax = cur_bbox["xmax"] - x_crop
+            ymin = cur_bbox["ymin"] - y_crop
+            ymax = cur_bbox["ymax"] - y_crop
+            oxmin = oxmin_src - x_crop
+            oxmax = oxmax_src - x_crop
+            oymin = oymin_src - y_crop
+            oymax = oymax_src - y_crop
+
+            xmin = int(round(xmin * output_side / crop_size))
+            xmax = int(round(xmax * output_side / crop_size))
+            ymin = int(round(ymin * output_side / crop_size))
+            ymax = int(round(ymax * output_side / crop_size))
+            oxmin = int(round(oxmin * output_side / crop_size))
+            oxmax = int(round(oxmax * output_side / crop_size))
+            oymin = int(round(oymin * output_side / crop_size))
+            oymax = int(round(oymax * output_side / crop_size))
+
+            side = max(xmax - xmin, ymax - ymin)
+            original_side = max(oxmax - oxmin, oymax - oymin)
+            side = max(original_side, min(side, max_mask_side))
+            xmin, ymin, xmax, ymax = _square_bbox_containing_required(
+                (oxmin, oymin, oxmax, oymax),
+                (xmin, ymin, xmax, ymax),
+                side,
+                output_side,
+                output_side,
+                border=border,
+            )
             resized_mask[ymin:ymax, xmin:xmax] = cur_bbox["cat"]
         if inverted_mask:
             resized_mask[resized_mask > 0] = 2
