@@ -1010,6 +1010,15 @@ class CommonOptions(BaseOptions):
             default=30,
             help="how many frames between successive frames selected",
         )
+        parser.add_argument(
+            "--data_temporal_frame_step_random_max",
+            type=int,
+            default=0,
+            help=(
+                "if >0, randomly sample temporal frame step uniformly between "
+                "data_temporal_frame_step and this max for each training sample"
+            ),
+        )
 
         parser.add_argument(
             "--data_temporal_num_common_char",
@@ -1072,6 +1081,15 @@ class CommonOptions(BaseOptions):
                 opt.gpu_ids.append(id)
         if set_device and len(opt.gpu_ids) > 0 and torch.cuda.is_available():
             torch.cuda.set_device(opt.gpu_ids[0])
+
+        if (
+            opt.data_temporal_frame_step_random_max > 0
+            and opt.data_temporal_frame_step_random_max < opt.data_temporal_frame_step
+        ):
+            raise ValueError(
+                "--data_temporal_frame_step_random_max must be 0 or >= "
+                "--data_temporal_frame_step"
+            )
 
         # multimodal check
         if opt.model_multimodal:

@@ -40,6 +40,7 @@ FORBIDDEN_CHILD_OVERRIDES = {
     "model_output_nc",
     "data_temporal_number_frames",
     "data_temporal_frame_step",
+    "data_temporal_frame_step_random_max",
     "G_netG",
     "G_vit_num_classes",
     "model_type",

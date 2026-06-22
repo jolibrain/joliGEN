@@ -1,9 +1,7 @@
 import os
 import random
 import re
-import bisect
 import torch
-from collections import OrderedDict
 from data.base_dataset import (
     BaseDataset,
     build_masked_global_context_image,
@@ -13,6 +11,11 @@ from data.base_dataset import (
 from data.image_folder import make_labeled_path_dataset
 from data.online_creation import crop_image
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
+from data.temporal_sampling import (
+    TemporalFrameStepMixin,
+    build_temporal_series_index,
+    select_temporal_start_from_series,
+)
 from util.b2b_context import b2b_global_context_enabled_from_opt
 
 
@@ -24,7 +27,7 @@ def natural_keys(text):
     return [atoi(c) for c in re.split("(\d+)", text)]
 
 
-class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
+class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
     def __len__(self):
         """Return the total number of images in the dataset.
         As we have two datasets with potentially different number of images,
@@ -55,8 +58,7 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
 
         self.transform = get_transform_list(self.opt, grayscale=(self.input_nc == 1))
 
-        self.num_frames = opt.data_temporal_number_frames
-        self.frame_step = opt.data_temporal_frame_step
+        self._init_temporal_frame_step_sampling(opt)
 
         self.num_A = len(self.A_img_paths)
         self.range_A = self.num_A - self.num_frames * self.frame_step
@@ -69,42 +71,37 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
 
         # dataset form img(bbox)/vid_series/vid_series_#frame.png(.txt)
         # a ordered list with all video series paths
-        self.vid_series_paths = list(
-            OrderedDict.fromkeys(os.path.dirname(path) for path in self.A_img_paths)
+        (
+            self.vid_series_paths,
+            self.frames_counts,
+            self.cumulative_sums,
+            self.available_frame_pool,
+        ) = build_temporal_series_index(
+            self.A_img_paths, self.num_frames, self.frame_step
         )
-        # Initialize a dictionary to count how many available paths belong to each directory
-        self.frames_counts = {
-            vid_serie: (-self.num_frames + 1) * self.frame_step
-            for vid_serie in self.vid_series_paths
-        }
-        # Loop through self.A_img_paths and count the occurrences of each directory
-        for path in self.A_img_paths:
-            dirname = os.path.dirname(path)
-            if dirname in self.vid_series_paths:
-                self.frames_counts[dirname] += 1
 
-        # Store cumulative sums of available frames in the order of video series.
-        self.cumulative_sums = []
-        cumulative_sum = 0
-        # Iterate through each video series in frames_counts to compute the cumulative sum of available frame.
-        for vid_serie in self.vid_series_paths:
-            count_minus = self.frames_counts[vid_serie]
-            if count_minus > 0:
-                cumulative_sum += count_minus
-            self.cumulative_sums.append(cumulative_sum)
+    def _select_temporal_index_A(self, frame_step):
+        if not self._random_temporal_frame_step_enabled():
+            if len(self.frames_counts) == 1:  # single video mario
+                if self.range_A == 0:
+                    return 0
+                return random.randint(0, self.range_A - 1)
 
-        # Iterate through each video series to get available frame pool
-        self.available_frame_pool = []
-        start_count = 0
-        for i in range(len(self.cumulative_sums)):
-            num_frames = (
-                self.cumulative_sums[i] - self.cumulative_sums[i - 1]
-                if i != 0
-                else self.cumulative_sums[i]
+            series_index = (
+                self.vid_series_paths,
+                self.frames_counts,
+                self.cumulative_sums,
+                self.available_frame_pool,
             )
-            end_count = start_count + num_frames
-            self.available_frame_pool.append(list(range(start_count, end_count)))
-            start_count = end_count
+            return select_temporal_start_from_series(self.A_img_paths, series_index)
+
+        if len(self.vid_series_paths) == 1:
+            return self._select_single_temporal_start(self.num_A, frame_step)
+
+        series_index = build_temporal_series_index(
+            self.A_img_paths, self.num_frames, frame_step
+        )
+        return select_temporal_start_from_series(self.A_img_paths, series_index)
 
     def get_img(
         self,
@@ -117,42 +114,10 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
         index=None,
     ):  # all params are unused
 
-        if len(self.frames_counts) == 1:  # single video mario
-            if self.range_A == 0:
-                index_A = 0
-            else:
-                index_A = random.randint(0, self.range_A - 1)
-        else:  # video series
-            range_A = self.cumulative_sums[
-                -1
-            ]  # total number of frames that can be used as a starting frame
-            random_A = random.randint(
-                0, range_A - 1
-            )  # chose one frame from available video series
-
-            # according to the selected_index, get the video series and frame number
-            selected_index = [
-                i for i, t in enumerate(self.available_frame_pool) if random_A in t
-            ]
-            if len(selected_index) == 1:
-                selected_index = selected_index[0]
-            else:
-                raise ValueError("random_A not found in any sublist, check dataset")
-            selected_vid = self.vid_series_paths[selected_index]
-            if selected_index > 0:
-                frame_num = random_A - self.cumulative_sums[selected_index - 1]
-            else:
-                frame_num = random_A
-
-            filtered_paths = [
-                path
-                for path in self.A_img_paths
-                if os.path.dirname(path) == selected_vid
-            ]
-
-            # Get path and index_A
-            selected_path = filtered_paths[frame_num]
-            index_A = self.A_img_paths.index(selected_path)
+        effective_frame_step = self._sample_temporal_frame_step()
+        index_A = self._select_temporal_index_A(effective_frame_step)
+        if index_A is None:
+            return None
 
         images_A = []
         labels_A = []
@@ -171,7 +136,7 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
         crop_size = random.randint(crop_size_min, crop_size_max)
 
         for i in range(self.num_frames):
-            cur_index_A = index_A + i * self.frame_step
+            cur_index_A = index_A + i * effective_frame_step
 
             if (
                 self.num_common_char != -1
