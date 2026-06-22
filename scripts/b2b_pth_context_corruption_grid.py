@@ -834,8 +834,11 @@ def main():
         "crop_size_override": args.crop_size,
         "seed": args.seed,
         "denoise_steps": denoise_steps,
-        "global_context_conditioning": bool(
-            train_json.get("alg", {}).get("b2b_global_context_conditioning", False)
+        "global_context_mode": onnx_runner.b2b_global_context_mode_from_train_json(
+            train_json
+        ),
+        "global_context_conditioning": (
+            onnx_runner.b2b_global_context_enabled_from_train_json(train_json)
         ),
         "object_ref_count": 0 if object_refs is None else int(object_refs.shape[0]),
         "study_mode": args.study_mode,

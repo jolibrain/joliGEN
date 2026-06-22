@@ -18,6 +18,7 @@ from .modules.b2b_generator import B2BGenerator
 from .modules.unet_generator_attn.unet_generator_attn_vid import UNetVid
 from .modules.vit.vit import JiT, JiT_VARIANT_CONFIGS
 from .modules.vit.vit_vid import JiTViD, JiTVid_VARIANT_CONFIGS
+from util.b2b_context import b2b_global_context_mode_from_opt
 
 
 def define_G(
@@ -328,6 +329,7 @@ def define_G(
         cond_embed_dim = getattr(
             opt, "alg_diffusion_cond_embed_dim", cfg.get("hidden_size", 768)
         )
+        global_context_mode = b2b_global_context_mode_from_opt(opt)
         model = JiTViD(
             input_size=data_crop_size,
             in_channels=in_channel,
@@ -337,9 +339,7 @@ def define_G(
             mask_size_conditioning=getattr(
                 opt, "alg_b2b_mask_size_conditioning", False
             ),
-            global_context_conditioning=getattr(
-                opt, "alg_b2b_global_context_conditioning", False
-            ),
+            global_context_mode=global_context_mode,
             global_context_size=getattr(opt, "alg_b2b_global_context_size", 128),
             object_ref_num_images=len(
                 getattr(opt, "alg_b2b_object_ref_paths", []) or []

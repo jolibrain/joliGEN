@@ -9,6 +9,7 @@ sys.path.append(JG_DIR)
 
 import b2b_onnx_denoiser_infer_autoregressive_progress_bbox as onnx_runner
 from b2b_export_onnx import build_model, load_train_options, parse_device
+from util.b2b_context import b2b_global_context_enabled_from_opt
 
 
 def resolve_weights_path(model_in_file, use_ema):
@@ -105,9 +106,7 @@ def load_pth_session(model_in_file, train_config, device, use_ema):
             mask_size_conditioning=bool(
                 getattr(opt, "alg_b2b_mask_size_conditioning", False)
             ),
-            global_context_conditioning=bool(
-                getattr(opt, "alg_b2b_global_context_conditioning", False)
-            ),
+            global_context_conditioning=b2b_global_context_enabled_from_opt(opt),
             object_ref_conditioning=bool(
                 getattr(opt, "alg_b2b_object_ref_paths", None)
             ),

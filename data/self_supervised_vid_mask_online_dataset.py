@@ -13,6 +13,7 @@ from data.base_dataset import (
 from data.image_folder import make_labeled_path_dataset
 from data.online_creation import crop_image
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
+from util.b2b_context import b2b_global_context_enabled_from_opt
 
 
 def atoi(text):
@@ -247,11 +248,9 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
                         self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
                     ),
                     crop_center=True,
-                    return_meta=getattr(
-                        self.opt, "alg_b2b_global_context_conditioning", False
-                    ),
+                    return_meta=b2b_global_context_enabled_from_opt(self.opt),
                 )
-                if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+                if b2b_global_context_enabled_from_opt(self.opt):
                     (
                         cur_A_img,
                         cur_A_label,
@@ -284,7 +283,7 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
             labels_A.append(cur_A_label)
 
         images_A, labels_A, A_ref_bbox = self.transform(images_A, labels_A, A_ref_bbox)
-        if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+        if b2b_global_context_enabled_from_opt(self.opt):
             global_context_A = transform_global_context_images(
                 self.opt,
                 global_context_A,
@@ -310,7 +309,7 @@ class SelfSupervisedVidMaskOnlineDataset(BaseDataset):
             "B_label_mask": labels_A,
             "B_ref_label_mask": A_ref_label,
         }
-        if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+        if b2b_global_context_enabled_from_opt(self.opt):
             result["A_global_context"] = global_context_A
             result["B_global_context"] = global_context_A
 

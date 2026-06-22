@@ -13,6 +13,11 @@ from einops import rearrange, repeat
 import numpy as np
 from models.modules.unet_generator_attn.unet_attn_utils import zero_module
 from .vit_vid_per_layer_motion import MotionModule as SharedMotionModule
+from util.b2b_context import (
+    b2b_global_context_adaln_enabled,
+    b2b_global_context_enabled,
+    b2b_global_context_tokens_enabled,
+)
 
 # ============================================================
 # Helpers
@@ -26,7 +31,9 @@ def modulate(x, shift, scale):
 def scaled_dot_product_attention(query, key, value, dropout_p=0.0) -> torch.Tensor:
     L, S = query.size(-2), key.size(-2)
     scale_factor = 1 / math.sqrt(query.size(-1))
-    attn_bias = torch.zeros(query.size(0), 1, L, S, dtype=query.dtype).cuda()
+    attn_bias = torch.zeros(
+        query.size(0), 1, L, S, dtype=query.dtype, device=query.device
+    )
 
     with torch.cuda.amp.autocast(enabled=False):
         attn_weight = query.float() @ key.float().transpose(-2, -1) * scale_factor
@@ -751,6 +758,7 @@ class JiTViD(nn.Module):
         motion_num_layers=2,
         motion_every=0,
         global_context_conditioning=False,
+        global_context_mode=None,
         global_context_size=128,
         object_ref_num_images=0,
         object_ref_size=64,
@@ -764,6 +772,12 @@ class JiTViD(nn.Module):
             raise ValueError("object_ref_num_images must be >= 0")
         if object_ref_num_images > 0 and object_ref_size % patch_size != 0:
             raise ValueError("object_ref_size must be divisible by patch_size")
+        if global_context_mode in (None, ""):
+            global_context_mode = "adaln" if global_context_conditioning else "none"
+        if global_context_size % patch_size != 0 and b2b_global_context_tokens_enabled(
+            global_context_mode
+        ):
+            raise ValueError("global_context_size must be divisible by patch_size")
         self.in_channels = in_channels
         self.out_channels = in_channels if out_channels is None else out_channels
         self.out_channel = self.out_channels
@@ -778,8 +792,16 @@ class JiTViD(nn.Module):
         self.max_frames = max_frames
         self.motion_every = motion_every
         self.mask_size_conditioning = mask_size_conditioning
-        self.global_context_conditioning = global_context_conditioning
+        self.global_context_mode = global_context_mode
+        self.global_context_conditioning = b2b_global_context_enabled(
+            global_context_mode
+        )
         self.global_context_size = global_context_size
+        self.global_context_tokens_per_frame = (
+            (self.global_context_size // patch_size) ** 2
+            if b2b_global_context_tokens_enabled(global_context_mode)
+            else 0
+        )
         self.object_ref_num_images = int(object_ref_num_images)
         self.object_ref_size = int(object_ref_size)
         self.object_ref_tokens_per_image = (
@@ -804,7 +826,21 @@ class JiTViD(nn.Module):
             else None
         )
         self.global_context_encoder = (
-            GlobalContextEncoder(hidden_size) if global_context_conditioning else None
+            GlobalContextEncoder(hidden_size)
+            if b2b_global_context_adaln_enabled(global_context_mode)
+            else None
+        )
+        self.global_context_embedder = (
+            BottleneckPatchEmbed(
+                self.global_context_size,
+                patch_size,
+                3,
+                bottleneck_dim,
+                hidden_size,
+                bias=True,
+            )
+            if b2b_global_context_tokens_enabled(global_context_mode)
+            else None
         )
         self.object_ref_embedder = (
             BottleneckPatchEmbed(
@@ -843,6 +879,16 @@ class JiTViD(nn.Module):
                 torch.zeros(1, self.in_context_len, hidden_size), requires_grad=True
             )
             torch.nn.init.normal_(self.in_context_posemb, std=0.02)
+        if self.global_context_tokens_per_frame > 0:
+            self.global_context_posemb = nn.Parameter(
+                torch.zeros(1, self.global_context_tokens_per_frame, hidden_size),
+                requires_grad=True,
+            )
+            self.global_context_type_embed = nn.Parameter(
+                torch.zeros(1, 1, hidden_size), requires_grad=True
+            )
+            torch.nn.init.normal_(self.global_context_posemb, std=0.02)
+            torch.nn.init.normal_(self.global_context_type_embed, std=0.02)
         if self.object_ref_token_count > 0:
             self.object_ref_posemb = nn.Parameter(
                 torch.zeros(1, self.object_ref_token_count, hidden_size),
@@ -867,6 +913,7 @@ class JiTViD(nn.Module):
             pt_seq_len=hw_seq_len,
             num_cls_token=(
                 self.num_register_tokens
+                + self.global_context_tokens_per_frame
                 + self.object_ref_token_count
                 + self.in_context_len
             ),
@@ -979,6 +1026,12 @@ class JiTViD(nn.Module):
         if self.global_context_encoder is not None:
             nn.init.constant_(self.global_context_encoder.proj[-1].weight, 0)
             nn.init.constant_(self.global_context_encoder.proj[-1].bias, 0)
+        if self.global_context_embedder is not None:
+            w1 = self.global_context_embedder.proj1.weight.data
+            nn.init.xavier_uniform_(w1.view([w1.shape[0], -1]))
+            w2 = self.global_context_embedder.proj2.weight.data
+            nn.init.xavier_uniform_(w2.view([w2.shape[0], -1]))
+            nn.init.constant_(self.global_context_embedder.proj2.bias, 0)
         if self.object_ref_embedder is not None:
             w1 = self.object_ref_embedder.proj1.weight.data
             nn.init.xavier_uniform_(w1.view([w1.shape[0], -1]))
@@ -1041,9 +1094,9 @@ class JiTViD(nn.Module):
             mask_size_cond = mask_size_cond.to(device=c.device, dtype=c.dtype)
         return c + self.mask_size_embedder(mask_size_cond)
 
-    def _global_context_embedding(self, B, F, c, global_context):
-        if self.global_context_encoder is None or global_context is None:
-            return c
+    def _prepare_global_context(self, B, F, global_context, device, dtype):
+        if global_context is None:
+            return None
         if global_context.ndim == 4 and global_context.shape[0] == B:
             global_context = repeat(global_context, "b c h w -> b f c h w", f=F)
         elif global_context.ndim != 5 or global_context.shape[:2] != (B, F):
@@ -1057,9 +1110,36 @@ class JiTViD(nn.Module):
             raise RuntimeError(
                 f"Expected global_context with 3 channels, got {global_context.shape[2]}"
             )
-        global_context = global_context.to(device=c.device, dtype=c.dtype)
+        return global_context.to(device=device, dtype=dtype)
+
+    def _global_context_embedding(self, B, F, c, global_context):
+        if self.global_context_encoder is None or global_context is None:
+            return c
+        global_context = self._prepare_global_context(
+            B, F, global_context, c.device, c.dtype
+        )
         flat_context = rearrange(global_context, "b f c h w -> (b f) c h w")
         return c + self.global_context_encoder(flat_context)
+
+    def _global_context_tokens(self, B, F, global_context, device, dtype):
+        if self.global_context_embedder is None:
+            return None
+
+        S = self.global_context_size
+        if global_context is None:
+            global_context = torch.zeros(B, F, 3, S, S, device=device, dtype=dtype)
+        else:
+            global_context = self._prepare_global_context(
+                B, F, global_context, device, dtype
+            )
+
+        flat_context = rearrange(global_context, "b f c h w -> (b f) c h w")
+        context_tokens = self.global_context_embedder(flat_context)
+        return (
+            context_tokens
+            + self.global_context_posemb
+            + self.global_context_type_embed
+        )
 
     def _object_reference_tokens(self, B, F, object_refs, device, dtype):
         if self.object_ref_embedder is None:
@@ -1144,11 +1224,15 @@ class JiTViD(nn.Module):
         c = t_emb + y_emb
         c = self._mask_size_embedding(B, F, c, mask_size_cond)
         c = self._global_context_embedding(B, F, c, global_context)
+        global_context_tokens = self._global_context_tokens(
+            B, F, global_context, x.device, x.dtype
+        )
         object_ref_tokens = self._object_reference_tokens(
             B, F, object_refs, x.device, x.dtype
         )
 
         inserted_registers = False
+        inserted_global_context = False
         inserted_object_refs = False
         inserted_in_context = False
         motion_idx = 0
@@ -1160,6 +1244,9 @@ class JiTViD(nn.Module):
                         self.register_tokens.expand(x.shape[0], -1, -1)
                     )
                     inserted_registers = True
+                if global_context_tokens is not None:
+                    prefix_tokens.append(global_context_tokens)
+                    inserted_global_context = True
                 if object_ref_tokens is not None:
                     prefix_tokens.append(object_ref_tokens)
                     inserted_object_refs = True
@@ -1183,6 +1270,8 @@ class JiTViD(nn.Module):
             )
             if self.motion_every > 0 and i in self.motion_insert_layers:
                 prefix_tokens = self.num_register_tokens if inserted_registers else 0
+                if inserted_global_context:
+                    prefix_tokens += self.global_context_tokens_per_frame
                 if inserted_object_refs:
                     prefix_tokens += self.object_ref_token_count
                 if inserted_in_context:
@@ -1193,6 +1282,8 @@ class JiTViD(nn.Module):
                 motion_idx += 1
 
         prefix_tokens = self.num_register_tokens if inserted_registers else 0
+        if inserted_global_context:
+            prefix_tokens += self.global_context_tokens_per_frame
         if inserted_object_refs:
             prefix_tokens += self.object_ref_token_count
         if inserted_in_context:
