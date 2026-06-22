@@ -132,6 +132,7 @@ def make_generator_args(**kwargs):
         "G_netG": None,
         "data_temporal_number_frames": 2,
         "data_temporal_frame_step": 1,
+        "data_temporal_frame_step_random_max": 0,
         "data_num_threads": 8,
         "alg_b2b_multi_dataset_class_conditioning": False,
         "multi_dataset_num_datasets": 1,
@@ -680,6 +681,18 @@ def test_multi_dataset_generator_train_config_matches_b2b_defaults(tmp_path):
     assert "data_online_creation_crop_delta_A" not in train_config
     assert train_config["data_temporal_number_frames"] == 2
     assert train_config["data_temporal_frame_step"] == 1
+    assert "data_temporal_frame_step_random_max" not in train_config
+
+
+def test_multi_dataset_generator_train_config_can_emit_random_temporal_step(tmp_path):
+    config_path = tmp_path / "multi_dataset_config.json"
+    args = make_generator_args(data_temporal_frame_step_random_max=8)
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["data_temporal_number_frames"] == 2
+    assert train_config["data_temporal_frame_step"] == 1
+    assert train_config["data_temporal_frame_step_random_max"] == 8
 
 
 def test_multi_dataset_generator_train_config_infers_image_model_for_non_video(
@@ -720,6 +733,7 @@ def test_multi_dataset_generator_non_video_removes_base_temporal_keys(tmp_path):
                 "G_netG": "vit_vid",
                 "data_temporal_number_frames": 5,
                 "data_temporal_frame_step": 30,
+                "data_temporal_frame_step_random_max": 60,
             }
         )
     )
@@ -733,6 +747,7 @@ def test_multi_dataset_generator_non_video_removes_base_temporal_keys(tmp_path):
     assert train_config["G_netG"] == "vit"
     assert "data_temporal_number_frames" not in train_config
     assert "data_temporal_frame_step" not in train_config
+    assert "data_temporal_frame_step_random_max" not in train_config
 
 
 def test_multi_dataset_generator_train_config_can_enable_dataset_conditioning(tmp_path):

@@ -12,6 +12,7 @@ from data.base_dataset import (
 )
 from data.image_folder import make_labeled_path_dataset
 from data.online_creation import crop_image
+from data.temporal_sampling import TemporalFrameStepMixin
 from util.b2b_context import b2b_global_context_enabled_from_opt
 
 
@@ -23,7 +24,7 @@ def natural_keys(text):
     return [atoi(c) for c in re.split("(\d+)", text)]
 
 
-class TemporalLabeledMaskOnlineDataset(BaseDataset):
+class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
     def __len__(self):
         """Return the total number of images in the dataset.
         As we have two datasets with potentially different number of images,
@@ -69,8 +70,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
 
         self.transform = get_transform_list(self.opt, grayscale=(self.input_nc == 1))
 
-        self.num_frames = opt.data_temporal_number_frames
-        self.frame_step = opt.data_temporal_frame_step
+        self._init_temporal_frame_step_sampling(opt)
 
         self.num_A = len(self.A_img_paths)
         self.range_A = self.num_A - self.num_frames * self.frame_step
@@ -96,7 +96,15 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
         B_label_cls=None,
         index=None,
     ):  # all params are unused
-        index_A = random.randint(0, self.range_A - 1)
+        effective_frame_step_A = self._sample_temporal_frame_step()
+        if self._random_temporal_frame_step_enabled():
+            index_A = self._select_single_temporal_start(
+                self.num_A, effective_frame_step_A
+            )
+            if index_A is None:
+                return None
+        else:
+            index_A = random.randint(0, self.range_A - 1)
 
         images_A = []
         labels_A = []
@@ -107,7 +115,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
         ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
 
         for i in range(self.num_frames):
-            cur_index_A = index_A + i * self.frame_step
+            cur_index_A = index_A + i * effective_frame_step_A
 
             if (
                 self.num_common_char != -1
@@ -239,7 +247,15 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
         labels_A = torch.stack(labels_A)
 
         if self.use_domain_B:
-            index_B = random.randint(0, self.range_B - 1)
+            effective_frame_step_B = self._sample_temporal_frame_step()
+            if self._random_temporal_frame_step_enabled():
+                index_B = self._select_single_temporal_start(
+                    self.num_B, effective_frame_step_B
+                )
+                if index_B is None:
+                    return None
+            else:
+                index_B = random.randint(0, self.range_B - 1)
 
             images_B = []
             labels_B = []
@@ -250,7 +266,7 @@ class TemporalLabeledMaskOnlineDataset(BaseDataset):
             ref_name_B = ref_B_img_path.split("/")[-1][: self.num_common_char]
 
             for i in range(self.num_frames):
-                cur_index_B = index_B + i * self.frame_step
+                cur_index_B = index_B + i * effective_frame_step_B
 
                 if (
                     self.num_common_char != -1

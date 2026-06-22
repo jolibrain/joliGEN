@@ -957,6 +957,9 @@ def build_train_config(args, multi_dataset_config_path):
     if emit_temporal_options:
         train_config["data_temporal_number_frames"] = args.data_temporal_number_frames
         train_config["data_temporal_frame_step"] = args.data_temporal_frame_step
+        frame_step_random_max = getattr(args, "data_temporal_frame_step_random_max", 0)
+        if frame_step_random_max > 0:
+            train_config["data_temporal_frame_step_random_max"] = frame_step_random_max
     if args.base_train_config:
         with open(args.base_train_config, "r") as config_file:
             base_config = json.load(config_file)
@@ -965,6 +968,7 @@ def build_train_config(args, multi_dataset_config_path):
     if not emit_temporal_options:
         train_config.pop("data_temporal_number_frames", None)
         train_config.pop("data_temporal_frame_step", None)
+        train_config.pop("data_temporal_frame_step_random_max", None)
     fixed_mask_size_A = getattr(args, "data_online_creation_mask_fixed_size_A", -1)
     if fixed_mask_size_A > 0:
         train_config["data_online_creation_mask_fixed_size_A"] = fixed_mask_size_A
@@ -1048,6 +1052,9 @@ def preview_resume_fingerprint(train_config, entry, num_samples):
                 ),
                 "data_temporal_frame_step": train_config.get(
                     "data_temporal_frame_step"
+                ),
+                "data_temporal_frame_step_random_max": train_config.get(
+                    "data_temporal_frame_step_random_max"
                 ),
                 "data_load_size": train_config.get("data_load_size"),
                 "data_crop_size": train_config.get("data_crop_size"),
@@ -1284,6 +1291,7 @@ def parse_args():
     )
     parser.add_argument("--data-temporal-number-frames", type=int, default=2)
     parser.add_argument("--data-temporal-frame-step", type=int, default=1)
+    parser.add_argument("--data-temporal-frame-step-random-max", type=int, default=0)
     parser.add_argument("--data-num-threads", type=int, default=8)
     parser.add_argument("--train-batch-size", type=int, default=8)
     parser.add_argument("--train-iter-size", type=int, default=4)
@@ -1335,7 +1343,16 @@ def parse_args():
     )
     parser.add_argument("--skip-preview", action="store_true")
     parser.add_argument("--verbose", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if (
+        args.data_temporal_frame_step_random_max > 0
+        and args.data_temporal_frame_step_random_max < args.data_temporal_frame_step
+    ):
+        parser.error(
+            "--data-temporal-frame-step-random-max must be 0 or >= "
+            "--data-temporal-frame-step"
+        )
+    return args
 
 
 def main():
