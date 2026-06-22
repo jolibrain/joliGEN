@@ -13,6 +13,7 @@ from models import diffusion_networks
 from options.train_options import TrainOptions
 from models.modules import b2b_generator as b2b_generator_module
 from models.modules.vit import vit_vid as vit_vid_module
+from util.b2b_context import b2b_global_context_enabled_from_opt
 
 
 def patch_vit_vid_attention():
@@ -224,15 +225,31 @@ class B2BRestorationWrapperMaskCond(torch.nn.Module):
 
 
 class B2BDenoiserWrapper(torch.nn.Module):
-    def __init__(self, model, mask_size_conditioning=False):
+    def __init__(
+        self,
+        model,
+        mask_size_conditioning=False,
+        global_context_conditioning=False,
+        object_ref_conditioning=False,
+    ):
         super().__init__()
         self.model = model.b2b_model
         self.mask_size_conditioning = mask_size_conditioning
+        self.global_context_conditioning = global_context_conditioning
+        self.object_ref_conditioning = object_ref_conditioning
 
-    def forward(self, model_input, timesteps, labels, mask_size_cond=None):
+    def forward(self, model_input, timesteps, labels, *conditioning_inputs):
+        input_index = 0
+        model_kwargs = {}
         if self.mask_size_conditioning:
-            return self.model(model_input, timesteps, labels, mask_size_cond)
-        return self.model(model_input, timesteps, labels)
+            model_kwargs["mask_size_cond"] = conditioning_inputs[input_index]
+            input_index += 1
+        if self.global_context_conditioning:
+            model_kwargs["global_context"] = conditioning_inputs[input_index]
+            input_index += 1
+        if self.object_ref_conditioning:
+            model_kwargs["object_refs"] = conditioning_inputs[input_index]
+        return self.model(model_input, timesteps, labels, **model_kwargs)
 
 
 def build_export_wrapper(model, opt, export_mode, denoise_steps):
@@ -246,6 +263,10 @@ def build_export_wrapper(model, opt, export_mode, denoise_steps):
                 model,
                 mask_size_conditioning=getattr(
                     opt, "alg_b2b_mask_size_conditioning", False
+                ),
+                global_context_conditioning=b2b_global_context_enabled_from_opt(opt),
+                object_ref_conditioning=bool(
+                    getattr(opt, "alg_b2b_object_ref_paths", None)
                 ),
             ),
             uses_cond,
@@ -274,12 +295,37 @@ def make_dummy_inputs(opt, device, export_mode, uses_cond, batch_size, num_frame
             batch_size, num_frames, in_channels, height, width, device=device
         )
         timesteps = torch.full((batch_size,), 0.5, dtype=torch.float32, device=device)
+        denoiser_inputs = [model_input, timesteps, labels]
         if getattr(opt, "alg_b2b_mask_size_conditioning", False):
             mask_size_cond = torch.zeros(
                 batch_size, num_frames, 6, dtype=torch.float32, device=device
             )
-            return (model_input, timesteps, labels, mask_size_cond)
-        return (model_input, timesteps, labels)
+            denoiser_inputs.append(mask_size_cond)
+        if b2b_global_context_enabled_from_opt(opt):
+            context_size = int(getattr(opt, "alg_b2b_global_context_size", 128))
+            global_context = torch.zeros(
+                batch_size,
+                num_frames,
+                3,
+                context_size,
+                context_size,
+                dtype=torch.float32,
+                device=device,
+            )
+            denoiser_inputs.append(global_context)
+        object_ref_paths = getattr(opt, "alg_b2b_object_ref_paths", []) or []
+        if object_ref_paths:
+            object_ref_size = int(getattr(opt, "alg_b2b_object_ref_size", 64))
+            object_refs = torch.zeros(
+                len(object_ref_paths),
+                3,
+                object_ref_size,
+                object_ref_size,
+                dtype=torch.float32,
+                device=device,
+            )
+            denoiser_inputs.append(object_refs)
+        return tuple(denoiser_inputs)
 
     if uses_cond:
         cond_image = torch.zeros_like(y)
@@ -301,6 +347,7 @@ def model_input_channels_for_b2b(opt):
 def export_to_onnx(
     wrapper,
     dummy_inputs,
+    opt,
     model_out_file,
     export_mode,
     uses_cond,
@@ -309,8 +356,12 @@ def export_to_onnx(
 ):
     if export_mode == "denoiser":
         input_names = ["model_input", "timesteps", "labels"]
-        if len(dummy_inputs) == 4:
+        if getattr(opt, "alg_b2b_mask_size_conditioning", False):
             input_names.append("mask_size_cond")
+        if b2b_global_context_enabled_from_opt(opt):
+            input_names.append("global_context")
+        if getattr(opt, "alg_b2b_object_ref_paths", None):
+            input_names.append("object_refs")
     elif uses_cond:
         input_names = ["y", "cond_image", "mask", "init_noise", "labels"]
     else:
@@ -325,6 +376,8 @@ def export_to_onnx(
                 dynamic_axes[name] = {0: "batch"}
             elif name == "mask_size_cond":
                 dynamic_axes[name] = {0: "batch", 1: "frames"}
+            elif name == "object_refs":
+                pass
             else:
                 dynamic_axes[name] = {0: "batch", 1: "frames"}
 
@@ -477,6 +530,7 @@ def main():
     export_to_onnx(
         wrapper=wrapper,
         dummy_inputs=dummy_inputs,
+        opt=opt,
         model_out_file=model_out_file,
         export_mode=args.export_mode,
         uses_cond=uses_cond,

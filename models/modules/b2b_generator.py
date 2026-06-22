@@ -3,6 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as Fnn
 import math
 
+from util.b2b_context import (
+    b2b_global_context_enabled,
+    b2b_global_context_mode_from_opt,
+)
+
 
 class B2BGenerator(nn.Module):
     """
@@ -54,7 +59,7 @@ class B2BGenerator(nn.Module):
             else False
         )
         self.global_context_conditioning = (
-            bool(getattr(opt, "alg_b2b_global_context_conditioning", False))
+            b2b_global_context_enabled(b2b_global_context_mode_from_opt(opt))
             if opt
             else False
         )

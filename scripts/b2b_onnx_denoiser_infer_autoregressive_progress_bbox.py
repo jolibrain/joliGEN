@@ -19,6 +19,10 @@ from data.base_dataset import (
     transform_global_context_images,
 )
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
+from util.b2b_context import (
+    b2b_global_context_enabled_from_train_json,
+    b2b_global_context_mode_from_train_json,
+)
 
 
 def natural_key(text):
@@ -194,8 +198,9 @@ def get_b2b_params(train_json, image_size):
         "mask_size_conditioning": bool(
             alg.get("b2b_mask_size_conditioning", False)
         ),
-        "global_context_conditioning": bool(
-            alg.get("b2b_global_context_conditioning", False)
+        "global_context_mode": b2b_global_context_mode_from_train_json(train_json),
+        "global_context_conditioning": b2b_global_context_enabled_from_train_json(
+            train_json
         ),
         "global_context_size": int(alg.get("b2b_global_context_size", 128)),
         "object_ref_conditioning": bool(object_ref_paths),
@@ -542,7 +547,7 @@ def preprocess_with_repo_crop(
     img = np.array(img)
     mask = np.array(mask) if mask is not None else None
     global_context = None
-    if bool(alg.get("b2b_global_context_conditioning", False)):
+    if b2b_global_context_enabled_from_train_json(train_json):
         context_img = build_masked_global_context_image(
             img_path,
             crop_meta,
@@ -1226,8 +1231,8 @@ def main():
         mask_size_conditioning=bool(
             train_json.get("alg", {}).get("b2b_mask_size_conditioning", False)
         ),
-        global_context_conditioning=bool(
-            train_json.get("alg", {}).get("b2b_global_context_conditioning", False)
+        global_context_conditioning=b2b_global_context_enabled_from_train_json(
+            train_json
         ),
     )
     onnx_batch, onnx_frames, onnx_channels, onnx_height, onnx_width = get_onnx_shape(

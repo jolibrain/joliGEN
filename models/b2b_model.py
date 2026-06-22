@@ -23,6 +23,12 @@ from piq import DISTS, LPIPS
 from torchvision.ops import masks_to_boxes
 import torch.nn.functional as F
 from data.base_dataset import transform_object_reference_images
+from util.b2b_context import (
+    VALID_B2B_GLOBAL_CONTEXT_MODES,
+    b2b_global_context_enabled,
+    b2b_global_context_mode_from_opt,
+    b2b_global_context_tokens_enabled,
+)
 
 
 class B2BModel(BaseDiffusionModel):
@@ -72,7 +78,18 @@ class B2BModel(BaseDiffusionModel):
             action="store_true",
             help=(
                 "Condition JiTViD B2B denoisers on masked full-frame context "
-                "encoded by a small CNN."
+                "encoded by a small CNN. Deprecated compatibility alias for "
+                "--alg_b2b_global_context_mode adaln."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_global_context_mode",
+            choices=VALID_B2B_GLOBAL_CONTEXT_MODES,
+            default=None,
+            help=(
+                "Global context conditioning mode for JiTViD B2B. "
+                "'adaln' uses the legacy small-CNN AdaLN path, 'tokens' inserts "
+                "global context ViT prefix tokens, and 'both' enables both paths."
             ),
         )
         parser.add_argument(
@@ -342,16 +359,30 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError(
                 "--alg_b2b_mask_size_conditioning is only supported with vit/vit_vid B2B"
             )
-        if getattr(opt, "alg_b2b_global_context_conditioning", False):
+        global_context_mode = b2b_global_context_mode_from_opt(opt)
+        opt.alg_b2b_global_context_mode = global_context_mode
+        opt.alg_b2b_global_context_conditioning = b2b_global_context_enabled(
+            global_context_mode
+        )
+        if b2b_global_context_enabled(global_context_mode):
             if getattr(opt, "G_netG", "") != "vit_vid":
                 raise ValueError(
-                    "--alg_b2b_global_context_conditioning is only supported with vit_vid B2B"
+                    "--alg_b2b_global_context_mode/"
+                    "--alg_b2b_global_context_conditioning is only supported "
+                    "with vit_vid B2B"
                 )
             if getattr(opt, "alg_b2b_global_context_size", 128) <= 0:
                 raise ValueError("--alg_b2b_global_context_size must be > 0")
+            if b2b_global_context_tokens_enabled(global_context_mode):
+                patch_size = int(getattr(opt, "G_vit_patch_size", 16))
+                if int(getattr(opt, "alg_b2b_global_context_size", 128)) % patch_size:
+                    raise ValueError(
+                        "--alg_b2b_global_context_size must be divisible by "
+                        "--G_vit_patch_size for token global context conditioning"
+                    )
             if getattr(opt, "dataaug_affine", 0):
                 raise ValueError(
-                    "--alg_b2b_global_context_conditioning does not support dataaug_affine"
+                    "--alg_b2b_global_context_mode does not support dataaug_affine"
                 )
 
         object_ref_paths = getattr(opt, "alg_b2b_object_ref_paths", []) or []
@@ -760,7 +791,7 @@ class B2BModel(BaseDiffusionModel):
             self._load_raw_b2b_checkpoint_into_lora(net, state_dict, name)
 
     def _b2b_global_context_from_data(self, data):
-        if not getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+        if not b2b_global_context_enabled(b2b_global_context_mode_from_opt(self.opt)):
             return None
         global_context = data.get("B_global_context", data.get("A_global_context"))
         if global_context is None:
@@ -990,7 +1021,7 @@ class B2BModel(BaseDiffusionModel):
             labels = None
 
         net_kwargs = {}
-        if getattr(self.opt, "alg_b2b_global_context_conditioning", False):
+        if b2b_global_context_enabled(b2b_global_context_mode_from_opt(self.opt)):
             net_kwargs["global_context"] = getattr(self, "global_context", None)
         if getattr(self, "object_refs", None) is not None:
             net_kwargs["object_refs"] = self.object_refs
