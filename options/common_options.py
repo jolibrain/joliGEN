@@ -897,7 +897,7 @@ class CommonOptions(BaseOptions):
             "--data_online_creation_mask_min_unmasked_border_A",
             type=int,
             default=4,
-            help="minimum unmasked border in final model pixels when data_online_creation_mask_fixed_size_A is enabled",
+            help="minimum unmasked border in final model pixels for fixed-size masks and square online masks",
         )
         parser.add_argument(
             "--data_online_creation_rand_mask_A",
@@ -980,7 +980,7 @@ class CommonOptions(BaseOptions):
             "--data_online_creation_mask_min_unmasked_border_B",
             type=int,
             default=4,
-            help="minimum unmasked border in final model pixels when data_online_creation_mask_fixed_size_B is enabled",
+            help="minimum unmasked border in final model pixels for fixed-size masks and square online masks",
         )
         parser.add_argument(
             "--data_online_context_pixels",
