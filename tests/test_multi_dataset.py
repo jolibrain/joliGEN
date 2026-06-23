@@ -838,8 +838,7 @@ def test_b2b_inference_label_resolution_uses_force_class_token():
 
     assert onnx_runner.resolve_b2b_label(train_json, frame_label=5) == 2
     assert (
-        onnx_runner.resolve_b2b_label(train_json, frame_label=5, label_override=7)
-        == 7
+        onnx_runner.resolve_b2b_label(train_json, frame_label=5, label_override=7) == 7
     )
 
 
