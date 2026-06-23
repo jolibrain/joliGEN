@@ -103,6 +103,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_loss | string | MSE | Loss type for B2B denoising<br/><br/> **Values:** L1, MSE, pseudo_huber, multiscale_L1, multiscale_MSE |
 | --alg_b2b_loss_masked_region_only | flag |  | Normalize B2B loss over masked pixels only (instead of all image pixels). |
 | --alg_b2b_mask_as_channel | flag |  | Concatenate the inpainting mask as an additional input channel in B2B. |
+| --alg_b2b_mask_size_conditioning | flag |  | Condition JiT/JiTViD B2B denoisers on normalized mask bbox geometry (center, size, area, aspect). |
 | --alg_b2b_metric_mask | flag |  | Evaluate metrics only on dilated mask region |
 | --alg_b2b_minsnr | flag |  | use min-SNR weighting |
 | --alg_b2b_multi_dataset_class_conditioning | flag |  | Use multi_dataset dataset_index as the ViT class-token conditioning label instead of object class labels. |
@@ -111,6 +112,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_ref_degrade_noise_std | float | 0.05 | Gaussian noise std for degraded autoregressive reference frames. |
 | --alg_b2b_ref_degrade_prob | float | 0.0 | Probability of adding Gaussian noise to selected autoregressive reference frames in the model input. |
 | --alg_b2b_t_eps | float | 0.05 | Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t). |
+| --alg_b2b_timestep_uniform_mix_prob | float | 0.1 | Probability of replacing a logistic-normal B2B training timestep with a uniform sample in [0, 1]. |
 | --alg_b2b_use_gt_prob | float | 0.1 | Probability of selecting a sample to use a GT frame in autoregressive B2B training. |
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
 | --alg_cm_dists_std | array | [0.229, 0.224, 0.225] | std for DISTS perceptual loss |
@@ -283,6 +285,8 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_keep_ratio_A | flag |  | preserve aspect ratio when loading domain A online; the largest load_size_A side is used as the target largest image side |
 | --data_online_creation_load_size_keep_ratio_B | flag |  | preserve aspect ratio when loading domain B online; the largest load_size_B side is used as the target largest image side |
+| --data_online_creation_mask_broaden_rect_aug_A | flag |  | randomly broaden online rectangular masks with detector-like bbox augmentations for domain A |
+| --data_online_creation_mask_broaden_rect_aug_B | flag |  | randomly broaden online rectangular masks with detector-like bbox augmentations for domain B |
 | --data_online_creation_mask_delta_A | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
 | --data_online_creation_mask_delta_A_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
 | --data_online_creation_mask_delta_B | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
