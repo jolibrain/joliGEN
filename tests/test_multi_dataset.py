@@ -11,6 +11,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import data as data_module
 import data.multi_dataset_dataset as multi_dataset_module
+import scripts.b2b_onnx_denoiser_infer_autoregressive_progress_bbox as onnx_runner
 import scripts.gen_multi_dataset_b2b_config as generator_module
 from data.multi_dataset_dataset import MultiDatasetDataset
 from models.b2b_model import B2BModel
@@ -136,6 +137,7 @@ def make_generator_args(**kwargs):
         "alg_b2b_temporal_frame_step_conditioning": False,
         "data_num_threads": 8,
         "alg_b2b_multi_dataset_class_conditioning": False,
+        "alg_b2b_force_class_token": -1,
         "multi_dataset_num_datasets": 1,
         "train_batch_size": 8,
         "train_iter_size": 4,
@@ -477,7 +479,10 @@ def test_multi_dataset_retries_none_samples(tmp_path, monkeypatch):
 
 def test_b2b_dataset_conditioning_uses_dataset_index_over_object_labels():
     model = B2BModel.__new__(B2BModel)
-    model.opt = SimpleNamespace(alg_b2b_multi_dataset_class_conditioning=True)
+    model.opt = SimpleNamespace(
+        alg_b2b_multi_dataset_class_conditioning=True,
+        alg_b2b_force_class_token=-1,
+    )
     model.device = torch.device("cpu")
     model.y_t = torch.zeros(2, 2, 3, 8, 8)
     model.batch_size = 2
@@ -495,7 +500,10 @@ def test_b2b_dataset_conditioning_uses_dataset_index_over_object_labels():
 
 def test_b2b_dataset_conditioning_rejects_missing_or_out_of_range_labels():
     model = B2BModel.__new__(B2BModel)
-    model.opt = SimpleNamespace(alg_b2b_multi_dataset_class_conditioning=True)
+    model.opt = SimpleNamespace(
+        alg_b2b_multi_dataset_class_conditioning=True,
+        alg_b2b_force_class_token=-1,
+    )
     model.device = torch.device("cpu")
     model.y_t = torch.zeros(2, 2, 3, 8, 8)
     model.batch_size = 2
@@ -506,6 +514,43 @@ def test_b2b_dataset_conditioning_rejects_missing_or_out_of_range_labels():
 
     with pytest.raises(RuntimeError, match="dataset_index labels must be in"):
         model._select_b2b_labels({"dataset_index": torch.tensor([0, 2])})
+
+
+def test_b2b_force_class_token_overrides_missing_labels():
+    model = B2BModel.__new__(B2BModel)
+    model.opt = SimpleNamespace(
+        alg_b2b_multi_dataset_class_conditioning=False,
+        alg_b2b_force_class_token=2,
+    )
+    model.device = torch.device("cpu")
+    model.y_t = torch.zeros(3, 2, 3, 8, 8)
+    model.batch_size = 3
+    model.num_classes = 4
+
+    labels = model._select_b2b_labels({})
+
+    assert torch.equal(labels, torch.tensor([2, 2, 2]))
+
+
+def test_b2b_force_class_token_overrides_object_and_dataset_labels():
+    model = B2BModel.__new__(B2BModel)
+    model.opt = SimpleNamespace(
+        alg_b2b_multi_dataset_class_conditioning=True,
+        alg_b2b_force_class_token=2,
+    )
+    model.device = torch.device("cpu")
+    model.y_t = torch.zeros(2, 2, 3, 8, 8)
+    model.batch_size = 2
+    model.num_classes = 4
+
+    labels = model._select_b2b_labels(
+        {
+            "dataset_index": torch.tensor([0, 1]),
+            "B_label_cls": torch.tensor([3, 3]),
+        }
+    )
+
+    assert torch.equal(labels, torch.tensor([2, 2]))
 
 
 def test_b2b_dataset_conditioning_requires_multi_dataset_mode():
@@ -676,6 +721,7 @@ def test_multi_dataset_generator_train_config_matches_b2b_defaults(tmp_path):
     assert train_config["train_optim"] == "muon"
     assert train_config["alg_b2b_mask_as_channel"] is True
     assert train_config["alg_b2b_multi_dataset_class_conditioning"] is False
+    assert "alg_b2b_force_class_token" not in train_config
     assert train_config["alg_b2b_denoise_timesteps"] == [2, 5, 20]
     assert train_config["alg_b2b_perceptual_loss"] == ["LPIPS", "DISTS"]
     assert "data_online_creation_crop_size_A" not in train_config
@@ -776,6 +822,31 @@ def test_multi_dataset_generator_train_config_can_enable_dataset_conditioning(tm
     assert train_config["G_vit_num_classes"] == 5
     assert train_config["alg_b2b_mask_as_channel"] is True
     assert train_config["f_s_semantic_nclasses"] == 3
+
+
+def test_multi_dataset_generator_train_config_can_emit_force_class_token(tmp_path):
+    config_path = tmp_path / "multi_dataset_config.json"
+    args = make_generator_args(alg_b2b_force_class_token=2)
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["alg_b2b_force_class_token"] == 2
+
+
+def test_b2b_inference_label_resolution_uses_force_class_token():
+    train_json = {"alg": {"b2b_force_class_token": 2}}
+
+    assert onnx_runner.resolve_b2b_label(train_json, frame_label=5) == 2
+    assert (
+        onnx_runner.resolve_b2b_label(train_json, frame_label=5, label_override=7)
+        == 7
+    )
+
+
+def test_b2b_inference_label_resolution_keeps_frame_label_when_disabled():
+    train_json = {"alg": {"b2b_force_class_token": -1}}
+
+    assert onnx_runner.resolve_b2b_label(train_json, frame_label=5) == 5
 
 
 def test_multi_dataset_generator_train_config_can_emit_keep_ratio_load_size(tmp_path):

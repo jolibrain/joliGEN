@@ -962,6 +962,9 @@ def build_train_config(args, multi_dataset_config_path):
             train_config["data_temporal_frame_step_random_max"] = frame_step_random_max
     if getattr(args, "alg_b2b_temporal_frame_step_conditioning", False):
         train_config["alg_b2b_temporal_frame_step_conditioning"] = True
+    force_class_token = getattr(args, "alg_b2b_force_class_token", -1)
+    if force_class_token >= 0:
+        train_config["alg_b2b_force_class_token"] = force_class_token
     if args.base_train_config:
         with open(args.base_train_config, "r") as config_file:
             base_config = json.load(config_file)
@@ -1318,6 +1321,15 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--alg-b2b-force-class-token",
+        type=int,
+        default=-1,
+        help=(
+            "force every B2B sample to use this ViT class token; -1 keeps "
+            "dataset/object-label behavior"
+        ),
+    )
+    parser.add_argument(
         "--preview-samples",
         type=int,
         default=0,
@@ -1359,6 +1371,8 @@ def parse_args():
             "--data-temporal-frame-step-random-max must be 0 or >= "
             "--data-temporal-frame-step"
         )
+    if args.alg_b2b_force_class_token < -1:
+        parser.error("--alg-b2b-force-class-token must be -1 or >= 0")
     return args
 
 
