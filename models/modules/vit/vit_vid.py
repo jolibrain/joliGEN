@@ -753,6 +753,7 @@ class JiTViD(nn.Module):
         num_register_tokens=0,
         cond_embed_dim=None,
         mask_size_conditioning=False,
+        temporal_frame_step_conditioning=False,
         max_frames=8,
         motion_num_heads=8,
         motion_num_layers=2,
@@ -792,6 +793,7 @@ class JiTViD(nn.Module):
         self.max_frames = max_frames
         self.motion_every = motion_every
         self.mask_size_conditioning = mask_size_conditioning
+        self.temporal_frame_step_conditioning = temporal_frame_step_conditioning
         self.global_context_mode = global_context_mode
         self.global_context_conditioning = b2b_global_context_enabled(
             global_context_mode
@@ -824,6 +826,9 @@ class JiTViD(nn.Module):
             )
             if mask_size_conditioning
             else None
+        )
+        self.temporal_frame_step_embedder = (
+            TimestepEmbedder(hidden_size) if temporal_frame_step_conditioning else None
         )
         self.global_context_encoder = (
             GlobalContextEncoder(hidden_size)
@@ -1023,6 +1028,9 @@ class JiTViD(nn.Module):
         if self.mask_size_embedder is not None:
             nn.init.constant_(self.mask_size_embedder[-1].weight, 0)
             nn.init.constant_(self.mask_size_embedder[-1].bias, 0)
+        if self.temporal_frame_step_embedder is not None:
+            nn.init.constant_(self.temporal_frame_step_embedder.mlp[-1].weight, 0)
+            nn.init.constant_(self.temporal_frame_step_embedder.mlp[-1].bias, 0)
         if self.global_context_encoder is not None:
             nn.init.constant_(self.global_context_encoder.proj[-1].weight, 0)
             nn.init.constant_(self.global_context_encoder.proj[-1].bias, 0)
@@ -1094,6 +1102,53 @@ class JiTViD(nn.Module):
             mask_size_cond = mask_size_cond.to(device=c.device, dtype=c.dtype)
         return c + self.mask_size_embedder(mask_size_cond)
 
+    def _temporal_frame_step_embedding(self, B, F, c, temporal_frame_step):
+        if self.temporal_frame_step_embedder is None:
+            return c
+        if temporal_frame_step is None:
+            temporal_frame_step = torch.zeros(B * F, device=c.device, dtype=c.dtype)
+        elif not torch.is_tensor(temporal_frame_step):
+            temporal_frame_step = torch.as_tensor(temporal_frame_step)
+
+        temporal_frame_step = temporal_frame_step.to(device=c.device)
+        if temporal_frame_step.ndim == 0:
+            temporal_frame_step = temporal_frame_step.reshape(1).expand(B * F)
+        elif temporal_frame_step.ndim == 1:
+            if temporal_frame_step.shape[0] == B:
+                temporal_frame_step = repeat(temporal_frame_step, "b -> (b f)", f=F)
+            elif temporal_frame_step.shape[0] == B * F:
+                pass
+            else:
+                raise RuntimeError(
+                    "Expected temporal_frame_step shape "
+                    f"{(B,)}, {(B, 1)}, {(B, F)}, {(B * F,)}, or {(B * F, 1)}, "
+                    f"got {tuple(temporal_frame_step.shape)}"
+                )
+        elif temporal_frame_step.ndim == 2:
+            if temporal_frame_step.shape == (B, 1):
+                temporal_frame_step = repeat(
+                    temporal_frame_step[:, 0], "b -> (b f)", f=F
+                )
+            elif temporal_frame_step.shape == (B, F):
+                temporal_frame_step = rearrange(temporal_frame_step, "b f -> (b f)")
+            elif temporal_frame_step.shape == (B * F, 1):
+                temporal_frame_step = temporal_frame_step[:, 0]
+            else:
+                raise RuntimeError(
+                    "Expected temporal_frame_step shape "
+                    f"{(B,)}, {(B, 1)}, {(B, F)}, {(B * F,)}, or {(B * F, 1)}, "
+                    f"got {tuple(temporal_frame_step.shape)}"
+                )
+        else:
+            raise RuntimeError(
+                "Expected temporal_frame_step shape "
+                f"{(B,)}, {(B, 1)}, {(B, F)}, {(B * F,)}, or {(B * F, 1)}, "
+                f"got {tuple(temporal_frame_step.shape)}"
+            )
+
+        temporal_frame_step = temporal_frame_step.to(dtype=c.dtype)
+        return c + self.temporal_frame_step_embedder(temporal_frame_step)
+
     def _prepare_global_context(self, B, F, global_context, device, dtype):
         if global_context is None:
             return None
@@ -1136,9 +1191,7 @@ class JiTViD(nn.Module):
         flat_context = rearrange(global_context, "b f c h w -> (b f) c h w")
         context_tokens = self.global_context_embedder(flat_context)
         return (
-            context_tokens
-            + self.global_context_posemb
-            + self.global_context_type_embed
+            context_tokens + self.global_context_posemb + self.global_context_type_embed
         )
 
     def _object_reference_tokens(self, B, F, object_refs, device, dtype):
@@ -1154,7 +1207,9 @@ class JiTViD(nn.Module):
         elif object_refs.ndim == 5 and object_refs.shape == (B, R, 3, S, S):
             object_refs = object_refs[:, None].expand(-1, F, -1, -1, -1, -1)
         elif object_refs.ndim == 5 and object_refs.shape == (B * F, R, 3, S, S):
-            object_refs = rearrange(object_refs, "(b f) r c h w -> b f r c h w", b=B, f=F)
+            object_refs = rearrange(
+                object_refs, "(b f) r c h w -> b f r c h w", b=B, f=F
+            )
         elif object_refs.ndim == 6 and object_refs.shape == (B, F, R, 3, S, S):
             pass
         else:
@@ -1182,6 +1237,7 @@ class JiTViD(nn.Module):
         t,
         y,
         mask_size_cond=None,
+        temporal_frame_step=None,
         global_context=None,
         object_refs=None,
     ):
@@ -1223,6 +1279,7 @@ class JiTViD(nn.Module):
         y_emb = self.y_embedder(y2d)  # (B*F, D)
         c = t_emb + y_emb
         c = self._mask_size_embedding(B, F, c, mask_size_cond)
+        c = self._temporal_frame_step_embedding(B, F, c, temporal_frame_step)
         c = self._global_context_embedding(B, F, c, global_context)
         global_context_tokens = self._global_context_tokens(
             B, F, global_context, x.device, x.dtype

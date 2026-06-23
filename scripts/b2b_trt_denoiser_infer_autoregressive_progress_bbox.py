@@ -335,6 +335,45 @@ def resolve_denoise_steps(train_json, denoise_steps):
     return int(steps[0])
 
 
+def resolve_forced_class_token(train_json):
+    token = train_json.get("alg", {}).get(
+        "b2b_force_class_token",
+        train_json.get("alg_b2b_force_class_token", -1),
+    )
+    token = int(token)
+    if token < -1:
+        raise ValueError("alg.b2b_force_class_token must be -1 or >= 0")
+    if token >= 0:
+        return token
+    return None
+
+
+def resolve_b2b_label(train_json, frame_label, label_override=None):
+    if label_override is not None:
+        return int(label_override)
+    forced_class_token = resolve_forced_class_token(train_json)
+    if forced_class_token is not None:
+        return forced_class_token
+    return int(frame_label)
+
+
+def temporal_frame_step_conditioning_enabled(train_json):
+    alg = train_json.get("alg", {})
+    return bool(alg.get("b2b_temporal_frame_step_conditioning", False))
+
+
+def resolve_temporal_frame_step(train_json, temporal_frame_step=None):
+    if temporal_frame_step is not None:
+        return float(temporal_frame_step)
+    data = train_json.get("data", {})
+    return float(
+        data.get(
+            "temporal_frame_step",
+            train_json.get("data_temporal_frame_step", 1),
+        )
+    )
+
+
 def get_b2b_params(train_json, image_size):
     alg = train_json.get("alg", {})
     params = {
@@ -348,6 +387,9 @@ def get_b2b_params(train_json, image_size):
         "t_eps": float(alg.get("b2b_t_eps", 5e-2)),
         "cond_mode": alg.get("diffusion_cond_image_creation", "y_t"),
         "mask_as_channel": bool(alg.get("b2b_mask_as_channel", False)),
+        "temporal_frame_step_conditioning": temporal_frame_step_conditioning_enabled(
+            train_json
+        ),
     }
     requested_noise_scale = float(alg.get("b2b_noise_scale", -1.0))
     if requested_noise_scale > 0:
@@ -797,6 +839,7 @@ class TensorRTDenoiserSession:
         model_input_name: Optional[str] = None,
         timesteps_input_name: Optional[str] = None,
         labels_input_name: Optional[str] = None,
+        temporal_frame_step_input_name: Optional[str] = None,
         output_name: Optional[str] = None,
     ) -> None:
         self.trt = import_tensorrt()
@@ -829,6 +872,9 @@ class TensorRTDenoiserSession:
             timesteps_input_name
         )
         self.labels_input_name = self._resolve_labels_input_name(labels_input_name)
+        self.temporal_frame_step_input_name = (
+            self._resolve_temporal_frame_step_input_name(temporal_frame_step_input_name)
+        )
         self.output_name = self._resolve_output_name(output_name)
 
         self.stream = self.cuda.stream_create()
@@ -899,6 +945,20 @@ class TensorRTDenoiserSession:
         return self._resolve_tensor_name(
             override_name, "labels", candidates, "labels input"
         )
+
+    def _resolve_temporal_frame_step_input_name(
+        self, override_name: Optional[str]
+    ) -> Optional[str]:
+        if override_name is not None:
+            if override_name not in self.input_names:
+                raise RuntimeError(
+                    "Configured temporal_frame_step tensor "
+                    f"{override_name!r} not found in engine inputs: {self.input_names}"
+                )
+            return override_name
+        if "temporal_frame_step" in self.input_names:
+            return "temporal_frame_step"
+        return None
 
     def _resolve_output_name(self, override_name: Optional[str]) -> str:
         return self._resolve_tensor_name(
@@ -1005,6 +1065,20 @@ class TensorRTDenoiserSession:
             )
         )
 
+    def _prepare_temporal_frame_step_input(
+        self, temporal_frame_step: float
+    ) -> np.ndarray:
+        if self.temporal_frame_step_input_name is None:
+            raise RuntimeError("TensorRT engine has no temporal_frame_step input")
+        raw_shape = self._raw_shape_for(self.temporal_frame_step_input_name)
+        return np.ascontiguousarray(
+            _make_scalar_input(
+                float(temporal_frame_step),
+                raw_shape,
+                self._dtype_for(self.temporal_frame_step_input_name),
+            )
+        )
+
     def _ensure_bindings(self, host_inputs: Dict[str, np.ndarray]) -> None:
         desired_shapes = {
             name: tuple(int(dim) for dim in array.shape)
@@ -1047,12 +1121,22 @@ class TensorRTDenoiserSession:
         model_input: np.ndarray,
         t_scalar: float,
         labels: np.ndarray,
+        temporal_frame_step: Optional[float] = None,
         dump_dir: Optional[str] = None,
         dump_tag: Optional[str] = None,
     ) -> np.ndarray:
         model_input_host = self._prepare_model_input(model_input)
         timestep_host = self._prepare_timestep_input(t_scalar)
         labels_host = self._prepare_labels_input(labels)
+        temporal_frame_step_host = None
+        if self.temporal_frame_step_input_name is not None:
+            if temporal_frame_step is None:
+                raise RuntimeError(
+                    "temporal_frame_step is required by this TensorRT engine"
+                )
+            temporal_frame_step_host = self._prepare_temporal_frame_step_input(
+                temporal_frame_step
+            )
 
         if dump_dir and dump_tag:
             os.makedirs(dump_dir, exist_ok=True)
@@ -1061,12 +1145,19 @@ class TensorRTDenoiserSession:
             )
             np.save(os.path.join(dump_dir, f"{dump_tag}_timesteps.npy"), timestep_host)
             np.save(os.path.join(dump_dir, f"{dump_tag}_labels.npy"), labels_host)
+            if temporal_frame_step_host is not None:
+                np.save(
+                    os.path.join(dump_dir, f"{dump_tag}_temporal_frame_step.npy"),
+                    temporal_frame_step_host,
+                )
 
         host_inputs = {
             self.model_input_name: model_input_host,
             self.timesteps_input_name: timestep_host,
             self.labels_input_name: labels_host,
         }
+        if temporal_frame_step_host is not None:
+            host_inputs[self.temporal_frame_step_input_name] = temporal_frame_step_host
         self._ensure_bindings(host_inputs)
 
         t_total_start = time.perf_counter()
@@ -1116,6 +1207,7 @@ def denoiser_forward(
     model_input,
     t_scalar,
     labels,
+    temporal_frame_step=None,
     dump_dir=None,
     dump_tag=None,
 ):
@@ -1123,6 +1215,7 @@ def denoiser_forward(
         model_input=model_input,
         t_scalar=t_scalar,
         labels=labels,
+        temporal_frame_step=temporal_frame_step,
         dump_dir=dump_dir,
         dump_tag=dump_tag,
     )
@@ -1137,6 +1230,7 @@ def forward_sample_restoration(
     labels,
     y_known,
     params,
+    temporal_frame_step=None,
     dump_dir=None,
     dump_prefix=None,
 ):
@@ -1158,6 +1252,7 @@ def forward_sample_restoration(
         model_input,
         t_scalar,
         labels,
+        temporal_frame_step=temporal_frame_step,
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_cond" if dump_prefix else None,
     )
@@ -1182,6 +1277,7 @@ def forward_sample_restoration(
         model_input,
         t_scalar,
         np.full_like(labels, params["num_classes"]),
+        temporal_frame_step=temporal_frame_step,
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_uncond" if dump_prefix else None,
     )
@@ -1200,6 +1296,7 @@ def restoration_with_denoiser(
     labels,
     params,
     init_noise,
+    temporal_frame_step=None,
     dump_dir=None,
     dump_prefix=None,
 ):
@@ -1227,6 +1324,7 @@ def restoration_with_denoiser(
             labels,
             y_known,
             params,
+            temporal_frame_step=temporal_frame_step,
             dump_dir=dump_dir,
             dump_prefix=f"{dump_prefix}_step{i}_a" if dump_prefix else None,
         )
@@ -1240,6 +1338,7 @@ def restoration_with_denoiser(
             labels,
             y_known,
             params,
+            temporal_frame_step=temporal_frame_step,
             dump_dir=dump_dir,
             dump_prefix=f"{dump_prefix}_step{i}_b" if dump_prefix else None,
         )
@@ -1258,6 +1357,7 @@ def restoration_with_denoiser(
         labels,
         y_known,
         params,
+        temporal_frame_step=temporal_frame_step,
         dump_dir=dump_dir,
         dump_prefix=f"{dump_prefix}_final" if dump_prefix else None,
     )
@@ -1361,10 +1461,12 @@ def run_sequence(
     warmup,
     repeat,
     autoregressive_reinject_patch,
+    temporal_frame_step=None,
 ):
     rng = np.random.default_rng(seed)
     _, crop_h, _, _, _ = get_train_shape(train_json)
     params = get_b2b_params(train_json, crop_h)
+    temporal_frame_step = resolve_temporal_frame_step(train_json, temporal_frame_step)
     inputmix = True
     prev_frame = None
     last_seq_half_y_t = None
@@ -1443,7 +1545,8 @@ def run_sequence(
             )
 
         labels = np.asarray(
-            [frame_data["label_cls"] if label is None else int(label)], dtype=np.int64
+            [resolve_b2b_label(train_json, frame_data["label_cls"], label)],
+            dtype=np.int64,
         )
         init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
         y_np = y_t_batch.numpy().astype(np.float32)
@@ -1465,6 +1568,7 @@ def run_sequence(
                 labels=labels,
                 params=params,
                 init_noise=init_noise,
+                temporal_frame_step=temporal_frame_step,
                 dump_dir=None,
                 dump_prefix=None,
             )
@@ -1482,6 +1586,7 @@ def run_sequence(
                 labels=labels,
                 params=params,
                 init_noise=init_noise,
+                temporal_frame_step=temporal_frame_step,
                 dump_dir=debug_dump_dir if repeat_index == repeat - 1 else None,
                 dump_prefix=(
                     f"frame_{sequence_count:06d}"
@@ -1568,6 +1673,15 @@ def parse_args():
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
     parser.add_argument(
+        "--temporal_frame_step",
+        type=float,
+        help=(
+            "Raw temporal frame stride for checkpoints trained with "
+            "alg.b2b_temporal_frame_step_conditioning. Defaults to "
+            "data.temporal_frame_step from train_config.json, then 1."
+        ),
+    )
+    parser.add_argument(
         "--denoise_steps",
         type=int,
         help="Override denoise step count. Defaults to first entry from alg.b2b_denoise_timesteps",
@@ -1595,6 +1709,11 @@ def parse_args():
         "--labels_input_name",
         "--labels-input-name",
         help="Optional override for TensorRT labels tensor name",
+    )
+    parser.add_argument(
+        "--temporal_frame_step_input_name",
+        "--temporal-frame-step-input-name",
+        help="Optional override for TensorRT temporal_frame_step tensor name",
     )
     parser.add_argument(
         "--output_name",
@@ -1641,6 +1760,7 @@ def main():
         model_input_name=args.model_input_name,
         timesteps_input_name=args.timesteps_input_name,
         labels_input_name=args.labels_input_name,
+        temporal_frame_step_input_name=args.temporal_frame_step_input_name,
         output_name=args.output_name,
     )
 
@@ -1649,6 +1769,14 @@ def main():
     )
 
     train_json, train_config_path = load_train_config(args.engine, args.train_config)
+    if (
+        temporal_frame_step_conditioning_enabled(train_json)
+        and session.temporal_frame_step_input_name is None
+    ):
+        raise ValueError(
+            "train_config enables b2b_temporal_frame_step_conditioning, but the "
+            "TensorRT engine has no temporal_frame_step input"
+        )
     train_frames, train_height, train_width, _, _ = get_train_shape(train_json)
     if train_json.get("alg", {}).get("diffusion_cond_image_creation", "y_t") != "y_t":
         raise NotImplementedError(
@@ -1702,6 +1830,7 @@ def main():
             warmup=args.warmup,
             repeat=args.repeat,
             autoregressive_reinject_patch=args.autoregressive_reinject_patch,
+            temporal_frame_step=args.temporal_frame_step,
         )
     finally:
         session.close()
@@ -1713,6 +1842,11 @@ def main():
     print(f"train_config : {train_config_path}")
     print(f"engine       : {args.engine}")
     print(f"model_input  : {session.model_input_name}")
+    print(f"temporal_frame_step_input: {session.temporal_frame_step_input_name}")
+    print(
+        "temporal_frame_step: "
+        f"{resolve_temporal_frame_step(train_json, args.temporal_frame_step)}"
+    )
     print(f"timesteps    : {session.timesteps_input_name}")
     print(f"labels       : {session.labels_input_name}")
     print(f"output       : {session.output_name}")

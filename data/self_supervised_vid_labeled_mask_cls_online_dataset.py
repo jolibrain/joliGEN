@@ -271,6 +271,7 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(TemporalFrameStepMixin, BaseD
             "A_label_mask": labels_A,
             "A_ref_label_mask": A_ref_label,
             "A_label_cls": A_label_clses,
+            "A_temporal_frame_step": effective_frame_step,
             "B_ref": A_ref_img,
             "B": images_A,
             "B_img_paths": ref_A_img_path,
@@ -278,6 +279,8 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(TemporalFrameStepMixin, BaseD
             "B_label_mask": labels_A,
             "B_ref_label_mask": A_ref_label,
             "B_label_cls": A_label_clses,
+            "B_temporal_frame_step": effective_frame_step,
+            "temporal_frame_step": effective_frame_step,
         }
         if b2b_global_context_enabled_from_opt(self.opt):
             result["A_global_context"] = global_context_A

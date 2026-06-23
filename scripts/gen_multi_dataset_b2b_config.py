@@ -960,6 +960,8 @@ def build_train_config(args, multi_dataset_config_path):
         frame_step_random_max = getattr(args, "data_temporal_frame_step_random_max", 0)
         if frame_step_random_max > 0:
             train_config["data_temporal_frame_step_random_max"] = frame_step_random_max
+    if getattr(args, "alg_b2b_temporal_frame_step_conditioning", False):
+        train_config["alg_b2b_temporal_frame_step_conditioning"] = True
     if args.base_train_config:
         with open(args.base_train_config, "r") as config_file:
             base_config = json.load(config_file)
@@ -1292,6 +1294,11 @@ def parse_args():
     parser.add_argument("--data-temporal-number-frames", type=int, default=2)
     parser.add_argument("--data-temporal-frame-step", type=int, default=1)
     parser.add_argument("--data-temporal-frame-step-random-max", type=int, default=0)
+    parser.add_argument(
+        "--alg-b2b-temporal-frame-step-conditioning",
+        action="store_true",
+        help="condition vit_vid B2B on the raw temporal frame stride",
+    )
     parser.add_argument("--data-num-threads", type=int, default=8)
     parser.add_argument("--train-batch-size", type=int, default=8)
     parser.add_argument("--train-iter-size", type=int, default=4)

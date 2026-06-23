@@ -605,7 +605,9 @@ def crop_image(
                 img.shape[0],
             )
             cur_bbox.update({"xmin": xmin, "ymin": ymin, "xmax": xmax, "ymax": ymax})
-            mask[ymin:ymax, xmin:xmax] = np.full((ymax - ymin, xmax - xmin), cur_bbox["cat"])
+            mask[ymin:ymax, xmin:xmax] = np.full(
+                (ymax - ymin, xmax - xmin), cur_bbox["cat"]
+            )
             if cur_bbox["index"] == idx_bbox_ref:
                 x_min_ref = xmin
                 x_max_ref = xmax
@@ -742,7 +744,9 @@ def crop_image(
             required_bbox_side = ref_original_side()
         else:
             required_bbox_side = max(height, width)
-        crop_size_min = max(required_bbox_side, effective_crop_dim - effective_crop_delta)
+        crop_size_min = max(
+            required_bbox_side, effective_crop_dim - effective_crop_delta
+        )
 
         # Crop size should be < crop_dim - delta
         crop_size_max = effective_crop_dim + effective_crop_delta

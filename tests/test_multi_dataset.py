@@ -133,6 +133,7 @@ def make_generator_args(**kwargs):
         "data_temporal_number_frames": 2,
         "data_temporal_frame_step": 1,
         "data_temporal_frame_step_random_max": 0,
+        "alg_b2b_temporal_frame_step_conditioning": False,
         "data_num_threads": 8,
         "alg_b2b_multi_dataset_class_conditioning": False,
         "multi_dataset_num_datasets": 1,
@@ -682,6 +683,7 @@ def test_multi_dataset_generator_train_config_matches_b2b_defaults(tmp_path):
     assert train_config["data_temporal_number_frames"] == 2
     assert train_config["data_temporal_frame_step"] == 1
     assert "data_temporal_frame_step_random_max" not in train_config
+    assert "alg_b2b_temporal_frame_step_conditioning" not in train_config
 
 
 def test_multi_dataset_generator_train_config_can_emit_random_temporal_step(tmp_path):
@@ -693,6 +695,17 @@ def test_multi_dataset_generator_train_config_can_emit_random_temporal_step(tmp_
     assert train_config["data_temporal_number_frames"] == 2
     assert train_config["data_temporal_frame_step"] == 1
     assert train_config["data_temporal_frame_step_random_max"] == 8
+
+
+def test_multi_dataset_generator_train_config_can_emit_temporal_step_conditioning(
+    tmp_path,
+):
+    config_path = tmp_path / "multi_dataset_config.json"
+    args = make_generator_args(alg_b2b_temporal_frame_step_conditioning=True)
+
+    train_config = build_train_config(args, config_path)
+
+    assert train_config["alg_b2b_temporal_frame_step_conditioning"] is True
 
 
 def test_multi_dataset_generator_train_config_infers_image_model_for_non_video(

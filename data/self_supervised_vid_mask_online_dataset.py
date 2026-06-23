@@ -267,12 +267,15 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
             "A_ref_bbox": A_ref_bbox,
             "A_label_mask": labels_A,
             "A_ref_label_mask": A_ref_label,
+            "A_temporal_frame_step": effective_frame_step,
             "B_ref": A_ref_img,
             "B": images_A,
             "B_img_paths": ref_A_img_path,
             "B_ref_bbox": A_ref_bbox,
             "B_label_mask": labels_A,
             "B_ref_label_mask": A_ref_label,
+            "B_temporal_frame_step": effective_frame_step,
+            "temporal_frame_step": effective_frame_step,
         }
         if b2b_global_context_enabled_from_opt(self.opt):
             result["A_global_context"] = global_context_A

@@ -448,6 +448,7 @@ def infer_second_generated_crop(
     train_json,
     denoise_steps,
     object_refs=None,
+    temporal_frame_step=None,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = onnx_runner.get_train_shape(train_json)
@@ -479,7 +480,8 @@ def infer_second_generated_crop(
         )
 
     labels = np.asarray(
-        [frame_data["label_cls"] if label is None else int(label)], dtype=np.int64
+        [onnx_runner.resolve_b2b_label(train_json, frame_data["label_cls"], label)],
+        dtype=np.int64,
     )
     init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
     out_tensor = onnx_runner.restoration_with_denoiser(
@@ -495,6 +497,7 @@ def infer_second_generated_crop(
         labels=labels,
         params=params,
         init_noise=init_noise,
+        temporal_frame_step=temporal_frame_step,
         global_context=(
             None
             if global_context_batch is None
@@ -642,6 +645,7 @@ def run_variant_grid(
             train_json=train_json,
             denoise_steps=denoise_steps,
             object_refs=object_refs,
+            temporal_frame_step=args.temporal_frame_step,
         )
         tile = onnx_runner.chw_to_bgr_uint8(generated)
         if overlay_mask_boundaries:
@@ -721,6 +725,15 @@ def parse_args():
     )
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for all runs")
+    parser.add_argument(
+        "--temporal_frame_step",
+        type=float,
+        help=(
+            "Raw temporal frame stride for checkpoints trained with "
+            "alg.b2b_temporal_frame_step_conditioning. Defaults to "
+            "data.temporal_frame_step from train_config.json, then 1."
+        ),
+    )
     parser.add_argument(
         "--denoise_steps",
         type=int,
@@ -834,6 +847,9 @@ def main():
         "crop_size_override": args.crop_size,
         "seed": args.seed,
         "denoise_steps": denoise_steps,
+        "temporal_frame_step": onnx_runner.resolve_temporal_frame_step(
+            train_json, args.temporal_frame_step
+        ),
         "global_context_mode": onnx_runner.b2b_global_context_mode_from_train_json(
             train_json
         ),
@@ -919,8 +935,11 @@ def main():
     print(f"train_config : {train_config_path}")
     print(f"device       : {device}")
     print(
-        "object_refs  : "
-        f"{0 if object_refs is None else int(object_refs.shape[0])}"
+        "temporal_frame_step: "
+        f"{onnx_runner.resolve_temporal_frame_step(train_json, args.temporal_frame_step)}"
+    )
+    print(
+        "object_refs  : " f"{0 if object_refs is None else int(object_refs.shape[0])}"
     )
     for group_name, group_result in manifest["outputs"].items():
         print(f"{group_name}_variants: {len(group_result['variants'])}")

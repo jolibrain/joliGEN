@@ -41,12 +41,14 @@ class PthDenoiserSession:
         model,
         device,
         mask_size_conditioning=False,
+        temporal_frame_step_conditioning=False,
         global_context_conditioning=False,
         object_ref_conditioning=False,
     ):
         self.model = model.b2b_model
         self.device = device
         self.mask_size_conditioning = mask_size_conditioning
+        self.temporal_frame_step_conditioning = temporal_frame_step_conditioning
         self.global_context_conditioning = global_context_conditioning
         self.object_ref_conditioning = object_ref_conditioning
         self.model.eval()
@@ -70,6 +72,14 @@ class PthDenoiserSession:
                 raise ValueError("mask_size_cond input is required by this checkpoint")
             model_kwargs["mask_size_cond"] = torch.from_numpy(
                 inputs["mask_size_cond"]
+            ).to(self.device, dtype=torch.float32)
+        if self.temporal_frame_step_conditioning:
+            if "temporal_frame_step" not in inputs:
+                raise ValueError(
+                    "temporal_frame_step input is required by this checkpoint"
+                )
+            model_kwargs["temporal_frame_step"] = torch.from_numpy(
+                inputs["temporal_frame_step"]
             ).to(self.device, dtype=torch.float32)
         if self.global_context_conditioning:
             if "global_context" not in inputs:
@@ -105,6 +115,9 @@ def load_pth_session(model_in_file, train_config, device, use_ema):
             device,
             mask_size_conditioning=bool(
                 getattr(opt, "alg_b2b_mask_size_conditioning", False)
+            ),
+            temporal_frame_step_conditioning=bool(
+                getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False)
             ),
             global_context_conditioning=b2b_global_context_enabled_from_opt(opt),
             object_ref_conditioning=bool(
@@ -145,6 +158,15 @@ def parse_args():
     )
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
+    parser.add_argument(
+        "--temporal_frame_step",
+        type=float,
+        help=(
+            "Raw temporal frame stride for checkpoints trained with "
+            "alg.b2b_temporal_frame_step_conditioning. Defaults to "
+            "data.temporal_frame_step from train_config.json, then 1."
+        ),
+    )
     parser.add_argument(
         "--denoise_steps",
         type=int,
@@ -221,9 +243,7 @@ def main():
     else:
         pairs = pairs[args.start_index :]
 
-    denoise_steps = onnx_runner.resolve_denoise_steps(
-        train_json, args.denoise_steps
-    )
+    denoise_steps = onnx_runner.resolve_denoise_steps(train_json, args.denoise_steps)
     object_refs = onnx_runner.load_object_refs_for_inference(
         train_json, args.alg_b2b_object_ref_paths
     )
@@ -240,6 +260,7 @@ def main():
         debug_dump_dir=args.debug_dump_dir,
         autoregressive_reinject_patch=args.autoregressive_reinject_patch,
         object_refs=object_refs,
+        temporal_frame_step=args.temporal_frame_step,
     )
 
     print(f"dataset_root : {dataset_root}")
@@ -249,8 +270,11 @@ def main():
     print(f"train_shape  : {(train_frames, train_height, train_width)}")
     print(f"denoise_steps: {denoise_steps}")
     print(
-        "object_refs  : "
-        f"{0 if object_refs is None else int(object_refs.shape[0])}"
+        "temporal_frame_step: "
+        f"{onnx_runner.resolve_temporal_frame_step(train_json, args.temporal_frame_step)}"
+    )
+    print(
+        "object_refs  : " f"{0 if object_refs is None else int(object_refs.shape[0])}"
     )
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
     print(f"written      : {len(frames_written)} frames")
