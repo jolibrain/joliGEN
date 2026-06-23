@@ -339,6 +339,9 @@ def define_G(
             mask_size_conditioning=getattr(
                 opt, "alg_b2b_mask_size_conditioning", False
             ),
+            temporal_frame_step_conditioning=getattr(
+                opt, "alg_b2b_temporal_frame_step_conditioning", False
+            ),
             global_context_mode=global_context_mode,
             global_context_size=getattr(opt, "alg_b2b_global_context_size", 128),
             object_ref_num_images=len(

@@ -58,6 +58,11 @@ class B2BGenerator(nn.Module):
             if opt
             else False
         )
+        self.temporal_frame_step_conditioning = (
+            bool(getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False))
+            if opt
+            else False
+        )
         self.global_context_conditioning = (
             b2b_global_context_enabled(b2b_global_context_mode_from_opt(opt))
             if opt
@@ -212,10 +217,18 @@ class B2BGenerator(nn.Module):
         drop = torch.rand(labels.shape, device=labels.device) < self.label_drop_prob
         return torch.where(drop, torch.full_like(labels, self.num_classes), labels)
 
-    def _model_kwargs(self, mask_size_cond, global_context, object_refs):
+    def _model_kwargs(
+        self,
+        mask_size_cond,
+        temporal_frame_step,
+        global_context,
+        object_refs,
+    ):
         kwargs = {}
         if self.mask_size_conditioning:
             kwargs["mask_size_cond"] = mask_size_cond
+        if self.temporal_frame_step_conditioning:
+            kwargs["temporal_frame_step"] = temporal_frame_step
         if self.global_context_conditioning:
             kwargs["global_context"] = global_context
         if self.object_ref_conditioning:
@@ -230,6 +243,7 @@ class B2BGenerator(nn.Module):
         label=None,
         use_gt=None,
         ref_idx=None,
+        temporal_frame_step=None,
         global_context=None,
         object_refs=None,
     ):
@@ -287,7 +301,12 @@ class B2BGenerator(nn.Module):
             z_model,
             t_flat,
             labels_dropped,
-            **self._model_kwargs(mask_size_cond, global_context, object_refs),
+            **self._model_kwargs(
+                mask_size_cond,
+                temporal_frame_step,
+                global_context,
+                object_refs,
+            ),
         )
         x_pred = self._match_prediction_channels(x_pred, x)
 
@@ -301,13 +320,22 @@ class B2BGenerator(nn.Module):
         label=None,
         use_gt=None,
         ref_idx=None,
+        temporal_frame_step=None,
         global_context=None,
         object_refs=None,
         return_x_pred=False,
         return_raw_x_pred=False,
     ):
         x_pred, z, v, t, x_target = self.b2b_forward(
-            x, mask, x_cond, label, use_gt, ref_idx, global_context, object_refs
+            x,
+            mask,
+            x_cond,
+            label,
+            use_gt,
+            ref_idx,
+            temporal_frame_step,
+            global_context,
+            object_refs,
         )
         raw_x_pred = x_pred
         if mask is not None:
@@ -386,6 +414,7 @@ class B2BGenerator(nn.Module):
         use_gt=None,
         ref_idx=None,
         init_noise=None,
+        temporal_frame_step=None,
         global_context=None,
         object_refs=None,
     ):
@@ -437,6 +466,7 @@ class B2BGenerator(nn.Module):
                 y_known,
                 use_gt,
                 ref_idx,
+                temporal_frame_step,
                 global_context,
                 object_refs,
             )
@@ -457,6 +487,7 @@ class B2BGenerator(nn.Module):
             y_known,
             use_gt,
             ref_idx,
+            temporal_frame_step,
             global_context,
             object_refs,
         )
@@ -481,6 +512,7 @@ class B2BGenerator(nn.Module):
         y_known,
         use_gt=None,
         ref_idx=None,
+        temporal_frame_step=None,
         global_context=None,
         object_refs=None,
     ):
@@ -501,7 +533,12 @@ class B2BGenerator(nn.Module):
         model_t = self._restoration_model_timesteps(t, model_input, use_gt, ref_idx)
 
         mask_size_cond = self._mask_size_condition(mask, model_input)
-        model_kwargs = self._model_kwargs(mask_size_cond, global_context, object_refs)
+        model_kwargs = self._model_kwargs(
+            mask_size_cond,
+            temporal_frame_step,
+            global_context,
+            object_refs,
+        )
 
         # --- conditional ---
         x_cond = self.b2b_model(model_input, model_t, labels, **model_kwargs)
@@ -551,6 +588,7 @@ class B2BGenerator(nn.Module):
         y_known,
         use_gt=None,
         ref_idx=None,
+        temporal_frame_step=None,
         global_context=None,
         object_refs=None,
     ):
@@ -563,6 +601,7 @@ class B2BGenerator(nn.Module):
             y_known,
             use_gt,
             ref_idx,
+            temporal_frame_step,
             global_context,
             object_refs,
         )
@@ -580,6 +619,7 @@ class B2BGenerator(nn.Module):
         y_known,
         use_gt=None,
         ref_idx=None,
+        temporal_frame_step=None,
         global_context=None,
         object_refs=None,
     ):
@@ -592,6 +632,7 @@ class B2BGenerator(nn.Module):
             y_known,
             use_gt,
             ref_idx,
+            temporal_frame_step,
             global_context,
             object_refs,
         )
@@ -605,6 +646,7 @@ class B2BGenerator(nn.Module):
             y_known,
             use_gt,
             ref_idx,
+            temporal_frame_step,
             global_context,
             object_refs,
         )

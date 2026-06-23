@@ -229,12 +229,14 @@ class B2BDenoiserWrapper(torch.nn.Module):
         self,
         model,
         mask_size_conditioning=False,
+        temporal_frame_step_conditioning=False,
         global_context_conditioning=False,
         object_ref_conditioning=False,
     ):
         super().__init__()
         self.model = model.b2b_model
         self.mask_size_conditioning = mask_size_conditioning
+        self.temporal_frame_step_conditioning = temporal_frame_step_conditioning
         self.global_context_conditioning = global_context_conditioning
         self.object_ref_conditioning = object_ref_conditioning
 
@@ -243,6 +245,9 @@ class B2BDenoiserWrapper(torch.nn.Module):
         model_kwargs = {}
         if self.mask_size_conditioning:
             model_kwargs["mask_size_cond"] = conditioning_inputs[input_index]
+            input_index += 1
+        if self.temporal_frame_step_conditioning:
+            model_kwargs["temporal_frame_step"] = conditioning_inputs[input_index]
             input_index += 1
         if self.global_context_conditioning:
             model_kwargs["global_context"] = conditioning_inputs[input_index]
@@ -263,6 +268,9 @@ def build_export_wrapper(model, opt, export_mode, denoise_steps):
                 model,
                 mask_size_conditioning=getattr(
                     opt, "alg_b2b_mask_size_conditioning", False
+                ),
+                temporal_frame_step_conditioning=getattr(
+                    opt, "alg_b2b_temporal_frame_step_conditioning", False
                 ),
                 global_context_conditioning=b2b_global_context_enabled_from_opt(opt),
                 object_ref_conditioning=bool(
@@ -301,6 +309,11 @@ def make_dummy_inputs(opt, device, export_mode, uses_cond, batch_size, num_frame
                 batch_size, num_frames, 6, dtype=torch.float32, device=device
             )
             denoiser_inputs.append(mask_size_cond)
+        if getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False):
+            temporal_frame_step = torch.ones(
+                batch_size, dtype=torch.float32, device=device
+            )
+            denoiser_inputs.append(temporal_frame_step)
         if b2b_global_context_enabled_from_opt(opt):
             context_size = int(getattr(opt, "alg_b2b_global_context_size", 128))
             global_context = torch.zeros(
@@ -358,6 +371,8 @@ def export_to_onnx(
         input_names = ["model_input", "timesteps", "labels"]
         if getattr(opt, "alg_b2b_mask_size_conditioning", False):
             input_names.append("mask_size_cond")
+        if getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False):
+            input_names.append("temporal_frame_step")
         if b2b_global_context_enabled_from_opt(opt):
             input_names.append("global_context")
         if getattr(opt, "alg_b2b_object_ref_paths", None):
@@ -372,7 +387,7 @@ def export_to_onnx(
     if dynamic_batch_frames:
         dynamic_axes = {"output": {0: "batch", 1: "frames"}}
         for name in input_names:
-            if name == "labels" or name == "timesteps":
+            if name in ("labels", "timesteps", "temporal_frame_step"):
                 dynamic_axes[name] = {0: "batch"}
             elif name == "mask_size_cond":
                 dynamic_axes[name] = {0: "batch", 1: "frames"}

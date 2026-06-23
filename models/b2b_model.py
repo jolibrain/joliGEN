@@ -74,6 +74,14 @@ class B2BModel(BaseDiffusionModel):
             ),
         )
         parser.add_argument(
+            "--alg_b2b_temporal_frame_step_conditioning",
+            action="store_true",
+            help=(
+                "Condition JiTViD B2B denoisers on the raw temporal frame stride "
+                "used to build each video sample."
+            ),
+        )
+        parser.add_argument(
             "--alg_b2b_global_context_conditioning",
             action="store_true",
             help=(
@@ -123,6 +131,15 @@ class B2BModel(BaseDiffusionModel):
             help=(
                 "Use multi_dataset dataset_index as the ViT class-token "
                 "conditioning label instead of object class labels."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_force_class_token",
+            type=int,
+            default=-1,
+            help=(
+                "Force every B2B sample to use this ViT class-token label. "
+                "Use -1 to keep dataset/object-label behavior."
             ),
         )
         parser.add_argument(
@@ -359,6 +376,30 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError(
                 "--alg_b2b_mask_size_conditioning is only supported with vit/vit_vid B2B"
             )
+        forced_class_token = int(getattr(opt, "alg_b2b_force_class_token", -1))
+        if forced_class_token < -1:
+            raise ValueError("--alg_b2b_force_class_token must be -1 or >= 0")
+        if forced_class_token >= 0:
+            if getattr(opt, "G_netG", "") not in ["vit", "vit_vid"]:
+                raise ValueError(
+                    "--alg_b2b_force_class_token is only supported with vit/vit_vid B2B"
+                )
+            num_classes = int(getattr(opt, "G_vit_num_classes", 1))
+            if forced_class_token >= num_classes:
+                raise ValueError(
+                    "--alg_b2b_force_class_token must be < --G_vit_num_classes"
+                )
+        if getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False):
+            if getattr(opt, "G_netG", "") != "vit_vid":
+                raise ValueError(
+                    "--alg_b2b_temporal_frame_step_conditioning is only supported "
+                    "with vit_vid B2B"
+                )
+            if int(getattr(opt, "data_temporal_number_frames", 1)) < 2:
+                raise ValueError(
+                    "--alg_b2b_temporal_frame_step_conditioning requires "
+                    "--data_temporal_number_frames >= 2"
+                )
         global_context_mode = b2b_global_context_mode_from_opt(opt)
         opt.alg_b2b_global_context_mode = global_context_mode
         opt.alg_b2b_global_context_conditioning = b2b_global_context_enabled(
@@ -803,6 +844,34 @@ class B2BModel(BaseDiffusionModel):
             return None
         return global_context.to(self.device)
 
+    def _b2b_temporal_frame_step_from_data(self, data):
+        if not getattr(self.opt, "alg_b2b_temporal_frame_step_conditioning", False):
+            return None
+
+        frame_step = data.get(
+            "temporal_frame_step",
+            data.get("B_temporal_frame_step", data.get("A_temporal_frame_step")),
+        )
+        if frame_step is None:
+            if getattr(self.opt, "isTrain", False):
+                raise RuntimeError(
+                    "--alg_b2b_temporal_frame_step_conditioning requires "
+                    "temporal_frame_step from the dataset"
+                )
+            frame_step = torch.full(
+                (self.batch_size,),
+                int(getattr(self.opt, "data_temporal_frame_step", 1)),
+                device=self.device,
+                dtype=torch.float32,
+            )
+        elif not torch.is_tensor(frame_step):
+            frame_step = torch.as_tensor(frame_step)
+
+        frame_step = frame_step.to(device=self.device, dtype=torch.float32)
+        if frame_step.ndim == 0:
+            frame_step = frame_step.reshape(1).expand(self.batch_size)
+        return frame_step
+
     def _load_b2b_object_references(self):
         paths = getattr(self.opt, "alg_b2b_object_ref_paths", []) or []
         if not paths:
@@ -875,6 +944,7 @@ class B2BModel(BaseDiffusionModel):
                 self.cond_image = None
 
         self.batch_size = self.y_t.shape[0]
+        self.temporal_frame_step = self._b2b_temporal_frame_step_from_data(data)
         self.image_paths = data.get("A_img_paths", [])
 
         self.real_A = self.y_t
@@ -887,6 +957,15 @@ class B2BModel(BaseDiffusionModel):
         return torch.zeros(self.batch_size, dtype=torch.long, device=self.device)
 
     def _select_b2b_labels(self, data):
+        forced_class_token = int(getattr(self.opt, "alg_b2b_force_class_token", -1))
+        if forced_class_token >= 0:
+            return torch.full(
+                (self.batch_size,),
+                forced_class_token,
+                dtype=torch.long,
+                device=self.device,
+            )
+
         if getattr(self.opt, "alg_b2b_multi_dataset_class_conditioning", False):
             return self._prepare_b2b_dataset_labels(data.get("dataset_index"))
 
@@ -1021,6 +1100,10 @@ class B2BModel(BaseDiffusionModel):
             labels = None
 
         net_kwargs = {}
+        if getattr(self.opt, "alg_b2b_temporal_frame_step_conditioning", False):
+            net_kwargs["temporal_frame_step"] = getattr(
+                self, "temporal_frame_step", None
+            )
         if b2b_global_context_enabled(b2b_global_context_mode_from_opt(self.opt)):
             net_kwargs["global_context"] = getattr(self, "global_context", None)
         if getattr(self, "object_refs", None) is not None:
@@ -1202,6 +1285,9 @@ class B2BModel(BaseDiffusionModel):
         global_context = getattr(self, "global_context", None)
         if global_context is not None:
             global_context = global_context[:nb_imgs]
+        temporal_frame_step = getattr(self, "temporal_frame_step", None)
+        if temporal_frame_step is not None:
+            temporal_frame_step = temporal_frame_step[:nb_imgs]
         object_refs = getattr(self, "object_refs", None)
         if self.task == "pix2pix":  #
             out_shape = list(y_cond.shape)
@@ -1228,6 +1314,7 @@ class B2BModel(BaseDiffusionModel):
                         y_cond,
                         self.opt.alg_b2b_denoise_timesteps,
                         cur_mask,
+                        temporal_frame_step=temporal_frame_step,
                         global_context=global_context,
                         object_refs=object_refs,
                     )
@@ -1256,6 +1343,7 @@ class B2BModel(BaseDiffusionModel):
                         use_gt=use_gt,
                         ref_idx=ref_idx,
                         init_noise=shared_init_noise,
+                        temporal_frame_step=temporal_frame_step,
                         global_context=global_context,
                         object_refs=object_refs,
                     )

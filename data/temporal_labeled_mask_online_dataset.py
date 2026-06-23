@@ -421,6 +421,8 @@ class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
             "A_ref_bbox": A_ref_bbox,
             "A_label_mask": labels_A,
             "A_ref_label_mask": A_ref_label,
+            "A_temporal_frame_step": effective_frame_step_A,
+            "temporal_frame_step": effective_frame_step_A,
         }
         if b2b_global_context_enabled_from_opt(self.opt):
             result["A_global_context"] = global_context_A
@@ -432,6 +434,8 @@ class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                 "B_ref_bbox": B_ref_bbox,
                 "B_label_mask": labels_B,
                 "B_ref_label_mask": B_ref_label,
+                "B_temporal_frame_step": effective_frame_step_B,
+                "temporal_frame_step": effective_frame_step_B,
             }
             if b2b_global_context_enabled_from_opt(self.opt):
                 b_result["B_global_context"] = global_context_B

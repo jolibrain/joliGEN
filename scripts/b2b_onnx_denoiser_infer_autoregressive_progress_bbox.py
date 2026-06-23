@@ -57,6 +57,7 @@ def load_session(model_in_file, provider):
 def require_denoiser_model(
     session,
     mask_size_conditioning=False,
+    temporal_frame_step_conditioning=False,
     global_context_conditioning=False,
     object_ref_conditioning=False,
 ):
@@ -64,6 +65,8 @@ def require_denoiser_model(
     expected = ["model_input", "timesteps", "labels"]
     if mask_size_conditioning:
         expected.append("mask_size_cond")
+    if temporal_frame_step_conditioning:
+        expected.append("temporal_frame_step")
     if global_context_conditioning:
         expected.append("global_context")
     if object_ref_conditioning:
@@ -181,6 +184,45 @@ def resolve_denoise_steps(train_json, denoise_steps):
     return int(steps[0])
 
 
+def resolve_forced_class_token(train_json):
+    token = train_json.get("alg", {}).get(
+        "b2b_force_class_token",
+        train_json.get("alg_b2b_force_class_token", -1),
+    )
+    token = int(token)
+    if token < -1:
+        raise ValueError("alg.b2b_force_class_token must be -1 or >= 0")
+    if token >= 0:
+        return token
+    return None
+
+
+def resolve_b2b_label(train_json, frame_label, label_override=None):
+    if label_override is not None:
+        return int(label_override)
+    forced_class_token = resolve_forced_class_token(train_json)
+    if forced_class_token is not None:
+        return forced_class_token
+    return int(frame_label)
+
+
+def temporal_frame_step_conditioning_enabled(train_json):
+    alg = train_json.get("alg", {})
+    return bool(alg.get("b2b_temporal_frame_step_conditioning", False))
+
+
+def resolve_temporal_frame_step(train_json, temporal_frame_step=None):
+    if temporal_frame_step is not None:
+        return float(temporal_frame_step)
+    data = train_json.get("data", {})
+    return float(
+        data.get(
+            "temporal_frame_step",
+            train_json.get("data_temporal_frame_step", 1),
+        )
+    )
+
+
 def get_b2b_params(train_json, image_size):
     alg = train_json.get("alg", {})
     object_ref_paths = alg.get("b2b_object_ref_paths", []) or []
@@ -195,8 +237,9 @@ def get_b2b_params(train_json, image_size):
         "t_eps": float(alg.get("b2b_t_eps", 5e-2)),
         "cond_mode": alg.get("diffusion_cond_image_creation", "y_t"),
         "mask_as_channel": bool(alg.get("b2b_mask_as_channel", False)),
-        "mask_size_conditioning": bool(
-            alg.get("b2b_mask_size_conditioning", False)
+        "mask_size_conditioning": bool(alg.get("b2b_mask_size_conditioning", False)),
+        "temporal_frame_step_conditioning": temporal_frame_step_conditioning_enabled(
+            train_json
         ),
         "global_context_mode": b2b_global_context_mode_from_train_json(train_json),
         "global_context_conditioning": b2b_global_context_enabled_from_train_json(
@@ -554,12 +597,16 @@ def preprocess_with_repo_crop(
             load_size,
             load_size_keep_ratio,
         )
-        global_context = transform_global_context_images(
-            None,
-            [context_img],
-            {},
-            int(alg.get("b2b_global_context_size", 128)),
-        ).detach().cpu()
+        global_context = (
+            transform_global_context_images(
+                None,
+                [context_img],
+                {},
+                int(alg.get("b2b_global_context_size", 128)),
+            )
+            .detach()
+            .cpu()
+        )
 
     if mask is not None and data.get("inverted_mask", False):
         mask = mask.copy()
@@ -711,6 +758,7 @@ def denoiser_forward(
     t_scalar,
     labels,
     mask_size_cond=None,
+    temporal_frame_step=None,
     global_context=None,
     object_refs=None,
     dump_dir=None,
@@ -726,6 +774,11 @@ def denoiser_forward(
             np.save(
                 os.path.join(dump_dir, f"{dump_tag}_mask_size_cond.npy"),
                 mask_size_cond,
+            )
+        if temporal_frame_step is not None:
+            np.save(
+                os.path.join(dump_dir, f"{dump_tag}_temporal_frame_step.npy"),
+                temporal_frame_step,
             )
         if global_context is not None:
             np.save(
@@ -744,6 +797,8 @@ def denoiser_forward(
     }
     if mask_size_cond is not None:
         inputs["mask_size_cond"] = mask_size_cond.astype(np.float32)
+    if temporal_frame_step is not None:
+        inputs["temporal_frame_step"] = temporal_frame_step.astype(np.float32)
     if global_context is not None:
         inputs["global_context"] = global_context.astype(np.float32)
     if object_refs is not None:
@@ -763,6 +818,7 @@ def forward_sample_restoration(
     labels,
     y_known,
     params,
+    temporal_frame_step=None,
     global_context=None,
     object_refs=None,
     dump_dir=None,
@@ -786,6 +842,11 @@ def forward_sample_restoration(
         if params["mask_size_conditioning"]
         else None
     )
+    temporal_frame_step_input = (
+        np.asarray([temporal_frame_step], dtype=np.float32)
+        if params["temporal_frame_step_conditioning"]
+        else None
+    )
 
     x_cond = denoiser_forward(
         session,
@@ -793,6 +854,7 @@ def forward_sample_restoration(
         t_scalar,
         labels,
         mask_size_cond=mask_size_cond,
+        temporal_frame_step=temporal_frame_step_input,
         global_context=global_context,
         object_refs=object_refs,
         dump_dir=dump_dir,
@@ -820,6 +882,7 @@ def forward_sample_restoration(
         t_scalar,
         np.full_like(labels, params["num_classes"]),
         mask_size_cond=mask_size_cond,
+        temporal_frame_step=temporal_frame_step_input,
         global_context=global_context,
         object_refs=object_refs,
         dump_dir=dump_dir,
@@ -840,6 +903,7 @@ def restoration_with_denoiser(
     labels,
     params,
     init_noise,
+    temporal_frame_step=None,
     global_context=None,
     object_refs=None,
     dump_dir=None,
@@ -869,6 +933,7 @@ def restoration_with_denoiser(
             labels,
             y_known,
             params,
+            temporal_frame_step=temporal_frame_step,
             global_context=global_context,
             object_refs=object_refs,
             dump_dir=dump_dir,
@@ -884,6 +949,7 @@ def restoration_with_denoiser(
             labels,
             y_known,
             params,
+            temporal_frame_step=temporal_frame_step,
             global_context=global_context,
             object_refs=object_refs,
             dump_dir=dump_dir,
@@ -904,6 +970,7 @@ def restoration_with_denoiser(
         labels,
         y_known,
         params,
+        temporal_frame_step=temporal_frame_step,
         global_context=global_context,
         object_refs=object_refs,
         dump_dir=dump_dir,
@@ -1008,10 +1075,12 @@ def run_sequence(
     debug_dump_dir,
     autoregressive_reinject_patch,
     object_refs=None,
+    temporal_frame_step=None,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = get_train_shape(train_json)
     params = get_b2b_params(train_json, require_square_crop_size(output_h, output_w))
+    temporal_frame_step = resolve_temporal_frame_step(train_json, temporal_frame_step)
     inputmix = True
     prev_frame = None
     last_seq_half_y_t = None
@@ -1089,7 +1158,8 @@ def run_sequence(
             )
 
         labels = np.asarray(
-            [frame_data["label_cls"] if label is None else int(label)], dtype=np.int64
+            [resolve_b2b_label(train_json, frame_data["label_cls"], label)],
+            dtype=np.int64,
         )
         init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
         out_tensor = restoration_with_denoiser(
@@ -1105,6 +1175,7 @@ def run_sequence(
             labels=labels,
             params=params,
             init_noise=init_noise,
+            temporal_frame_step=temporal_frame_step,
             global_context=(
                 None
                 if global_context_batch is None
@@ -1185,6 +1256,15 @@ def parse_args():
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
     parser.add_argument(
+        "--temporal_frame_step",
+        type=float,
+        help=(
+            "Raw temporal frame stride for checkpoints trained with "
+            "alg.b2b_temporal_frame_step_conditioning. Defaults to "
+            "data.temporal_frame_step from train_config.json, then 1."
+        ),
+    )
+    parser.add_argument(
         "--denoise_steps",
         type=int,
         help="Override denoise step count. Defaults to first entry from alg.b2b_denoise_timesteps",
@@ -1230,6 +1310,9 @@ def main():
         session,
         mask_size_conditioning=bool(
             train_json.get("alg", {}).get("b2b_mask_size_conditioning", False)
+        ),
+        temporal_frame_step_conditioning=temporal_frame_step_conditioning_enabled(
+            train_json
         ),
         global_context_conditioning=b2b_global_context_enabled_from_train_json(
             train_json
@@ -1286,12 +1369,17 @@ def main():
         denoise_steps=denoise_steps,
         debug_dump_dir=args.debug_dump_dir,
         autoregressive_reinject_patch=args.autoregressive_reinject_patch,
+        temporal_frame_step=args.temporal_frame_step,
     )
 
     print(f"dataset_root : {dataset_root}")
     print(f"train_config : {train_config_path}")
     print(f"provider     : {args.provider}")
     print(f"denoise_steps: {denoise_steps}")
+    print(
+        "temporal_frame_step: "
+        f"{resolve_temporal_frame_step(train_json, args.temporal_frame_step)}"
+    )
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
     print(f"written      : {len(frames_written)} frames")
     print(f"saved        : {args.output_dir}")
