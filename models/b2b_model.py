@@ -93,7 +93,7 @@ class B2BModel(BaseDiffusionModel):
         parser.add_argument(
             "--alg_b2b_global_context_mode",
             choices=VALID_B2B_GLOBAL_CONTEXT_MODES,
-            default=None,
+            default="none",
             help=(
                 "Global context conditioning mode for JiTViD B2B. "
                 "'adaln' uses the legacy small-CNN AdaLN path, 'tokens' inserts "

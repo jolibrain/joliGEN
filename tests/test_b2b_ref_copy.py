@@ -1,3 +1,4 @@
+import argparse
 from types import SimpleNamespace
 
 import pytest
@@ -74,6 +75,14 @@ def _make_after_parse_opt(**overrides):
     for key, value in overrides.items():
         setattr(opt, key, value)
     return opt
+
+
+def test_b2b_global_context_mode_parser_default_is_json_safe():
+    parser = argparse.ArgumentParser()
+    parser = B2BModel.modify_commandline_options(parser, is_train=True)
+    opt = parser.parse_args([])
+
+    assert opt.alg_b2b_global_context_mode == "none"
 
 
 @pytest.mark.parametrize(
