@@ -416,6 +416,15 @@ def get_params(opt, size):
     return {"crop_pos": (x, y), "fliph": fliph, "flipv": flipv, "angle": angle}
 
 
+def online_pre_crop_rotation_enabled(opt):
+    return (
+        not getattr(opt, "dataaug_no_rotate", False)
+        and bool(getattr(opt, "data_online_creation_rotate_before_crop", False))
+        and float(getattr(opt, "data_online_creation_rotate_max_angle", 0.0)) > 0.0
+        and "online" in getattr(opt, "data_dataset_mode", "")
+    )
+
+
 def get_transform(
     opt,
     params=None,
@@ -479,7 +488,7 @@ def get_transform(
                     )
                 )
 
-    if not opt.dataaug_no_rotate:
+    if not opt.dataaug_no_rotate and not online_pre_crop_rotation_enabled(opt):
         if params is None or not "angle" in params:
             transform_list.append(transforms.RandomRotation([-90, 180]))
         elif params["angle"]:
@@ -634,7 +643,7 @@ def get_transform_seg(
             transform_list.append(RandomVerticalFlipMask())
         transform_list.append(RandomHorizontalFlipMask())
 
-    if not opt.dataaug_no_rotate:
+    if not opt.dataaug_no_rotate and not online_pre_crop_rotation_enabled(opt):
         transform_list.append(
             RandomRotationMask(degrees=0)
         )  # XXX: degrees is a required placeholder, unused
@@ -1163,7 +1172,7 @@ def get_transform_list(
             transform_list.append(RandomHorizontalFlipMaskList())
             transform_list.append(RandomVerticalFlipMaskList())
 
-    if not opt.dataaug_no_rotate:
+    if not opt.dataaug_no_rotate and not online_pre_crop_rotation_enabled(opt):
         transform_list.append(RandomRotationMaskList(degrees=0))
 
     if opt.dataaug_affine:
@@ -1209,6 +1218,16 @@ def build_masked_global_context_image(
         img = F.resize(img, (new_height, new_width))
 
     arr = np.array(img).copy()
+    rotation = crop_meta.get("rotation")
+    if rotation is not None and abs(float(rotation.get("angle", 0.0))) > 1e-6:
+        img = F.rotate(
+            Image.fromarray(arr),
+            float(rotation["angle"]),
+            interpolation=InterpolationMode.BICUBIC,
+            expand=True,
+            fill=0,
+        )
+        arr = np.array(img).copy()
     height, width = arr.shape[:2]
     for bbox in crop_meta.get("processed_bboxes", []):
         xmin = max(0, min(width, int(bbox["xmin"])))

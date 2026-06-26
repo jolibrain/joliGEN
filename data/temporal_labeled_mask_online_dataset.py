@@ -11,7 +11,7 @@ from data.base_dataset import (
     transform_global_context_images,
 )
 from data.image_folder import make_labeled_path_dataset
-from data.online_creation import crop_image
+from data.online_creation import crop_image, sample_online_pre_crop_rotation_state
 from data.temporal_sampling import TemporalFrameStepMixin
 from util.b2b_context import b2b_global_context_enabled_from_opt
 
@@ -109,6 +109,7 @@ class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
         images_A = []
         labels_A = []
         global_context_A = []
+        rotation_state_A = sample_online_pre_crop_rotation_state(self.opt)
 
         ref_A_img_path = self.A_img_paths[index_A]
 
@@ -172,6 +173,7 @@ class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                             "data_online_creation_mask_min_unmasked_border_A",
                             4,
                         ),
+                        rotation_state=rotation_state_A,
                     )
 
                 crop_result = crop_image(
@@ -200,6 +202,7 @@ class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                         self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
                     ),
                     return_meta=b2b_global_context_enabled_from_opt(self.opt),
+                    rotation_state=rotation_state_A,
                 )
                 if b2b_global_context_enabled_from_opt(self.opt):
                     (
@@ -248,6 +251,7 @@ class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
 
         if self.use_domain_B:
             effective_frame_step_B = self._sample_temporal_frame_step()
+            rotation_state_B = sample_online_pre_crop_rotation_state(self.opt)
             if self._random_temporal_frame_step_enabled():
                 index_B = self._select_single_temporal_start(
                     self.num_B, effective_frame_step_B
@@ -323,6 +327,7 @@ class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                                 "data_online_creation_mask_min_unmasked_border_B",
                                 4,
                             ),
+                            rotation_state=rotation_state_B,
                         )
 
                     crop_result = crop_image(
@@ -357,6 +362,7 @@ class TemporalLabeledMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                             4,
                         ),
                         return_meta=b2b_global_context_enabled_from_opt(self.opt),
+                        rotation_state=rotation_state_B,
                     )
                     if b2b_global_context_enabled_from_opt(self.opt):
                         (

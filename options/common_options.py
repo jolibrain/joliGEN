@@ -835,6 +835,31 @@ class CommonOptions(BaseOptions):
             help="preserve aspect ratio when loading domain A online; the largest load_size_A side is used as the target largest image side",
         )
         parser.add_argument(
+            "--data_online_creation_rotate_before_crop",
+            action="store_true",
+            help=(
+                "for online bbox/mask datasets, rotate the loaded full image "
+                "before online crop creation"
+            ),
+        )
+        parser.add_argument(
+            "--data_online_creation_rotate_max_angle",
+            type=float,
+            default=0.0,
+            help=(
+                "maximum absolute angle for pre-crop online rotation. "
+                "Angles are sampled uniformly in [-value, value]."
+            ),
+        )
+        parser.add_argument(
+            "--data_online_creation_rotate_rebox_mask_after_rotation",
+            action="store_true",
+            help=(
+                "after online pre-crop rotation, replace each rotated mask "
+                "with its tight axis-aligned bounding box"
+            ),
+        )
+        parser.add_argument(
             "--data_online_creation_crop_size_A",
             type=int,
             default=512,
@@ -1089,6 +1114,24 @@ class CommonOptions(BaseOptions):
             raise ValueError(
                 "--data_temporal_frame_step_random_max must be 0 or >= "
                 "--data_temporal_frame_step"
+            )
+        if opt.data_online_creation_rotate_max_angle < 0:
+            raise ValueError("--data_online_creation_rotate_max_angle must be >= 0")
+        if (
+            opt.data_online_creation_rotate_before_crop
+            and opt.data_online_creation_rotate_max_angle <= 0
+        ):
+            raise ValueError(
+                "--data_online_creation_rotate_before_crop requires "
+                "--data_online_creation_rotate_max_angle > 0"
+            )
+        if (
+            opt.data_online_creation_rotate_rebox_mask_after_rotation
+            and not opt.data_online_creation_rotate_before_crop
+        ):
+            raise ValueError(
+                "--data_online_creation_rotate_rebox_mask_after_rotation requires "
+                "--data_online_creation_rotate_before_crop"
             )
 
         # multimodal check

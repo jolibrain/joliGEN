@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from PIL import Image
 
 import data.online_creation as online_creation
@@ -88,6 +89,182 @@ def test_crop_image_fixed_model_mask_size_exact_square_with_crop_coordinates(tmp
     )
 
     assert _mask_bbox_size(mask) == (64, 64)
+
+
+def test_crop_image_pre_crop_rotation_keeps_shape_and_class_mask(tmp_path):
+    img_path, bbox_path = _write_sized_sample(
+        tmp_path, (256, 256), "1 108 108 148 148\n"
+    )
+
+    img, mask, ref_bbox, _, meta = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=96,
+        output_dim=96,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        return_meta=True,
+        rotation_state={"angle": 30.0},
+    )
+
+    assert img.size == (96, 96)
+    assert mask.size == (96, 96)
+    assert set(np.unique(np.array(mask)).tolist()).issubset({0, 1})
+    assert ref_bbox[0] == 1
+    assert meta["rotation"]["angle"] == 30.0
+
+
+def test_crop_image_pre_crop_rotation_rejects_fill_pixels(tmp_path):
+    img_path, bbox_path = _write_sized_sample(tmp_path, (128, 128), "1 2 2 22 22\n")
+
+    with pytest.raises(ValueError, match="Rotated crop contains fill pixels"):
+        crop_image(
+            img_path,
+            bbox_path,
+            mask_random_offset=[0.0],
+            mask_delta=[[]],
+            crop_delta=0,
+            mask_square=False,
+            crop_dim=64,
+            output_dim=64,
+            context_pixels=0,
+            load_size=[],
+            crop_center=True,
+            rotation_state={"angle": 45.0},
+        )
+
+
+def test_crop_image_pre_crop_rotation_shifts_center_to_avoid_fill_pixels(tmp_path):
+    img_path, bbox_path = _write_sized_sample(tmp_path, (256, 256), "1 20 60 44 84\n")
+
+    img, _, _, _, meta = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=96,
+        output_dim=96,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        return_meta=True,
+        rotation_state={"angle": 45.0},
+    )
+
+    bbox = meta["processed_bboxes"][0]
+    x_crop_min = max(0, bbox["xmax"] - meta["crop_size"])
+    x_crop_max = min(
+        bbox["xmin"], meta["rotation"]["rotated_width"] - meta["crop_size"]
+    )
+    y_crop_min = max(0, bbox["ymax"] - meta["crop_size"])
+    y_crop_max = min(
+        bbox["ymin"], meta["rotation"]["rotated_height"] - meta["crop_size"]
+    )
+    assert (meta["x_crop"], meta["y_crop"]) != (
+        (x_crop_min + x_crop_max) // 2,
+        (y_crop_min + y_crop_max) // 2,
+    )
+    assert np.array(img).min() == 127
+
+
+def test_crop_image_pre_crop_rotation_crop_contains_rotated_mask(tmp_path):
+    img_path = tmp_path / "image.png"
+    bbox_path = tmp_path / "bbox.txt"
+    img = np.zeros((256, 256, 3), dtype=np.uint8)
+    img[..., 0] = 30
+    img[60:84, 20:44] = [255, 0, 0]
+    Image.fromarray(img).save(img_path)
+    bbox_path.write_text("1 20 60 44 84\n")
+
+    crop, mask, ref_bbox, _, meta = crop_image(
+        str(img_path),
+        str(bbox_path),
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=96,
+        output_dim=96,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        return_meta=True,
+        rotation_state={"angle": 45.0},
+    )
+
+    crop_arr = np.array(crop)
+    mask_arr = np.array(mask)
+    mask_bbox = Image.fromarray(mask_arr).getbbox()
+    bbox = meta["processed_bboxes"][0]
+    assert mask_bbox is not None
+    assert ((crop_arr[..., 0] > 200) & (crop_arr[..., 1] < 50)).sum() > 0
+    assert np.count_nonzero(mask_arr) < (
+        (mask_bbox[2] - mask_bbox[0]) * (mask_bbox[3] - mask_bbox[1])
+    )
+    assert _bbox_contains(
+        (
+            bbox["xmin"] - meta["x_crop"],
+            bbox["ymin"] - meta["y_crop"],
+            bbox["xmax"] - meta["x_crop"],
+            bbox["ymax"] - meta["y_crop"],
+        ),
+        mask_bbox,
+    )
+    assert _bbox_contains(ref_bbox[1:], mask_bbox)
+
+
+def test_crop_image_pre_crop_rotation_reboxes_mask_after_rotation(tmp_path):
+    img_path = tmp_path / "image.png"
+    bbox_path = tmp_path / "bbox.txt"
+    img = np.zeros((256, 256, 3), dtype=np.uint8)
+    img[..., 0] = 30
+    img[60:84, 20:44] = [255, 0, 0]
+    Image.fromarray(img).save(img_path)
+    bbox_path.write_text("1 20 60 44 84\n")
+
+    crop, mask, ref_bbox, _, meta = crop_image(
+        str(img_path),
+        str(bbox_path),
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=96,
+        output_dim=96,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        return_meta=True,
+        rotation_state={
+            "angle": 45.0,
+            "rebox_mask_after_rotation": True,
+        },
+    )
+
+    crop_arr = np.array(crop)
+    mask_arr = np.array(mask)
+    mask_bbox = Image.fromarray(mask_arr).getbbox()
+    assert mask_bbox is not None
+    assert ((crop_arr[..., 0] > 200) & (crop_arr[..., 1] < 50)).sum() > 0
+    assert np.count_nonzero(mask_arr) == (
+        (mask_bbox[2] - mask_bbox[0]) * (mask_bbox[3] - mask_bbox[1])
+    )
+    assert tuple(ref_bbox[1:]) == mask_bbox
+    assert meta["rotation"]["rebox_mask_after_rotation"] is True
+    bbox = meta["processed_bboxes"][0]
+    assert (
+        bbox["original_xmin"],
+        bbox["original_ymin"],
+        bbox["original_xmax"],
+        bbox["original_ymax"],
+    ) == (bbox["xmin"], bbox["ymin"], bbox["xmax"], bbox["ymax"])
 
 
 def test_crop_image_keep_ratio_load_size_scales_crop_without_distortion(tmp_path):

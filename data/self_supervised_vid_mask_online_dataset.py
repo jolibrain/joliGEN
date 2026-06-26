@@ -9,7 +9,7 @@ from data.base_dataset import (
     transform_global_context_images,
 )
 from data.image_folder import make_labeled_path_dataset
-from data.online_creation import crop_image
+from data.online_creation import crop_image, sample_online_pre_crop_rotation_state
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
 from data.temporal_sampling import (
     TemporalFrameStepMixin,
@@ -122,6 +122,7 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
         images_A = []
         labels_A = []
         global_context_A = []
+        rotation_state_A = sample_online_pre_crop_rotation_state(self.opt)
         ref_A_img_path = self.A_img_paths[index_A]
         ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
 
@@ -186,6 +187,7 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                         self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
                     ),
                     crop_center=True,
+                    rotation_state=rotation_state_A,
                 )
                 crop_result = crop_image(
                     cur_A_img_path,
@@ -214,6 +216,7 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                     ),
                     crop_center=True,
                     return_meta=b2b_global_context_enabled_from_opt(self.opt),
+                    rotation_state=rotation_state_A,
                 )
                 if b2b_global_context_enabled_from_opt(self.opt):
                     (

@@ -125,6 +125,80 @@ def _make_crop_state(processed_bboxes, idx_bbox_ref):
     }
 
 
+def online_pre_crop_rotation_enabled(opt):
+    return (
+        not getattr(opt, "dataaug_no_rotate", False)
+        and bool(getattr(opt, "data_online_creation_rotate_before_crop", False))
+        and float(getattr(opt, "data_online_creation_rotate_max_angle", 0.0)) > 0.0
+        and "online" in getattr(opt, "data_dataset_mode", "")
+    )
+
+
+def sample_online_pre_crop_rotation_state(opt):
+    if not online_pre_crop_rotation_enabled(opt):
+        return None
+    max_angle = float(getattr(opt, "data_online_creation_rotate_max_angle", 0.0))
+    return {
+        "angle": random.uniform(-max_angle, max_angle),
+        "rebox_mask_after_rotation": bool(
+            getattr(opt, "data_online_creation_rotate_rebox_mask_after_rotation", False)
+        ),
+    }
+
+
+def _rotation_output_bounds(width, height, angle):
+    angle_rad = math.radians(angle)
+    cos_a = math.cos(angle_rad)
+    sin_a = math.sin(angle_rad)
+    cx = width / 2.0
+    cy = height / 2.0
+    rotated = []
+    for x, y in ((0, 0), (width, 0), (width, height), (0, height)):
+        dx = x - cx
+        dy = y - cy
+        rotated.append((dx * cos_a - dy * sin_a, dx * sin_a + dy * cos_a))
+    min_x = min(x for x, _ in rotated)
+    min_y = min(y for _, y in rotated)
+    max_x = max(x for x, _ in rotated)
+    max_y = max(y for _, y in rotated)
+    return min_x, min_y, int(math.ceil(max_x - min_x)), int(math.ceil(max_y - min_y))
+
+
+def _rotate_point_expand(x, y, width, height, angle, min_x, min_y):
+    angle_rad = math.radians(angle)
+    cos_a = math.cos(angle_rad)
+    sin_a = math.sin(angle_rad)
+    cx = width / 2.0
+    cy = height / 2.0
+    dx = x - cx
+    dy = y - cy
+    return (
+        dx * cos_a - dy * sin_a - min_x,
+        dx * sin_a + dy * cos_a - min_y,
+    )
+
+
+def _rotate_bbox_expand(xmin, ymin, xmax, ymax, width, height, angle, min_x, min_y):
+    points = [
+        _rotate_point_expand(xmin, ymin, width, height, angle, min_x, min_y),
+        _rotate_point_expand(xmax, ymin, width, height, angle, min_x, min_y),
+        _rotate_point_expand(xmax, ymax, width, height, angle, min_x, min_y),
+        _rotate_point_expand(xmin, ymax, width, height, angle, min_x, min_y),
+    ]
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return (
+        int(math.floor(min(xs))),
+        int(math.floor(min(ys))),
+        int(math.ceil(max(xs))),
+        int(math.ceil(max(ys))),
+    )
+
+
+def _rotate_pil_expand(img, angle, resample, fillcolor):
+    return img.rotate(angle, resample=resample, expand=True, fillcolor=fillcolor)
+
+
 def _interval_containing_required(
     required_min,
     required_max,
@@ -209,10 +283,13 @@ def crop_image(
     random_bbox=False,
     return_meta=False,
     broaden_rect_aug=False,
+    rotation_state=None,
 ):
     margin = context_pixels * 2
     x_padding = 0
     y_padding = 0
+    source_valid_mask = None
+    rotation_meta = None
 
     try:
         img = load_image(img_path)
@@ -537,10 +614,230 @@ def crop_image(
 
                 context_pixels = new_context_pixels
 
+    if rotation_state is not None:
+        angle = float(rotation_state.get("angle", 0.0))
+        rebox_mask_after_rotation = bool(
+            rotation_state.get("rebox_mask_after_rotation", False)
+        )
+    else:
+        angle = 0.0
+        rebox_mask_after_rotation = False
+    crop_state_processed_bboxes = [dict(cur_bbox) for cur_bbox in processed_bboxes]
+    if abs(angle) > 1e-6:
+        source_height, source_width = img.shape[:2]
+        transform_angle = -angle
+        min_x, min_y, rotated_width, rotated_height = _rotation_output_bounds(
+            source_width, source_height, transform_angle
+        )
+        img_pil = Image.fromarray(img)
+        mask_pil = Image.fromarray(mask)
+        valid_pil = Image.fromarray(
+            np.full((source_height, source_width), 255, dtype=np.uint8)
+        )
+        img = np.array(
+            _rotate_pil_expand(img_pil, angle, Image.BICUBIC, fillcolor=(0, 0, 0))
+        )
+        mask = np.array(_rotate_pil_expand(mask_pil, angle, Image.NEAREST, 0))
+        source_valid_mask = np.array(
+            _rotate_pil_expand(valid_pil, angle, Image.NEAREST, 0), dtype=np.uint8
+        )
+        source_valid_mask = source_valid_mask > 0
+        if rebox_mask_after_rotation:
+            mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        for cur_bbox in processed_bboxes:
+            if rebox_mask_after_rotation:
+                bbox_mask = np.zeros((source_height, source_width), dtype=np.uint8)
+                bbox_mask[
+                    cur_bbox["ymin"] : cur_bbox["ymax"],
+                    cur_bbox["xmin"] : cur_bbox["xmax"],
+                ] = 255
+                rotated_bbox_mask = np.array(
+                    _rotate_pil_expand(
+                        Image.fromarray(bbox_mask), angle, Image.NEAREST, 0
+                    ),
+                    dtype=np.uint8,
+                )
+                bbox = Image.fromarray(rotated_bbox_mask).getbbox()
+                if bbox is None:
+                    raise ValueError(f"Rotated bbox is empty for {img_path}")
+                xmin, ymin, xmax, ymax = bbox
+                mask[ymin:ymax, xmin:xmax] = np.full(
+                    (ymax - ymin, xmax - xmin), cur_bbox["cat"]
+                )
+                oxmin, oymin, oxmax, oymax = xmin, ymin, xmax, ymax
+            else:
+                xmin, ymin, xmax, ymax = _rotate_bbox_expand(
+                    cur_bbox["xmin"],
+                    cur_bbox["ymin"],
+                    cur_bbox["xmax"],
+                    cur_bbox["ymax"],
+                    source_width,
+                    source_height,
+                    transform_angle,
+                    min_x,
+                    min_y,
+                )
+                oxmin, oymin, oxmax, oymax = _rotate_bbox_expand(
+                    cur_bbox["original_xmin"],
+                    cur_bbox["original_ymin"],
+                    cur_bbox["original_xmax"],
+                    cur_bbox["original_ymax"],
+                    source_width,
+                    source_height,
+                    transform_angle,
+                    min_x,
+                    min_y,
+                )
+                bbox_pad = 2
+                xmin = max(0, min(xmin - bbox_pad, img.shape[1]))
+                xmax = max(0, min(xmax + bbox_pad, img.shape[1]))
+                ymin = max(0, min(ymin - bbox_pad, img.shape[0]))
+                ymax = max(0, min(ymax + bbox_pad, img.shape[0]))
+                oxmin = max(0, min(oxmin - bbox_pad, img.shape[1]))
+                oymin = max(0, min(oymin - bbox_pad, img.shape[0]))
+                oxmax = max(0, min(oxmax + bbox_pad, img.shape[1]))
+                oymax = max(0, min(oymax + bbox_pad, img.shape[0]))
+            cur_bbox.update(
+                {
+                    "xmin": xmin,
+                    "ymin": ymin,
+                    "xmax": xmax,
+                    "ymax": ymax,
+                    "original_xmin": oxmin,
+                    "original_ymin": oymin,
+                    "original_xmax": oxmax,
+                    "original_ymax": oymax,
+                }
+            )
+            if cur_bbox["index"] == idx_bbox_ref:
+                x_min_ref = xmin
+                y_min_ref = ymin
+                x_max_ref = xmax
+                y_max_ref = ymax
+        rotation_meta = {
+            "angle": angle,
+            "source_width": int(source_width),
+            "source_height": int(source_height),
+            "rotated_width": int(rotated_width),
+            "rotated_height": int(rotated_height),
+            "rebox_mask_after_rotation": bool(rebox_mask_after_rotation),
+        }
+
     height = y_max_ref - y_min_ref
     width = x_max_ref - x_min_ref
     source_img_width = None
     source_img_height = None
+
+    def validate_crop_has_valid_source(x_crop, y_crop, crop_size):
+        if source_valid_mask is None:
+            return
+        x0 = x_crop - context_pixels
+        y0 = y_crop - context_pixels
+        x1 = x_crop + crop_size + context_pixels
+        y1 = y_crop + crop_size + context_pixels
+        if (
+            x0 < 0
+            or y0 < 0
+            or x1 > source_valid_mask.shape[1]
+            or y1 > source_valid_mask.shape[0]
+        ):
+            raise ValueError(f"Rotated crop contains fill pixels for {img_path}")
+        valid_crop = source_valid_mask[y0:y1, x0:x1]
+        if valid_crop.size == 0 or not bool(np.all(valid_crop)):
+            raise ValueError(f"Rotated crop contains fill pixels for {img_path}")
+
+    def source_valid_crop_invalid_counts(x_values, y_value, rect_side, integral):
+        x_values = np.asarray(x_values, dtype=np.int64)
+        y0 = int(y_value - context_pixels)
+        y1 = y0 + rect_side
+        x0 = x_values - context_pixels
+        x1 = x0 + rect_side
+        return integral[y1, x1] - integral[y0, x1] - integral[y1, x0] + integral[y0, x0]
+
+    def select_source_valid_crop_position(
+        x_crop_min,
+        x_crop_max,
+        y_crop_min,
+        y_crop_max,
+        crop_size,
+        prefer_center,
+    ):
+        if source_valid_mask is None:
+            if prefer_center:
+                return (x_crop_min + x_crop_max) // 2, (y_crop_min + y_crop_max) // 2
+            return (
+                random.randint(x_crop_min, x_crop_max),
+                random.randint(y_crop_min, y_crop_max),
+            )
+        if bool(np.all(source_valid_mask)):
+            if prefer_center:
+                return (x_crop_min + x_crop_max) // 2, (y_crop_min + y_crop_max) // 2
+            return (
+                random.randint(x_crop_min, x_crop_max),
+                random.randint(y_crop_min, y_crop_max),
+            )
+
+        rect_side = int(crop_size + 2 * context_pixels)
+        x_min = int(max(x_crop_min, context_pixels))
+        y_min = int(max(y_crop_min, context_pixels))
+        x_max = int(
+            min(x_crop_max, source_valid_mask.shape[1] - rect_side + context_pixels)
+        )
+        y_max = int(
+            min(y_crop_max, source_valid_mask.shape[0] - rect_side + context_pixels)
+        )
+        if x_min > x_max or y_min > y_max:
+            raise ValueError(f"Rotated crop contains fill pixels for {img_path}")
+
+        invalid_mask = (~source_valid_mask).astype(np.int32)
+        integral = np.pad(
+            invalid_mask.cumsum(axis=0).cumsum(axis=1),
+            ((1, 0), (1, 0)),
+            mode="constant",
+        )
+        x_values = np.arange(x_min, x_max + 1, dtype=np.int64)
+        if prefer_center:
+            target_x = (x_crop_min + x_crop_max) // 2
+            target_y = (y_crop_min + y_crop_max) // 2
+            best = None
+            for y_value in range(y_min, y_max + 1):
+                invalid_counts = source_valid_crop_invalid_counts(
+                    x_values, y_value, rect_side, integral
+                )
+                valid_x_values = x_values[invalid_counts == 0]
+                if valid_x_values.size == 0:
+                    continue
+                distances = np.abs(valid_x_values - target_x) + abs(y_value - target_y)
+                candidate_index = int(np.argmin(distances))
+                candidate = (
+                    int(valid_x_values[candidate_index]),
+                    int(y_value),
+                    int(distances[candidate_index]),
+                )
+                if best is None or candidate[2] < best[2]:
+                    best = candidate
+            if best is None:
+                raise ValueError(f"Rotated crop contains fill pixels for {img_path}")
+            return best[0], best[1]
+
+        selected = None
+        seen = 0
+        y_values = list(range(y_min, y_max + 1))
+        random.shuffle(y_values)
+        for y_value in y_values:
+            invalid_counts = source_valid_crop_invalid_counts(
+                x_values, y_value, rect_side, integral
+            )
+            valid_x_values = x_values[invalid_counts == 0]
+            if valid_x_values.size == 0:
+                continue
+            for x_value in valid_x_values.tolist():
+                seen += 1
+                if random.randrange(seen) == 0:
+                    selected = (int(x_value), int(y_value))
+        if selected is None:
+            raise ValueError(f"Rotated crop contains fill pixels for {img_path}")
+        return selected
 
     def clipped_original_bbox(cur_bbox):
         if source_img_width is not None and source_img_height is not None:
@@ -616,6 +913,7 @@ def crop_image(
 
     def pad_image_and_mask(left=0, right=0, top=0, bottom=0):
         nonlocal img, mask
+        nonlocal source_valid_mask
         nonlocal x_padding, y_padding
         nonlocal x_min_ref, x_max_ref, y_min_ref, y_max_ref
 
@@ -638,6 +936,13 @@ def crop_image(
             "constant",
             constant_values=0,
         )
+        if source_valid_mask is not None:
+            source_valid_mask = np.pad(
+                source_valid_mask,
+                ((top, bottom), (left, right)),
+                "constant",
+                constant_values=False,
+            )
 
         x_padding += left
         y_padding += top
@@ -844,12 +1149,14 @@ def crop_image(
         if x_crop_min > x_crop_max or y_crop_min > y_crop_max:
             raise ValueError(f"Crop position cannot be computed for {img_path}")
 
-        if crop_center:
-            x_crop = (x_crop_min + x_crop_max) // 2
-            y_crop = (y_crop_min + y_crop_max) // 2
-        else:
-            x_crop = random.randint(x_crop_min, x_crop_max)
-            y_crop = random.randint(y_crop_min, y_crop_max)
+        x_crop, y_crop = select_source_valid_crop_position(
+            x_crop_min,
+            x_crop_max,
+            y_crop_min,
+            y_crop_max,
+            crop_size,
+            crop_center,
+        )
 
         if (
             x_crop < context_pixels
@@ -862,12 +1169,13 @@ def crop_image(
             )
 
         if get_crop_coordinates:
+            validate_crop_has_valid_source(x_crop, y_crop, crop_size)
             if broaden_rect_aug or crop_state is not None:
                 return (
                     x_crop - x_min_ref,
                     y_crop - y_min_ref,
                     crop_size,
-                    _make_crop_state(processed_bboxes, idx_bbox_ref),
+                    _make_crop_state(crop_state_processed_bboxes, idx_bbox_ref),
                 )
             return x_crop - x_min_ref, y_crop - y_min_ref, crop_size
 
@@ -905,6 +1213,8 @@ def crop_image(
                 raise ValueError(f"Crop position cannot be computed for {img_path}")
             x_crop = min(max(x_crop, x_crop_min), x_crop_max)
             y_crop = min(max(y_crop, y_crop_min), y_crop_max)
+
+    validate_crop_has_valid_source(x_crop, y_crop, crop_size)
 
     source_img_height, source_img_width = img.shape[:2]
     img = img[
@@ -1041,6 +1351,8 @@ def crop_image(
             "mask_broaden_rect_aug": bool(broaden_rect_aug),
             "processed_bboxes": [dict(cur_bbox) for cur_bbox in processed_bboxes],
         }
+        if rotation_meta is not None:
+            crop_meta["rotation"] = dict(rotation_meta)
         return img, mask, ref_bbox, idx_bbox_ref, crop_meta
 
     return img, mask, ref_bbox, idx_bbox_ref
