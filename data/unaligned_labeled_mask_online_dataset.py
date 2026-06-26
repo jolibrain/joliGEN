@@ -11,7 +11,7 @@ from PIL import Image
 from data.base_dataset import BaseDataset, get_transform, get_transform_seg
 from data.utils import load_image
 from data.image_folder import make_dataset, make_dataset_path, make_labeled_path_dataset
-from data.online_creation import crop_image
+from data.online_creation import crop_image, sample_online_pre_crop_rotation_state
 
 
 class UnalignedLabeledMaskOnlineDataset(BaseDataset):
@@ -91,6 +91,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
     ):
         # Domain A
         try:
+            rotation_state_A = sample_online_pre_crop_rotation_state(self.opt)
             if self.opt.data_online_creation_mask_delta_A_ratio == [[]]:
                 mask_delta_A = self.opt.data_online_creation_mask_delta_A
             else:
@@ -124,6 +125,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                 inverted_mask=self.opt.data_inverted_mask,
                 single_bbox=self.opt.data_online_single_bbox,
                 random_bbox=self.opt.data_online_random_bbox,
+                rotation_state=rotation_state_A,
             )
 
             self.cat_A_ref_bbox = torch.tensor(A_ref_bbox[0])
@@ -155,6 +157,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
         # Domain B
         if B_img_path is not None:
             try:
+                rotation_state_B = sample_online_pre_crop_rotation_state(self.opt)
                 if self.opt.data_online_creation_mask_delta_B_ratio == [[]]:
                     mask_delta_B = self.opt.data_online_creation_mask_delta_B
                 else:
@@ -194,6 +197,7 @@ class UnalignedLabeledMaskOnlineDataset(BaseDataset):
                         inverted_mask=self.opt.data_inverted_mask,
                         single_bbox=self.opt.data_online_single_bbox,
                         random_bbox=self.opt.data_online_random_bbox,
+                        rotation_state=rotation_state_B,
                     )
 
                     self.cat_B_ref_bbox = torch.tensor(B_ref_bbox[0])
