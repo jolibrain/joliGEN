@@ -93,6 +93,10 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_disable_inference_clipping | flag |  | Disable inference-time denominator clipping in v=(x_pred-x)/(1-t), i.e. use raw (1-t) at sampling. |
 | --alg_b2b_dists_mean | array | [0.485, 0.456, 0.406] | Mean normalization for DISTS |
 | --alg_b2b_dists_std | array | [0.229, 0.224, 0.225] | Std normalization for DISTS |
+| --alg_b2b_force_class_token | int | -1 | Force every B2B sample to use this ViT class-token label. Use -1 to keep dataset/object-label behavior. |
+| --alg_b2b_global_context_conditioning | flag |  | Condition JiTViD B2B denoisers on masked full-frame context encoded by a small CNN. Deprecated compatibility alias for --alg_b2b_global_context_mode adaln. |
+| --alg_b2b_global_context_mode | string | none | Global context conditioning mode for JiTViD B2B. 'adaln' uses the legacy small-CNN AdaLN path, 'tokens' inserts global context ViT prefix tokens, and 'both' enables both paths.<br/><br/> **Values:** none, adaln, tokens, both |
+| --alg_b2b_global_context_size | int | 128 | Square input size for the masked full-frame B2B context encoder. |
 | --alg_b2b_lambda_perceptual | float | 1.0 | Weight for perceptual loss |
 | --alg_b2b_lambda_ref_copy | float | 0.0 | Weight for an image-space copy loss on autoregressive B2B reference frames before mask projection. 0 disables it. |
 | --alg_b2b_lora | flag |  | Train B2B JiT/JiTViD with PEFT LoRA adapters while saving merged full checkpoints. |
@@ -108,10 +112,13 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_minsnr | flag |  | use min-SNR weighting |
 | --alg_b2b_multi_dataset_class_conditioning | flag |  | Use multi_dataset dataset_index as the ViT class-token conditioning label instead of object class labels. |
 | --alg_b2b_noise_scale | float | -1.0 | Noise scale for B2B. Use \<=0 for automatic JiT-like defaults (1.0 at \<=256px, else 2.0). |
+| --alg_b2b_object_ref_paths | array | [] | Static object reference image paths. Providing one or more paths enables object-reference token conditioning for vit_vid B2B. |
+| --alg_b2b_object_ref_size | int | 64 | Square padded input size for object-reference token conditioning. Must be divisible by the ViT patch size. |
 | --alg_b2b_perceptual_loss | array | [''] | Optional perceptual losses<br/><br/> **Values:** , LPIPS, DISTS |
 | --alg_b2b_ref_degrade_noise_std | float | 0.05 | Gaussian noise std for degraded autoregressive reference frames. |
 | --alg_b2b_ref_degrade_prob | float | 0.0 | Probability of adding Gaussian noise to selected autoregressive reference frames in the model input. |
 | --alg_b2b_t_eps | float | 0.05 | Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t). |
+| --alg_b2b_temporal_frame_step_conditioning | flag |  | Condition JiTViD B2B denoisers on the raw temporal frame stride used to build each video sample. |
 | --alg_b2b_timestep_uniform_mix_prob | float | 0.1 | Probability of replacing a logistic-normal B2B training timestep with a uniform sample in [0, 1]. |
 | --alg_b2b_use_gt_prob | float | 0.1 | Probability of selecting a sample to use a GT frame in autoregressive B2B training. |
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
@@ -269,6 +276,7 @@ Here are all the available options to call with `train.py`
 | --data_sanitize_paths | flag |  | if true, wrong images or labels paths will be removed before training |
 | --data_serial_batches | flag |  | if true, takes images in order to make batches, otherwise takes them randomly |
 | --data_temporal_frame_step | int | 30 | how many frames between successive frames selected |
+| --data_temporal_frame_step_random_max | int | 0 | if \>0, randomly sample temporal frame step uniformly between data_temporal_frame_step and this max for each training sample |
 | --data_temporal_num_common_char | int | -1 | how many characters (the first ones) are used to identify a video; if =-1 natural sorting is used  |
 | --data_temporal_number_frames | int | 5 | how many successive frames use for temporal loader |
 
@@ -293,8 +301,8 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_mask_delta_B_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square |
 | --data_online_creation_mask_fixed_size_A | int | -1 | if \>0, force domain A online masks to this square side in final model pixels; larger boxes keep the closest containing square |
 | --data_online_creation_mask_fixed_size_B | int | -1 | if \>0, force domain B online masks to this square side in final model pixels; larger boxes keep the closest containing square |
-| --data_online_creation_mask_min_unmasked_border_A | int | 4 | minimum unmasked border in final model pixels when data_online_creation_mask_fixed_size_A is enabled |
-| --data_online_creation_mask_min_unmasked_border_B | int | 4 | minimum unmasked border in final model pixels when data_online_creation_mask_fixed_size_B is enabled |
+| --data_online_creation_mask_min_unmasked_border_A | int | 4 | minimum unmasked border in final model pixels for fixed-size masks and square online masks |
+| --data_online_creation_mask_min_unmasked_border_B | int | 4 | minimum unmasked border in final model pixels for fixed-size masks and square online masks |
 | --data_online_creation_mask_random_offset_A | array | [0.0] | ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square |
 | --data_online_creation_mask_random_offset_B | array | [0.0] | mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
