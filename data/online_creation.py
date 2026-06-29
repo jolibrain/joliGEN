@@ -429,11 +429,10 @@ def crop_image(
     # Creation of a blank mask
     mask = np.zeros(img.shape[:2], dtype=np.uint8)
     processed_bboxes = []
-    square_model_border_active = (
-        bool(mask_square)
-        and fixed_mask_size_model <= 0
-        and fixed_mask_min_unmasked_border_model > 0
+    model_border_active = (
+        fixed_mask_size_model <= 0 and fixed_mask_min_unmasked_border_model > 0
     )
+    square_model_border_active = bool(mask_square) and model_border_active
 
     # A bbox of reference will be used to compute the crop
     if crop_state is not None and "idx_bbox_ref" in crop_state:
@@ -854,13 +853,13 @@ def crop_image(
             max(0, min(cur_bbox["original_ymax"], height_limit)),
         )
 
-    def square_model_border_params(crop_size):
+    def model_border_params(crop_size):
         output_side = output_dim + margin
         border = int(fixed_mask_min_unmasked_border_model)
         max_model_mask_side = output_side - 2 * border
         if max_model_mask_side < 1:
             raise ValueError(
-                f"square model mask border {border} is too large for output size {output_side}"
+                f"model mask border {border} is too large for output size {output_side}"
             )
         max_source_side = int(math.floor(max_model_mask_side * crop_size / output_side))
         return output_side, border, max_model_mask_side, max(1, max_source_side)
@@ -879,7 +878,7 @@ def crop_image(
         if not square_model_border_active:
             return
 
-        _, _, _, max_source_side = square_model_border_params(crop_size)
+        _, _, _, max_source_side = model_border_params(crop_size)
         mask = np.zeros(img.shape[:2], dtype=np.uint8)
         for cur_bbox in processed_bboxes:
             oxmin, oymin, oxmax, oymax = clipped_original_bbox(cur_bbox)
@@ -969,18 +968,19 @@ def crop_image(
         pad_image_and_mask(left=left, right=right, top=top, bottom=bottom)
 
     def source_border_for_crop(crop_size):
-        if not square_model_border_active:
+        if not model_border_active:
             return 0
-        output_side, border, _, _ = square_model_border_params(crop_size)
+        output_side, border, _, _ = model_border_params(crop_size)
         return int(math.ceil(border * crop_size / output_side))
 
-    def ensure_crop_size_for_square_border(crop_size):
-        if not square_model_border_active:
+    def ensure_crop_size_for_model_border(crop_size):
+        if not model_border_active:
             return crop_size
 
         crop_size = int(crop_size)
         for _ in range(16):
-            apply_square_model_border_mask(crop_size)
+            if square_model_border_active:
+                apply_square_model_border_mask(crop_size)
             source_border = source_border_for_crop(crop_size)
             required_size = max(
                 x_max_ref - x_min_ref + 2 * source_border,
@@ -1078,24 +1078,29 @@ def crop_image(
                 crop_size_min = expected_crop_size
                 crop_size_max = expected_crop_size
 
-        if square_model_border_active:
-            output_side, _, max_model_mask_side, _ = square_model_border_params(
+        if model_border_active:
+            output_side, _, max_model_mask_side, _ = model_border_params(
                 max(1, crop_size_min)
             )
+            border_required_side = (
+                ref_original_side()
+                if square_model_border_active
+                else max(height, width)
+            )
             required_crop_size = int(
-                math.ceil(ref_original_side() * output_side / max_model_mask_side)
+                math.ceil(border_required_side * output_side / max_model_mask_side)
             )
             if required_crop_size > crop_size_min:
                 crop_size_min = required_crop_size
             if crop_size_max < crop_size_min:
                 warnings.warn(
-                    "Enlarging crop to satisfy data_online_creation_mask_min_unmasked_border with square masks"
+                    "Enlarging crop to satisfy data_online_creation_mask_min_unmasked_border"
                 )
                 crop_size_max = crop_size_min
 
         crop_size = random.randint(crop_size_min, crop_size_max)
         apply_fixed_model_mask(crop_size)
-        crop_size = ensure_crop_size_for_square_border(crop_size)
+        crop_size = ensure_crop_size_for_model_border(crop_size)
 
         if crop_size > min(img.shape[0], img.shape[1]):
             warnings.warn(
@@ -1130,7 +1135,7 @@ def crop_image(
         # The crop with context needs to fit in the img
         # So x_crop - context_pixels >=0 and x_crop + crop_size + context_pixels <= img_size-1
 
-        if square_model_border_active:
+        if model_border_active:
             source_border = source_border_for_crop(crop_size)
         else:
             source_border = 0
@@ -1182,7 +1187,7 @@ def crop_image(
     else:
         x_crop, y_crop, crop_size = crop_coordinates
         apply_fixed_model_mask(crop_size)
-        crop_size = ensure_crop_size_for_square_border(crop_size)
+        crop_size = ensure_crop_size_for_model_border(crop_size)
         x_crop = x_crop + x_min_ref
         y_crop = y_crop + y_min_ref
 
@@ -1198,7 +1203,7 @@ def crop_image(
         if y_crop + crop_size + context_pixels > img.shape[0]:
             y_crop = img.shape[0] - (crop_size + context_pixels)
 
-        if square_model_border_active:
+        if model_border_active:
             source_border = source_border_for_crop(crop_size)
             ensure_crop_canvas(crop_size, source_border)
             x_crop_min = max(context_pixels, x_max_ref + source_border - crop_size)
@@ -1282,7 +1287,7 @@ def crop_image(
             resized_mask[resized_mask == 2] = 0
         mask = Image.fromarray(resized_mask)
     elif square_model_border_active:
-        output_side, border, max_mask_side, _ = square_model_border_params(crop_size)
+        output_side, border, max_mask_side, _ = model_border_params(crop_size)
         resized_mask = np.zeros((output_side, output_side), dtype=np.uint8)
         for cur_bbox in processed_bboxes:
             oxmin_src, oymin_src, oxmax_src, oymax_src = clipped_original_bbox(cur_bbox)
