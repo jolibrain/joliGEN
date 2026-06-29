@@ -141,6 +141,15 @@ def to_np(img):
     return img
 
 
+def clipped_bbox_region(bbox_select, img_shape):
+    height, width = img_shape[:2]
+    x0 = max(0, min(int(bbox_select[0]), width - 1))
+    y0 = max(0, min(int(bbox_select[1]), height - 1))
+    x1 = max(x0 + 1, min(int(bbox_select[2]), width))
+    y1 = max(y0 + 1, min(int(bbox_select[3]), height))
+    return x0, y0, x1, y1
+
+
 def cond_augment(cond, rotation, persp_horizontal, persp_vertical):
     cond = Image.fromarray(cond)
     cond = transforms.RandomRotation(rotation, expand=True)(cond)
@@ -807,12 +816,10 @@ def generate(
         img_tensor = img_tensor_list[i]
 
         if bbox_in:
+            x0, y0, x1, y1 = clipped_bbox_region(bbox_select, img_orig.shape)
             out_img_resized = cv2.resize(
                 out_img,
-                (
-                    min(img_orig.shape[1], bbox_select[2] - bbox_select[0]),
-                    min(img_orig.shape[0], bbox_select[3] - bbox_select[1]),
-                ),
+                (x1 - x0, y1 - y0),
             )
 
             out_img_real_size = img_orig.copy()
@@ -822,9 +829,7 @@ def generate(
 
         # fill out crop into original image
         if bbox_in:
-            out_img_real_size[
-                bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
-            ] = out_img_resized
+            out_img_real_size[y0:y1, x0:x1] = out_img_resized
 
         if cond_image is not None:
             cond_image = cond_image_list[i]
@@ -860,9 +865,7 @@ def generate(
                     cv2.imwrite(os.path.join(dir_out, name + "_ref_orig.png"), ref_orig)
                 if cond_in:
                     # crop before cond image
-                    orig_crop = img_orig[
-                        bbox_select[1] : bbox_select[3], bbox_select[0] : bbox_select[2]
-                    ]
+                    orig_crop = img_orig[y0:y1, x0:x1]
                     cv2.imwrite(
                         os.path.join(dir_out, name + "_orig_crop.png"), orig_crop
                     )

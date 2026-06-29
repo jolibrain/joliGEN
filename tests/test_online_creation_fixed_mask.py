@@ -109,6 +109,7 @@ def test_crop_image_pre_crop_rotation_keeps_shape_and_class_mask(tmp_path):
         load_size=[],
         crop_center=True,
         return_meta=True,
+        fixed_mask_min_unmasked_border_model=0,
         rotation_state={"angle": 30.0},
     )
 
@@ -135,6 +136,7 @@ def test_crop_image_pre_crop_rotation_rejects_fill_pixels(tmp_path):
             context_pixels=0,
             load_size=[],
             crop_center=True,
+            fixed_mask_min_unmasked_border_model=0,
             rotation_state={"angle": 45.0},
         )
 
@@ -155,6 +157,7 @@ def test_crop_image_pre_crop_rotation_shifts_center_to_avoid_fill_pixels(tmp_pat
         load_size=[],
         crop_center=True,
         return_meta=True,
+        fixed_mask_min_unmasked_border_model=0,
         rotation_state={"angle": 45.0},
     )
 
@@ -196,6 +199,7 @@ def test_crop_image_pre_crop_rotation_crop_contains_rotated_mask(tmp_path):
         load_size=[],
         crop_center=True,
         return_meta=True,
+        fixed_mask_min_unmasked_border_model=0,
         rotation_state={"angle": 45.0},
     )
 
@@ -242,6 +246,7 @@ def test_crop_image_pre_crop_rotation_reboxes_mask_after_rotation(tmp_path):
         load_size=[],
         crop_center=True,
         return_meta=True,
+        fixed_mask_min_unmasked_border_model=0,
         rotation_state={
             "angle": 45.0,
             "rebox_mask_after_rotation": True,
@@ -504,6 +509,61 @@ def test_crop_image_square_border_pads_edge_bbox_instead_of_rejecting(tmp_path):
     assert meta["x_padding"] > 0
     assert meta["y_padding"] > 0
     assert _bbox_contains(mask_bbox, _original_bbox_from_meta(meta, 128))
+
+
+def test_crop_image_non_square_border_enlarges_crop(tmp_path):
+    img_path, bbox_path = _write_sample(tmp_path, "1 40 50 140 90\n")
+
+    _, mask, _, _, meta = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=100,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        fixed_mask_min_unmasked_border_model=16,
+        return_meta=True,
+    )
+
+    mask_bbox = _mask_bbox(mask)
+    assert meta["crop_size"] == 134
+    assert mask_bbox[0] >= 16
+    assert mask_bbox[1] >= 16
+    assert mask_bbox[2] <= 112
+    assert mask_bbox[3] <= 112
+
+
+def test_crop_image_non_square_border_pads_edge_bbox(tmp_path):
+    img_path, bbox_path = _write_sample(tmp_path, "1 0 0 60 40\n")
+
+    _, mask, _, _, meta = crop_image(
+        img_path,
+        bbox_path,
+        mask_random_offset=[0.0],
+        mask_delta=[[]],
+        crop_delta=0,
+        mask_square=False,
+        crop_dim=80,
+        output_dim=128,
+        context_pixels=0,
+        load_size=[],
+        crop_center=True,
+        fixed_mask_min_unmasked_border_model=16,
+        return_meta=True,
+    )
+
+    mask_bbox = _mask_bbox(mask)
+    assert mask_bbox[0] >= 16
+    assert mask_bbox[1] >= 16
+    assert mask_bbox[2] <= 112
+    assert mask_bbox[3] <= 112
+    assert meta["x_padding"] > 0
+    assert meta["y_padding"] > 0
 
 
 def test_crop_image_broaden_rect_aug_disabled_is_noop(tmp_path):
