@@ -308,6 +308,9 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
 | --data_online_creation_mask_square_B | flag |  | whether masks should be squared for domain B |
 | --data_online_creation_rand_mask_A | flag |  | Perform task of replacing noised masks by objects |
+| --data_online_creation_rotate_before_crop | flag |  | for online bbox/mask datasets, rotate the loaded full image before online crop creation |
+| --data_online_creation_rotate_max_angle | float | 0.0 | maximum absolute angle for pre-crop online rotation. Angles are sampled uniformly in [-value, value]. |
+| --data_online_creation_rotate_rebox_mask_after_rotation | flag |  | after online pre-crop rotation, replace each rotated mask with its tight axis-aligned bounding box |
 
 ## Semantic segmentation network
 
