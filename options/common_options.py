@@ -906,6 +906,29 @@ class CommonOptions(BaseOptions):
             action="store_true",
             help="randomly broaden online rectangular masks with detector-like bbox augmentations for domain A",
         )
+        parser.add_argument(
+            "--data_online_creation_mask_precision_probs",
+            type=float,
+            nargs="+",
+            default=[0.2, 0.3, 0.5],
+            metavar="P",
+            help=(
+                "sampling probabilities for exact, dilated, and randomized-bbox "
+                "B2B mask-precision modes"
+            ),
+        )
+        parser.add_argument(
+            "--data_online_creation_mask_dilate_ratio_max",
+            type=float,
+            default=0.25,
+            help="maximum dilation radius as a ratio of the instance bbox short side",
+        )
+        parser.add_argument(
+            "--data_online_creation_mask_bbox_margin_ratio_max",
+            type=float,
+            default=0.5,
+            help="maximum independently sampled bbox margin ratio on each side",
+        )
 
         parser.add_argument(
             "--data_online_creation_mask_square_A",

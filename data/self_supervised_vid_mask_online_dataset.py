@@ -9,7 +9,14 @@ from data.base_dataset import (
     transform_global_context_images,
 )
 from data.image_folder import make_labeled_path_dataset
-from data.online_creation import crop_image, sample_online_pre_crop_rotation_state
+from data.online_creation import (
+    build_instance_mask_from_crop_meta,
+    crop_image,
+    mask_prediction_enabled,
+    randomize_instance_mask,
+    sample_mask_precision_state,
+    sample_online_pre_crop_rotation_state,
+)
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
 from data.temporal_sampling import (
     TemporalFrameStepMixin,
@@ -121,7 +128,10 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
 
         images_A = []
         labels_A = []
+        label_classes_A = []
+        instance_masks_A = []
         global_context_A = []
+        predict_mask = mask_prediction_enabled(self.opt)
         rotation_state_A = sample_online_pre_crop_rotation_state(self.opt)
         ref_A_img_path = self.A_img_paths[index_A]
         ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
@@ -215,10 +225,12 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                         self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
                     ),
                     crop_center=True,
-                    return_meta=b2b_global_context_enabled_from_opt(self.opt),
+                    return_meta=(
+                        b2b_global_context_enabled_from_opt(self.opt) or predict_mask
+                    ),
                     rotation_state=rotation_state_A,
                 )
-                if b2b_global_context_enabled_from_opt(self.opt):
+                if b2b_global_context_enabled_from_opt(self.opt) or predict_mask:
                     (
                         cur_A_img,
                         cur_A_label,
@@ -226,6 +238,18 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                         A_ref_bbox_id,
                         crop_meta,
                     ) = crop_result
+                else:
+                    cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_result
+                if predict_mask:
+                    instance_masks_A.append(
+                        build_instance_mask_from_crop_meta(
+                            cur_A_label_path,
+                            crop_meta,
+                            self.opt.data_load_size,
+                            self.opt.data_online_context_pixels,
+                        )
+                    )
+                if b2b_global_context_enabled_from_opt(self.opt):
                     global_context_A.append(
                         build_masked_global_context_image(
                             cur_A_img_path,
@@ -238,8 +262,6 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                             ),
                         )
                     )
-                else:
-                    cur_A_img, cur_A_label, ref_A_bbox, A_ref_bbox_id = crop_result
                 if i == 0:
                     A_ref_bbox = ref_A_bbox[1:]
 
@@ -249,8 +271,29 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
 
             images_A.append(cur_A_img)
             labels_A.append(cur_A_label)
+            label_classes_A.append(int(ref_A_bbox[0]))
 
-        images_A, labels_A, A_ref_bbox = self.transform(images_A, labels_A, A_ref_bbox)
+        transform_masks = labels_A + instance_masks_A
+        images_A, transform_masks, A_ref_bbox = self.transform(
+            images_A, transform_masks, A_ref_bbox
+        )
+        labels_A = transform_masks[: self.num_frames]
+        if predict_mask:
+            instance_masks_A = transform_masks[self.num_frames :]
+            precision_state = sample_mask_precision_state(self.opt)
+            randomized = [
+                randomize_instance_mask(
+                    (instance_mask > 0).float(),
+                    precision_state,
+                    self.opt,
+                    mask_class,
+                )
+                for instance_mask, mask_class in zip(instance_masks_A, label_classes_A)
+            ]
+            labels_A = [item[0] for item in randomized]
+            mandatory_masks_A = [item[1] for item in randomized]
+            mask_precision_mode = randomized[0][2]
+            mask_precision_severity = [item[3] for item in randomized]
         if b2b_global_context_enabled_from_opt(self.opt):
             global_context_A = transform_global_context_images(
                 self.opt,
@@ -262,6 +305,11 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
         A_ref_img = images_A[0]
         images_A = torch.stack(images_A)
         labels_A = torch.stack(labels_A)
+        if predict_mask:
+            instance_masks_A = torch.stack(
+                [(instance_mask > 0).float() for instance_mask in instance_masks_A]
+            )
+            mandatory_masks_A = torch.stack(mandatory_masks_A)
 
         result = {
             "A_ref": A_ref_img,
@@ -283,6 +331,27 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
         if b2b_global_context_enabled_from_opt(self.opt):
             result["A_global_context"] = global_context_A
             result["B_global_context"] = global_context_A
+        if predict_mask:
+            precision_modes = torch.full(
+                (self.num_frames,), mask_precision_mode, dtype=torch.long
+            )
+            precision_severity = torch.tensor(
+                mask_precision_severity, dtype=torch.float32
+            )
+            result.update(
+                {
+                    "A_source": images_A.clone(),
+                    "A_instance_mask": instance_masks_A,
+                    "A_mandatory_mask": mandatory_masks_A,
+                    "A_mask_precision_mode": precision_modes,
+                    "A_mask_precision_severity": precision_severity,
+                    "B_source": images_A.clone(),
+                    "B_instance_mask": instance_masks_A.clone(),
+                    "B_mandatory_mask": mandatory_masks_A.clone(),
+                    "B_mask_precision_mode": precision_modes.clone(),
+                    "B_mask_precision_severity": precision_severity.clone(),
+                }
+            )
 
         try:
             if self.opt.data_online_creation_rand_mask_A:

@@ -4,6 +4,7 @@ import math
 import os
 import re
 import sys
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -23,6 +24,23 @@ from util.b2b_context import (
     b2b_global_context_enabled_from_train_json,
     b2b_global_context_mode_from_train_json,
 )
+
+MASK_PRECISION_EXACT = 0
+MASK_PRECISION_DILATED = 1
+MASK_PRECISION_BBOX = 2
+MASK_PRECISION_NAMES = {
+    "exact": MASK_PRECISION_EXACT,
+    "dilated": MASK_PRECISION_DILATED,
+    "bbox": MASK_PRECISION_BBOX,
+}
+
+
+@dataclass
+class RestorationResult:
+    generated_pixels: np.ndarray
+    generated_mask: np.ndarray
+    generated_applied: np.ndarray
+    coarse_applied: np.ndarray
 
 
 def natural_key(text):
@@ -57,6 +75,7 @@ def load_session(model_in_file, provider):
 def require_denoiser_model(
     session,
     mask_size_conditioning=False,
+    mask_prediction=False,
     temporal_frame_step_conditioning=False,
     global_context_conditioning=False,
     object_ref_conditioning=False,
@@ -65,6 +84,8 @@ def require_denoiser_model(
     expected = ["model_input", "timesteps", "labels"]
     if mask_size_conditioning:
         expected.append("mask_size_cond")
+    if mask_prediction:
+        expected.extend(["mask_precision_mode", "mask_precision_severity"])
     if temporal_frame_step_conditioning:
         expected.append("temporal_frame_step")
     if global_context_conditioning:
@@ -75,7 +96,14 @@ def require_denoiser_model(
         raise ValueError(
             "This helper expects a denoiser ONNX with inputs "
             f"{expected}, got {input_names}. "
-            "Export with pth_onnx/export_b2b_onnx.py --export_mode denoiser."
+            "Export with scripts/b2b_export_onnx.py --export_mode denoiser."
+        )
+    output_names = [x.name for x in session.get_outputs()]
+    expected_outputs = ["output", "mask_logits"] if mask_prediction else ["output"]
+    if output_names != expected_outputs:
+        raise ValueError(
+            f"Expected denoiser outputs {expected_outputs}, got {output_names}. "
+            "Re-export the checkpoint with scripts/b2b_export_onnx.py."
         )
 
 
@@ -223,6 +251,55 @@ def resolve_temporal_frame_step(train_json, temporal_frame_step=None):
     )
 
 
+def mask_prediction_enabled(train_json):
+    return bool(train_json.get("alg", {}).get("b2b_mask_prediction", False))
+
+
+def resolve_mask_precision(train_json, mode=None, severity=None):
+    if not mask_prediction_enabled(train_json):
+        if mode is not None or severity is not None:
+            raise ValueError(
+                "Mask precision arguments require alg.b2b_mask_prediction in train_config.json"
+            )
+        return None, None
+
+    mode_name = "bbox" if mode is None else str(mode)
+    if mode_name not in MASK_PRECISION_NAMES:
+        raise ValueError(
+            f"Unknown mask precision mode {mode_name!r}; expected one of {sorted(MASK_PRECISION_NAMES)}"
+        )
+    mode_id = MASK_PRECISION_NAMES[mode_name]
+    severity_value = 1.0 if severity is None else float(severity)
+    if not 0.0 <= severity_value <= 1.0:
+        raise ValueError("mask_precision_severity must be in [0, 1]")
+    if mode_id == MASK_PRECISION_EXACT:
+        if severity is not None and not math.isclose(
+            severity_value, 0.0, rel_tol=0.0, abs_tol=1e-12
+        ):
+            raise ValueError("exact mask precision requires severity 0")
+        severity_value = 0.0
+    return mode_id, severity_value
+
+
+def smartbrush_mask_delta(train_json, mode, severity, bbox=None):
+    if mode is None or mode == MASK_PRECISION_EXACT:
+        return [[]]
+    online = train_json.get("data", {}).get("online_creation", {})
+    if mode == MASK_PRECISION_BBOX:
+        max_margin = float(online.get("mask_bbox_margin_ratio_max", 0.5))
+        margin = float(severity) * max_margin
+        return [[float(margin), float(margin)]]
+    if mode == MASK_PRECISION_DILATED:
+        if bbox is None:
+            raise ValueError("bbox is required for dilated mask precision")
+        max_ratio = float(online.get("mask_dilate_ratio_max", 0.25))
+        bbox_width = max(1, int(bbox[2]) - int(bbox[0]))
+        bbox_height = max(1, int(bbox[3]) - int(bbox[1]))
+        radius = int(round(float(severity) * max_ratio * min(bbox_width, bbox_height)))
+        return [[radius, radius]] if radius > 0 else [[]]
+    raise ValueError(f"Unknown mask precision mode id: {mode}")
+
+
 def get_b2b_params(train_json, image_size):
     alg = train_json.get("alg", {})
     object_ref_paths = alg.get("b2b_object_ref_paths", []) or []
@@ -238,6 +315,11 @@ def get_b2b_params(train_json, image_size):
         "cond_mode": alg.get("diffusion_cond_image_creation", "y_t"),
         "mask_as_channel": bool(alg.get("b2b_mask_as_channel", False)),
         "mask_size_conditioning": bool(alg.get("b2b_mask_size_conditioning", False)),
+        "mask_prediction": bool(alg.get("b2b_mask_prediction", False)),
+        "mask_prediction_threshold": float(
+            alg.get("b2b_mask_prediction_threshold", 0.5)
+        ),
+        "mask_prediction_dilation": int(alg.get("b2b_mask_prediction_dilation", 3)),
         "temporal_frame_step_conditioning": temporal_frame_step_conditioning_enabled(
             train_json
         ),
@@ -493,6 +575,8 @@ def preprocess_with_repo_crop(
     train_json,
     device,
     crop_size_override=None,
+    mask_precision_mode=None,
+    mask_precision_severity=None,
 ):
     img_path = os.path.realpath(img_path)
     bbox_path = os.path.realpath(bbox_path)
@@ -509,10 +593,26 @@ def preprocess_with_repo_crop(
     cls = int(bbox_entry[0])
     bbox = [int(v) for v in bbox_entry[1:]]
 
-    mask_delta = normalize_mask_delta(online.get("mask_delta_A", [[]]))
-    mask_random_offset = online.get("mask_random_offset_A", [0.0])
-    mask_square = online.get("mask_square_A", False)
-    fixed_mask_size_model = int(online.get("mask_fixed_size_A", -1))
+    predict_mask = mask_prediction_enabled(train_json)
+    if predict_mask:
+        if mask_precision_mode is None or mask_precision_severity is None:
+            mask_precision_mode, mask_precision_severity = resolve_mask_precision(
+                train_json, None, None
+            )
+        mask_delta = smartbrush_mask_delta(
+            train_json,
+            mask_precision_mode,
+            mask_precision_severity,
+            bbox=bbox,
+        )
+        mask_random_offset = [0.0]
+        mask_square = False
+        fixed_mask_size_model = -1
+    else:
+        mask_delta = normalize_mask_delta(online.get("mask_delta_A", [[]]))
+        mask_random_offset = online.get("mask_random_offset_A", [0.0])
+        mask_square = online.get("mask_square_A", False)
+        fixed_mask_size_model = int(online.get("mask_fixed_size_A", -1))
     fixed_mask_min_unmasked_border_model = int(
         online.get("mask_min_unmasked_border_A", 4)
     )
@@ -576,6 +676,28 @@ def preprocess_with_repo_crop(
         fixed_mask_min_unmasked_border_model=fixed_mask_min_unmasked_border_model,
     )
 
+    mandatory_mask = None
+    if predict_mask:
+        _, mandatory_mask, _, _ = crop_image(
+            img_path=img_path,
+            bbox_path=bbox_path,
+            mask_delta=[[]],
+            mask_random_offset=[0.0],
+            crop_delta=0,
+            mask_square=False,
+            crop_dim=crop_dim,
+            output_dim=output_dim,
+            context_pixels=context_pixels,
+            load_size=load_size,
+            load_size_keep_ratio=load_size_keep_ratio,
+            crop_coordinates=crop_coordinates,
+            crop_center=True,
+            bbox_ref_id=bbox_index,
+            override_class=cls,
+            fixed_mask_size_model=-1,
+            fixed_mask_min_unmasked_border_model=fixed_mask_min_unmasked_border_model,
+        )
+
     bbox_select = compute_paste_bbox(crop_meta)
     if bbox_select is None:
         bbox_select = compute_bbox_select(
@@ -589,6 +711,7 @@ def preprocess_with_repo_crop(
 
     img = np.array(img)
     mask = np.array(mask) if mask is not None else None
+    mandatory_mask = np.array(mandatory_mask) if mandatory_mask is not None else None
     global_context = None
     if b2b_global_context_enabled_from_train_json(train_json):
         context_img = build_masked_global_context_image(
@@ -616,10 +739,20 @@ def preprocess_with_repo_crop(
 
     img_tensor = to_tensor(img).to(device)
     mask_tensor = None
+    conditioning_mask_tensor = None
+    mandatory_mask_tensor = None
     if mask is not None:
-        mask_tensor = (
+        conditioning_mask_tensor = (
             torch.from_numpy(np.array(mask, dtype=np.int64)).unsqueeze(0).to(device)
         )
+        mask_tensor = (conditioning_mask_tensor > 0).to(dtype=torch.float32)
+    if mandatory_mask is not None:
+        mandatory_mask_tensor = (
+            torch.from_numpy(np.array(mandatory_mask, dtype=np.int64))
+            .unsqueeze(0)
+            .to(device)
+            > 0
+        ).to(dtype=torch.float32)
 
     if mask_tensor is not None:
         if online.get("rand_mask_A", False):
@@ -637,6 +770,12 @@ def preprocess_with_repo_crop(
         mask_tensor = torch.zeros(
             (1, img_tensor.shape[-2], img_tensor.shape[-1]), device=device
         )
+        conditioning_mask_tensor = mask_tensor.to(dtype=torch.int64)
+
+    if mandatory_mask_tensor is None:
+        mandatory_mask_tensor = torch.zeros_like(mask_tensor)
+    if torch.any(mandatory_mask_tensor > mask_tensor):
+        raise RuntimeError("mandatory bbox must be contained in the coarse mask")
 
     cond_mode = alg.get("diffusion_cond_image_creation", "y_t")
     cond_image = None
@@ -645,7 +784,7 @@ def preprocess_with_repo_crop(
             "This runner currently supports only alg.diffusion_cond_image_creation = 'y_t'."
         )
     if bool(alg.get("b2b_mask_as_channel", False)):
-        cond_image = mask_tensor.unsqueeze(0).float().detach().cpu()
+        cond_image = conditioning_mask_tensor.unsqueeze(0).float().detach().cpu()
 
     return {
         "img_path": img_path,
@@ -657,6 +796,7 @@ def preprocess_with_repo_crop(
         "cond_image": cond_image,
         "y0_tensor": img_tensor.unsqueeze(0).detach().cpu(),
         "mask": mask_tensor.unsqueeze(0).float().detach().cpu(),
+        "mandatory_mask": mandatory_mask_tensor.unsqueeze(0).float().detach().cpu(),
         "img_tensor": img_tensor.unsqueeze(0).detach().cpu(),
         "global_context": global_context,
         "crop_meta": crop_meta,
@@ -758,9 +898,12 @@ def denoiser_forward(
     t_scalar,
     labels,
     mask_size_cond=None,
+    mask_precision_mode=None,
+    mask_precision_severity=None,
     temporal_frame_step=None,
     global_context=None,
     object_refs=None,
+    expect_mask=False,
     dump_dir=None,
     dump_tag=None,
 ):
@@ -774,6 +917,16 @@ def denoiser_forward(
             np.save(
                 os.path.join(dump_dir, f"{dump_tag}_mask_size_cond.npy"),
                 mask_size_cond,
+            )
+        if mask_precision_mode is not None:
+            np.save(
+                os.path.join(dump_dir, f"{dump_tag}_mask_precision_mode.npy"),
+                mask_precision_mode,
+            )
+        if mask_precision_severity is not None:
+            np.save(
+                os.path.join(dump_dir, f"{dump_tag}_mask_precision_severity.npy"),
+                mask_precision_severity,
             )
         if temporal_frame_step is not None:
             np.save(
@@ -797,16 +950,25 @@ def denoiser_forward(
     }
     if mask_size_cond is not None:
         inputs["mask_size_cond"] = mask_size_cond.astype(np.float32)
+    if mask_precision_mode is not None:
+        inputs["mask_precision_mode"] = mask_precision_mode.astype(np.int64)
+    if mask_precision_severity is not None:
+        inputs["mask_precision_severity"] = mask_precision_severity.astype(np.float32)
     if temporal_frame_step is not None:
         inputs["temporal_frame_step"] = temporal_frame_step.astype(np.float32)
     if global_context is not None:
         inputs["global_context"] = global_context.astype(np.float32)
     if object_refs is not None:
         inputs["object_refs"] = object_refs.astype(np.float32)
-    return session.run(
-        ["output"],
-        inputs,
-    )[0]
+    output_names = ["output", "mask_logits"] if expect_mask else ["output"]
+    outputs = session.run(output_names, inputs)
+    if dump_dir and dump_tag:
+        np.save(os.path.join(dump_dir, f"{dump_tag}_output.npy"), outputs[0])
+        if expect_mask:
+            np.save(os.path.join(dump_dir, f"{dump_tag}_mask_logits.npy"), outputs[1])
+    if expect_mask:
+        return outputs[0], outputs[1]
+    return outputs[0]
 
 
 def forward_sample_restoration(
@@ -818,13 +980,18 @@ def forward_sample_restoration(
     labels,
     y_known,
     params,
+    projection_mask=None,
+    mask_precision_mode=None,
+    mask_precision_severity=None,
     temporal_frame_step=None,
     global_context=None,
     object_refs=None,
     dump_dir=None,
     dump_prefix=None,
 ):
-    x_in = project_known_pixels(x, y_known, mask)
+    if projection_mask is None:
+        projection_mask = mask
+    x_in = project_known_pixels(x, y_known, projection_mask)
     if params["mask_as_channel"]:
         if mask is None:
             raise RuntimeError("b2b_mask_as_channel requires a mask tensor")
@@ -848,20 +1015,28 @@ def forward_sample_restoration(
         else None
     )
 
-    x_cond = denoiser_forward(
+    cond_output = denoiser_forward(
         session,
         model_input,
         t_scalar,
         labels,
         mask_size_cond=mask_size_cond,
+        mask_precision_mode=mask_precision_mode,
+        mask_precision_severity=mask_precision_severity,
         temporal_frame_step=temporal_frame_step_input,
         global_context=global_context,
         object_refs=object_refs,
+        expect_mask=params["mask_prediction"],
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_cond" if dump_prefix else None,
     )
+    if params["mask_prediction"]:
+        x_cond, mask_logits_cond = cond_output
+    else:
+        x_cond = cond_output
+        mask_logits_cond = None
     x_cond = match_prediction_channels(x_cond, x_in)
-    x_cond = project_known_pixels(x_cond, y_known, mask)
+    x_cond = project_known_pixels(x_cond, y_known, projection_mask)
 
     den = 1.0 - float(t_scalar)
     if not params["disable_inference_clipping"]:
@@ -869,29 +1044,70 @@ def forward_sample_restoration(
     v_cond = (x_cond - x_in) / den
 
     if math.isclose(params["cfg_scale"], 1.0, rel_tol=0.0, abs_tol=1e-12):
-        return v_cond
+        return (v_cond, mask_logits_cond) if params["mask_prediction"] else v_cond
 
     low, high = params["cfg_interval"]
     interval_active = (t_scalar < high) and (low == 0 or t_scalar > low)
     if not interval_active:
-        return v_cond
+        return (v_cond, mask_logits_cond) if params["mask_prediction"] else v_cond
 
-    x_uncond = denoiser_forward(
+    uncond_output = denoiser_forward(
         session,
         model_input,
         t_scalar,
         np.full_like(labels, params["num_classes"]),
         mask_size_cond=mask_size_cond,
+        mask_precision_mode=mask_precision_mode,
+        mask_precision_severity=mask_precision_severity,
         temporal_frame_step=temporal_frame_step_input,
         global_context=global_context,
         object_refs=object_refs,
+        expect_mask=params["mask_prediction"],
         dump_dir=dump_dir,
         dump_tag=f"{dump_prefix}_uncond" if dump_prefix else None,
     )
+    if params["mask_prediction"]:
+        x_uncond, mask_logits_uncond = uncond_output
+    else:
+        x_uncond = uncond_output
+        mask_logits_uncond = None
     x_uncond = match_prediction_channels(x_uncond, x_in)
-    x_uncond = project_known_pixels(x_uncond, y_known, mask)
+    x_uncond = project_known_pixels(x_uncond, y_known, projection_mask)
     v_uncond = (x_uncond - x_in) / den
-    return v_uncond + params["cfg_scale"] * (v_cond - v_uncond)
+    velocity = v_uncond + params["cfg_scale"] * (v_cond - v_uncond)
+    if not params["mask_prediction"]:
+        return velocity
+    mask_logits = mask_logits_uncond + params["cfg_scale"] * (
+        mask_logits_cond - mask_logits_uncond
+    )
+    return velocity, mask_logits
+
+
+def dilate_mask_probability(probability, radius):
+    radius = int(radius)
+    if radius <= 0:
+        return probability
+    if probability.ndim not in (4, 5):
+        raise RuntimeError(
+            f"Expected mask probability rank 4 or 5, got {probability.ndim}"
+        )
+    original_shape = probability.shape
+    height, width = original_shape[-2:]
+    flat = probability.reshape(-1, height, width)
+    kernel = np.ones((2 * radius + 1, 2 * radius + 1), dtype=np.uint8)
+    dilated = np.stack([cv2.dilate(item, kernel) for item in flat], axis=0)
+    return dilated.reshape(original_shape).astype(probability.dtype, copy=False)
+
+
+def final_projection_mask(logits, coarse_mask, mandatory_mask, threshold, dilation):
+    probability = 1.0 / (1.0 + np.exp(-np.clip(logits, -60.0, 60.0)))
+    probability = dilate_mask_probability(probability, dilation)
+    predicted = (probability >= float(threshold)).astype(coarse_mask.dtype)
+    if mandatory_mask is not None:
+        predicted = np.maximum(
+            predicted, np.clip(mandatory_mask, 0.0, 1.0).astype(predicted.dtype)
+        )
+    return predicted * np.clip(coarse_mask, 0.0, 1.0)
 
 
 def restoration_with_denoiser(
@@ -903,89 +1119,206 @@ def restoration_with_denoiser(
     labels,
     params,
     init_noise,
+    source_image=None,
+    mandatory_mask=None,
+    mask_precision_mode=None,
+    mask_precision_severity=None,
     temporal_frame_step=None,
     global_context=None,
     object_refs=None,
     dump_dir=None,
     dump_prefix=None,
+    return_details=False,
+    apply_predicted_mask=False,
+    use_predicted_mask_during_denoising=False,
 ):
-    y_known = y if mask is not None else None
+    if int(denoise_steps) < 1:
+        raise ValueError("denoise_steps must be >= 1")
+    if params["mask_prediction"]:
+        batch = int(y.shape[0])
+        if mask_precision_mode is None:
+            mask_precision_mode = np.full((batch,), MASK_PRECISION_BBOX, dtype=np.int64)
+        if mask_precision_severity is None:
+            mask_precision_severity = np.ones(batch, dtype=np.float32)
+    y_known = (
+        (source_image if source_image is not None else y) if mask is not None else None
+    )
     if mask is not None:
         mask = np.clip(mask, 0.0, 1.0)
-        y_background = y * (1.0 - mask)
+        y_background = y_known * (1.0 - mask)
+        if mandatory_mask is not None:
+            mandatory_mask = np.clip(mandatory_mask, 0.0, 1.0)
+            if np.any(mandatory_mask > mask + 1e-6):
+                raise RuntimeError(
+                    "mandatory_mask must be fully contained in coarse mask"
+                )
     else:
         y_background = y
+    if params["mask_prediction"] and mask is None:
+        raise RuntimeError("B2B mask prediction requires a coarse mask")
 
     x = y_background + init_noise * params["noise_scale"]
     if mask is not None:
-        x = x * mask + y * (1.0 - mask)
+        x = project_known_pixels(x, y_known, mask)
+    active_mask = mask
+    active_y_cond = y_cond
+    active_precision_mode = mask_precision_mode
+    active_precision_severity = mask_precision_severity
+    mask_logits = None
 
     timesteps = np.linspace(0.0, 1.0, int(denoise_steps) + 1, dtype=np.float32)
     for i in range(int(denoise_steps) - 1):
         t = float(timesteps[i])
         t_next = float(timesteps[i + 1])
-        v_t = forward_sample_restoration(
+        model_output_t = forward_sample_restoration(
             session,
             x,
             t,
-            y_cond,
-            mask,
+            active_y_cond,
+            active_mask,
             labels,
             y_known,
             params,
+            projection_mask=active_mask,
+            mask_precision_mode=active_precision_mode,
+            mask_precision_severity=active_precision_severity,
             temporal_frame_step=temporal_frame_step,
             global_context=global_context,
             object_refs=object_refs,
             dump_dir=dump_dir,
             dump_prefix=f"{dump_prefix}_step{i}_a" if dump_prefix else None,
         )
+        v_t = model_output_t[0] if params["mask_prediction"] else model_output_t
         x_euler = x + (t_next - t) * v_t
-        v_t_next = forward_sample_restoration(
+        model_output_next = forward_sample_restoration(
             session,
             x_euler,
             t_next,
-            y_cond,
-            mask,
+            active_y_cond,
+            active_mask,
             labels,
             y_known,
             params,
+            projection_mask=active_mask,
+            mask_precision_mode=active_precision_mode,
+            mask_precision_severity=active_precision_severity,
             temporal_frame_step=temporal_frame_step,
             global_context=global_context,
             object_refs=object_refs,
             dump_dir=dump_dir,
             dump_prefix=f"{dump_prefix}_step{i}_b" if dump_prefix else None,
         )
+        if params["mask_prediction"]:
+            v_t_next, mask_logits = model_output_next
+        else:
+            v_t_next = model_output_next
         x = x + (t_next - t) * 0.5 * (v_t + v_t_next)
+        if params["mask_prediction"] and use_predicted_mask_during_denoising:
+            active_mask = final_projection_mask(
+                mask_logits,
+                mask,
+                mandatory_mask,
+                params["mask_prediction_threshold"],
+                params["mask_prediction_dilation"],
+            )
+            if y_cond is not None:
+                active_y_cond = y_cond * active_mask.astype(y_cond.dtype, copy=False)
+            if mask_precision_mode is not None:
+                active_precision_mode = np.zeros_like(mask_precision_mode)
+            if mask_precision_severity is not None:
+                active_precision_severity = np.zeros_like(mask_precision_severity)
         if params["clip_denoised"]:
             x = np.clip(x, -1.0, 1.0)
         if mask is not None:
-            x = x * mask + y * (1.0 - mask)
+            x = project_known_pixels(x, y_known, active_mask)
 
-    x = x + (float(timesteps[-1]) - float(timesteps[-2])) * forward_sample_restoration(
+    final_output = forward_sample_restoration(
         session,
         x,
         float(timesteps[-2]),
-        y_cond,
-        mask,
+        active_y_cond,
+        active_mask,
         labels,
         y_known,
         params,
+        projection_mask=active_mask,
+        mask_precision_mode=active_precision_mode,
+        mask_precision_severity=active_precision_severity,
         temporal_frame_step=temporal_frame_step,
         global_context=global_context,
         object_refs=object_refs,
         dump_dir=dump_dir,
         dump_prefix=f"{dump_prefix}_final" if dump_prefix else None,
     )
+    if params["mask_prediction"]:
+        final_velocity, mask_logits = final_output
+    else:
+        final_velocity = final_output
+    generated_pixels = (
+        x + (float(timesteps[-1]) - float(timesteps[-2])) * final_velocity
+    )
     if params["clip_denoised"]:
-        x = np.clip(x, -1.0, 1.0)
-    if mask is not None:
-        x = x * mask + y * (1.0 - mask)
-    return np.clip(x, -1.0, 1.0)
+        generated_pixels = np.clip(generated_pixels, -1.0, 1.0)
+    generated_pixels = np.clip(generated_pixels, -1.0, 1.0)
+
+    if params["mask_prediction"]:
+        generated_mask = final_projection_mask(
+            mask_logits,
+            mask,
+            mandatory_mask,
+            params["mask_prediction_threshold"],
+            params["mask_prediction_dilation"],
+        )
+    else:
+        generated_mask = mask
+    generated_applied = project_known_pixels(generated_pixels, y_known, generated_mask)
+    coarse_applied = project_known_pixels(generated_pixels, y_known, mask)
+    generated_applied = np.clip(generated_applied, -1.0, 1.0)
+    coarse_applied = np.clip(coarse_applied, -1.0, 1.0)
+
+    if dump_dir and dump_prefix:
+        np.save(
+            os.path.join(dump_dir, f"{dump_prefix}_generated_pixels.npy"),
+            generated_pixels,
+        )
+        np.save(
+            os.path.join(dump_dir, f"{dump_prefix}_generated_mask.npy"),
+            generated_mask,
+        )
+
+    result = RestorationResult(
+        generated_pixels=generated_pixels,
+        generated_mask=generated_mask,
+        generated_applied=generated_applied,
+        coarse_applied=coarse_applied,
+    )
+    if return_details:
+        return result
+    return generated_applied if apply_predicted_mask else coarse_applied
 
 
-def write_frame(frame_index, out_tensor, frame_data, output_dir):
+def write_frame(
+    frame_index,
+    out_tensor,
+    frame_data,
+    output_dir,
+    generated_pixels=None,
+    generated_mask=None,
+    generated_applied=None,
+):
     os.makedirs(output_dir, exist_ok=True)
     out_img_for_paste = chw_to_bgr_uint8(out_tensor)
+    raw_img_for_paste = (
+        chw_to_bgr_uint8(generated_pixels) if generated_pixels is not None else None
+    )
+    applied_img_for_paste = (
+        chw_to_bgr_uint8(generated_applied) if generated_applied is not None else None
+    )
+    generated_mask_for_paste = (
+        (mask_to_uint8(generated_mask) > 0).astype(np.uint8)
+        if generated_mask is not None
+        else None
+    )
     img_orig = frame_data["img_orig"].copy()
     bbox_select = frame_data["bbox_select"]
     has_bbox = frame_data["has_bbox"]
@@ -1030,10 +1363,44 @@ def write_frame(frame_index, out_tensor, frame_data, output_dir):
         else:
             out_img_real_size[y0:y1, x0:x1] = out_img_resized
         orig_crop = img_orig[y0:y1, x0:x1].copy()
+
+        raw_img_real_size = None
+        generated_mask_real_size = None
+        generated_applied_real_size = None
+        if raw_img_for_paste is not None and generated_mask_for_paste is not None:
+            if mapping is not None:
+                raw_crop = raw_img_for_paste[sy0:sy1, sx0:sx1]
+                predicted_mask_crop = generated_mask_for_paste[sy0:sy1, sx0:sx1]
+            else:
+                raw_crop = raw_img_for_paste
+                predicted_mask_crop = generated_mask_for_paste
+            raw_resized = cv2.resize(raw_crop, (x1 - x0, y1 - y0))
+            predicted_mask_resized = cv2.resize(
+                predicted_mask_crop,
+                (x1 - x0, y1 - y0),
+                interpolation=cv2.INTER_NEAREST,
+            )
+            raw_img_real_size = img_orig.copy()
+            raw_img_real_size[y0:y1, x0:x1] = raw_resized
+            generated_mask_real_size = np.zeros(img_orig.shape[:2], dtype=np.uint8)
+            generated_mask_real_size[y0:y1, x0:x1] = predicted_mask_resized * 255
+            generated_applied_real_size = img_orig.copy()
+            generated_applied_real_size[y0:y1, x0:x1] = np.where(
+                predicted_mask_resized.astype(bool)[:, :, None],
+                raw_resized,
+                img_orig[y0:y1, x0:x1],
+            )
     else:
         out_img_resized = out_img_for_paste
         out_img_real_size = img_orig.copy()
         orig_crop = img_orig.copy()
+        raw_img_real_size = raw_img_for_paste
+        generated_mask_real_size = (
+            generated_mask_for_paste * 255
+            if generated_mask_for_paste is not None
+            else None
+        )
+        generated_applied_real_size = applied_img_for_paste
 
     name_out = f"{frame_index:06d}"
     cv2.imwrite(os.path.join(output_dir, name_out + "_orig.png"), img_orig)
@@ -1056,6 +1423,31 @@ def write_frame(frame_index, out_tensor, frame_data, output_dir):
         os.path.join(output_dir, name_out + "_mask.png"),
         mask_to_uint8(frame_data["mask"]),
     )
+    if raw_img_for_paste is not None and generated_mask_for_paste is not None:
+        cv2.imwrite(
+            os.path.join(output_dir, name_out + "_generated_pixels_crop.png"),
+            raw_img_for_paste,
+        )
+        cv2.imwrite(
+            os.path.join(output_dir, name_out + "_generated_mask_crop.png"),
+            generated_mask_for_paste * 255,
+        )
+        cv2.imwrite(
+            os.path.join(output_dir, name_out + "_generated_applied_crop.png"),
+            applied_img_for_paste,
+        )
+        cv2.imwrite(
+            os.path.join(output_dir, name_out + "_generated_pixels.png"),
+            raw_img_real_size,
+        )
+        cv2.imwrite(
+            os.path.join(output_dir, name_out + "_generated_mask.png"),
+            generated_mask_real_size,
+        )
+        cv2.imwrite(
+            os.path.join(output_dir, name_out + "_generated_applied.png"),
+            generated_applied_real_size,
+        )
     with open(os.path.join(output_dir, name_out + "_bbox_select.json"), "w") as f:
         json.dump([int(v) for v in paste_bbox], f)
     with open(os.path.join(output_dir, name_out + "_orig_bbox.json"), "w") as f:
@@ -1076,10 +1468,27 @@ def run_sequence(
     autoregressive_reinject_patch,
     object_refs=None,
     temporal_frame_step=None,
+    mask_precision_mode=None,
+    mask_precision_severity=None,
+    apply_predicted_mask=False,
+    use_predicted_mask_during_denoising=False,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = get_train_shape(train_json)
     params = get_b2b_params(train_json, require_square_crop_size(output_h, output_w))
+    precision_mode_id, precision_severity_value = resolve_mask_precision(
+        train_json, mask_precision_mode, mask_precision_severity
+    )
+    precision_mode_input = (
+        None
+        if precision_mode_id is None
+        else np.asarray([precision_mode_id], dtype=np.int64)
+    )
+    precision_severity_input = (
+        None
+        if precision_severity_value is None
+        else np.asarray([precision_severity_value], dtype=np.float32)
+    )
     temporal_frame_step = resolve_temporal_frame_step(train_json, temporal_frame_step)
     inputmix = True
     prev_frame = None
@@ -1087,6 +1496,7 @@ def run_sequence(
     last_seq_half_cond_image = None
     last_seq_half_y0_tensor = None
     last_seq_half_mask = None
+    last_seq_half_mandatory_mask = None
     last_seq_half_global_context = None
     frames_written = []
     seq_half = 1
@@ -1102,6 +1512,8 @@ def run_sequence(
             bbox_index=bbox_index,
             train_json=train_json,
             device=torch.device("cpu"),
+            mask_precision_mode=precision_mode_id,
+            mask_precision_severity=precision_severity_value,
         )
         frame_data["index"] = sequence_count
         frame_data["img_rel"] = img_rel
@@ -1127,6 +1539,9 @@ def run_sequence(
                 [prev_frame["y0_tensor"], frame_data["y0_tensor"]]
             )
             mask_batch = prepare_tensors([prev_frame["mask"], frame_data["mask"]])
+            mandatory_mask_batch = prepare_tensors(
+                [prev_frame["mandatory_mask"], frame_data["mandatory_mask"]]
+            )
             global_context_batch = prepare_tensors(
                 [prev_frame.get("global_context"), frame_data.get("global_context")]
             )
@@ -1148,6 +1563,9 @@ def run_sequence(
                 last_seq_half_y0_tensor + [frame_data["y0_tensor"]]
             )
             mask_batch = prepare_tensors(last_seq_half_mask + [frame_data["mask"]])
+            mandatory_mask_batch = prepare_tensors(
+                last_seq_half_mandatory_mask + [frame_data["mandatory_mask"]]
+            )
             global_context_batch = prepare_tensors(
                 last_seq_half_global_context + [frame_data.get("global_context")]
                 if last_seq_half_global_context is not None
@@ -1162,7 +1580,7 @@ def run_sequence(
             dtype=np.int64,
         )
         init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
-        out_tensor = restoration_with_denoiser(
+        restoration_result = restoration_with_denoiser(
             session=session,
             y=y_t_batch.numpy().astype(np.float32),
             y_cond=(
@@ -1175,6 +1593,10 @@ def run_sequence(
             labels=labels,
             params=params,
             init_noise=init_noise,
+            source_image=y0_tensor_batch.numpy().astype(np.float32),
+            mandatory_mask=mandatory_mask_batch.numpy().astype(np.float32),
+            mask_precision_mode=precision_mode_input,
+            mask_precision_severity=precision_severity_input,
             temporal_frame_step=temporal_frame_step,
             global_context=(
                 None
@@ -1186,43 +1608,110 @@ def run_sequence(
             ),
             dump_dir=debug_dump_dir,
             dump_prefix=f"frame_{sequence_count:06d}",
+            return_details=True,
+            apply_predicted_mask=apply_predicted_mask,
+            use_predicted_mask_during_denoising=(use_predicted_mask_during_denoising),
         )
 
-        out_tensor_torch = torch.from_numpy(out_tensor).squeeze(0)
+        selected_applied = (
+            restoration_result.generated_applied
+            if apply_predicted_mask
+            else restoration_result.coarse_applied
+        )
+        out_tensor_torch = torch.from_numpy(selected_applied).squeeze(0)
+        generated_pixels_torch = torch.from_numpy(
+            restoration_result.generated_pixels
+        ).squeeze(0)
+        generated_mask_torch = torch.from_numpy(
+            restoration_result.generated_mask
+        ).squeeze(0)
+        generated_applied_torch = torch.from_numpy(
+            restoration_result.generated_applied
+        ).squeeze(0)
         out_img_tensor_list_batch = [
+            out_tensor_torch[i : i + 1] for i in range(out_tensor_torch.shape[0])
+        ]
+        generated_pixels_list = [
+            generated_pixels_torch[i : i + 1]
+            for i in range(generated_pixels_torch.shape[0])
+        ]
+        generated_mask_list = [
+            generated_mask_torch[i : i + 1]
+            for i in range(generated_mask_torch.shape[0])
+        ]
+        generated_applied_list = [
+            generated_applied_torch[i : i + 1]
+            for i in range(generated_applied_torch.shape[0])
+        ]
+        selected_applied_list = [
             out_tensor_torch[i : i + 1] for i in range(out_tensor_torch.shape[0])
         ]
 
         y_t_temp_list = separate_tensors(y_t_batch)
         y0_tensor_temp_list = separate_tensors(y0_tensor_batch)
         mask_temp_list = separate_tensors(mask_batch)
+        mandatory_mask_temp_list = separate_tensors(mandatory_mask_batch)
         global_context_temp_list = separate_tensors(global_context_batch)
+        cond_image_temp_list = separate_tensors(cond_image_batch)
         if autoregressive_reinject_patch:
-            last_seq_half_y_t = out_img_tensor_list_batch[-seq_half:]
-            last_seq_half_y0_tensor = out_img_tensor_list_batch[-seq_half:]
+            last_seq_half_y_t = selected_applied_list[-seq_half:]
+            last_seq_half_y0_tensor = selected_applied_list[-seq_half:]
             last_seq_half_mask = [
                 torch.zeros_like(mask_tensor)
                 for mask_tensor in mask_temp_list[-seq_half:]
+            ]
+            last_seq_half_mandatory_mask = [
+                torch.zeros_like(mask_tensor)
+                for mask_tensor in mandatory_mask_temp_list[-seq_half:]
             ]
         else:
             last_seq_half_y_t = y_t_temp_list[-seq_half:]
             last_seq_half_y0_tensor = y0_tensor_temp_list[-seq_half:]
             last_seq_half_mask = mask_temp_list[-seq_half:]
+            last_seq_half_mandatory_mask = mandatory_mask_temp_list[-seq_half:]
         last_seq_half_global_context = (
             global_context_temp_list[-seq_half:]
             if global_context_temp_list is not None
             else None
         )
         if params["mask_as_channel"]:
-            last_seq_half_cond_image = last_seq_half_mask
+            last_seq_half_cond_image = (
+                last_seq_half_mask
+                if autoregressive_reinject_patch
+                else cond_image_temp_list[-seq_half:]
+            )
         else:
-            last_seq_half_cond_image = out_img_tensor_list_batch[-seq_half:]
+            last_seq_half_cond_image = selected_applied_list[-seq_half:]
 
         write_frame(
-            prev_frame["index"], out_img_tensor_list_batch[0], prev_frame, output_dir
+            prev_frame["index"],
+            out_img_tensor_list_batch[0],
+            prev_frame,
+            output_dir,
+            generated_pixels=(
+                generated_pixels_list[0] if params["mask_prediction"] else None
+            ),
+            generated_mask=(
+                generated_mask_list[0] if params["mask_prediction"] else None
+            ),
+            generated_applied=(
+                generated_applied_list[0] if params["mask_prediction"] else None
+            ),
         )
         write_frame(
-            frame_data["index"], out_img_tensor_list_batch[-1], frame_data, output_dir
+            frame_data["index"],
+            out_img_tensor_list_batch[-1],
+            frame_data,
+            output_dir,
+            generated_pixels=(
+                generated_pixels_list[-1] if params["mask_prediction"] else None
+            ),
+            generated_mask=(
+                generated_mask_list[-1] if params["mask_prediction"] else None
+            ),
+            generated_applied=(
+                generated_applied_list[-1] if params["mask_prediction"] else None
+            ),
         )
         frames_written.extend([prev_frame["index"], frame_data["index"]])
         prev_frame = frame_data
@@ -1256,6 +1745,18 @@ def parse_args():
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
     parser.add_argument(
+        "--mask_precision_mode",
+        "--mask-precision-mode",
+        choices=sorted(MASK_PRECISION_NAMES),
+        help="SmartBrush coarse-mask precision mode. Defaults to bbox.",
+    )
+    parser.add_argument(
+        "--mask_precision_severity",
+        "--mask-precision-severity",
+        type=float,
+        help="SmartBrush coarse-mask severity in [0,1]. Defaults to 1.0.",
+    )
+    parser.add_argument(
         "--temporal_frame_step",
         type=float,
         help=(
@@ -1284,12 +1785,28 @@ def parse_args():
         help="Optional directory to dump per-step denoiser ONNX inputs",
     )
     parser.add_argument(
+        "--alg_b2b_object_ref_paths",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Override static object reference image paths.",
+    )
+    parser.add_argument(
         "--autoregressive_reinject_patch",
         "--autoregressive-reinject-patch",
         action="store_true",
         help=(
             "Feed the previously generated crop back as known context in the next "
             "sliding window by replacing its y_t/y_0 tensors and zeroing its mask."
+        ),
+    )
+    parser.add_argument(
+        "--apply_predicted_mask",
+        "--alg_b2b_apply_predicted_mask",
+        action="store_true",
+        help=(
+            "Use the predicted mask for final compositing. By default the coarse "
+            "input mask is used."
         ),
     )
     return parser.parse_args()
@@ -1311,11 +1828,15 @@ def main():
         mask_size_conditioning=bool(
             train_json.get("alg", {}).get("b2b_mask_size_conditioning", False)
         ),
+        mask_prediction=mask_prediction_enabled(train_json),
         temporal_frame_step_conditioning=temporal_frame_step_conditioning_enabled(
             train_json
         ),
         global_context_conditioning=b2b_global_context_enabled_from_train_json(
             train_json
+        ),
+        object_ref_conditioning=bool(
+            train_json.get("alg", {}).get("b2b_object_ref_paths", [])
         ),
     )
     onnx_batch, onnx_frames, onnx_channels, onnx_height, onnx_width = get_onnx_shape(
@@ -1357,6 +1878,9 @@ def main():
         pairs = pairs[args.start_index :]
 
     denoise_steps = resolve_denoise_steps(train_json, args.denoise_steps)
+    object_refs = load_object_refs_for_inference(
+        train_json, args.alg_b2b_object_ref_paths
+    )
     frames_written = run_sequence(
         session=session,
         pairs=pairs,
@@ -1370,6 +1894,10 @@ def main():
         debug_dump_dir=args.debug_dump_dir,
         autoregressive_reinject_patch=args.autoregressive_reinject_patch,
         temporal_frame_step=args.temporal_frame_step,
+        object_refs=object_refs,
+        mask_precision_mode=args.mask_precision_mode,
+        mask_precision_severity=args.mask_precision_severity,
+        apply_predicted_mask=args.apply_predicted_mask,
     )
 
     print(f"dataset_root : {dataset_root}")
@@ -1380,7 +1908,13 @@ def main():
         "temporal_frame_step: "
         f"{resolve_temporal_frame_step(train_json, args.temporal_frame_step)}"
     )
+    precision_mode, precision_severity = resolve_mask_precision(
+        train_json, args.mask_precision_mode, args.mask_precision_severity
+    )
+    print(f"mask_precision: {(precision_mode, precision_severity)}")
+    print(f"object_refs  : {0 if object_refs is None else int(object_refs.shape[0])}")
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
+    print(f"apply_predicted_mask: {args.apply_predicted_mask}")
     print(f"written      : {len(frames_written)} frames")
     print(f"saved        : {args.output_dir}")
 

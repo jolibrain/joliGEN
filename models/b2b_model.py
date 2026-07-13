@@ -34,6 +34,19 @@ from util.b2b_context import (
 class B2BModel(BaseDiffusionModel):
 
     @staticmethod
+    def _b2b_generation_visual_names(denoise_timesteps, mask_prediction):
+        names = ["gt_image_", "y_t_"]
+        if mask_prediction:
+            names.extend(["augmented_mask_", "target_mask_"])
+        else:
+            names.append("mask_")
+        for steps in denoise_timesteps:
+            names.append(f"output_{steps}_steps_")
+            if mask_prediction:
+                names.append(f"predicted_mask_{steps}_steps_")
+        return names
+
+    @staticmethod
     def modify_commandline_options(parser, is_train=True):
         # Base diffusion options
         parser = BaseDiffusionModel.modify_commandline_options(
@@ -72,6 +85,39 @@ class B2BModel(BaseDiffusionModel):
                 "Condition JiT/JiTViD B2B denoisers on normalized mask bbox "
                 "geometry (center, size, area, aspect)."
             ),
+        )
+        parser.add_argument(
+            "--alg_b2b_mask_prediction",
+            action="store_true",
+            help=("Jointly predict the target instance mask during B2B inpainting."),
+        )
+        parser.add_argument(
+            "--alg_b2b_apply_predicted_mask",
+            action="store_true",
+            help=(
+                "At inference only, composite generated pixels with the predicted "
+                "mask instead of the coarse input mask. Disabled by default."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_use_predicted_mask_during_denoising",
+            action="store_true",
+            help=(
+                "At inference only, feed each completed denoising interval's "
+                "predicted mask into the following interval. Disabled by default."
+            ),
+        )
+        parser.add_argument(
+            "--alg_b2b_mask_prediction_threshold",
+            type=float,
+            default=0.5,
+            help="Probability threshold for the final predicted inpainting mask.",
+        )
+        parser.add_argument(
+            "--alg_b2b_mask_prediction_dilation",
+            type=int,
+            default=3,
+            help="Predicted-mask dilation radius in model pixels.",
         )
         parser.add_argument(
             "--alg_b2b_temporal_frame_step_conditioning",
@@ -274,6 +320,24 @@ class B2BModel(BaseDiffusionModel):
             ),
         )
         parser.add_argument(
+            "--alg_b2b_lambda_mask",
+            type=float,
+            default=0.01,
+            help="Weight of the joint instance-mask prediction loss.",
+        )
+        parser.add_argument(
+            "--alg_b2b_mask_bce_weight",
+            type=float,
+            default=1.0,
+            help="BCE contribution to the B2B mask prediction loss.",
+        )
+        parser.add_argument(
+            "--alg_b2b_mask_dice_weight",
+            type=float,
+            default=1.0,
+            help="Dice contribution to the B2B mask prediction loss.",
+        )
+        parser.add_argument(
             "--alg_b2b_ref_degrade_prob",
             type=float,
             default=0.0,
@@ -376,6 +440,66 @@ class B2BModel(BaseDiffusionModel):
             raise ValueError(
                 "--alg_b2b_mask_size_conditioning is only supported with vit/vit_vid B2B"
             )
+        if getattr(opt, "alg_b2b_mask_prediction", False):
+            if getattr(opt, "G_netG", "") not in ["vit", "vit_vid"]:
+                raise ValueError(
+                    "--alg_b2b_mask_prediction is only supported with vit/vit_vid B2B"
+                )
+            if getattr(opt, "alg_diffusion_task", "") != "inpainting":
+                raise ValueError(
+                    "--alg_b2b_mask_prediction requires --alg_diffusion_task inpainting"
+                )
+            if not getattr(opt, "alg_b2b_mask_as_channel", False):
+                raise ValueError(
+                    "--alg_b2b_mask_prediction requires --alg_b2b_mask_as_channel"
+                )
+            threshold = float(getattr(opt, "alg_b2b_mask_prediction_threshold", 0.5))
+            if not 0.0 < threshold < 1.0:
+                raise ValueError(
+                    "--alg_b2b_mask_prediction_threshold must be in (0, 1)"
+                )
+            if int(getattr(opt, "alg_b2b_mask_prediction_dilation", 3)) < 0:
+                raise ValueError("--alg_b2b_mask_prediction_dilation must be >= 0")
+            probs = list(
+                getattr(
+                    opt, "data_online_creation_mask_precision_probs", [0.2, 0.3, 0.5]
+                )
+            )
+            if len(probs) != 3 or any(prob < 0 for prob in probs) or sum(probs) <= 0:
+                raise ValueError(
+                    "--data_online_creation_mask_precision_probs requires three "
+                    "non-negative values with a positive sum"
+                )
+            if (
+                float(getattr(opt, "data_online_creation_mask_dilate_ratio_max", 0.25))
+                < 0
+            ):
+                raise ValueError(
+                    "--data_online_creation_mask_dilate_ratio_max must be >= 0"
+                )
+            if (
+                float(
+                    getattr(
+                        opt,
+                        "data_online_creation_mask_bbox_margin_ratio_max",
+                        0.5,
+                    )
+                )
+                < 0
+            ):
+                raise ValueError(
+                    "--data_online_creation_mask_bbox_margin_ratio_max must be >= 0"
+                )
+            if getattr(opt, "data_inverted_mask", False):
+                raise ValueError(
+                    "--alg_b2b_mask_prediction does not support --data_inverted_mask"
+                )
+        elif getattr(opt, "alg_b2b_apply_predicted_mask", False) or getattr(
+            opt, "alg_b2b_use_predicted_mask_during_denoising", False
+        ):
+            raise ValueError(
+                "predicted-mask inference options require --alg_b2b_mask_prediction"
+            )
         forced_class_token = int(getattr(opt, "alg_b2b_force_class_token", -1))
         if forced_class_token < -1:
             raise ValueError("--alg_b2b_force_class_token must be -1 or >= 0")
@@ -446,6 +570,13 @@ class B2BModel(BaseDiffusionModel):
 
         if getattr(opt, "alg_b2b_lambda_ref_copy", 0.0) < 0:
             raise ValueError("--alg_b2b_lambda_ref_copy must be >= 0")
+        for name in (
+            "alg_b2b_lambda_mask",
+            "alg_b2b_mask_bce_weight",
+            "alg_b2b_mask_dice_weight",
+        ):
+            if getattr(opt, name, 0.0) < 0:
+                raise ValueError(f"--{name} must be >= 0")
         ref_degrade_prob = getattr(opt, "alg_b2b_ref_degrade_prob", 0.0)
         if not (0.0 <= ref_degrade_prob <= 1.0):
             raise ValueError("--alg_b2b_ref_degrade_prob must be in [0, 1]")
@@ -500,11 +631,10 @@ class B2BModel(BaseDiffusionModel):
             for i in range(self.nb_classes_inference):
                 self.gen_visual_names.append("output_" + str(i + 1) + "_")
         elif self.opt.model_type == "b2b":
-            base_names = ["gt_image_", "y_t_", "mask_"]
-            step_outputs = [
-                f"output_{ts}_steps_" for ts in self.opt.alg_b2b_denoise_timesteps
-            ]
-            self.gen_visual_names = base_names + step_outputs
+            self.gen_visual_names = self._b2b_generation_visual_names(
+                self.opt.alg_b2b_denoise_timesteps,
+                self.opt.alg_b2b_mask_prediction,
+            )
 
         else:
             self.gen_visual_names.append("output_")
@@ -565,6 +695,8 @@ class B2BModel(BaseDiffusionModel):
 
         # Define loss functions
         losses_G = ["G_tot"]
+        if self.opt.alg_b2b_mask_prediction:
+            losses_G.extend(["G_mask", "G_mask_bce", "G_mask_dice"])
 
         if "multiscale" in self.opt.alg_b2b_loss:
             img_size = self.opt.data_crop_size
@@ -668,7 +800,15 @@ class B2BModel(BaseDiffusionModel):
             param.requires_grad = False
         trainable = []
         for name, param in net.named_parameters():
-            if "lora_" in name:
+            is_mask_module = any(
+                module_name in name
+                for module_name in (
+                    "mask_final_layer",
+                    "mask_precision_mode_embedder",
+                    "mask_precision_severity_embedder",
+                )
+            )
+            if "lora_" in name or (self.opt.alg_b2b_mask_prediction and is_mask_module):
                 param.requires_grad = True
                 trainable.append(name)
         if not trainable:
@@ -803,7 +943,15 @@ class B2BModel(BaseDiffusionModel):
 
     def load_networks(self, epoch, load_dir=None):
         if not self._should_apply_b2b_lora():
-            super().load_networks(epoch, load_dir=load_dir)
+            strict_option = self.opt.model_load_no_strictness
+            if self.opt.alg_b2b_mask_prediction:
+                # Existing B2B checkpoints do not contain the new precision
+                # embeddings or mask head. They retain their zero initialization.
+                self.opt.model_load_no_strictness = False
+            try:
+                super().load_networks(epoch, load_dir=load_dir)
+            finally:
+                self.opt.model_load_no_strictness = strict_option
             return
 
         if load_dir is None:
@@ -830,6 +978,45 @@ class B2BModel(BaseDiffusionModel):
                 continue
 
             self._load_raw_b2b_checkpoint_into_lora(net, state_dict, name)
+
+    def _adjust_positional_embeddings(self, loaded_state, model_state, net_name):
+        super()._adjust_positional_embeddings(loaded_state, model_state, net_name)
+        states = [loaded_state]
+        if isinstance(loaded_state, dict) and isinstance(
+            loaded_state.get("_ema"), dict
+        ):
+            super()._adjust_positional_embeddings(
+                loaded_state["_ema"], model_state, net_name
+            )
+            states.append(loaded_state["_ema"])
+        if not getattr(self.opt, "alg_b2b_mask_prediction", False):
+            return
+        for state in states:
+            for key in list(state.keys()):
+                if (
+                    not key.endswith("x_embedder.proj1.weight")
+                    or key not in model_state
+                ):
+                    continue
+                source = state[key]
+                target = model_state[key]
+                if source.ndim != 4 or target.ndim != 4:
+                    continue
+                same_convolution = (
+                    source.shape[0] == target.shape[0]
+                    and source.shape[2:] == target.shape[2:]
+                )
+                if not same_convolution or source.shape[1] + 1 != target.shape[1]:
+                    continue
+                expanded = torch.zeros_like(target)
+                expanded[:, -source.shape[1] :] = source.to(
+                    device=expanded.device, dtype=expanded.dtype
+                )
+                state[key] = expanded
+                print(
+                    f"Expanded {key} from {source.shape[1]} to {target.shape[1]} "
+                    f"input channels for {net_name}"
+                )
 
     def _b2b_global_context_from_data(self, data):
         if not b2b_global_context_enabled(b2b_global_context_mode_from_opt(self.opt)):
@@ -891,12 +1078,45 @@ class B2BModel(BaseDiffusionModel):
             self.gt_image = data["B"].to(self.device)[:, 1]
             self.previous_frame_mask = data["B_label_mask"].to(self.device)[:, 0]
             self.mask = data["B_label_mask"].to(self.device)[:, 1]
+            if self.opt.alg_b2b_mask_prediction:
+                self.source_image = data["B_source"].to(self.device)[:, 1]
+                self.instance_mask = data["B_instance_mask"].to(self.device)[:, 1]
+                self.mandatory_mask = data["B_mandatory_mask"].to(self.device)[:, 1]
+                self.mask_precision_mode = data["B_mask_precision_mode"].to(
+                    self.device
+                )[:, 1]
+                self.mask_precision_severity = data["B_mask_precision_severity"].to(
+                    self.device
+                )[:, 1]
         else:
             if self.task == "inpainting":
                 # inpainting only
                 self.y_t = data["A"].to(self.device)
                 self.gt_image = data["B"].to(self.device)
                 self.mask = data["B_label_mask"].to(self.device)
+                if self.opt.alg_b2b_mask_prediction:
+                    required = (
+                        "B_source",
+                        "B_instance_mask",
+                        "B_mandatory_mask",
+                        "B_mask_precision_mode",
+                        "B_mask_precision_severity",
+                    )
+                    missing = [name for name in required if name not in data]
+                    if missing:
+                        raise RuntimeError(
+                            "B2B mask prediction dataset fields are missing: "
+                            + ", ".join(missing)
+                        )
+                    self.source_image = data["B_source"].to(self.device)
+                    self.instance_mask = data["B_instance_mask"].to(self.device)
+                    self.mandatory_mask = data["B_mandatory_mask"].to(self.device)
+                    self.mask_precision_mode = data["B_mask_precision_mode"].to(
+                        self.device
+                    )
+                    self.mask_precision_severity = data["B_mask_precision_severity"].to(
+                        self.device
+                    )
             elif self.task == "pix2pix":
                 self.y_t = data["A"].to(self.device)
                 self.gt_image = data["B"].to(self.device)
@@ -930,6 +1150,9 @@ class B2BModel(BaseDiffusionModel):
                     mask_ar = torch.ones((B, T, 1, 1, 1), device=self.device)
                     mask_ar[sel, idx[use_gt]] = 0.0
                     self.mask = self.mask * mask_ar
+                    if self.opt.alg_b2b_mask_prediction:
+                        self.instance_mask = self.instance_mask * mask_ar
+                        self.mandatory_mask = self.mandatory_mask * mask_ar
 
                 # else: nobody selected -> do nothing
         self._apply_b2b_diff_augment()
@@ -942,6 +1165,10 @@ class B2BModel(BaseDiffusionModel):
                 self.cond_image = self.mask.to(dtype=self.y_t.dtype)
             else:
                 self.cond_image = None
+
+        if self.opt.alg_b2b_mask_prediction:
+            self.augmented_mask = self.mask
+            self.target_mask = self.instance_mask
 
         self.batch_size = self.y_t.shape[0]
         self.temporal_frame_step = self._b2b_temporal_frame_step_from_data(data)
@@ -1026,14 +1253,23 @@ class B2BModel(BaseDiffusionModel):
         if not self.opt.isTrain or not hasattr(self, "diff_augment"):
             return
 
+        image_tensors = [self.gt_image, self.y_t]
+        mask_tensors = [self.mask] if self.mask is not None else []
+        if self.opt.alg_b2b_mask_prediction:
+            image_tensors.append(self.source_image)
+            mask_tensors.extend([self.instance_mask, self.mandatory_mask])
         aug_images, aug_masks = self.diff_augment.apply_synchronized(
-            image_tensors=[self.gt_image, self.y_t],
-            mask_tensors=[self.mask] if self.mask is not None else [],
+            image_tensors=image_tensors,
+            mask_tensors=mask_tensors,
         )
         self.gt_image = aug_images[0]
         self.y_t = aug_images[1]
         if self.mask is not None:
             self.mask = aug_masks[0]
+        if self.opt.alg_b2b_mask_prediction:
+            self.source_image = aug_images[2]
+            self.instance_mask = (aug_masks[1] > 0.5).to(self.mask.dtype)
+            self.mandatory_mask = (aug_masks[2] > 0.5).to(self.mask.dtype)
 
     def _degrade_b2b_reference_frames(self, y_t, use_gt, ref_idx):
         prob = getattr(self.opt, "alg_b2b_ref_degrade_prob", 0.0)
@@ -1082,6 +1318,7 @@ class B2BModel(BaseDiffusionModel):
         y_0 = self.gt_image
         y_cond = self.cond_image
         mask = self.mask
+        predict_mask = bool(getattr(self.opt, "alg_b2b_mask_prediction", False))
         B = y_0.shape[0]
         use_perceptual = self.opt.alg_b2b_perceptual_loss != [""]
         ref_copy_use_gt = getattr(self, "use_gt", None)
@@ -1108,6 +1345,9 @@ class B2BModel(BaseDiffusionModel):
             net_kwargs["global_context"] = getattr(self, "global_context", None)
         if getattr(self, "object_refs", None) is not None:
             net_kwargs["object_refs"] = self.object_refs
+        if predict_mask:
+            net_kwargs["mask_precision_mode"] = self.mask_precision_mode
+            net_kwargs["mask_precision_severity"] = self.mask_precision_severity
 
         net_out = self.netG_A(
             y_0,
@@ -1121,12 +1361,22 @@ class B2BModel(BaseDiffusionModel):
             **net_kwargs,
         )
         raw_x_pred = None
+        mask_logits = None
         if use_ref_copy:
-            v_pred, v, x_pred, raw_x_pred = net_out
+            if predict_mask:
+                v_pred, v, x_pred, raw_x_pred, mask_logits = net_out
+            else:
+                v_pred, v, x_pred, raw_x_pred = net_out
         elif use_perceptual:
-            v_pred, v, x_pred = net_out
+            if predict_mask:
+                v_pred, v, x_pred, mask_logits = net_out
+            else:
+                v_pred, v, x_pred = net_out
         else:
-            v_pred, v = net_out
+            if predict_mask:
+                v_pred, v, mask_logits = net_out
+            else:
+                v_pred, v = net_out
             x_pred = None
 
         if not self.opt.alg_b2b_minsnr:
@@ -1166,6 +1416,25 @@ class B2BModel(BaseDiffusionModel):
             loss = loss_tot
 
         self.loss_G_tot = self.opt.alg_diffusion_lambda_G * loss
+
+        if predict_mask:
+            target_mask = self.instance_mask.to(dtype=mask_logits.dtype).clamp(0, 1)
+            self.loss_G_mask_bce = F.binary_cross_entropy_with_logits(
+                mask_logits, target_mask
+            )
+            probability = torch.sigmoid(mask_logits)
+            reduce_dims = tuple(range(1, probability.ndim))
+            intersection = (probability * target_mask).sum(dim=reduce_dims)
+            denominator = (probability + target_mask).sum(dim=reduce_dims)
+            self.loss_G_mask_dice = (
+                1.0 - ((2.0 * intersection + 1.0) / (denominator + 1.0))
+            ).mean()
+            mask_loss = (
+                self.opt.alg_b2b_mask_bce_weight * self.loss_G_mask_bce
+                + self.opt.alg_b2b_mask_dice_weight * self.loss_G_mask_dice
+            )
+            self.loss_G_mask = self.opt.alg_b2b_lambda_mask * mask_loss
+            self.loss_G_tot += self.loss_G_mask
 
         self.loss_G_perceptual_lpips = torch.zeros(size=(), device=y_0.device)
         self.loss_G_perceptual_dists = torch.zeros(size=(), device=y_0.device)
@@ -1289,6 +1558,18 @@ class B2BModel(BaseDiffusionModel):
         if temporal_frame_step is not None:
             temporal_frame_step = temporal_frame_step[:nb_imgs]
         object_refs = getattr(self, "object_refs", None)
+        source_image = getattr(self, "source_image", None)
+        if source_image is not None:
+            source_image = source_image[:nb_imgs]
+        mandatory_mask = getattr(self, "mandatory_mask", None)
+        if mandatory_mask is not None:
+            mandatory_mask = mandatory_mask[:nb_imgs]
+        mask_precision_mode = getattr(self, "mask_precision_mode", None)
+        if mask_precision_mode is not None:
+            mask_precision_mode = mask_precision_mode[:nb_imgs]
+        mask_precision_severity = getattr(self, "mask_precision_severity", None)
+        if mask_precision_severity is not None:
+            mask_precision_severity = mask_precision_severity[:nb_imgs]
         if self.task == "pix2pix":  #
             out_shape = list(y_cond.shape)
             out_shape[1] = netG.b2b_model.out_channel
@@ -1317,11 +1598,17 @@ class B2BModel(BaseDiffusionModel):
                         temporal_frame_step=temporal_frame_step,
                         global_context=global_context,
                         object_refs=object_refs,
+                        source_image=source_image,
+                        mandatory_mask=mandatory_mask,
+                        mask_precision_mode=mask_precision_mode,
+                        mask_precision_severity=mask_precision_severity,
                     )
                     name = "output_" + str(i + 1)
                     setattr(self, name, self.output)
             else:
                 self.outputs_per_step = {}
+                self.predicted_masks_per_step = {}
+                self.projection_masks_per_step = {}
                 self.fake_B_dilated_per_step = {}
                 self.gt_image_dilated_per_step = {}
                 use_gt = getattr(self, "use_gt", None)
@@ -1346,14 +1633,49 @@ class B2BModel(BaseDiffusionModel):
                         temporal_frame_step=temporal_frame_step,
                         global_context=global_context,
                         object_refs=object_refs,
+                        source_image=source_image,
+                        mandatory_mask=mandatory_mask,
+                        mask_precision_mode=mask_precision_mode,
+                        mask_precision_severity=mask_precision_severity,
                     )
                     self.outputs_per_step[steps] = self.output
+                    if self.opt.alg_b2b_mask_prediction:
+                        if netG.last_predicted_mask is None:
+                            raise RuntimeError(
+                                "B2B sampler did not return a predicted mask"
+                            )
+                        predicted_mask = netG.last_predicted_mask.clone()
+                        self.predicted_masks_per_step[steps] = predicted_mask
+                        setattr(
+                            self,
+                            f"predicted_mask_{steps}_steps",
+                            predicted_mask,
+                        )
+                        projection_mask = netG.last_projection_mask
+                        if projection_mask is None:
+                            raise RuntimeError(
+                                "B2B sampler did not return its final projection mask"
+                            )
+                        projection_mask = projection_mask.clone()
+                        self.projection_masks_per_step[steps] = projection_mask
+                        setattr(
+                            self,
+                            f"projection_mask_{steps}_steps",
+                            projection_mask,
+                        )
                     name = "output_" + str(steps) + "_steps"
                     setattr(self, name, self.output)
 
         num_steps = len(self.outputs_per_step)
         if num_steps > 0:
             self.fake_B = torch.cat(list(self.outputs_per_step.values()), dim=0)
+            if self.opt.alg_b2b_mask_prediction:
+                self.predicted_mask = torch.cat(
+                    list(self.predicted_masks_per_step.values()), dim=0
+                )
+                self.projection_mask = torch.cat(
+                    list(self.projection_masks_per_step.values()), dim=0
+                )
             if num_steps > 1:
                 repeat_dims = [num_steps] + [1] * (self.gt_image.dim() - 1)
                 self.gt_image = self.gt_image.repeat(*repeat_dims)

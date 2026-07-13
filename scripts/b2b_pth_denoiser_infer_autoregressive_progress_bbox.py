@@ -7,8 +7,14 @@ import torch
 JG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../")
 sys.path.append(JG_DIR)
 
-import b2b_onnx_denoiser_infer_autoregressive_progress_bbox as onnx_runner
-from b2b_export_onnx import build_model, load_train_options, parse_device
+try:
+    from scripts import (
+        b2b_onnx_denoiser_infer_autoregressive_progress_bbox as onnx_runner,
+    )
+    from scripts.b2b_export_onnx import build_model, load_train_options, parse_device
+except ImportError:
+    import b2b_onnx_denoiser_infer_autoregressive_progress_bbox as onnx_runner
+    from b2b_export_onnx import build_model, load_train_options, parse_device
 from util.b2b_context import b2b_global_context_enabled_from_opt
 
 
@@ -41,6 +47,7 @@ class PthDenoiserSession:
         model,
         device,
         mask_size_conditioning=False,
+        mask_prediction=False,
         temporal_frame_step_conditioning=False,
         global_context_conditioning=False,
         object_ref_conditioning=False,
@@ -48,6 +55,7 @@ class PthDenoiserSession:
         self.model = model.b2b_model
         self.device = device
         self.mask_size_conditioning = mask_size_conditioning
+        self.mask_prediction = mask_prediction
         self.temporal_frame_step_conditioning = temporal_frame_step_conditioning
         self.global_context_conditioning = global_context_conditioning
         self.object_ref_conditioning = object_ref_conditioning
@@ -55,8 +63,13 @@ class PthDenoiserSession:
 
     @torch.no_grad()
     def run(self, output_names, inputs):
-        if output_names != ["output"]:
-            raise ValueError(f"Expected output_names=['output'], got {output_names}")
+        available_outputs = (
+            ["output", "mask_logits"] if self.mask_prediction else ["output"]
+        )
+        if any(name not in available_outputs for name in output_names):
+            raise ValueError(
+                f"Expected output names from {available_outputs}, got {output_names}"
+            )
 
         model_input = torch.from_numpy(inputs["model_input"]).to(
             self.device, dtype=torch.float32
@@ -72,6 +85,21 @@ class PthDenoiserSession:
                 raise ValueError("mask_size_cond input is required by this checkpoint")
             model_kwargs["mask_size_cond"] = torch.from_numpy(
                 inputs["mask_size_cond"]
+            ).to(self.device, dtype=torch.float32)
+        if self.mask_prediction:
+            if "mask_precision_mode" not in inputs:
+                raise ValueError(
+                    "mask_precision_mode input is required by this checkpoint"
+                )
+            if "mask_precision_severity" not in inputs:
+                raise ValueError(
+                    "mask_precision_severity input is required by this checkpoint"
+                )
+            model_kwargs["mask_precision_mode"] = torch.from_numpy(
+                inputs["mask_precision_mode"]
+            ).to(self.device, dtype=torch.long)
+            model_kwargs["mask_precision_severity"] = torch.from_numpy(
+                inputs["mask_precision_severity"]
             ).to(self.device, dtype=torch.float32)
         if self.temporal_frame_step_conditioning:
             if "temporal_frame_step" not in inputs:
@@ -98,7 +126,18 @@ class PthDenoiserSession:
                 dtype=torch.float32,
             )
         output = self.model(model_input, timesteps.flatten(), labels, **model_kwargs)
-        return [output.detach().cpu().numpy()]
+        if self.mask_prediction:
+            if not isinstance(output, tuple) or len(output) != 2:
+                raise RuntimeError(
+                    "SmartBrush PTH denoiser must return image and mask logits"
+                )
+            output_map = {
+                "output": output[0].detach().cpu().numpy(),
+                "mask_logits": output[1].detach().cpu().numpy(),
+            }
+        else:
+            output_map = {"output": output.detach().cpu().numpy()}
+        return [output_map[name] for name in output_names]
 
 
 def load_pth_session(model_in_file, train_config, device, use_ema):
@@ -116,6 +155,7 @@ def load_pth_session(model_in_file, train_config, device, use_ema):
             mask_size_conditioning=bool(
                 getattr(opt, "alg_b2b_mask_size_conditioning", False)
             ),
+            mask_prediction=bool(getattr(opt, "alg_b2b_mask_prediction", False)),
             temporal_frame_step_conditioning=bool(
                 getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False)
             ),
@@ -158,6 +198,18 @@ def parse_args():
     )
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
+    parser.add_argument(
+        "--mask_precision_mode",
+        "--mask-precision-mode",
+        choices=sorted(onnx_runner.MASK_PRECISION_NAMES),
+        help="SmartBrush coarse-mask precision mode. Defaults to bbox.",
+    )
+    parser.add_argument(
+        "--mask_precision_severity",
+        "--mask-precision-severity",
+        type=float,
+        help="SmartBrush coarse-mask severity in [0,1]. Defaults to 1.0.",
+    )
     parser.add_argument(
         "--temporal_frame_step",
         type=float,
@@ -208,6 +260,24 @@ def parse_args():
         help=(
             "Feed the previously generated crop back as known context in the next "
             "sliding window by replacing its y_t/y_0 tensors and zeroing its mask."
+        ),
+    )
+    parser.add_argument(
+        "--apply_predicted_mask",
+        "--alg_b2b_apply_predicted_mask",
+        action="store_true",
+        help=(
+            "Use the predicted mask for final compositing. By default the coarse "
+            "input mask is used."
+        ),
+    )
+    parser.add_argument(
+        "--use_predicted_mask_during_denoising",
+        "--alg_b2b_use_predicted_mask_during_denoising",
+        action="store_true",
+        help=(
+            "Feed the predicted mask from each completed denoising interval into "
+            "the following interval. Disabled by default."
         ),
     )
     return parser.parse_args()
@@ -261,6 +331,10 @@ def main():
         autoregressive_reinject_patch=args.autoregressive_reinject_patch,
         object_refs=object_refs,
         temporal_frame_step=args.temporal_frame_step,
+        mask_precision_mode=args.mask_precision_mode,
+        mask_precision_severity=args.mask_precision_severity,
+        apply_predicted_mask=args.apply_predicted_mask,
+        use_predicted_mask_during_denoising=(args.use_predicted_mask_during_denoising),
     )
 
     print(f"dataset_root : {dataset_root}")
@@ -276,7 +350,16 @@ def main():
     print(
         "object_refs  : " f"{0 if object_refs is None else int(object_refs.shape[0])}"
     )
+    precision_mode, precision_severity = onnx_runner.resolve_mask_precision(
+        train_json, args.mask_precision_mode, args.mask_precision_severity
+    )
+    print(f"mask_precision: {(precision_mode, precision_severity)}")
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
+    print(f"apply_predicted_mask: {args.apply_predicted_mask}")
+    print(
+        "use_predicted_mask_during_denoising: "
+        f"{args.use_predicted_mask_during_denoising}"
+    )
     print(f"written      : {len(frames_written)} frames")
     print(f"saved        : {args.output_dir}")
 

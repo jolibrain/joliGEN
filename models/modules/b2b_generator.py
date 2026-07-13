@@ -71,6 +71,38 @@ class B2BGenerator(nn.Module):
         self.object_ref_conditioning = (
             bool(getattr(opt, "alg_b2b_object_ref_paths", None)) if opt else False
         )
+        self.mask_prediction = (
+            bool(getattr(opt, "alg_b2b_mask_prediction", False)) if opt else False
+        )
+        self.mask_prediction_threshold = (
+            float(getattr(opt, "alg_b2b_mask_prediction_threshold", 0.5))
+            if opt
+            else 0.5
+        )
+        self.mask_prediction_dilation = (
+            int(getattr(opt, "alg_b2b_mask_prediction_dilation", 3)) if opt else 3
+        )
+        self.apply_predicted_mask = (
+            bool(getattr(opt, "alg_b2b_apply_predicted_mask", False))
+            and not bool(getattr(opt, "isTrain", False))
+            if opt
+            else False
+        )
+        self.use_predicted_mask_during_denoising = (
+            bool(
+                getattr(
+                    opt,
+                    "alg_b2b_use_predicted_mask_during_denoising",
+                    False,
+                )
+            )
+            and not bool(getattr(opt, "isTrain", False))
+            if opt
+            else False
+        )
+        self.last_predicted_mask = None
+        self.last_projection_mask = None
+        self.last_applied_mask = None
 
         self.denoise_timesteps = (
             getattr(opt, "alg_b2b_denoise_timesteps", 50) if opt else 50
@@ -223,6 +255,8 @@ class B2BGenerator(nn.Module):
         temporal_frame_step,
         global_context,
         object_refs,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
     ):
         kwargs = {}
         if self.mask_size_conditioning:
@@ -233,7 +267,23 @@ class B2BGenerator(nn.Module):
             kwargs["global_context"] = global_context
         if self.object_ref_conditioning:
             kwargs["object_refs"] = object_refs
+        if self.mask_prediction:
+            kwargs["mask_precision_mode"] = mask_precision_mode
+            kwargs["mask_precision_severity"] = mask_precision_severity
         return kwargs
+
+    def _split_model_output(self, output):
+        if isinstance(output, tuple):
+            if len(output) != 2:
+                raise RuntimeError(
+                    "B2B denoiser tuple output must contain image and mask"
+                )
+            return output
+        if self.mask_prediction:
+            raise RuntimeError(
+                "mask prediction is enabled but the denoiser returned no mask"
+            )
+        return output, None
 
     def b2b_forward(
         self,
@@ -246,6 +296,8 @@ class B2BGenerator(nn.Module):
         temporal_frame_step=None,
         global_context=None,
         object_refs=None,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
     ):
         labels_dropped = (
             self.drop_labels(label) if self.training and label is not None else label
@@ -297,7 +349,7 @@ class B2BGenerator(nn.Module):
 
         # 6) predict image
         mask_size_cond = self._mask_size_condition(mask, z_model)
-        x_pred = self.b2b_model(
+        model_output = self.b2b_model(
             z_model,
             t_flat,
             labels_dropped,
@@ -306,11 +358,14 @@ class B2BGenerator(nn.Module):
                 temporal_frame_step,
                 global_context,
                 object_refs,
+                mask_precision_mode,
+                mask_precision_severity,
             ),
         )
+        x_pred, mask_logits = self._split_model_output(model_output)
         x_pred = self._match_prediction_channels(x_pred, x)
 
-        return x_pred, z, v, t, x
+        return x_pred, z, v, t, x, mask_logits
 
     def forward(
         self,
@@ -323,10 +378,12 @@ class B2BGenerator(nn.Module):
         temporal_frame_step=None,
         global_context=None,
         object_refs=None,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
         return_x_pred=False,
         return_raw_x_pred=False,
     ):
-        x_pred, z, v, t, x_target = self.b2b_forward(
+        x_pred, z, v, t, x_target, mask_logits = self.b2b_forward(
             x,
             mask,
             x_cond,
@@ -336,21 +393,57 @@ class B2BGenerator(nn.Module):
             temporal_frame_step,
             global_context,
             object_refs,
+            mask_precision_mode,
+            mask_precision_severity,
         )
         raw_x_pred = x_pred
         if mask is not None:
             x_pred = x_pred * mask + (1 - mask) * x_target
         v_pred = (x_pred - z) / (1 - t).clamp_min(self.t_eps)
         if return_raw_x_pred:
-            return v_pred, v, x_pred, raw_x_pred
+            output = (v_pred, v, x_pred, raw_x_pred)
+            return output + (mask_logits,) if self.mask_prediction else output
         if return_x_pred:
-            return v_pred, v, x_pred
-        return v_pred, v
+            output = (v_pred, v, x_pred)
+            return output + (mask_logits,) if self.mask_prediction else output
+        output = (v_pred, v)
+        return output + (mask_logits,) if self.mask_prediction else output
 
     def _project_known_pixels(self, x, y_known, mask):
         if mask is None or y_known is None:
             return x
         return x * mask + y_known * (1.0 - mask)
+
+    def _dilate_mask_probability(self, probability):
+        radius = self.mask_prediction_dilation
+        if radius <= 0:
+            return probability
+        kernel = 2 * radius + 1
+        if probability.ndim == 4:
+            return Fnn.max_pool2d(probability, kernel, stride=1, padding=radius)
+        if probability.ndim == 5:
+            B, T, C, H, W = probability.shape
+            flat = probability.reshape(B * T, C, H, W)
+            flat = Fnn.max_pool2d(flat, kernel, stride=1, padding=radius)
+            return flat.reshape(B, T, C, H, W)
+        raise RuntimeError(
+            f"Expected mask probability rank 4 or 5, got {probability.ndim}"
+        )
+
+    def _final_predicted_mask(self, logits, coarse_mask):
+        probability = self._dilate_mask_probability(torch.sigmoid(logits))
+        predicted = (probability >= self.mask_prediction_threshold).to(
+            dtype=coarse_mask.dtype
+        )
+        return predicted * coarse_mask.clamp(0.0, 1.0)
+
+    def _final_projection_mask(self, predicted_mask, coarse_mask, mandatory_mask):
+        predicted = predicted_mask
+        if mandatory_mask is not None:
+            predicted = torch.maximum(
+                predicted, mandatory_mask.to(dtype=predicted.dtype).clamp(0.0, 1.0)
+            )
+        return predicted * coarse_mask.clamp(0.0, 1.0)
 
     def _restoration_model_timesteps(self, t, x, use_gt=None, ref_idx=None):
         if x.ndim != 5:
@@ -417,16 +510,43 @@ class B2BGenerator(nn.Module):
         temporal_frame_step=None,
         global_context=None,
         object_refs=None,
+        source_image=None,
+        mandatory_mask=None,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
     ):
         B = y.shape[0]
         device = y.device
-        y_known = y if mask is not None else None
+        if self.mask_prediction and mask is not None and source_image is None:
+            raise RuntimeError(
+                "B2B mask prediction requires the clean source_image for projection"
+            )
+        y_known = (
+            (source_image if source_image is not None else y)
+            if mask is not None
+            else None
+        )
 
         if mask is not None:
             mask = torch.clamp(mask, 0.0, 1.0)
-            y_background = y * (1.0 - mask)
+            y_background = y_known * (1.0 - mask)
+            if mandatory_mask is not None:
+                mandatory_mask = mandatory_mask.to(
+                    device=y.device, dtype=mask.dtype
+                ).clamp(0.0, 1.0)
+                if torch.any(mandatory_mask > mask + 1e-6):
+                    raise RuntimeError(
+                        "mandatory_mask must be fully contained in the coarse mask"
+                    )
         else:
             y_background = y
+        active_mask = mask
+        active_y_cond = y_cond
+        active_precision_mode = mask_precision_mode
+        active_precision_severity = mask_precision_severity
+        self.last_predicted_mask = None
+        self.last_projection_mask = None
+        self.last_applied_mask = None
 
         if init_noise is None:
             noise = torch.randn_like(y)
@@ -440,7 +560,7 @@ class B2BGenerator(nn.Module):
         x = y_background + noise * self.noise_scale
 
         if mask is not None:
-            x = x * mask + y * (1.0 - mask)
+            x = self._project_known_pixels(x, y_known, active_mask)
 
         steps = int(denoise_timesteps)
         if clip_denoised is None:
@@ -456,45 +576,82 @@ class B2BGenerator(nn.Module):
         for i in range(steps - 1):
             t = timesteps[i]
             t_next = timesteps[i + 1]
-            x = self._heun_step_restoration(
+            step_output = self._heun_step_restoration(
                 x,
                 t,
                 t_next,
-                y_cond,
-                mask,
+                active_y_cond,
+                active_mask,
                 labels,
                 y_known,
+                active_mask,
                 use_gt,
                 ref_idx,
                 temporal_frame_step,
                 global_context,
                 object_refs,
+                active_precision_mode,
+                active_precision_severity,
             )
+            if self.mask_prediction:
+                x, mask_logits = step_output
+                if self.use_predicted_mask_during_denoising:
+                    active_mask = self._final_projection_mask(
+                        self._final_predicted_mask(mask_logits, mask),
+                        mask,
+                        mandatory_mask,
+                    )
+                    if y_cond is not None:
+                        active_y_cond = y_cond * active_mask.to(dtype=y_cond.dtype)
+                    if mask_precision_mode is not None:
+                        active_precision_mode = torch.zeros_like(mask_precision_mode)
+                    if mask_precision_severity is not None:
+                        active_precision_severity = torch.zeros_like(
+                            mask_precision_severity
+                        )
+            else:
+                x = step_output
 
             if clip_denoised:
                 x = x.clamp(-1.0, 1.0)
             if mask is not None:
-                x = x * mask + y * (1.0 - mask)
+                x = self._project_known_pixels(x, y_known, active_mask)
 
         # Last step with euler
-        x = self._euler_step_restoration(
+        step_output = self._euler_step_restoration(
             x,
             timesteps[-2],
             timesteps[-1],
-            y_cond,
-            mask,
+            active_y_cond,
+            active_mask,
             labels,
             y_known,
+            active_mask,
             use_gt,
             ref_idx,
             temporal_frame_step,
             global_context,
             object_refs,
+            active_precision_mode,
+            active_precision_severity,
         )
+        if self.mask_prediction:
+            x, mask_logits = step_output
+            predicted_mask = self._final_predicted_mask(mask_logits, mask)
+            final_mask = self._final_projection_mask(
+                predicted_mask, mask, mandatory_mask
+            )
+            self.last_predicted_mask = predicted_mask
+            self.last_projection_mask = final_mask
+            applied_mask = final_mask if self.apply_predicted_mask else mask
+        else:
+            x = step_output
+            applied_mask = mask
+        self.last_applied_mask = applied_mask
         if clip_denoised:
             x = x.clamp(-1.0, 1.0)
         if mask is not None:
-            x = x * mask + y * (1.0 - mask)
+            x = self._project_known_pixels(x, y_known, applied_mask)
 
         # Always clamp the final restored sample to a valid image range.
         x = x.clamp(-1.0, 1.0)
@@ -510,17 +667,22 @@ class B2BGenerator(nn.Module):
         mask,
         labels,
         y_known,
+        projection_mask=None,
         use_gt=None,
         ref_idx=None,
         temporal_frame_step=None,
         global_context=None,
         object_refs=None,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
     ):
         """
         JIT-equivalent CFG:
           v = v_uncond + scale(t) * (v_cond - v_uncond)
         """
-        x_in = self._project_known_pixels(x, y_known, mask)
+        if projection_mask is None:
+            projection_mask = mask
+        x_in = self._project_known_pixels(x, y_known, projection_mask)
         if labels is None:
             labels = torch.zeros(x_in.shape[0], dtype=torch.long, device=x_in.device)
         if y_cond is None:
@@ -538,12 +700,16 @@ class B2BGenerator(nn.Module):
             temporal_frame_step,
             global_context,
             object_refs,
+            mask_precision_mode,
+            mask_precision_severity,
         )
 
         # --- conditional ---
-        x_cond = self.b2b_model(model_input, model_t, labels, **model_kwargs)
+        x_cond, mask_logits_cond = self._split_model_output(
+            self.b2b_model(model_input, model_t, labels, **model_kwargs)
+        )
         x_cond = self._match_prediction_channels(x_cond, x_in)
-        x_cond = self._project_known_pixels(x_cond, y_known, mask)
+        x_cond = self._project_known_pixels(x_cond, y_known, projection_mask)
 
         den = 1.0 - t
         if not self.disable_inference_clipping:
@@ -557,19 +723,27 @@ class B2BGenerator(nn.Module):
 
         # When guidance is neutral (or inactive for this t), CFG exactly equals v_cond.
         if cfg_is_neutral or not torch.any(interval_mask):
-            return v_cond
+            return (v_cond, mask_logits_cond) if self.mask_prediction else v_cond
 
         # --- unconditional ---
         num_classes = int(self.b2b_model.num_classes)
         uncond_labels = torch.full_like(labels, num_classes)
-        x_uncond = self.b2b_model(model_input, model_t, uncond_labels, **model_kwargs)
+        x_uncond, mask_logits_uncond = self._split_model_output(
+            self.b2b_model(model_input, model_t, uncond_labels, **model_kwargs)
+        )
         x_uncond = self._match_prediction_channels(x_uncond, x_in)
-        x_uncond = self._project_known_pixels(x_uncond, y_known, mask)
+        x_uncond = self._project_known_pixels(x_uncond, y_known, projection_mask)
         v_uncond = (x_uncond - x_in) / den
 
         cfg_scale_interval = torch.where(interval_mask, self.cfg_scale, 1.0)
 
-        return v_uncond + cfg_scale_interval * (v_cond - v_uncond)
+        velocity = v_uncond + cfg_scale_interval * (v_cond - v_uncond)
+        if not self.mask_prediction:
+            return velocity
+        mask_logits = mask_logits_uncond + cfg_scale_interval * (
+            mask_logits_cond - mask_logits_uncond
+        )
+        return velocity, mask_logits
 
     #    @torch.no_grad() # no use CFG
     #    def _forward_sample_restoration(self, x, t, y_cond, mask, labels):
@@ -586,26 +760,35 @@ class B2BGenerator(nn.Module):
         mask,
         labels,
         y_known,
+        projection_mask=None,
         use_gt=None,
         ref_idx=None,
         temporal_frame_step=None,
         global_context=None,
         object_refs=None,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
     ):
-        v = self._forward_sample_restoration(
+        model_output = self._forward_sample_restoration(
             x,
             t,
             y_cond,
             mask,
             labels,
             y_known,
+            projection_mask,
             use_gt,
             ref_idx,
             temporal_frame_step,
             global_context,
             object_refs,
+            mask_precision_mode,
+            mask_precision_severity,
         )
-        return x + (t_next - t) * v
+        if self.mask_prediction:
+            v, mask_logits = model_output
+            return x + (t_next - t) * v, mask_logits
+        return x + (t_next - t) * model_output
 
     @torch.no_grad()
     def _heun_step_restoration(
@@ -617,38 +800,53 @@ class B2BGenerator(nn.Module):
         mask,
         labels,
         y_known,
+        projection_mask=None,
         use_gt=None,
         ref_idx=None,
         temporal_frame_step=None,
         global_context=None,
         object_refs=None,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
     ):
-        v_t = self._forward_sample_restoration(
+        model_output_t = self._forward_sample_restoration(
             x,
             t,
             y_cond,
             mask,
             labels,
             y_known,
+            projection_mask,
             use_gt,
             ref_idx,
             temporal_frame_step,
             global_context,
             object_refs,
+            mask_precision_mode,
+            mask_precision_severity,
         )
+        v_t = model_output_t[0] if self.mask_prediction else model_output_t
         x_euler = x + (t_next - t) * v_t
-        v_t_next = self._forward_sample_restoration(
+        model_output_next = self._forward_sample_restoration(
             x_euler,
             t_next,
             y_cond,
             mask,
             labels,
             y_known,
+            projection_mask,
             use_gt,
             ref_idx,
             temporal_frame_step,
             global_context,
             object_refs,
+            mask_precision_mode,
+            mask_precision_severity,
         )
+        if self.mask_prediction:
+            v_t_next, mask_logits = model_output_next
+        else:
+            v_t_next = model_output_next
         v = 0.5 * (v_t + v_t_next)
-        return x + (t_next - t) * v
+        x_next = x + (t_next - t) * v
+        return (x_next, mask_logits) if self.mask_prediction else x_next

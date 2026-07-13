@@ -5,6 +5,7 @@ import warnings
 
 import numpy as np
 import torch
+import torch.nn.functional as torch_F
 import torchvision.transforms.functional as F
 from PIL import Image
 from torchvision.transforms import InterpolationMode
@@ -347,7 +348,13 @@ def crop_image(
         else:
             import cv2
 
-            bbox_img = cv2.imread(bbox_path)
+            bbox_img = cv2.imread(bbox_path, cv2.IMREAD_UNCHANGED)
+            if bbox_img is None:
+                raise ValueError(f"could not decode raster label {bbox_path}")
+            if bbox_img.ndim == 3:
+                # Class-valued masks are normally single-channel. Keep backward
+                # compatibility with grayscale masks stored as RGB/RGBA.
+                bbox_img = np.max(bbox_img[:, :, :3], axis=2)
 
     except Exception as e:
         raise ValueError(
@@ -391,6 +398,8 @@ def crop_image(
         bboxes.append(f"1 {xmin} {ymin} {xmax} {ymax}")
 
     else:
+        if not np.any(bbox_img):
+            raise ValueError(f"Raster label is empty at {bbox_path}.")
         cat = str(int(np.max(bbox_img)))
 
         # Find the indices of non-zero elements in the image
@@ -426,8 +435,11 @@ def crop_image(
     if len(bboxes) == 0:
         raise ValueError(f"There is no bbox at {bbox_path} for image {img_path}.")
 
-    # Creation of a blank mask
-    mask = np.zeros(img.shape[:2], dtype=np.uint8)
+    # Preserve semantic IDs above 255 without changing the established uint8
+    # representation for the common case.
+    max_label = max(int(cur_bbox.split()[0]) for cur_bbox in bboxes)
+    mask_dtype = np.uint8 if max_label <= np.iinfo(np.uint8).max else np.uint16
+    mask = np.zeros(img.shape[:2], dtype=mask_dtype)
     processed_bboxes = []
     model_border_active = (
         fixed_mask_size_model <= 0 and fixed_mask_min_unmasked_border_model > 0
@@ -642,7 +654,7 @@ def crop_image(
         )
         source_valid_mask = source_valid_mask > 0
         if rebox_mask_after_rotation:
-            mask = np.zeros(img.shape[:2], dtype=np.uint8)
+            mask = np.zeros(img.shape[:2], dtype=mask_dtype)
         for cur_bbox in processed_bboxes:
             if rebox_mask_after_rotation:
                 bbox_mask = np.zeros((source_height, source_width), dtype=np.uint8)
@@ -879,7 +891,7 @@ def crop_image(
             return
 
         _, _, _, max_source_side = model_border_params(crop_size)
-        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        mask = np.zeros(img.shape[:2], dtype=mask_dtype)
         for cur_bbox in processed_bboxes:
             oxmin, oymin, oxmax, oymax = clipped_original_bbox(cur_bbox)
             candidate_side = max(
@@ -1012,7 +1024,7 @@ def crop_image(
         fixed_model_side = min(fixed_mask_size_model, max_model_mask_side)
         fixed_source_side = int(round(fixed_model_side * crop_size / output_side))
         fixed_source_side = max(1, fixed_source_side)
-        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        mask = np.zeros(img.shape[:2], dtype=mask_dtype)
         for cur_bbox in processed_bboxes:
             side = max(
                 fixed_source_side,
@@ -1258,7 +1270,7 @@ def crop_image(
             raise ValueError(
                 f"fixed model mask border {border} is too large for output size {output_side}"
             )
-        resized_mask = np.zeros((output_side, output_side), dtype=np.uint8)
+        resized_mask = np.zeros((output_side, output_side), dtype=mask_dtype)
         for cur_bbox in processed_bboxes:
             xmin = cur_bbox["xmin"] - x_crop
             xmax = cur_bbox["xmax"] - x_crop
@@ -1288,7 +1300,7 @@ def crop_image(
         mask = Image.fromarray(resized_mask)
     elif square_model_border_active:
         output_side, border, max_mask_side, _ = model_border_params(crop_size)
-        resized_mask = np.zeros((output_side, output_side), dtype=np.uint8)
+        resized_mask = np.zeros((output_side, output_side), dtype=mask_dtype)
         for cur_bbox in processed_bboxes:
             oxmin_src, oymin_src, oxmax_src, oymax_src = clipped_original_bbox(cur_bbox)
             xmin = cur_bbox["xmin"] - x_crop
@@ -1500,3 +1512,155 @@ def write_paths_file(img_paths, label_paths, file_path):
         print(e)
 
     print("sanitized paths file saved at ", file_path)
+
+
+MASK_PRECISION_EXACT = 0
+MASK_PRECISION_DILATED = 1
+MASK_PRECISION_BBOX = 2
+
+
+def mask_prediction_enabled(opt):
+    return bool(getattr(opt, "alg_b2b_mask_prediction", False))
+
+
+def sample_mask_precision_state(opt):
+    probs = list(
+        getattr(opt, "data_online_creation_mask_precision_probs", [0.2, 0.3, 0.5])
+    )
+    if len(probs) != 3 or any(prob < 0 for prob in probs) or sum(probs) <= 0:
+        raise ValueError(
+            "data_online_creation_mask_precision_probs must contain three "
+            "non-negative values with a positive sum"
+        )
+    mode = random.choices(
+        [MASK_PRECISION_EXACT, MASK_PRECISION_DILATED, MASK_PRECISION_BBOX],
+        weights=probs,
+        k=1,
+    )[0]
+    if mode == MASK_PRECISION_DILATED:
+        return {"mode": mode, "dilate_fraction": random.random()}
+    if mode == MASK_PRECISION_BBOX:
+        return {
+            "mode": mode,
+            "margin_fractions": [random.random() for _ in range(4)],
+        }
+    return {"mode": mode}
+
+
+def _binary_mask_bbox(mask):
+    positive = torch.nonzero(mask > 0.5, as_tuple=False)
+    if positive.numel() == 0:
+        raise ValueError("instance mask must contain at least one positive pixel")
+    ymin = int(positive[:, -2].min().item())
+    ymax = int(positive[:, -2].max().item()) + 1
+    xmin = int(positive[:, -1].min().item())
+    xmax = int(positive[:, -1].max().item()) + 1
+    return xmin, ymin, xmax, ymax
+
+
+def randomize_instance_mask(instance_mask, state, opt, mask_class=1):
+    """Return class-valued coarse mask, mandatory mask, mode, and severity."""
+    instance = (instance_mask > 0).to(dtype=torch.float32)
+    if instance.ndim != 3 or instance.shape[0] != 1:
+        raise ValueError(
+            f"expected instance mask shape [1,H,W], got {tuple(instance.shape)}"
+        )
+    mask_class = torch.as_tensor(
+        mask_class, dtype=instance.dtype, device=instance.device
+    )
+    if mask_class.numel() != 1 or mask_class.item() <= 0:
+        raise ValueError(f"mask class must be a positive scalar, got {mask_class}")
+
+    def with_class(mask):
+        return mask * mask_class
+
+    xmin, ymin, xmax, ymax = _binary_mask_bbox(instance)
+    height, width = instance.shape[-2:]
+    bbox_width = xmax - xmin
+    bbox_height = ymax - ymin
+    mode = int(state["mode"])
+    # The instance mask is the supervision target, not an inference-time known
+    # region. Projecting it as mandatory would leak ground truth into sampled
+    # images and mask visualizations.
+    mandatory = torch.zeros_like(instance)
+
+    if mode == MASK_PRECISION_EXACT:
+        return with_class(instance), mandatory, mode, 0.0
+
+    if mode == MASK_PRECISION_DILATED:
+        max_ratio = float(
+            getattr(opt, "data_online_creation_mask_dilate_ratio_max", 0.25)
+        )
+        fraction = float(state.get("dilate_fraction", 0.0))
+        radius = int(round(fraction * max_ratio * min(bbox_width, bbox_height)))
+        if radius <= 0:
+            coarse = instance.clone()
+        else:
+            kernel = 2 * radius + 1
+            coarse = torch_F.max_pool2d(
+                instance.unsqueeze(0), kernel, stride=1, padding=radius
+            ).squeeze(0)
+        return with_class(coarse), mandatory, mode, fraction
+
+    if mode != MASK_PRECISION_BBOX:
+        raise ValueError(f"unknown mask precision mode: {mode}")
+    max_margin = float(
+        getattr(opt, "data_online_creation_mask_bbox_margin_ratio_max", 0.5)
+    )
+    fractions = list(state.get("margin_fractions", [0.0] * 4))
+    if len(fractions) != 4:
+        raise ValueError("bbox mask precision state requires four margin fractions")
+    left, top, right, bottom = fractions
+    x0 = max(0, xmin - int(round(left * max_margin * bbox_width)))
+    y0 = max(0, ymin - int(round(top * max_margin * bbox_height)))
+    x1 = min(width, xmax + int(round(right * max_margin * bbox_width)))
+    y1 = min(height, ymax + int(round(bottom * max_margin * bbox_height)))
+    coarse = torch.zeros_like(instance)
+    coarse[:, y0:y1, x0:x1] = 1.0
+    severity = sum(float(value) for value in fractions) / 4.0
+    return with_class(coarse), mandatory, mode, severity
+
+
+def build_instance_mask_from_crop_meta(
+    mask_path,
+    crop_meta,
+    output_dim,
+    context_pixels,
+):
+    """Replay crop_image geometry for a single-instance raster annotation."""
+    if mask_path is None or mask_path.endswith(".txt"):
+        raise ValueError("B2B mask prediction requires a raster instance mask")
+    instance_arr = np.asarray(Image.open(mask_path))
+    if instance_arr.ndim == 3:
+        instance_arr = np.max(instance_arr[:, :, :3], axis=2)
+    instance = Image.fromarray(np.where(instance_arr > 0, 255, 0).astype(np.uint8))
+    loaded_size = (int(crop_meta["loaded_width"]), int(crop_meta["loaded_height"]))
+    if instance.size != loaded_size:
+        instance = instance.resize(loaded_size, resample=Image.NEAREST)
+    rotation = crop_meta.get("rotation")
+    if rotation is not None and abs(float(rotation.get("angle", 0.0))) > 1e-6:
+        instance = _rotate_pil_expand(
+            instance, float(rotation["angle"]), Image.NEAREST, 0
+        )
+    arr = np.asarray(instance, dtype=np.uint8)
+    left = int(crop_meta.get("x_padding", 0))
+    top = int(crop_meta.get("y_padding", 0))
+    x_crop = int(crop_meta["x_crop"])
+    y_crop = int(crop_meta["y_crop"])
+    crop_size = int(crop_meta["crop_size"])
+    margin = int(context_pixels) * 2
+    required_width = x_crop + crop_size + margin
+    required_height = y_crop + crop_size + margin
+    right = max(0, required_width - (arr.shape[1] + left))
+    bottom = max(0, required_height - (arr.shape[0] + top))
+    if any((left, top, right, bottom)):
+        arr = np.pad(arr, ((top, bottom), (left, right)), constant_values=0)
+    arr = arr[
+        y_crop : y_crop + crop_size + margin, x_crop : x_crop + crop_size + margin
+    ]
+    instance = Image.fromarray(arr)
+    return F.resize(
+        instance,
+        output_dim + margin,
+        interpolation=InterpolationMode.NEAREST,
+    )

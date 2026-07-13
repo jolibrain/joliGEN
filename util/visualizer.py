@@ -9,6 +9,7 @@ from PIL import Image
 import json
 from torchinfo import summary
 import math
+import re
 from .util import (
     rgbn_float_img_to_8bits_display,
     img_12bits_to_float,
@@ -19,6 +20,14 @@ if sys.version_info[0] == 2:
     VisdomExceptionBase = Exception
 else:
     VisdomExceptionBase = ConnectionError
+
+
+def _mask_visual_matches_output(name, output_key):
+    base_name = name.split("_test_")[0]
+    match = re.match(r"predicted_mask_(\d+)_steps(?:_|$)", base_name)
+    if match is None:
+        return "mask" in base_name
+    return output_key == f"output_{match.group(1)}_steps"
 
 
 def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
@@ -178,8 +187,6 @@ class Visualizer:
             save_result (bool) - - if save the current results to an HTML file
         """
 
-        import re
-
         output_types = set()
         for group in visuals:
             for name in group.keys():
@@ -209,7 +216,7 @@ class Visualizer:
                         ("previous_frame" in name)
                         or ("gt_image" in name)
                         or ("y_t" in name)
-                        or ("mask" in name)
+                        or _mask_visual_matches_output(name, out_key)
                     ):
                         new_group[name] = img
                     elif name.startswith(out_key):

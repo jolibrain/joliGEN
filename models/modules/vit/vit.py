@@ -281,6 +281,7 @@ class JiT(nn.Module):
         num_register_tokens=0,
         cond_embed_dim=None,
         mask_size_conditioning=False,
+        mask_prediction=False,
     ):
         super().__init__()
         if num_register_tokens < 0:
@@ -296,6 +297,7 @@ class JiT(nn.Module):
         self.num_register_tokens = num_register_tokens
         self.num_classes = num_classes
         self.mask_size_conditioning = mask_size_conditioning
+        self.mask_prediction = mask_prediction
         # time and class embed
         self.t_embedder = TimestepEmbedder(hidden_size)
         self.y_embedder = LabelEmbedder(num_classes, hidden_size)
@@ -306,6 +308,18 @@ class JiT(nn.Module):
                 nn.Linear(hidden_size, hidden_size),
             )
             if mask_size_conditioning
+            else None
+        )
+        self.mask_precision_mode_embedder = (
+            nn.Embedding(3, hidden_size) if mask_prediction else None
+        )
+        self.mask_precision_severity_embedder = (
+            nn.Sequential(
+                nn.Linear(1, hidden_size),
+                nn.SiLU(),
+                nn.Linear(hidden_size, hidden_size),
+            )
+            if mask_prediction
             else None
         )
         ################### check
@@ -363,6 +377,9 @@ class JiT(nn.Module):
 
         # linear predict
         self.final_layer = FinalLayer(hidden_size, patch_size, self.out_channels)
+        self.mask_final_layer = (
+            FinalLayer(hidden_size, patch_size, 1) if mask_prediction else None
+        )
 
         self.initialize_weights()
 
@@ -398,6 +415,10 @@ class JiT(nn.Module):
         if self.mask_size_embedder is not None:
             nn.init.constant_(self.mask_size_embedder[-1].weight, 0)
             nn.init.constant_(self.mask_size_embedder[-1].bias, 0)
+        if self.mask_precision_mode_embedder is not None:
+            nn.init.constant_(self.mask_precision_mode_embedder.weight, 0)
+            nn.init.constant_(self.mask_precision_severity_embedder[-1].weight, 0)
+            nn.init.constant_(self.mask_precision_severity_embedder[-1].bias, 0)
 
         # Zero-out adaLN modulation layers:
         for block in self.blocks:
@@ -410,13 +431,18 @@ class JiT(nn.Module):
 
         nn.init.constant_(self.final_layer.linear.weight, 0)
         nn.init.constant_(self.final_layer.linear.bias, 0)
+        if self.mask_final_layer is not None:
+            nn.init.constant_(self.mask_final_layer.adaLN_modulation[-1].weight, 0)
+            nn.init.constant_(self.mask_final_layer.adaLN_modulation[-1].bias, 0)
+            nn.init.constant_(self.mask_final_layer.linear.weight, 0)
+            nn.init.constant_(self.mask_final_layer.linear.bias, 0)
 
-    def unpatchify(self, x, p):
+    def unpatchify(self, x, p, channels=None):
         """
         x: (N, T, patch_size**2 * C)
         imgs: (N, H, W, C)
         """
-        c = self.out_channels
+        c = self.out_channels if channels is None else channels
         h = w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]
 
@@ -438,7 +464,33 @@ class JiT(nn.Module):
         mask_size_cond = mask_size_cond.to(device=c.device, dtype=c.dtype)
         return c + self.mask_size_embedder(mask_size_cond)
 
-    def forward(self, x, t, y, mask_size_cond=None):
+    def _mask_precision_embedding(self, x, c, mode, severity):
+        if self.mask_precision_mode_embedder is None:
+            return c
+        batch = x.shape[0]
+        if mode is None:
+            mode = torch.zeros(batch, device=c.device, dtype=torch.long)
+        if severity is None:
+            severity = torch.zeros(batch, 1, device=c.device, dtype=c.dtype)
+        mode = mode.to(device=c.device, dtype=torch.long).reshape(-1)
+        severity = severity.to(device=c.device, dtype=c.dtype).reshape(-1, 1)
+        if mode.shape[0] != batch or severity.shape[0] != batch:
+            raise RuntimeError("mask precision conditioning must match image batch")
+        return (
+            c
+            + self.mask_precision_mode_embedder(mode)
+            + self.mask_precision_severity_embedder(severity)
+        )
+
+    def forward(
+        self,
+        x,
+        t,
+        y,
+        mask_size_cond=None,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
+    ):
         """
         x: (N, C, H, W)
         t: (N,)
@@ -450,6 +502,9 @@ class JiT(nn.Module):
         y_emb = self.y_embedder(y)
         c = t_emb + y_emb
         c = self._mask_size_embedding(x, c, mask_size_cond)
+        c = self._mask_precision_embedding(
+            x, c, mask_precision_mode, mask_precision_severity
+        )
 
         # forward JiT
         x = self.x_embedder(x)
@@ -489,8 +544,14 @@ class JiT(nn.Module):
             prefix_tokens += self.in_context_len
         x = x[:, prefix_tokens:]
 
-        x = self.final_layer(x, c)
+        features = x
+        x = self.final_layer(features, c)
         output = self.unpatchify(x, self.patch_size)
+
+        if self.mask_final_layer is not None:
+            mask_logits = self.mask_final_layer(features, c)
+            mask_logits = self.unpatchify(mask_logits, self.patch_size, channels=1)
+            return output, mask_logits
 
         return output
 

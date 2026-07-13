@@ -19,6 +19,13 @@ sys.path.append(JG_DIR)
 
 from data.online_creation import crop_image, fill_mask_with_color, fill_mask_with_random
 
+try:
+    from scripts import (
+        b2b_onnx_denoiser_infer_autoregressive_progress_bbox as common_runner,
+    )
+except ImportError:
+    import b2b_onnx_denoiser_infer_autoregressive_progress_bbox as common_runner
+
 
 def natural_key(text):
     return [int(c) if c.isdigit() else c for c in re.split(r"(\d+)", text)]
@@ -839,8 +846,11 @@ class TensorRTDenoiserSession:
         model_input_name: Optional[str] = None,
         timesteps_input_name: Optional[str] = None,
         labels_input_name: Optional[str] = None,
+        mask_precision_mode_input_name: Optional[str] = None,
+        mask_precision_severity_input_name: Optional[str] = None,
         temporal_frame_step_input_name: Optional[str] = None,
         output_name: Optional[str] = None,
+        mask_logits_output_name: Optional[str] = None,
     ) -> None:
         self.trt = import_tensorrt()
         self.cuda = CudaRuntime()
@@ -872,10 +882,19 @@ class TensorRTDenoiserSession:
             timesteps_input_name
         )
         self.labels_input_name = self._resolve_labels_input_name(labels_input_name)
+        self.mask_precision_mode_input_name = self._resolve_optional_input_name(
+            mask_precision_mode_input_name, "mask_precision_mode"
+        )
+        self.mask_precision_severity_input_name = self._resolve_optional_input_name(
+            mask_precision_severity_input_name, "mask_precision_severity"
+        )
         self.temporal_frame_step_input_name = (
             self._resolve_temporal_frame_step_input_name(temporal_frame_step_input_name)
         )
         self.output_name = self._resolve_output_name(output_name)
+        self.mask_logits_output_name = self._resolve_optional_output_name(
+            mask_logits_output_name, "mask_logits"
+        )
 
         self.stream = self.cuda.stream_create()
         self.device_buffers: Dict[str, ctypes.c_void_p] = {}
@@ -960,10 +979,32 @@ class TensorRTDenoiserSession:
             return "temporal_frame_step"
         return None
 
+    def _resolve_optional_input_name(
+        self, override_name: Optional[str], expected_name: str
+    ) -> Optional[str]:
+        if override_name is not None:
+            if override_name not in self.input_names:
+                raise RuntimeError(
+                    f"Configured input tensor {override_name!r} not found in {self.input_names}"
+                )
+            return override_name
+        return expected_name if expected_name in self.input_names else None
+
     def _resolve_output_name(self, override_name: Optional[str]) -> str:
         return self._resolve_tensor_name(
             override_name, "output", self.output_names, "output"
         )
+
+    def _resolve_optional_output_name(
+        self, override_name: Optional[str], expected_name: str
+    ) -> Optional[str]:
+        if override_name is not None:
+            if override_name not in self.output_names:
+                raise RuntimeError(
+                    f"Configured output tensor {override_name!r} not found in {self.output_names}"
+                )
+            return override_name
+        return expected_name if expected_name in self.output_names else None
 
     def _dtype_for(self, name: str) -> np.dtype:
         return np.dtype(self.trt.nptype(self.engine.get_tensor_dtype(name)))
@@ -1116,6 +1157,100 @@ class TensorRTDenoiserSession:
 
         self.bound_input_shapes = desired_shapes
 
+    def _canonical_input_name_map(self) -> Dict[str, str]:
+        mapping = {
+            "model_input": self.model_input_name,
+            "timesteps": self.timesteps_input_name,
+            "labels": self.labels_input_name,
+        }
+        optional = {
+            "mask_precision_mode": self.mask_precision_mode_input_name,
+            "mask_precision_severity": self.mask_precision_severity_input_name,
+            "temporal_frame_step": self.temporal_frame_step_input_name,
+        }
+        mapping.update({key: value for key, value in optional.items() if value})
+        for name in self.input_names:
+            mapping.setdefault(name, name)
+        return mapping
+
+    def _canonical_output_name_map(self) -> Dict[str, str]:
+        mapping = {"output": self.output_name}
+        if self.mask_logits_output_name is not None:
+            mapping["mask_logits"] = self.mask_logits_output_name
+        for name in self.output_names:
+            mapping.setdefault(name, name)
+        return mapping
+
+    def _prepare_named_input(self, name: str, value: np.ndarray) -> np.ndarray:
+        raw_shape = self._raw_shape_for(name)
+        host = np.asarray(value, dtype=self._dtype_for(name))
+        if len(raw_shape) == 0:
+            if host.size != 1:
+                raise RuntimeError(
+                    f"Tensor {name!r} expects a scalar, got shape {host.shape}"
+                )
+            return host.reshape(())
+        elif not _shape_has_dynamic_dims(raw_shape) and tuple(host.shape) != raw_shape:
+            if host.size == int(np.prod(raw_shape, dtype=np.int64)):
+                host = host.reshape(raw_shape)
+        host = np.ascontiguousarray(host)
+        _ensure_static_dims_match(name, raw_shape, tuple(host.shape))
+        return host
+
+    def run(self, output_names, inputs):
+        input_name_map = self._canonical_input_name_map()
+        output_name_map = self._canonical_output_name_map()
+        unknown_outputs = [name for name in output_names if name not in output_name_map]
+        if unknown_outputs:
+            raise RuntimeError(
+                f"Unknown TensorRT outputs {unknown_outputs}; available={list(output_name_map)}"
+            )
+
+        host_inputs = {}
+        for canonical_name, value in inputs.items():
+            if canonical_name not in input_name_map:
+                raise RuntimeError(
+                    f"TensorRT engine has no input for {canonical_name!r}; inputs={self.input_names}"
+                )
+            actual_name = input_name_map[canonical_name]
+            host_inputs[actual_name] = self._prepare_named_input(actual_name, value)
+        missing_inputs = [name for name in self.input_names if name not in host_inputs]
+        if missing_inputs:
+            raise RuntimeError(
+                f"Missing required TensorRT inputs {missing_inputs}; provided={list(inputs)}"
+            )
+
+        self._ensure_bindings(host_inputs)
+        t_total_start = time.perf_counter()
+        t_h2d_start = time.perf_counter()
+        for name, array in host_inputs.items():
+            self.cuda.memcpy_h2d_async(self.device_buffers[name], array, self.stream)
+        self.cuda.stream_synchronize(self.stream)
+        t_h2d_end = time.perf_counter()
+
+        t_exec_start = time.perf_counter()
+        ok = self.context.execute_async_v3(int(self.stream.value))
+        if not ok:
+            raise RuntimeError("TensorRT execute_async_v3 returned False")
+        self.cuda.stream_synchronize(self.stream)
+        t_exec_end = time.perf_counter()
+
+        t_d2h_start = time.perf_counter()
+        actual_output_names = [output_name_map[name] for name in output_names]
+        for name in actual_output_names:
+            self.cuda.memcpy_d2h_async(
+                self.host_outputs[name], self.device_buffers[name], self.stream
+            )
+        self.cuda.stream_synchronize(self.stream)
+        t_d2h_end = time.perf_counter()
+
+        self.timing_stats["calls"] += 1
+        self.timing_stats["h2d_ms"] += (t_h2d_end - t_h2d_start) * 1000.0
+        self.timing_stats["execute_ms"] += (t_exec_end - t_exec_start) * 1000.0
+        self.timing_stats["d2h_ms"] += (t_d2h_end - t_d2h_start) * 1000.0
+        self.timing_stats["total_ms"] += (t_d2h_end - t_total_start) * 1000.0
+        return [self.host_outputs[name].copy() for name in actual_output_names]
+
     def infer(
         self,
         model_input: np.ndarray,
@@ -1158,36 +1293,14 @@ class TensorRTDenoiserSession:
         }
         if temporal_frame_step_host is not None:
             host_inputs[self.temporal_frame_step_input_name] = temporal_frame_step_host
-        self._ensure_bindings(host_inputs)
-
-        t_total_start = time.perf_counter()
-        t_h2d_start = time.perf_counter()
-        for name, array in host_inputs.items():
-            self.cuda.memcpy_h2d_async(self.device_buffers[name], array, self.stream)
-        self.cuda.stream_synchronize(self.stream)
-        t_h2d_end = time.perf_counter()
-
-        t_exec_start = time.perf_counter()
-        ok = self.context.execute_async_v3(int(self.stream.value))
-        if not ok:
-            raise RuntimeError("TensorRT execute_async_v3 returned False")
-        self.cuda.stream_synchronize(self.stream)
-        t_exec_end = time.perf_counter()
-
-        t_d2h_start = time.perf_counter()
-        output_host = self.host_outputs[self.output_name]
-        self.cuda.memcpy_d2h_async(
-            output_host, self.device_buffers[self.output_name], self.stream
-        )
-        self.cuda.stream_synchronize(self.stream)
-        t_d2h_end = time.perf_counter()
-
-        self.timing_stats["calls"] += 1
-        self.timing_stats["h2d_ms"] += (t_h2d_end - t_h2d_start) * 1000.0
-        self.timing_stats["execute_ms"] += (t_exec_end - t_exec_start) * 1000.0
-        self.timing_stats["d2h_ms"] += (t_d2h_end - t_d2h_start) * 1000.0
-        self.timing_stats["total_ms"] += (t_d2h_end - t_total_start) * 1000.0
-        return output_host.copy()
+        canonical_inputs = {
+            "model_input": model_input_host,
+            "timesteps": timestep_host,
+            "labels": labels_host,
+        }
+        if temporal_frame_step_host is not None:
+            canonical_inputs["temporal_frame_step"] = temporal_frame_step_host
+        return self.run(["output"], canonical_inputs)[0]
 
 
 def get_engine_shape(session: TensorRTDenoiserSession):
@@ -1447,6 +1560,14 @@ def write_frame(frame_index, out_tensor, frame_data, output_dir):
         json.dump([int(v) for v in frame_data["bbox"]], f)
 
 
+# Keep imported helper use on the same SmartBrush-capable path as the CLI.
+preprocess_with_repo_crop = common_runner.preprocess_with_repo_crop
+denoiser_forward = common_runner.denoiser_forward
+forward_sample_restoration = common_runner.forward_sample_restoration
+restoration_with_denoiser = common_runner.restoration_with_denoiser
+write_frame = common_runner.write_frame
+
+
 def run_sequence(
     session,
     pairs,
@@ -1462,17 +1583,40 @@ def run_sequence(
     repeat,
     autoregressive_reinject_patch,
     temporal_frame_step=None,
+    object_refs=None,
+    mask_precision_mode=None,
+    mask_precision_severity=None,
+    apply_predicted_mask=False,
 ):
     rng = np.random.default_rng(seed)
-    _, crop_h, _, _, _ = get_train_shape(train_json)
-    params = get_b2b_params(train_json, crop_h)
-    temporal_frame_step = resolve_temporal_frame_step(train_json, temporal_frame_step)
+    _, _, _, output_h, output_w = common_runner.get_train_shape(train_json)
+    params = common_runner.get_b2b_params(
+        train_json, common_runner.require_square_crop_size(output_h, output_w)
+    )
+    temporal_frame_step = common_runner.resolve_temporal_frame_step(
+        train_json, temporal_frame_step
+    )
+    precision_mode_id, precision_severity_value = common_runner.resolve_mask_precision(
+        train_json, mask_precision_mode, mask_precision_severity
+    )
+    precision_mode_input = (
+        None
+        if precision_mode_id is None
+        else np.asarray([precision_mode_id], dtype=np.int64)
+    )
+    precision_severity_input = (
+        None
+        if precision_severity_value is None
+        else np.asarray([precision_severity_value], dtype=np.float32)
+    )
     inputmix = True
     prev_frame = None
     last_seq_half_y_t = None
     last_seq_half_cond_image = None
     last_seq_half_y0_tensor = None
     last_seq_half_mask = None
+    last_seq_half_mandatory_mask = None
+    last_seq_half_global_context = None
     frames_written = []
     seq_half = 1
     num_buckets = 2
@@ -1491,12 +1635,14 @@ def run_sequence(
     for sequence_count, (img_rel, bbox_rel) in enumerate(pairs):
         img_path = os.path.join(dataset_root, img_rel)
         bbox_path = os.path.join(dataset_root, bbox_rel)
-        frame_data = preprocess_with_repo_crop(
+        frame_data = common_runner.preprocess_with_repo_crop(
             img_path=img_path,
             bbox_path=bbox_path,
             bbox_index=bbox_index,
             train_json=train_json,
             device=torch.device("cpu"),
+            mask_precision_mode=precision_mode_id,
+            mask_precision_severity=precision_severity_value,
         )
         frame_data["index"] = sequence_count
         frame_data["img_rel"] = img_rel
@@ -1517,35 +1663,61 @@ def run_sequence(
             continue
 
         if last_seq_half_y_t is None:
-            y_t_batch = prepare_tensors([prev_frame["y_t"], frame_data["y_t"]])
-            y0_tensor_batch = prepare_tensors(
+            y_t_batch = common_runner.prepare_tensors(
+                [prev_frame["y_t"], frame_data["y_t"]]
+            )
+            y0_tensor_batch = common_runner.prepare_tensors(
                 [prev_frame["y0_tensor"], frame_data["y0_tensor"]]
             )
-            mask_batch = prepare_tensors([prev_frame["mask"], frame_data["mask"]])
+            mask_batch = common_runner.prepare_tensors(
+                [prev_frame["mask"], frame_data["mask"]]
+            )
+            mandatory_mask_batch = common_runner.prepare_tensors(
+                [prev_frame["mandatory_mask"], frame_data["mandatory_mask"]]
+            )
+            global_context_batch = common_runner.prepare_tensors(
+                [prev_frame.get("global_context"), frame_data.get("global_context")]
+            )
             if params["mask_as_channel"]:
-                cond_image_batch = prepare_tensors(
+                cond_image_batch = common_runner.prepare_tensors(
                     [prev_frame["cond_image"], frame_data["cond_image"]]
                 )
             elif inputmix:
-                cond_image_batch = prepare_tensors(
+                cond_image_batch = common_runner.prepare_tensors(
                     [y0_noisy_first, frame_data["cond_image"]]
                 )
             else:
-                cond_image_batch = prepare_tensors(
+                cond_image_batch = common_runner.prepare_tensors(
                     [prev_frame["cond_image"], frame_data["cond_image"]]
                 )
         else:
-            y_t_batch = prepare_tensors(last_seq_half_y_t + [frame_data["y_t"]])
-            y0_tensor_batch = prepare_tensors(
+            y_t_batch = common_runner.prepare_tensors(
+                last_seq_half_y_t + [frame_data["y_t"]]
+            )
+            y0_tensor_batch = common_runner.prepare_tensors(
                 last_seq_half_y0_tensor + [frame_data["y0_tensor"]]
             )
-            mask_batch = prepare_tensors(last_seq_half_mask + [frame_data["mask"]])
-            cond_image_batch = prepare_tensors(
+            mask_batch = common_runner.prepare_tensors(
+                last_seq_half_mask + [frame_data["mask"]]
+            )
+            mandatory_mask_batch = common_runner.prepare_tensors(
+                last_seq_half_mandatory_mask + [frame_data["mandatory_mask"]]
+            )
+            global_context_batch = common_runner.prepare_tensors(
+                last_seq_half_global_context + [frame_data.get("global_context")]
+                if last_seq_half_global_context is not None
+                else [None, frame_data.get("global_context")]
+            )
+            cond_image_batch = common_runner.prepare_tensors(
                 last_seq_half_cond_image + [frame_data["cond_image"]]
             )
 
         labels = np.asarray(
-            [resolve_b2b_label(train_json, frame_data["label_cls"], label)],
+            [
+                common_runner.resolve_b2b_label(
+                    train_json, frame_data["label_cls"], label
+                )
+            ],
             dtype=np.int64,
         )
         init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
@@ -1556,10 +1728,20 @@ def run_sequence(
             else cond_image_batch.numpy().astype(np.float32)
         )
         mask_np = mask_batch.numpy().astype(np.float32)
+        source_np = y0_tensor_batch.numpy().astype(np.float32)
+        mandatory_mask_np = mandatory_mask_batch.numpy().astype(np.float32)
+        global_context_np = (
+            None
+            if global_context_batch is None
+            else global_context_batch.numpy().astype(np.float32)
+        )
+        object_refs_np = (
+            None if object_refs is None else object_refs.numpy().astype(np.float32)
+        )
 
         for _ in range(warmup):
             session.reset_timing_stats()
-            restoration_with_denoiser(
+            common_runner.restoration_with_denoiser(
                 session=session,
                 y=y_np,
                 y_cond=y_cond_np,
@@ -1568,16 +1750,23 @@ def run_sequence(
                 labels=labels,
                 params=params,
                 init_noise=init_noise,
+                source_image=source_np,
+                mandatory_mask=mandatory_mask_np,
+                mask_precision_mode=precision_mode_input,
+                mask_precision_severity=precision_severity_input,
                 temporal_frame_step=temporal_frame_step,
+                global_context=global_context_np,
+                object_refs=object_refs_np,
                 dump_dir=None,
                 dump_prefix=None,
+                apply_predicted_mask=apply_predicted_mask,
             )
 
-        out_tensor = None
+        restoration_result = None
         for repeat_index in range(repeat):
             session.reset_timing_stats()
             restoration_start = time.perf_counter()
-            out_tensor = restoration_with_denoiser(
+            restoration_result = common_runner.restoration_with_denoiser(
                 session=session,
                 y=y_np,
                 y_cond=y_cond_np,
@@ -1586,13 +1775,21 @@ def run_sequence(
                 labels=labels,
                 params=params,
                 init_noise=init_noise,
+                source_image=source_np,
+                mandatory_mask=mandatory_mask_np,
+                mask_precision_mode=precision_mode_input,
+                mask_precision_severity=precision_severity_input,
                 temporal_frame_step=temporal_frame_step,
+                global_context=global_context_np,
+                object_refs=object_refs_np,
                 dump_dir=debug_dump_dir if repeat_index == repeat - 1 else None,
                 dump_prefix=(
                     f"frame_{sequence_count:06d}"
                     if repeat_index == repeat - 1
                     else None
                 ),
+                return_details=True,
+                apply_predicted_mask=apply_predicted_mask,
             )
             restoration_ms = (time.perf_counter() - restoration_start) * 1000.0
             trt_stats = session.get_timing_stats()
@@ -1605,35 +1802,105 @@ def run_sequence(
             timing_summary["trt_d2h_ms"] += trt_stats["d2h_ms"]
             timing_summary["trt_total_ms"] += trt_stats["total_ms"]
 
-        out_tensor_torch = torch.from_numpy(out_tensor).squeeze(0)
+        selected_applied = (
+            restoration_result.generated_applied
+            if apply_predicted_mask
+            else restoration_result.coarse_applied
+        )
+        out_tensor_torch = torch.from_numpy(selected_applied).squeeze(0)
+        generated_pixels_torch = torch.from_numpy(
+            restoration_result.generated_pixels
+        ).squeeze(0)
+        generated_mask_torch = torch.from_numpy(
+            restoration_result.generated_mask
+        ).squeeze(0)
+        generated_applied_torch = torch.from_numpy(
+            restoration_result.generated_applied
+        ).squeeze(0)
         out_img_tensor_list_batch = [
             out_tensor_torch[i : i + 1] for i in range(out_tensor_torch.shape[0])
         ]
+        generated_pixels_list = [
+            generated_pixels_torch[i : i + 1]
+            for i in range(generated_pixels_torch.shape[0])
+        ]
+        generated_mask_list = [
+            generated_mask_torch[i : i + 1]
+            for i in range(generated_mask_torch.shape[0])
+        ]
+        generated_applied_list = [
+            generated_applied_torch[i : i + 1]
+            for i in range(generated_applied_torch.shape[0])
+        ]
+        selected_applied_list = [
+            out_tensor_torch[i : i + 1] for i in range(out_tensor_torch.shape[0])
+        ]
 
-        y_t_temp_list = separate_tensors(y_t_batch)
-        y0_tensor_temp_list = separate_tensors(y0_tensor_batch)
-        mask_temp_list = separate_tensors(mask_batch)
+        y_t_temp_list = common_runner.separate_tensors(y_t_batch)
+        y0_tensor_temp_list = common_runner.separate_tensors(y0_tensor_batch)
+        mask_temp_list = common_runner.separate_tensors(mask_batch)
+        mandatory_mask_temp_list = common_runner.separate_tensors(mandatory_mask_batch)
+        global_context_temp_list = common_runner.separate_tensors(global_context_batch)
+        cond_image_temp_list = common_runner.separate_tensors(cond_image_batch)
         if autoregressive_reinject_patch:
-            last_seq_half_y_t = out_img_tensor_list_batch[-seq_half:]
-            last_seq_half_y0_tensor = out_img_tensor_list_batch[-seq_half:]
+            last_seq_half_y_t = selected_applied_list[-seq_half:]
+            last_seq_half_y0_tensor = selected_applied_list[-seq_half:]
             last_seq_half_mask = [
                 torch.zeros_like(mask_tensor)
                 for mask_tensor in mask_temp_list[-seq_half:]
+            ]
+            last_seq_half_mandatory_mask = [
+                torch.zeros_like(mask_tensor)
+                for mask_tensor in mandatory_mask_temp_list[-seq_half:]
             ]
         else:
             last_seq_half_y_t = y_t_temp_list[-seq_half:]
             last_seq_half_y0_tensor = y0_tensor_temp_list[-seq_half:]
             last_seq_half_mask = mask_temp_list[-seq_half:]
-        if params["mask_as_channel"]:
-            last_seq_half_cond_image = last_seq_half_mask
-        else:
-            last_seq_half_cond_image = out_img_tensor_list_batch[-seq_half:]
-
-        write_frame(
-            prev_frame["index"], out_img_tensor_list_batch[0], prev_frame, output_dir
+            last_seq_half_mandatory_mask = mandatory_mask_temp_list[-seq_half:]
+        last_seq_half_global_context = (
+            global_context_temp_list[-seq_half:]
+            if global_context_temp_list is not None
+            else None
         )
-        write_frame(
-            frame_data["index"], out_img_tensor_list_batch[-1], frame_data, output_dir
+        if params["mask_as_channel"]:
+            last_seq_half_cond_image = (
+                last_seq_half_mask
+                if autoregressive_reinject_patch
+                else cond_image_temp_list[-seq_half:]
+            )
+        else:
+            last_seq_half_cond_image = selected_applied_list[-seq_half:]
+
+        common_runner.write_frame(
+            prev_frame["index"],
+            out_img_tensor_list_batch[0],
+            prev_frame,
+            output_dir,
+            generated_pixels=(
+                generated_pixels_list[0] if params["mask_prediction"] else None
+            ),
+            generated_mask=(
+                generated_mask_list[0] if params["mask_prediction"] else None
+            ),
+            generated_applied=(
+                generated_applied_list[0] if params["mask_prediction"] else None
+            ),
+        )
+        common_runner.write_frame(
+            frame_data["index"],
+            out_img_tensor_list_batch[-1],
+            frame_data,
+            output_dir,
+            generated_pixels=(
+                generated_pixels_list[-1] if params["mask_prediction"] else None
+            ),
+            generated_mask=(
+                generated_mask_list[-1] if params["mask_prediction"] else None
+            ),
+            generated_applied=(
+                generated_applied_list[-1] if params["mask_prediction"] else None
+            ),
         )
         frames_written.extend([prev_frame["index"], frame_data["index"]])
         prev_frame = frame_data
@@ -1673,6 +1940,18 @@ def parse_args():
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
     parser.add_argument(
+        "--mask_precision_mode",
+        "--mask-precision-mode",
+        choices=sorted(common_runner.MASK_PRECISION_NAMES),
+        help="SmartBrush coarse-mask precision mode. Defaults to bbox.",
+    )
+    parser.add_argument(
+        "--mask_precision_severity",
+        "--mask-precision-severity",
+        type=float,
+        help="SmartBrush coarse-mask severity in [0,1]. Defaults to 1.0.",
+    )
+    parser.add_argument(
         "--temporal_frame_step",
         type=float,
         help=(
@@ -1696,6 +1975,13 @@ def parse_args():
         help="Optional directory to dump per-step denoiser TensorRT inputs",
     )
     parser.add_argument(
+        "--alg_b2b_object_ref_paths",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Override static object reference image paths.",
+    )
+    parser.add_argument(
         "--model_input_name",
         "--model-input-name",
         help="Optional override for TensorRT model_input tensor name",
@@ -1711,6 +1997,16 @@ def parse_args():
         help="Optional override for TensorRT labels tensor name",
     )
     parser.add_argument(
+        "--mask_precision_mode_input_name",
+        "--mask-precision-mode-input-name",
+        help="Optional override for TensorRT mask_precision_mode tensor name",
+    )
+    parser.add_argument(
+        "--mask_precision_severity_input_name",
+        "--mask-precision-severity-input-name",
+        help="Optional override for TensorRT mask_precision_severity tensor name",
+    )
+    parser.add_argument(
         "--temporal_frame_step_input_name",
         "--temporal-frame-step-input-name",
         help="Optional override for TensorRT temporal_frame_step tensor name",
@@ -1719,6 +2015,11 @@ def parse_args():
         "--output_name",
         "--output-name",
         help="Optional override for TensorRT output tensor name",
+    )
+    parser.add_argument(
+        "--mask_logits_output_name",
+        "--mask-logits-output-name",
+        help="Optional override for TensorRT mask_logits tensor name",
     )
     parser.add_argument(
         "--warmup",
@@ -1741,6 +2042,15 @@ def parse_args():
             "sliding window by replacing its y_t/y_0 tensors and zeroing its mask."
         ),
     )
+    parser.add_argument(
+        "--apply_predicted_mask",
+        "--alg_b2b_apply_predicted_mask",
+        action="store_true",
+        help=(
+            "Use the predicted mask for final compositing. By default the coarse "
+            "input mask is used."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1760,8 +2070,11 @@ def main():
         model_input_name=args.model_input_name,
         timesteps_input_name=args.timesteps_input_name,
         labels_input_name=args.labels_input_name,
+        mask_precision_mode_input_name=args.mask_precision_mode_input_name,
+        mask_precision_severity_input_name=args.mask_precision_severity_input_name,
         temporal_frame_step_input_name=args.temporal_frame_step_input_name,
         output_name=args.output_name,
+        mask_logits_output_name=args.mask_logits_output_name,
     )
 
     trt_batch, trt_frames, trt_channels, trt_height, trt_width = get_engine_shape(
@@ -1777,6 +2090,19 @@ def main():
             "train_config enables b2b_temporal_frame_step_conditioning, but the "
             "TensorRT engine has no temporal_frame_step input"
         )
+    if common_runner.mask_prediction_enabled(train_json):
+        missing_smartbrush_io = []
+        if session.mask_precision_mode_input_name is None:
+            missing_smartbrush_io.append("mask_precision_mode")
+        if session.mask_precision_severity_input_name is None:
+            missing_smartbrush_io.append("mask_precision_severity")
+        if session.mask_logits_output_name is None:
+            missing_smartbrush_io.append("mask_logits")
+        if missing_smartbrush_io:
+            raise ValueError(
+                "SmartBrush train_config requires TensorRT tensors: "
+                + ", ".join(missing_smartbrush_io)
+            )
     train_frames, train_height, train_width, _, _ = get_train_shape(train_json)
     if train_json.get("alg", {}).get("diffusion_cond_image_creation", "y_t") != "y_t":
         raise NotImplementedError(
@@ -1814,6 +2140,9 @@ def main():
         pairs = pairs[args.start_index :]
 
     denoise_steps = resolve_denoise_steps(train_json, args.denoise_steps)
+    object_refs = common_runner.load_object_refs_for_inference(
+        train_json, args.alg_b2b_object_ref_paths
+    )
 
     try:
         frames_written, timing_summary = run_sequence(
@@ -1831,6 +2160,10 @@ def main():
             repeat=args.repeat,
             autoregressive_reinject_patch=args.autoregressive_reinject_patch,
             temporal_frame_step=args.temporal_frame_step,
+            object_refs=object_refs,
+            mask_precision_mode=args.mask_precision_mode,
+            mask_precision_severity=args.mask_precision_severity,
+            apply_predicted_mask=args.apply_predicted_mask,
         )
     finally:
         session.close()
@@ -1842,6 +2175,10 @@ def main():
     print(f"train_config : {train_config_path}")
     print(f"engine       : {args.engine}")
     print(f"model_input  : {session.model_input_name}")
+    print(f"mask_precision_mode_input: {session.mask_precision_mode_input_name}")
+    print(
+        f"mask_precision_severity_input: {session.mask_precision_severity_input_name}"
+    )
     print(f"temporal_frame_step_input: {session.temporal_frame_step_input_name}")
     print(
         "temporal_frame_step: "
@@ -1850,10 +2187,17 @@ def main():
     print(f"timesteps    : {session.timesteps_input_name}")
     print(f"labels       : {session.labels_input_name}")
     print(f"output       : {session.output_name}")
+    print(f"mask_logits  : {session.mask_logits_output_name}")
+    precision_mode, precision_severity = common_runner.resolve_mask_precision(
+        train_json, args.mask_precision_mode, args.mask_precision_severity
+    )
+    print(f"mask_precision: {(precision_mode, precision_severity)}")
+    print(f"object_refs  : {0 if object_refs is None else int(object_refs.shape[0])}")
     print(f"denoise_steps: {denoise_steps}")
     print(f"warmup       : {args.warmup}")
     print(f"repeat       : {args.repeat}")
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
+    print(f"apply_predicted_mask: {args.apply_predicted_mask}")
     if timing_summary["runs"] > 0:
         avg_restoration_ms = timing_summary["restoration_ms"] / timing_summary["runs"]
         avg_frames_per_run = timing_summary["frames"] / timing_summary["runs"]

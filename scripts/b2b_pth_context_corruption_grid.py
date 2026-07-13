@@ -466,7 +466,13 @@ def infer_second_generated_crop(
     y0_noisy_first = torch.from_numpy(y0_np + sigma * eps_ctx)
 
     y_t_batch = onnx_runner.prepare_tensors([prev_frame["y_t"], frame_data["y_t"]])
+    y0_tensor_batch = onnx_runner.prepare_tensors(
+        [prev_frame["y0_tensor"], frame_data["y0_tensor"]]
+    )
     mask_batch = onnx_runner.prepare_tensors([prev_frame["mask"], frame_data["mask"]])
+    mandatory_mask_batch = onnx_runner.prepare_tensors(
+        [prev_frame["mandatory_mask"], frame_data["mandatory_mask"]]
+    )
     global_context_batch = onnx_runner.prepare_tensors(
         [prev_frame.get("global_context"), frame_data.get("global_context")]
     )
@@ -497,6 +503,8 @@ def infer_second_generated_crop(
         labels=labels,
         params=params,
         init_noise=init_noise,
+        source_image=y0_tensor_batch.numpy().astype(np.float32),
+        mandatory_mask=mandatory_mask_batch.numpy().astype(np.float32),
         temporal_frame_step=temporal_frame_step,
         global_context=(
             None

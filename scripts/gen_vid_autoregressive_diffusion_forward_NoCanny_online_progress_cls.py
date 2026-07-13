@@ -1061,12 +1061,24 @@ def generate_streaming(
                                 "Expected B2B streaming inputs to be RGB + 1-channel mask condition."
                             )
                     labels = prepare_label_tensor(input_cls_values, y_t_batch.device)
+                    precision_mode = torch.full(
+                        (y_t_batch.shape[0],),
+                        2,
+                        device=y_t_batch.device,
+                        dtype=torch.long,
+                    )
+                    precision_severity = torch.ones(
+                        y_t_batch.shape[0], device=y_t_batch.device
+                    )
                     out_tensor = model.restoration(
                         y_t_batch,
                         cond_image_batch,
                         alg_b2b_denoise_timesteps,
                         mask_batch,
                         labels,
+                        source_image=y0_tensor_batch,
+                        mask_precision_mode=precision_mode,
+                        mask_precision_severity=precision_severity,
                     )
 
             out_tensor = out_tensor.squeeze(0)
