@@ -287,6 +287,7 @@ def define_G(
             mask_size_conditioning=getattr(
                 opt, "alg_b2b_mask_size_conditioning", False
             ),
+            mask_prediction=getattr(opt, "alg_b2b_mask_prediction", False),
             **cfg,
         )
         # Ensure SC/CM wrappers can query the conditioning width.
@@ -339,6 +340,7 @@ def define_G(
             mask_size_conditioning=getattr(
                 opt, "alg_b2b_mask_size_conditioning", False
             ),
+            mask_prediction=getattr(opt, "alg_b2b_mask_prediction", False),
             temporal_frame_step_conditioning=getattr(
                 opt, "alg_b2b_temporal_frame_step_conditioning", False
             ),

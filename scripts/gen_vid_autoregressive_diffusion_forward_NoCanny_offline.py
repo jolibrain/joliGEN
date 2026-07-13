@@ -829,8 +829,19 @@ def generate(
             elif opt.model_type == "b2b":
                 B = y_t.size(0)
                 labels = torch.zeros(B, device=y_t.device, dtype=torch.long)
+                precision_mode = torch.full(
+                    (B,), 2, device=y_t.device, dtype=torch.long
+                )
+                precision_severity = torch.ones(B, device=y_t.device)
                 out_tensor = model.restoration(
-                    y_t, cond_image, alg_b2b_denoise_timesteps, mask, labels
+                    y_t,
+                    cond_image,
+                    alg_b2b_denoise_timesteps,
+                    mask,
+                    labels,
+                    source_image=y0_tensor,
+                    mask_precision_mode=precision_mode,
+                    mask_precision_severity=precision_severity,
                 )
 
         # --------------------------------

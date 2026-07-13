@@ -753,6 +753,7 @@ class JiTViD(nn.Module):
         num_register_tokens=0,
         cond_embed_dim=None,
         mask_size_conditioning=False,
+        mask_prediction=False,
         temporal_frame_step_conditioning=False,
         max_frames=8,
         motion_num_heads=8,
@@ -793,6 +794,7 @@ class JiTViD(nn.Module):
         self.max_frames = max_frames
         self.motion_every = motion_every
         self.mask_size_conditioning = mask_size_conditioning
+        self.mask_prediction = mask_prediction
         self.temporal_frame_step_conditioning = temporal_frame_step_conditioning
         self.global_context_mode = global_context_mode
         self.global_context_conditioning = b2b_global_context_enabled(
@@ -825,6 +827,18 @@ class JiTViD(nn.Module):
                 nn.Linear(hidden_size, hidden_size),
             )
             if mask_size_conditioning
+            else None
+        )
+        self.mask_precision_mode_embedder = (
+            nn.Embedding(3, hidden_size) if mask_prediction else None
+        )
+        self.mask_precision_severity_embedder = (
+            nn.Sequential(
+                nn.Linear(1, hidden_size),
+                nn.SiLU(),
+                nn.Linear(hidden_size, hidden_size),
+            )
+            if mask_prediction
             else None
         )
         self.temporal_frame_step_embedder = (
@@ -966,6 +980,9 @@ class JiTViD(nn.Module):
 
         # linear predict
         self.final_layer = FinalLayer(hidden_size, patch_size, self.out_channels)
+        self.mask_final_layer = (
+            FinalLayer(hidden_size, patch_size, 1) if mask_prediction else None
+        )
 
         self.initialize_weights()
 
@@ -1028,6 +1045,10 @@ class JiTViD(nn.Module):
         if self.mask_size_embedder is not None:
             nn.init.constant_(self.mask_size_embedder[-1].weight, 0)
             nn.init.constant_(self.mask_size_embedder[-1].bias, 0)
+        if self.mask_precision_mode_embedder is not None:
+            nn.init.constant_(self.mask_precision_mode_embedder.weight, 0)
+            nn.init.constant_(self.mask_precision_severity_embedder[-1].weight, 0)
+            nn.init.constant_(self.mask_precision_severity_embedder[-1].bias, 0)
         if self.temporal_frame_step_embedder is not None:
             nn.init.constant_(self.temporal_frame_step_embedder.mlp[-1].weight, 0)
             nn.init.constant_(self.temporal_frame_step_embedder.mlp[-1].bias, 0)
@@ -1058,14 +1079,19 @@ class JiTViD(nn.Module):
 
         nn.init.constant_(self.final_layer.linear.weight, 0)
         nn.init.constant_(self.final_layer.linear.bias, 0)
+        if self.mask_final_layer is not None:
+            nn.init.constant_(self.mask_final_layer.adaLN_modulation[-1].weight, 0)
+            nn.init.constant_(self.mask_final_layer.adaLN_modulation[-1].bias, 0)
+            nn.init.constant_(self.mask_final_layer.linear.weight, 0)
+            nn.init.constant_(self.mask_final_layer.linear.bias, 0)
 
-    def unpatchify(self, x, p, B=None, F=None):
+    def unpatchify(self, x, p, B=None, F=None, channels=None):
         """
         x: (B*F, T, p*p*C)
         return: (B, F, C, H, W)   if B and F are given
                 (B*F, C, H, W)    otherwise
         """
-        c = self.out_channels
+        c = self.out_channels if channels is None else channels
         h = w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]
 
@@ -1101,6 +1127,32 @@ class JiTViD(nn.Module):
                 )
             mask_size_cond = mask_size_cond.to(device=c.device, dtype=c.dtype)
         return c + self.mask_size_embedder(mask_size_cond)
+
+    def _mask_precision_embedding(self, B, F, c, mode, severity):
+        if self.mask_precision_mode_embedder is None:
+            return c
+
+        def flatten_condition(value, default, dtype):
+            if value is None:
+                return torch.full((B * F,), default, device=c.device, dtype=dtype)
+            value = value.to(device=c.device, dtype=dtype)
+            if value.numel() == B:
+                value = repeat(value.reshape(B), "b -> (b f)", f=F)
+            elif value.numel() == B * F:
+                value = value.reshape(B * F)
+            else:
+                raise RuntimeError(
+                    "mask precision conditioning must match video batch or frames"
+                )
+            return value
+
+        mode = flatten_condition(mode, 0, torch.long)
+        severity = flatten_condition(severity, 0.0, c.dtype).unsqueeze(1)
+        return (
+            c
+            + self.mask_precision_mode_embedder(mode)
+            + self.mask_precision_severity_embedder(severity)
+        )
 
     def _temporal_frame_step_embedding(self, B, F, c, temporal_frame_step):
         if self.temporal_frame_step_embedder is None:
@@ -1237,6 +1289,8 @@ class JiTViD(nn.Module):
         t,
         y,
         mask_size_cond=None,
+        mask_precision_mode=None,
+        mask_precision_severity=None,
         temporal_frame_step=None,
         global_context=None,
         object_refs=None,
@@ -1279,6 +1333,9 @@ class JiTViD(nn.Module):
         y_emb = self.y_embedder(y2d)  # (B*F, D)
         c = t_emb + y_emb
         c = self._mask_size_embedding(B, F, c, mask_size_cond)
+        c = self._mask_precision_embedding(
+            B, F, c, mask_precision_mode, mask_precision_severity
+        )
         c = self._temporal_frame_step_embedding(B, F, c, temporal_frame_step)
         c = self._global_context_embedding(B, F, c, global_context)
         global_context_tokens = self._global_context_tokens(
@@ -1352,8 +1409,16 @@ class JiTViD(nn.Module):
                 x, B, F, Hp, Wp, self.motion_module, prefix_tokens=0
             )
 
-        x = self.final_layer(x, c)
+        features = x
+        x = self.final_layer(features, c)
         output = self.unpatchify(x, self.patch_size, B=B, F=F)
+
+        if self.mask_final_layer is not None:
+            mask_logits = self.mask_final_layer(features, c)
+            mask_logits = self.unpatchify(
+                mask_logits, self.patch_size, B=B, F=F, channels=1
+            )
+            return output, mask_logits
 
         return output
 

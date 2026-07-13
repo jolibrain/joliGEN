@@ -62,6 +62,20 @@ class SelfSupervisedLabeledMaskClsOnlineDataset(UnalignedLabeledMaskClsOnlineDat
                     "B_label_cls": result["A_label_cls"].clone(),
                 }
             )
+            if "A_instance_mask" in result:
+                result.update(
+                    {
+                        "B_source": result["A_source"].clone(),
+                        "B_instance_mask": result["A_instance_mask"].clone(),
+                        "B_mandatory_mask": result["A_mandatory_mask"].clone(),
+                        "B_mask_precision_mode": result[
+                            "A_mask_precision_mode"
+                        ].clone(),
+                        "B_mask_precision_severity": result[
+                            "A_mask_precision_severity"
+                        ].clone(),
+                    }
+                )
         except Exception as e:
             print(e, "self supervised data loading")
             return None

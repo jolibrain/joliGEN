@@ -229,6 +229,7 @@ class B2BDenoiserWrapper(torch.nn.Module):
         self,
         model,
         mask_size_conditioning=False,
+        mask_prediction=False,
         temporal_frame_step_conditioning=False,
         global_context_conditioning=False,
         object_ref_conditioning=False,
@@ -236,6 +237,7 @@ class B2BDenoiserWrapper(torch.nn.Module):
         super().__init__()
         self.model = model.b2b_model
         self.mask_size_conditioning = mask_size_conditioning
+        self.mask_prediction = mask_prediction
         self.temporal_frame_step_conditioning = temporal_frame_step_conditioning
         self.global_context_conditioning = global_context_conditioning
         self.object_ref_conditioning = object_ref_conditioning
@@ -245,6 +247,11 @@ class B2BDenoiserWrapper(torch.nn.Module):
         model_kwargs = {}
         if self.mask_size_conditioning:
             model_kwargs["mask_size_cond"] = conditioning_inputs[input_index]
+            input_index += 1
+        if self.mask_prediction:
+            model_kwargs["mask_precision_mode"] = conditioning_inputs[input_index]
+            input_index += 1
+            model_kwargs["mask_precision_severity"] = conditioning_inputs[input_index]
             input_index += 1
         if self.temporal_frame_step_conditioning:
             model_kwargs["temporal_frame_step"] = conditioning_inputs[input_index]
@@ -269,6 +276,7 @@ def build_export_wrapper(model, opt, export_mode, denoise_steps):
                 mask_size_conditioning=getattr(
                     opt, "alg_b2b_mask_size_conditioning", False
                 ),
+                mask_prediction=getattr(opt, "alg_b2b_mask_prediction", False),
                 temporal_frame_step_conditioning=getattr(
                     opt, "alg_b2b_temporal_frame_step_conditioning", False
                 ),
@@ -278,6 +286,12 @@ def build_export_wrapper(model, opt, export_mode, denoise_steps):
                 ),
             ),
             uses_cond,
+        )
+
+    if getattr(opt, "alg_b2b_mask_prediction", False):
+        raise NotImplementedError(
+            "SmartBrush checkpoints must be exported with --export_mode denoiser; "
+            "the fixed-step restoration graph does not expose the evolving mask."
         )
 
     if cond_creation == "y_t" and mask_as_channel:
@@ -309,6 +323,14 @@ def make_dummy_inputs(opt, device, export_mode, uses_cond, batch_size, num_frame
                 batch_size, num_frames, 6, dtype=torch.float32, device=device
             )
             denoiser_inputs.append(mask_size_cond)
+        if getattr(opt, "alg_b2b_mask_prediction", False):
+            mask_precision_mode = torch.full(
+                (batch_size,), 2, dtype=torch.long, device=device
+            )
+            mask_precision_severity = torch.ones(
+                batch_size, dtype=torch.float32, device=device
+            )
+            denoiser_inputs.extend([mask_precision_mode, mask_precision_severity])
         if getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False):
             temporal_frame_step = torch.ones(
                 batch_size, dtype=torch.float32, device=device
@@ -371,6 +393,8 @@ def export_to_onnx(
         input_names = ["model_input", "timesteps", "labels"]
         if getattr(opt, "alg_b2b_mask_size_conditioning", False):
             input_names.append("mask_size_cond")
+        if getattr(opt, "alg_b2b_mask_prediction", False):
+            input_names.extend(["mask_precision_mode", "mask_precision_severity"])
         if getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False):
             input_names.append("temporal_frame_step")
         if b2b_global_context_enabled_from_opt(opt):
@@ -382,12 +406,22 @@ def export_to_onnx(
     else:
         input_names = ["y", "mask", "init_noise", "labels"]
 
-    output_names = ["output"]
+    output_names = (
+        ["output", "mask_logits"]
+        if export_mode == "denoiser" and getattr(opt, "alg_b2b_mask_prediction", False)
+        else ["output"]
+    )
     dynamic_axes = None
     if dynamic_batch_frames:
-        dynamic_axes = {"output": {0: "batch", 1: "frames"}}
+        dynamic_axes = {name: {0: "batch", 1: "frames"} for name in output_names}
         for name in input_names:
-            if name in ("labels", "timesteps", "temporal_frame_step"):
+            if name in (
+                "labels",
+                "timesteps",
+                "mask_precision_mode",
+                "mask_precision_severity",
+                "temporal_frame_step",
+            ):
                 dynamic_axes[name] = {0: "batch"}
             elif name == "mask_size_cond":
                 dynamic_axes[name] = {0: "batch", 1: "frames"}

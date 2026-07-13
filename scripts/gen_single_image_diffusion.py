@@ -705,8 +705,21 @@ def generate(
             B = y_t.size(0)
             label_id = 0 if int(cls) < 0 else int(cls)
             labels = torch.ones(B, device=y_t.device, dtype=torch.long) * label_id
+            precision_mode = torch.full(
+                (B,), 2 if bbox_in else 0, device=y_t.device, dtype=torch.long
+            )
+            precision_severity = torch.full(
+                (B,), 1.0 if bbox_in else 0.0, device=y_t.device
+            )
             out_tensor = model.restoration(
-                y_t, cond_image, alg_b2b_denoise_timesteps, mask, labels
+                y_t,
+                cond_image,
+                alg_b2b_denoise_timesteps,
+                mask,
+                labels,
+                source_image=img_tensor,
+                mask_precision_mode=precision_mode,
+                mask_precision_severity=precision_severity,
             )
 
         # XXX: !=8bit images are converted to 8bit RGB for now
