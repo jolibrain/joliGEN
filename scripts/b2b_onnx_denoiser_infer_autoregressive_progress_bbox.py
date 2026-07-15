@@ -827,6 +827,16 @@ def mask_to_uint8(mask):
     return (np.clip(mask, 0.0, 1.0) * 255.0).round().astype(np.uint8)
 
 
+def binary_mask_to_class_mask(mask, mask_class):
+    mask_class = int(mask_class)
+    if mask_class <= 0 or mask_class > np.iinfo(np.uint16).max:
+        raise ValueError(
+            f"mask class must be in [1, {np.iinfo(np.uint16).max}], got {mask_class}"
+        )
+    dtype = np.uint8 if mask_class <= np.iinfo(np.uint8).max else np.uint16
+    return (np.asarray(mask) > 0).astype(dtype) * mask_class
+
+
 def project_known_pixels(x, y_known, mask):
     if mask is None or y_known is None:
         return x
@@ -1319,6 +1329,13 @@ def write_frame(
         if generated_mask is not None
         else None
     )
+    generated_class_mask_for_paste = (
+        binary_mask_to_class_mask(
+            generated_mask_for_paste, frame_data.get("label_cls", 1)
+        )
+        if generated_mask_for_paste is not None
+        else None
+    )
     img_orig = frame_data["img_orig"].copy()
     bbox_select = frame_data["bbox_select"]
     has_bbox = frame_data["has_bbox"]
@@ -1366,6 +1383,7 @@ def write_frame(
 
         raw_img_real_size = None
         generated_mask_real_size = None
+        generated_binary_mask_real_size = None
         generated_applied_real_size = None
         if raw_img_for_paste is not None and generated_mask_for_paste is not None:
             if mapping is not None:
@@ -1382,8 +1400,19 @@ def write_frame(
             )
             raw_img_real_size = img_orig.copy()
             raw_img_real_size[y0:y1, x0:x1] = raw_resized
-            generated_mask_real_size = np.zeros(img_orig.shape[:2], dtype=np.uint8)
-            generated_mask_real_size[y0:y1, x0:x1] = predicted_mask_resized * 255
+            predicted_class_mask_resized = binary_mask_to_class_mask(
+                predicted_mask_resized, frame_data.get("label_cls", 1)
+            )
+            generated_mask_real_size = np.zeros(
+                img_orig.shape[:2], dtype=predicted_class_mask_resized.dtype
+            )
+            generated_mask_real_size[y0:y1, x0:x1] = predicted_class_mask_resized
+            generated_binary_mask_real_size = np.zeros(
+                img_orig.shape[:2], dtype=np.uint8
+            )
+            generated_binary_mask_real_size[y0:y1, x0:x1] = (
+                predicted_mask_resized * 255
+            )
             generated_applied_real_size = img_orig.copy()
             generated_applied_real_size[y0:y1, x0:x1] = np.where(
                 predicted_mask_resized.astype(bool)[:, :, None],
@@ -1396,6 +1425,11 @@ def write_frame(
         orig_crop = img_orig.copy()
         raw_img_real_size = raw_img_for_paste
         generated_mask_real_size = (
+            generated_class_mask_for_paste
+            if generated_class_mask_for_paste is not None
+            else None
+        )
+        generated_binary_mask_real_size = (
             generated_mask_for_paste * 255
             if generated_mask_for_paste is not None
             else None
@@ -1430,6 +1464,10 @@ def write_frame(
         )
         cv2.imwrite(
             os.path.join(output_dir, name_out + "_generated_mask_crop.png"),
+            generated_class_mask_for_paste,
+        )
+        cv2.imwrite(
+            os.path.join(output_dir, name_out + "_generated_mask_binary_crop.png"),
             generated_mask_for_paste * 255,
         )
         cv2.imwrite(
@@ -1443,6 +1481,10 @@ def write_frame(
         cv2.imwrite(
             os.path.join(output_dir, name_out + "_generated_mask.png"),
             generated_mask_real_size,
+        )
+        cv2.imwrite(
+            os.path.join(output_dir, name_out + "_generated_mask_binary.png"),
+            generated_binary_mask_real_size,
         )
         cv2.imwrite(
             os.path.join(output_dir, name_out + "_generated_applied.png"),
