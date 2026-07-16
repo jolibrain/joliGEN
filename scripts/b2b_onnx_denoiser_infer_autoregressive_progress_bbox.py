@@ -60,6 +60,50 @@ def separate_tensors(tensor):
     return None
 
 
+def build_window_mask_precision(
+    batch,
+    frames,
+    mode,
+    severity,
+    exact_reference=False,
+):
+    """Build per-frame SmartBrush precision metadata for one video window."""
+    if mode is None or severity is None:
+        return None, None
+    modes = np.full((batch, frames), int(mode), dtype=np.int64)
+    severities = np.full((batch, frames), float(severity), dtype=np.float32)
+    if exact_reference and frames > 0:
+        modes[:, 0] = MASK_PRECISION_EXACT
+        severities[:, 0] = 0.0
+    return modes, severities
+
+
+def normalize_mask_precision_inputs(mode, severity, batch, frames):
+    """Normalize scalar/batch values to denoiser inputs shaped [B,F]."""
+
+    def normalize(value, dtype, name):
+        value = np.asarray(value, dtype=dtype)
+        if value.ndim == 0:
+            return np.full((batch, frames), value.item(), dtype=dtype)
+        if value.shape == (batch,):
+            return np.repeat(value[:, None], frames, axis=1)
+        if value.shape == (batch, frames):
+            return value
+        raise ValueError(
+            f"{name} must be scalar, [B], or [B,F] with B={batch}, F={frames}; "
+            f"got {value.shape}"
+        )
+
+    return (
+        normalize(mode, np.int64, "mask_precision_mode"),
+        normalize(severity, np.float32, "mask_precision_severity"),
+    )
+
+
+def predicted_class_conditioning_mask(binary_mask, input_class):
+    return binary_mask * float(input_class)
+
+
 def load_session(model_in_file, provider):
     try:
         import onnxruntime as ort
@@ -98,6 +142,19 @@ def require_denoiser_model(
             f"{expected}, got {input_names}. "
             "Export with scripts/b2b_export_onnx.py --export_mode denoiser."
         )
+    if mask_prediction:
+        input_by_name = {item.name: item for item in session.get_inputs()}
+        invalid_precision_inputs = [
+            name
+            for name in ("mask_precision_mode", "mask_precision_severity")
+            if len(input_by_name[name].shape) != 2
+        ]
+        if invalid_precision_inputs:
+            raise ValueError(
+                "SmartBrush precision inputs must have per-frame shape [B,F]; "
+                "re-export the ONNX model and rebuild any TensorRT engine. "
+                f"Invalid inputs: {invalid_precision_inputs}"
+            )
     output_names = [x.name for x in session.get_outputs()]
     expected_outputs = ["output", "mask_logits"] if mask_prediction else ["output"]
     if output_names != expected_outputs:
@@ -1146,10 +1203,17 @@ def restoration_with_denoiser(
         raise ValueError("denoise_steps must be >= 1")
     if params["mask_prediction"]:
         batch = int(y.shape[0])
+        frames = int(y.shape[1]) if y.ndim == 5 else 1
         if mask_precision_mode is None:
-            mask_precision_mode = np.full((batch,), MASK_PRECISION_BBOX, dtype=np.int64)
+            mask_precision_mode = MASK_PRECISION_BBOX
         if mask_precision_severity is None:
-            mask_precision_severity = np.ones(batch, dtype=np.float32)
+            mask_precision_severity = 1.0
+        mask_precision_mode, mask_precision_severity = normalize_mask_precision_inputs(
+            mask_precision_mode,
+            mask_precision_severity,
+            batch,
+            frames,
+        )
     y_known = (
         (source_image if source_image is not None else y) if mask is not None else None
     )
@@ -1410,9 +1474,7 @@ def write_frame(
             generated_binary_mask_real_size = np.zeros(
                 img_orig.shape[:2], dtype=np.uint8
             )
-            generated_binary_mask_real_size[y0:y1, x0:x1] = (
-                predicted_mask_resized * 255
-            )
+            generated_binary_mask_real_size[y0:y1, x0:x1] = predicted_mask_resized * 255
             generated_applied_real_size = img_orig.copy()
             generated_applied_real_size[y0:y1, x0:x1] = np.where(
                 predicted_mask_resized.astype(bool)[:, :, None],
@@ -1521,16 +1583,6 @@ def run_sequence(
     precision_mode_id, precision_severity_value = resolve_mask_precision(
         train_json, mask_precision_mode, mask_precision_severity
     )
-    precision_mode_input = (
-        None
-        if precision_mode_id is None
-        else np.asarray([precision_mode_id], dtype=np.int64)
-    )
-    precision_severity_input = (
-        None
-        if precision_severity_value is None
-        else np.asarray([precision_severity_value], dtype=np.float32)
-    )
     temporal_frame_step = resolve_temporal_frame_step(train_json, temporal_frame_step)
     inputmix = True
     prev_frame = None
@@ -1620,6 +1672,15 @@ def run_sequence(
         labels = np.asarray(
             [resolve_b2b_label(train_json, frame_data["label_cls"], label)],
             dtype=np.int64,
+        )
+        precision_mode_input, precision_severity_input = build_window_mask_precision(
+            int(y_t_batch.shape[0]),
+            int(y_t_batch.shape[1]),
+            precision_mode_id,
+            precision_severity_value,
+            exact_reference=(
+                autoregressive_reinject_patch and last_seq_half_y_t is not None
+            ),
         )
         init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
         restoration_result = restoration_with_denoiser(
@@ -1717,11 +1778,18 @@ def run_sequence(
             else None
         )
         if params["mask_as_channel"]:
-            last_seq_half_cond_image = (
-                last_seq_half_mask
-                if autoregressive_reinject_patch
-                else cond_image_temp_list[-seq_half:]
-            )
+            if autoregressive_reinject_patch and params["mask_prediction"]:
+                last_seq_half_cond_image = [
+                    predicted_class_conditioning_mask(
+                        mask_tensor,
+                        frame_data["label_cls"],
+                    )
+                    for mask_tensor in generated_mask_list[-seq_half:]
+                ]
+            elif autoregressive_reinject_patch:
+                last_seq_half_cond_image = last_seq_half_mask
+            else:
+                last_seq_half_cond_image = cond_image_temp_list[-seq_half:]
         else:
             last_seq_half_cond_image = selected_applied_list[-seq_half:]
 
@@ -1839,7 +1907,8 @@ def parse_args():
         action="store_true",
         help=(
             "Feed the previously generated crop back as known context in the next "
-            "sliding window by replacing its y_t/y_0 tensors and zeroing its mask."
+            "sliding window, with zero projection and the predicted class mask "
+            "as conditioning."
         ),
     )
     parser.add_argument(
@@ -1849,6 +1918,15 @@ def parse_args():
         help=(
             "Use the predicted mask for final compositing. By default the coarse "
             "input mask is used."
+        ),
+    )
+    parser.add_argument(
+        "--use_predicted_mask_during_denoising",
+        "--alg_b2b_use_predicted_mask_during_denoising",
+        action="store_true",
+        help=(
+            "Feed predicted masks between denoising intervals. This is "
+            "independent of cross-window autoregressive mask conditioning."
         ),
     )
     return parser.parse_args()
@@ -1940,6 +2018,7 @@ def main():
         mask_precision_mode=args.mask_precision_mode,
         mask_precision_severity=args.mask_precision_severity,
         apply_predicted_mask=args.apply_predicted_mask,
+        use_predicted_mask_during_denoising=(args.use_predicted_mask_during_denoising),
     )
 
     print(f"dataset_root : {dataset_root}")
@@ -1957,6 +2036,10 @@ def main():
     print(f"object_refs  : {0 if object_refs is None else int(object_refs.shape[0])}")
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
     print(f"apply_predicted_mask: {args.apply_predicted_mask}")
+    print(
+        "use_predicted_mask_during_denoising: "
+        f"{args.use_predicted_mask_during_denoising}"
+    )
     print(f"written      : {len(frames_written)} frames")
     print(f"saved        : {args.output_dir}")
 
