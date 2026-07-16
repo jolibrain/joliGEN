@@ -325,10 +325,10 @@ def make_dummy_inputs(opt, device, export_mode, uses_cond, batch_size, num_frame
             denoiser_inputs.append(mask_size_cond)
         if getattr(opt, "alg_b2b_mask_prediction", False):
             mask_precision_mode = torch.full(
-                (batch_size,), 2, dtype=torch.long, device=device
+                (batch_size, num_frames), 2, dtype=torch.long, device=device
             )
             mask_precision_severity = torch.ones(
-                batch_size, dtype=torch.float32, device=device
+                batch_size, num_frames, dtype=torch.float32, device=device
             )
             denoiser_inputs.extend([mask_precision_mode, mask_precision_severity])
         if getattr(opt, "alg_b2b_temporal_frame_step_conditioning", False):
@@ -418,12 +418,14 @@ def export_to_onnx(
             if name in (
                 "labels",
                 "timesteps",
-                "mask_precision_mode",
-                "mask_precision_severity",
                 "temporal_frame_step",
             ):
                 dynamic_axes[name] = {0: "batch"}
-            elif name == "mask_size_cond":
+            elif name in (
+                "mask_size_cond",
+                "mask_precision_mode",
+                "mask_precision_severity",
+            ):
                 dynamic_axes[name] = {0: "batch", 1: "frames"}
             elif name == "object_refs":
                 pass
@@ -441,6 +443,7 @@ def export_to_onnx(
             input_names=input_names,
             output_names=output_names,
             dynamic_axes=dynamic_axes,
+            dynamo=False,
         )
 
 

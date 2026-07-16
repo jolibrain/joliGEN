@@ -259,7 +259,8 @@ def parse_args():
         action="store_true",
         help=(
             "Feed the previously generated crop back as known context in the next "
-            "sliding window by replacing its y_t/y_0 tensors and zeroing its mask."
+            "sliding window, with zero projection and the predicted class mask "
+            "as conditioning."
         ),
     )
     parser.add_argument(

@@ -1587,6 +1587,7 @@ def run_sequence(
     mask_precision_mode=None,
     mask_precision_severity=None,
     apply_predicted_mask=False,
+    use_predicted_mask_during_denoising=False,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = common_runner.get_train_shape(train_json)
@@ -1598,16 +1599,6 @@ def run_sequence(
     )
     precision_mode_id, precision_severity_value = common_runner.resolve_mask_precision(
         train_json, mask_precision_mode, mask_precision_severity
-    )
-    precision_mode_input = (
-        None
-        if precision_mode_id is None
-        else np.asarray([precision_mode_id], dtype=np.int64)
-    )
-    precision_severity_input = (
-        None
-        if precision_severity_value is None
-        else np.asarray([precision_severity_value], dtype=np.float32)
     )
     inputmix = True
     prev_frame = None
@@ -1720,6 +1711,17 @@ def run_sequence(
             ],
             dtype=np.int64,
         )
+        precision_mode_input, precision_severity_input = (
+            common_runner.build_window_mask_precision(
+                int(y_t_batch.shape[0]),
+                int(y_t_batch.shape[1]),
+                precision_mode_id,
+                precision_severity_value,
+                exact_reference=(
+                    autoregressive_reinject_patch and last_seq_half_y_t is not None
+                ),
+            )
+        )
         init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
         y_np = y_t_batch.numpy().astype(np.float32)
         y_cond_np = (
@@ -1760,6 +1762,9 @@ def run_sequence(
                 dump_dir=None,
                 dump_prefix=None,
                 apply_predicted_mask=apply_predicted_mask,
+                use_predicted_mask_during_denoising=(
+                    use_predicted_mask_during_denoising
+                ),
             )
 
         restoration_result = None
@@ -1790,6 +1795,9 @@ def run_sequence(
                 ),
                 return_details=True,
                 apply_predicted_mask=apply_predicted_mask,
+                use_predicted_mask_during_denoising=(
+                    use_predicted_mask_during_denoising
+                ),
             )
             restoration_ms = (time.perf_counter() - restoration_start) * 1000.0
             trt_stats = session.get_timing_stats()
@@ -1864,11 +1872,18 @@ def run_sequence(
             else None
         )
         if params["mask_as_channel"]:
-            last_seq_half_cond_image = (
-                last_seq_half_mask
-                if autoregressive_reinject_patch
-                else cond_image_temp_list[-seq_half:]
-            )
+            if autoregressive_reinject_patch and params["mask_prediction"]:
+                last_seq_half_cond_image = [
+                    common_runner.predicted_class_conditioning_mask(
+                        mask_tensor,
+                        frame_data["label_cls"],
+                    )
+                    for mask_tensor in generated_mask_list[-seq_half:]
+                ]
+            elif autoregressive_reinject_patch:
+                last_seq_half_cond_image = last_seq_half_mask
+            else:
+                last_seq_half_cond_image = cond_image_temp_list[-seq_half:]
         else:
             last_seq_half_cond_image = selected_applied_list[-seq_half:]
 
@@ -2039,7 +2054,8 @@ def parse_args():
         action="store_true",
         help=(
             "Feed the previously generated crop back as known context in the next "
-            "sliding window by replacing its y_t/y_0 tensors and zeroing its mask."
+            "sliding window, with zero projection and the predicted class mask "
+            "as conditioning."
         ),
     )
     parser.add_argument(
@@ -2049,6 +2065,15 @@ def parse_args():
         help=(
             "Use the predicted mask for final compositing. By default the coarse "
             "input mask is used."
+        ),
+    )
+    parser.add_argument(
+        "--use_predicted_mask_during_denoising",
+        "--alg_b2b_use_predicted_mask_during_denoising",
+        action="store_true",
+        help=(
+            "Feed predicted masks between denoising intervals. This is "
+            "independent of cross-window autoregressive mask conditioning."
         ),
     )
     return parser.parse_args()
@@ -2102,6 +2127,20 @@ def main():
             raise ValueError(
                 "SmartBrush train_config requires TensorRT tensors: "
                 + ", ".join(missing_smartbrush_io)
+            )
+        invalid_precision_inputs = [
+            name
+            for name in (
+                session.mask_precision_mode_input_name,
+                session.mask_precision_severity_input_name,
+            )
+            if len(session._raw_shape_for(name)) != 2
+        ]
+        if invalid_precision_inputs:
+            raise ValueError(
+                "SmartBrush TensorRT precision inputs must have per-frame shape "
+                "[B,F]. Re-export the ONNX model and rebuild the engine. "
+                f"Invalid inputs: {invalid_precision_inputs}"
             )
     train_frames, train_height, train_width, _, _ = get_train_shape(train_json)
     if train_json.get("alg", {}).get("diffusion_cond_image_creation", "y_t") != "y_t":
@@ -2164,6 +2203,9 @@ def main():
             mask_precision_mode=args.mask_precision_mode,
             mask_precision_severity=args.mask_precision_severity,
             apply_predicted_mask=args.apply_predicted_mask,
+            use_predicted_mask_during_denoising=(
+                args.use_predicted_mask_during_denoising
+            ),
         )
     finally:
         session.close()
@@ -2198,6 +2240,10 @@ def main():
     print(f"repeat       : {args.repeat}")
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
     print(f"apply_predicted_mask: {args.apply_predicted_mask}")
+    print(
+        "use_predicted_mask_during_denoising: "
+        f"{args.use_predicted_mask_during_denoising}"
+    )
     if timing_summary["runs"] > 0:
         avg_restoration_ms = timing_summary["restoration_ms"] / timing_summary["runs"]
         avg_frames_per_run = timing_summary["frames"] / timing_summary["runs"]
