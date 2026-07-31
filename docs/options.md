@@ -86,6 +86,7 @@ Here are all the available options to call with `train.py`
 | --- | --- | --- | --- |
 | --alg_b2b_P_mean | float | -0.8 | Mean of the logistic-normal timestep distribution used at B2B training time. |
 | --alg_b2b_P_std | float | 0.8 | Std of the logistic-normal timestep distribution used at B2B training time. |
+| --alg_b2b_apply_predicted_mask | flag |  | At inference only, composite generated pixels with the predicted mask instead of the coarse input mask. Disabled by default. |
 | --alg_b2b_autoregressive | flag |  | Autoregressive training: each batch is with one GT and the other is noisy image  |
 | --alg_b2b_cfg_scale | float | 1.0 | Classifier-free guidance scale used at B2B inference time. |
 | --alg_b2b_clip_denoised | flag |  | Clip B2B denoised states to [-1, 1] during sampling (disabled by default to match JiT). |
@@ -97,6 +98,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_global_context_conditioning | flag |  | Condition JiTViD B2B denoisers on masked full-frame context encoded by a small CNN. Deprecated compatibility alias for --alg_b2b_global_context_mode adaln. |
 | --alg_b2b_global_context_mode | string | none | Global context conditioning mode for JiTViD B2B. 'adaln' uses the legacy small-CNN AdaLN path, 'tokens' inserts global context ViT prefix tokens, and 'both' enables both paths.<br/><br/> **Values:** none, adaln, tokens, both |
 | --alg_b2b_global_context_size | int | 128 | Square input size for the masked full-frame B2B context encoder. |
+| --alg_b2b_lambda_mask | float | 0.01 | Weight of the joint instance-mask prediction loss. |
 | --alg_b2b_lambda_perceptual | float | 1.0 | Weight for perceptual loss |
 | --alg_b2b_lambda_ref_copy | float | 0.0 | Weight for an image-space copy loss on autoregressive B2B reference frames before mask projection. 0 disables it. |
 | --alg_b2b_lora | flag |  | Train B2B JiT/JiTViD with PEFT LoRA adapters while saving merged full checkpoints. |
@@ -107,6 +109,11 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_loss | string | MSE | Loss type for B2B denoising<br/><br/> **Values:** L1, MSE, pseudo_huber, multiscale_L1, multiscale_MSE |
 | --alg_b2b_loss_masked_region_only | flag |  | Normalize B2B loss over masked pixels only (instead of all image pixels). |
 | --alg_b2b_mask_as_channel | flag |  | Concatenate the inpainting mask as an additional input channel in B2B. |
+| --alg_b2b_mask_bce_weight | float | 1.0 | BCE contribution to the B2B mask prediction loss. |
+| --alg_b2b_mask_dice_weight | float | 1.0 | Dice contribution to the B2B mask prediction loss. |
+| --alg_b2b_mask_prediction | flag |  | Jointly predict the target instance mask during B2B inpainting. |
+| --alg_b2b_mask_prediction_dilation | int | 3 | Predicted-mask dilation radius in model pixels. |
+| --alg_b2b_mask_prediction_threshold | float | 0.5 | Probability threshold for the final predicted inpainting mask. |
 | --alg_b2b_mask_size_conditioning | flag |  | Condition JiT/JiTViD B2B denoisers on normalized mask bbox geometry (center, size, area, aspect). |
 | --alg_b2b_metric_mask | flag |  | Evaluate metrics only on dilated mask region |
 | --alg_b2b_minsnr | flag |  | use min-SNR weighting |
@@ -117,10 +124,12 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_perceptual_loss | array | [''] | Optional perceptual losses<br/><br/> **Values:** , LPIPS, DISTS |
 | --alg_b2b_ref_degrade_noise_std | float | 0.05 | Gaussian noise std for degraded autoregressive reference frames. |
 | --alg_b2b_ref_degrade_prob | float | 0.0 | Probability of adding Gaussian noise to selected autoregressive reference frames in the model input. |
+| --alg_b2b_reference_mask_precision_probs | array | [0.5, 0.5] | Sampling probabilities for exact and dilated masks on the teacher-forced autoregressive reference frame. |
 | --alg_b2b_t_eps | float | 0.05 | Minimum clamp value for (1-t) in velocity conversion v=(x_pred-x)/(1-t). |
 | --alg_b2b_temporal_frame_step_conditioning | flag |  | Condition JiTViD B2B denoisers on the raw temporal frame stride used to build each video sample. |
 | --alg_b2b_timestep_uniform_mix_prob | float | 0.1 | Probability of replacing a logistic-normal B2B training timestep with a uniform sample in [0, 1]. |
 | --alg_b2b_use_gt_prob | float | 0.1 | Probability of selecting a sample to use a GT frame in autoregressive B2B training. |
+| --alg_b2b_use_predicted_mask_during_denoising | flag |  | At inference only, feed each completed denoising interval's predicted mask into the following interval. Disabled by default. |
 | --alg_cm_dists_mean | array | [0.485, 0.456, 0.406] | mean for DISTS perceptual loss |
 | --alg_cm_dists_std | array | [0.229, 0.224, 0.225] | std for DISTS perceptual loss |
 | --alg_cm_lambda_perceptual | float | 1.0 | weight for LPIPS and DISTS perceptual losses |
@@ -293,16 +302,19 @@ Here are all the available options to call with `train.py`
 | --data_online_creation_load_size_B | array | [] | load to this size during online creation, format : width height or only one size if square |
 | --data_online_creation_load_size_keep_ratio_A | flag |  | preserve aspect ratio when loading domain A online; the largest load_size_A side is used as the target largest image side |
 | --data_online_creation_load_size_keep_ratio_B | flag |  | preserve aspect ratio when loading domain B online; the largest load_size_B side is used as the target largest image side |
+| --data_online_creation_mask_bbox_margin_ratio_max | float | 0.5 | maximum independently sampled bbox margin ratio on each side |
 | --data_online_creation_mask_broaden_rect_aug_A | flag |  | randomly broaden online rectangular masks with detector-like bbox augmentations for domain A |
 | --data_online_creation_mask_broaden_rect_aug_B | flag |  | randomly broaden online rectangular masks with detector-like bbox augmentations for domain B |
 | --data_online_creation_mask_delta_A | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
 | --data_online_creation_mask_delta_A_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain B (for semantic loss) for domain A, format : width (x),height (y) for each class or only one size if square |
 | --data_online_creation_mask_delta_B | array | [[]] | mask offset (in pixels) to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square, e.g. '125, 55 100, 100' for 2 classes |
 | --data_online_creation_mask_delta_B_ratio | array | [[]] | ratio mask offset to allow generation of a bigger object in domain A (for semantic loss) for domain B, format : 'width (x),height (y)' for each class or only one size if square |
+| --data_online_creation_mask_dilate_ratio_max | float | 0.25 | maximum dilation radius as a ratio of the instance bbox short side |
 | --data_online_creation_mask_fixed_size_A | int | -1 | if \>0, force domain A online masks to this square side in final model pixels; larger boxes keep the closest containing square |
 | --data_online_creation_mask_fixed_size_B | int | -1 | if \>0, force domain B online masks to this square side in final model pixels; larger boxes keep the closest containing square |
 | --data_online_creation_mask_min_unmasked_border_A | int | 4 | minimum unmasked border in final model pixels for fixed-size masks and square online masks |
 | --data_online_creation_mask_min_unmasked_border_B | int | 4 | minimum unmasked border in final model pixels for fixed-size masks and square online masks |
+| --data_online_creation_mask_precision_probs | array | [0.2, 0.3, 0.5] | sampling probabilities for exact, dilated, and randomized-bbox B2B mask-precision modes |
 | --data_online_creation_mask_random_offset_A | array | [0.0] | ratio mask size randomization (only to make bigger one) to robustify the image generation in domain A, format : width (x) height (y) or only one size if square |
 | --data_online_creation_mask_random_offset_B | array | [0.0] | mask size randomization (only to make bigger one) to robustify the image generation in domain B, format : width (y) height (x) or only one size if square |
 | --data_online_creation_mask_square_A | flag |  | whether masks should be squared for domain A |
