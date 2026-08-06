@@ -78,7 +78,7 @@ class B2BModel(BaseDiffusionModel):
         )
 
     def _b2b_visual_mask_tensor(self, name, mask):
-        if "augmented_mask" in name:
+        if name in {"mask_", "augmented_mask_"}:
             return self._b2b_class_mask_visual_tensor(mask)
         return self._b2b_mask_visual_tensor(mask)
 
