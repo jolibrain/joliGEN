@@ -1948,11 +1948,6 @@ class BaseModel(ABC):
 
             if len(fake_list) >= self.opt.train_nb_img_max_fid:
                 break
-            if (
-                self.opt.G_netG in ["unet_vid", "vit_vid"]
-                and i < self.opt.test_batch_size
-            ):
-                break
 
         if compute_b2b_val_loss:
             if b2b_val_loss_count > 0:
