@@ -20,7 +20,11 @@ from train import launch_training
 from options.train_options import TrainOptions
 from data import create_dataset
 from enum import Enum
-from pydantic import create_model, BaseModel, Field
+
+try:
+    from pydantic.v1 import BaseModel, Field, create_model
+except ImportError:
+    from pydantic import BaseModel, Field, create_model
 
 from multiprocessing import Process
 

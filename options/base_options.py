@@ -353,7 +353,10 @@ class BaseOptions:
         self.parser = parser
         json_vals = self.to_json()
 
-        from pydantic import create_model
+        try:
+            from pydantic.v1 import create_model
+        except ImportError:
+            from pydantic import create_model
 
         def json_to_schema(name, json_vals, schema_tmplate):
             for k in json_vals:
