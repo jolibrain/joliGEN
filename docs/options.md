@@ -294,8 +294,15 @@ Here are all the available options to call with `train.py`
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | --data_online_creation_color_mask_A | flag |  | Perform task of replacing color-filled masks by objects |
+| --data_online_creation_crop_bbox_aspect_range_A | array | [0.9, 1.1] | minimum and maximum area-preserving detector-like bbox aspect multipliers |
+| --data_online_creation_crop_bbox_center_jitter_A | float | 0.05 | maximum detector-like center error as a fraction of bbox width and height for bbox_context crops |
+| --data_online_creation_crop_bbox_scale_range_A | array | [0.9, 1.1] | minimum and maximum detector-like bbox scale multipliers |
+| --data_online_creation_crop_context_fraction_range_A | array | [0.05, 0.2] | minimum and maximum per-side context fraction sampled by the bbox_context crop policy for domain A |
 | --data_online_creation_crop_delta_A | int | 50 | size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain A |
 | --data_online_creation_crop_delta_B | int | 50 | size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain B |
+| --data_online_creation_crop_mask_aspect_ratio_A | float | 0.0 | deployment mask width/height ratio used by bbox_context crops for domain A; 0 disables forced aspect expansion |
+| --data_online_creation_crop_mask_aspect_ratio_orientation_A | string | fixed | whether the bbox_context mask aspect direction is fixed or follows the detector bbox orientation for domain A<br/><br/> **Values:** fixed, bbox |
+| --data_online_creation_crop_mode_A | string | absolute | source crop policy for domain A; bbox_context derives the crop from detector-like bbox occupancy and ignores crop_size_A/crop_delta_A<br/><br/> **Values:** absolute, bbox_context |
 | --data_online_creation_crop_size_A | int | 512 | crop to this size during online creation, it needs to be greater than bbox size for domain A |
 | --data_online_creation_crop_size_B | int | 512 | crop to this size during online creation, it needs to be greater than bbox size for domain B |
 | --data_online_creation_load_size_A | array | [] | load to this size during online creation, format : width height or only one size if square |
@@ -499,4 +506,3 @@ Here are all the available options to call with `train.py`
 | --dataaug_flip | string | horizontal | if specified, flip the images for data augmentation, possible values: none, horizontal, vertical, both<br/><br/> **Values:** none, horizontal, vertical, both |
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
 | --dataaug_no_rotate | flag |  | if specified, do not rotate the images for data augmentation |
-

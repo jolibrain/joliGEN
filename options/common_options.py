@@ -872,6 +872,71 @@ class CommonOptions(BaseOptions):
             help="size of crops are random, values allowed are online_creation_crop_size more or less online_creation_crop_delta for domain A",
         )
         parser.add_argument(
+            "--data_online_creation_crop_mode_A",
+            type=str,
+            default="absolute",
+            choices=["absolute", "bbox_context"],
+            help=(
+                "source crop policy for domain A; bbox_context derives the crop "
+                "from detector-like bbox occupancy and ignores crop_size_A/crop_delta_A"
+            ),
+        )
+        parser.add_argument(
+            "--data_online_creation_crop_context_fraction_range_A",
+            type=float,
+            nargs="+",
+            default=[0.05, 0.20],
+            help=(
+                "minimum and maximum per-side context fraction sampled by the "
+                "bbox_context crop policy for domain A"
+            ),
+        )
+        parser.add_argument(
+            "--data_online_creation_crop_mask_aspect_ratio_A",
+            type=float,
+            default=0.0,
+            help=(
+                "deployment mask width/height ratio used by bbox_context crops for "
+                "domain A; 0 disables forced aspect expansion"
+            ),
+        )
+        parser.add_argument(
+            "--data_online_creation_crop_mask_aspect_ratio_orientation_A",
+            type=str,
+            default="fixed",
+            choices=["fixed", "bbox"],
+            help=(
+                "whether the bbox_context mask aspect direction is fixed or follows "
+                "the detector bbox orientation for domain A"
+            ),
+        )
+        parser.add_argument(
+            "--data_online_creation_crop_bbox_center_jitter_A",
+            type=float,
+            default=0.05,
+            help=(
+                "maximum detector-like center error as a fraction of bbox width and "
+                "height for bbox_context crops"
+            ),
+        )
+        parser.add_argument(
+            "--data_online_creation_crop_bbox_scale_range_A",
+            type=float,
+            nargs="+",
+            default=[0.90, 1.10],
+            help="minimum and maximum detector-like bbox scale multipliers",
+        )
+        parser.add_argument(
+            "--data_online_creation_crop_bbox_aspect_range_A",
+            type=float,
+            nargs="+",
+            default=[0.90, 1.10],
+            help=(
+                "minimum and maximum area-preserving detector-like bbox aspect "
+                "multipliers"
+            ),
+        )
+        parser.add_argument(
             "--data_multi_dataset_crop_delta_scale",
             type=float,
             default=1.0,
