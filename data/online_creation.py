@@ -1767,9 +1767,9 @@ def fill_mask_with_color(img, mask, colors):
         mask = torch.where(mask == cls, 1.0, 0.0)
         dims = img.shape
 
-        assert (
-            len(color) == dims[-3]
-        ), "fill_mask_with_color: number of channels does not match"
+        assert len(color) == dims[-3], (
+            "fill_mask_with_color: number of channels does not match"
+        )
         color = torch.tensor(color).repeat_interleave(dims[-2] * dims[-1]).reshape(dims)
         img = img * (1 - mask) + color * mask
 
