@@ -63,17 +63,43 @@ class DiffAugment:
 
     def __call__(self, x):
         if x.ndim == 3:
-            image_tensors, _ = self._apply_policy_to_sample([x], [])
+            image_tensors, _, _ = self._apply_policy_to_sample([x], [], [None])
             return image_tensors[0]
 
         image_tensors, _ = self.apply_synchronized(image_tensors=[x], mask_tensors=[])
         return image_tensors[0]
 
-    def apply_synchronized(self, image_tensors=None, mask_tensors=None):
+    def apply_synchronized(
+        self,
+        image_tensors=None,
+        mask_tensors=None,
+        image_exclusion_masks=None,
+    ):
+        """Apply one sampled augmentation plan to related tensors.
+
+        Image and mask tensors may use different spatial resolutions. Spatial
+        parameters are sampled against the first tensor, then scaled to preserve
+        the same normalized transform for every other tensor. An optional
+        exclusion mask can be associated with each image; non-zero exclusion
+        pixels are transformed geometrically and restored to normalized black
+        after augmentation.
+        """
         image_tensors = [] if image_tensors is None else list(image_tensors)
         mask_tensors = [] if mask_tensors is None else list(mask_tensors)
+        if image_exclusion_masks is None:
+            image_exclusion_masks = [None] * len(image_tensors)
+        else:
+            image_exclusion_masks = list(image_exclusion_masks)
+        if len(image_exclusion_masks) != len(image_tensors):
+            raise ValueError(
+                "image_exclusion_masks must have one entry per image tensor"
+            )
+        self._validate_image_exclusion_masks(image_tensors, image_exclusion_masks)
+
         tensors = [
-            tensor for tensor in image_tensors + mask_tensors if tensor is not None
+            tensor
+            for tensor in image_tensors + mask_tensors + image_exclusion_masks
+            if tensor is not None
         ]
         if not tensors or self.p <= 0 or not self.policy_names:
             return image_tensors, mask_tensors
@@ -89,6 +115,9 @@ class DiffAugment:
         aug_masks = []
         for tensor in mask_tensors:
             aug_masks.append(None if tensor is None else tensor.clone())
+        aug_exclusion_masks = []
+        for tensor in image_exclusion_masks:
+            aug_exclusion_masks.append(None if tensor is None else tensor.clone())
 
         for batch_idx in range(batch_size):
             image_sample = [
@@ -97,8 +126,14 @@ class DiffAugment:
             mask_sample = [
                 None if tensor is None else tensor[batch_idx] for tensor in aug_masks
             ]
-            image_sample, mask_sample = self._apply_policy_to_sample(
-                image_sample, mask_sample
+            exclusion_sample = [
+                None if tensor is None else tensor[batch_idx]
+                for tensor in aug_exclusion_masks
+            ]
+            image_sample, mask_sample, exclusion_sample = self._apply_policy_to_sample(
+                image_sample,
+                mask_sample,
+                exclusion_sample,
             )
             for tensor_idx, sample in enumerate(image_sample):
                 if sample is not None:
@@ -106,17 +141,46 @@ class DiffAugment:
             for tensor_idx, sample in enumerate(mask_sample):
                 if sample is not None:
                     aug_masks[tensor_idx][batch_idx] = sample
+            for tensor_idx, sample in enumerate(exclusion_sample):
+                if sample is not None:
+                    aug_exclusion_masks[tensor_idx][batch_idx] = sample
 
         return aug_images, aug_masks
 
-    def _apply_policy_to_sample(self, image_tensors, mask_tensors):
+    def _validate_image_exclusion_masks(self, image_tensors, exclusion_masks):
+        for image, exclusion_mask in zip(image_tensors, exclusion_masks):
+            if exclusion_mask is None:
+                continue
+            if image is None:
+                raise ValueError("An exclusion mask cannot target a missing image")
+            compatible_shape = (
+                exclusion_mask.ndim == image.ndim
+                and exclusion_mask.shape[:-3] == image.shape[:-3]
+                and exclusion_mask.shape[-3] in (1, image.shape[-3])
+                and exclusion_mask.shape[-2:] == image.shape[-2:]
+            )
+            if not compatible_shape:
+                raise RuntimeError(
+                    "Each image exclusion mask must match its image tensor except "
+                    "for an optional singleton channel dimension"
+                )
+
+    def _apply_policy_to_sample(
+        self,
+        image_tensors,
+        mask_tensors,
+        image_exclusion_masks,
+    ):
         tensors = [
-            tensor for tensor in image_tensors + mask_tensors if tensor is not None
+            tensor
+            for tensor in image_tensors + mask_tensors + image_exclusion_masks
+            if tensor is not None
         ]
         if not tensors:
-            return image_tensors, mask_tensors
+            return image_tensors, mask_tensors, image_exclusion_masks
 
         height, width = tensors[0].shape[-2:]
+        reference_size = (height, width)
         for policy_name in self.policy_names:
             if random.uniform(0, 1) >= self.p:
                 continue
@@ -155,14 +219,17 @@ class DiffAugment:
                     self.AFFINE_TRANSLATE,
                     self.AFFINE_SCALE,
                     self.AFFINE_SHEAR,
-                    [height, width],
+                    [width, height],
                 )
                 image_tensors = [
                     (
                         None
                         if tensor is None
                         else self._apply_affine(
-                            tensor, params, InterpolationMode.BILINEAR
+                            tensor,
+                            params,
+                            InterpolationMode.BILINEAR,
+                            reference_size,
                         )
                     )
                     for tensor in image_tensors
@@ -172,10 +239,27 @@ class DiffAugment:
                         None
                         if tensor is None
                         else self._apply_affine(
-                            tensor, params, InterpolationMode.NEAREST
+                            tensor,
+                            params,
+                            InterpolationMode.NEAREST,
+                            reference_size,
                         )
                     )
                     for tensor in mask_tensors
+                ]
+                image_exclusion_masks = [
+                    (
+                        None
+                        if tensor is None
+                        else self._apply_affine(
+                            tensor,
+                            params,
+                            InterpolationMode.NEAREST,
+                            reference_size,
+                            fill_value=1.0,
+                        )
+                    )
+                    for tensor in image_exclusion_masks
                 ]
             elif policy_name == "randperspective":
                 params = transforms.RandomPerspective.get_params(
@@ -186,7 +270,10 @@ class DiffAugment:
                         None
                         if tensor is None
                         else self._apply_perspective(
-                            tensor, params, InterpolationMode.BILINEAR
+                            tensor,
+                            params,
+                            InterpolationMode.BILINEAR,
+                            reference_size,
                         )
                     )
                     for tensor in image_tensors
@@ -196,17 +283,41 @@ class DiffAugment:
                         None
                         if tensor is None
                         else self._apply_perspective(
-                            tensor, params, InterpolationMode.NEAREST
+                            tensor,
+                            params,
+                            InterpolationMode.NEAREST,
+                            reference_size,
                         )
                     )
                     for tensor in mask_tensors
+                ]
+                image_exclusion_masks = [
+                    (
+                        None
+                        if tensor is None
+                        else self._apply_perspective(
+                            tensor,
+                            params,
+                            InterpolationMode.NEAREST,
+                            reference_size,
+                            fill_value=1.0,
+                        )
+                    )
+                    for tensor in image_exclusion_masks
                 ]
 
         image_tensors = [
             None if tensor is None else tensor.clamp(-1.0, 1.0)
             for tensor in image_tensors
         ]
-        return image_tensors, mask_tensors
+        image_tensors = [
+            self._restore_excluded_pixels(tensor, exclusion_mask)
+            for tensor, exclusion_mask in zip(
+                image_tensors,
+                image_exclusion_masks,
+            )
+        ]
+        return image_tensors, mask_tensors, image_exclusion_masks
 
     def _apply_color(self, tensor, params):
         orig_dtype = tensor.dtype
@@ -341,7 +452,20 @@ class DiffAugment:
             )
         return {"stages": stages, "noise_tensors": {}}
 
-    def _apply_affine(self, tensor, params, interpolation):
+    def _apply_affine(
+        self,
+        tensor,
+        params,
+        interpolation,
+        reference_size=None,
+        fill_value=0.0,
+    ):
+        if reference_size is not None:
+            params = self._scale_affine_params(
+                params,
+                reference_size,
+                tensor.shape[-2:],
+            )
         angle, translate, scale, shear = params
         return TF.affine(
             tensor,
@@ -350,22 +474,67 @@ class DiffAugment:
             scale=scale,
             shear=list(shear),
             interpolation=interpolation,
-            fill=self._make_fill(tensor),
+            fill=self._make_fill(tensor, fill_value),
         )
 
-    def _apply_perspective(self, tensor, params, interpolation):
+    def _apply_perspective(
+        self,
+        tensor,
+        params,
+        interpolation,
+        reference_size=None,
+        fill_value=0.0,
+    ):
+        if reference_size is not None:
+            params = self._scale_perspective_params(
+                params,
+                reference_size,
+                tensor.shape[-2:],
+            )
         startpoints, endpoints = params
         return TF.perspective(
             tensor,
             startpoints=startpoints,
             endpoints=endpoints,
             interpolation=interpolation,
-            fill=self._make_fill(tensor),
+            fill=self._make_fill(tensor, fill_value),
         )
+
+    def _scale_affine_params(self, params, reference_size, target_size):
+        angle, translate, scale, shear = params
+        reference_height, reference_width = reference_size
+        target_height, target_width = target_size
+        scaled_translate = (
+            translate[0] * target_width / reference_width,
+            translate[1] * target_height / reference_height,
+        )
+        return angle, scaled_translate, scale, shear
+
+    def _scale_perspective_params(self, params, reference_size, target_size):
+        reference_height, reference_width = reference_size
+        target_height, target_width = target_size
+        x_scale = self._perspective_axis_scale(reference_width, target_width)
+        y_scale = self._perspective_axis_scale(reference_height, target_height)
+
+        def scale_points(points):
+            return [[point[0] * x_scale, point[1] * y_scale] for point in points]
+
+        startpoints, endpoints = params
+        return scale_points(startpoints), scale_points(endpoints)
+
+    def _perspective_axis_scale(self, reference_size, target_size):
+        if reference_size <= 1:
+            return 1.0
+        return (target_size - 1) / (reference_size - 1)
+
+    def _restore_excluded_pixels(self, tensor, exclusion_mask):
+        if tensor is None or exclusion_mask is None:
+            return tensor
+        return tensor.masked_fill(exclusion_mask > 0.5, -1.0)
 
     def _sample_factor(self, amount):
         return random.uniform(max(0.0, 1.0 - amount), 1.0 + amount)
 
-    def _make_fill(self, tensor):
+    def _make_fill(self, tensor, value=0.0):
         channels = tensor.shape[-3]
-        return [0.0] * channels
+        return [value] * channels
