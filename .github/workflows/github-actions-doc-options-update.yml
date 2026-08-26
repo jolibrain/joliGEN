@@ -2,28 +2,31 @@ name: Doc auto generation
 on:
   push:
     branches: [master]
+
+permissions:
+  contents: write
+
 jobs:
   Explore-GitHub-Actions:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - name: setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8 #install the python needed
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
+      - name: setup python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
       - name: install req
         run: |
-          pip install -r ./requirements.txt
-          pip install fastapi uvicorn opencv-python-headless
-          sudo wget https://github.com/jgm/pandoc/releases/download/3.1.3/pandoc-3.1.3-1-amd64.deb
-          sudo dpkg -i pandoc-3.1.3-1-amd64.deb
-      - name: update
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.ref }}
+          python -m pip install --upgrade pip
+          python -m pip install -r ./requirements.txt
+          python -m pip install fastapi uvicorn opencv-python-headless
+          curl -fsSL \
+            https://github.com/jgm/pandoc/releases/download/3.1.3/pandoc-3.1.3-1-amd64.deb \
+            -o "$RUNNER_TEMP/pandoc.deb"
+          sudo dpkg -i "$RUNNER_TEMP/pandoc.deb"
       - name: run script
         run: python ./scripts/generate_doc.py
       - name: convert md to rst
@@ -36,8 +39,8 @@ jobs:
           new_contents=$(echo "$double_dash_contents" | sed 's/\\|/,/g')
           echo "$new_contents" > "$file"
 
-          pandoc --from markdown --to rst --standalone --wrap=none -s $file -o docs/source/options.rst
-          rm $file
+          pandoc --from markdown --to rst --standalone --wrap=none -s "$file" -o docs/source/options.rst
+          rm "$file"
       - name: generate api doc
         run: bash ./scripts/generate_api_doc.sh
       - name: push
@@ -45,5 +48,9 @@ jobs:
         run: |
           git config user.name github-actions-jg
           git config user.email contact@jolibrain.com
-          git add .
-          git diff-index --quiet HEAD || (git commit -m "doc: options auto update" && git push)
+          git add -- \
+            docs/options.md \
+            docs/source/options.rst \
+            docs/source/_static/api.html \
+            docs/source/_static/openapi.json
+          git diff --cached --quiet || (git commit -m "doc: options auto update" && git push)
