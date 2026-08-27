@@ -333,7 +333,7 @@ class B2BModel(BaseDiffusionModel):
         parser.add_argument(
             "--alg_b2b_metric_mask",
             action="store_true",
-            help="Evaluate metrics only on dilated mask region",
+            help="Evaluate B2B PSNR over the exact input mask instead of the full crop",
         )
 
         if is_train:

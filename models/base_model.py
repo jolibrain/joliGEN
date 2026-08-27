@@ -1721,19 +1721,72 @@ class BaseModel(ABC):
 
         return metrics
 
-    def _compute_metrics(self, fake_images, gt_images, filter_psnr_78=False):
+    @staticmethod
+    def _compute_masked_psnr(real, fake, mask, filter_psnr_78=False):
+        """Average per-image PSNR over non-empty binary mask regions."""
+        if real.shape != fake.shape:
+            raise ValueError(
+                f"Masked PSNR expects matching images, got {real.shape} and "
+                f"{fake.shape}."
+            )
+        if mask.ndim == real.ndim - 1:
+            mask = mask.unsqueeze(1)
+        if mask.ndim != real.ndim or mask.shape[0] != real.shape[0]:
+            raise ValueError(
+                f"Masked PSNR expects a mask matching the image batch, got "
+                f"{mask.shape} for {real.shape}."
+            )
+        if mask.shape[2:] != real.shape[2:]:
+            raise ValueError(
+                f"Masked PSNR expects matching spatial dimensions, got "
+                f"{mask.shape[2:]} and {real.shape[2:]}."
+            )
+
+        mask = (mask > 0).to(device=real.device, dtype=real.dtype)
+        if mask.shape[1] == 1 and real.shape[1] != 1:
+            mask = mask.expand(-1, real.shape[1], *([-1] * (real.ndim - 2)))
+        elif mask.shape[1] != real.shape[1]:
+            raise ValueError(
+                f"Masked PSNR expects one or {real.shape[1]} mask channels, got "
+                f"{mask.shape[1]}."
+            )
+
+        reduce_dims = tuple(range(1, real.ndim))
+        pixel_count = mask.sum(dim=reduce_dims)
+        valid = pixel_count > 0
+        if not valid.any():
+            return real.new_tensor(0.0)
+
+        squared_error = ((real - fake) ** 2 * mask).sum(dim=reduce_dims)
+        mse = squared_error[valid] / pixel_count[valid]
+        psnr_values = -10.0 * torch.log10(mse.clamp_min(1e-8))
+
+        if filter_psnr_78:
+            filtered = psnr_values[psnr_values < 78]
+            if filtered.numel() > 0:
+                psnr_values = filtered
+        return psnr_values.mean()
+
+    def _compute_metrics(
+        self, fake_images, gt_images, filter_psnr_78=False, masks=None
+    ):
         compute_lpips = hasattr(self, "lpips_metric")
         compute_dinov2 = hasattr(self, "dinov2_metric")
         psnr_vals = []
         ssim_sum, lpips_sum, dinov2_sum, n = 0.0, 0.0, 0.0, 0
-        for fake, gt in zip(fake_images, gt_images):
+        for index, (fake, gt) in enumerate(zip(fake_images, gt_images)):
             if fake.shape != gt.shape:
                 print(f"Skip mismatched shapes: {fake.shape} vs {gt.shape}")
                 continue
             fake = (fake.clamp(-1, 1).unsqueeze(0) + 1) / 2
             gt = (gt.clamp(-1, 1).unsqueeze(0) + 1) / 2
 
-            psnr_vals.append(psnr(fake, gt, data_range=1.0).item())
+            if masks is None:
+                psnr_vals.append(psnr(fake, gt, data_range=1.0).item())
+            elif (masks[index] > 0).any():
+                psnr_vals.append(
+                    self._compute_masked_psnr(gt, fake, masks[index]).item()
+                )
             ssim_sum += ssim(fake, gt).item()
 
             if compute_lpips:
@@ -1801,8 +1854,13 @@ class BaseModel(ABC):
 
         fake_list = []
         real_list = []
+        mask_list = []
         fake_list_per_step = {}
         real_list_per_step = {}
+        mask_list_per_step = {}
+        use_b2b_metric_mask = getattr(self.opt, "model_type", "") == "b2b" and getattr(
+            self.opt, "alg_b2b_metric_mask", False
+        )
         compute_b2b_val_loss = self._is_b2b_validation_loss_enabled()
         b2b_val_loss_sum = 0.0
         b2b_val_loss_count = 0
@@ -1854,6 +1912,34 @@ class BaseModel(ABC):
             finally:
                 self.opt.isTrain = istrain
 
+            batch_metric_masks = None
+            if use_b2b_metric_mask:
+                if not hasattr(self, "mask") or self.mask is None:
+                    raise RuntimeError(
+                        "--alg_b2b_metric_mask requires B2B inpainting masks."
+                    )
+                if (
+                    hasattr(self, "outputs_per_step")
+                    and isinstance(self.outputs_per_step, dict)
+                    and len(self.outputs_per_step) > 0
+                ):
+                    output_batch_size = next(
+                        iter(self.outputs_per_step.values())
+                    ).shape[0]
+                    batch_metric_masks = self.mask[:output_batch_size].detach()
+                    repeat_dims = [len(self.outputs_per_step)] + [1] * (
+                        batch_metric_masks.ndim - 1
+                    )
+                    batch_metric_masks = batch_metric_masks.repeat(*repeat_dims)
+                else:
+                    batch_metric_masks = self.mask[: self.fake_B.shape[0]].detach()
+                if batch_metric_masks.shape[0] != self.fake_B.shape[0]:
+                    raise RuntimeError(
+                        "B2B metric masks do not align with generated samples: "
+                        f"{batch_metric_masks.shape[0]} masks for "
+                        f"{self.fake_B.shape[0]} outputs."
+                    )
+
             if save_images:
                 pathB = self.save_dir + "/fakeB/%s_epochs_%s_iters_imgs" % (
                     n_epoch,
@@ -1871,6 +1957,8 @@ class BaseModel(ABC):
                     )
 
                 fake_list.append(cur_fake_B.unsqueeze(0).clone())
+                if batch_metric_masks is not None:
+                    mask_list.append(batch_metric_masks[j : j + 1].clone())
 
             if hasattr(self, "gt_image"):
                 batch_real_img = self.gt_image
@@ -1891,6 +1979,8 @@ class BaseModel(ABC):
                 for step, step_fake in self.outputs_per_step.items():
                     fake_list_per_step.setdefault(step, [])
                     real_list_per_step.setdefault(step, [])
+                    if use_b2b_metric_mask:
+                        mask_list_per_step.setdefault(step, [])
 
                     max_batch = min(
                         step_fake.shape[0], batch_real_img_per_step.shape[0]
@@ -1908,6 +1998,10 @@ class BaseModel(ABC):
                                 real_list_per_step[step].append(
                                     batch_real_img_per_step[b, f].detach().clone()
                                 )
+                                if use_b2b_metric_mask:
+                                    mask_list_per_step[step].append(
+                                        self.mask[b, f].detach().clone()
+                                    )
                     else:
                         for b in range(max_batch):
                             fake_list_per_step[step].append(
@@ -1916,6 +2010,10 @@ class BaseModel(ABC):
                             real_list_per_step[step].append(
                                 batch_real_img_per_step[b].detach().clone()
                             )
+                            if use_b2b_metric_mask:
+                                mask_list_per_step[step].append(
+                                    self.mask[b].detach().clone()
+                                )
 
             for i, cur_real in enumerate(batch_real_img):
                 real_list.append(cur_real.unsqueeze(0).clone())
@@ -1962,6 +2060,8 @@ class BaseModel(ABC):
 
         fake_list = fake_list[: self.opt.train_nb_img_max_fid]
         real_list = real_list[: self.opt.train_nb_img_max_fid]
+        if use_b2b_metric_mask:
+            mask_list = mask_list[: self.opt.train_nb_img_max_fid]
 
         if progress:
             progress.close()
@@ -2000,20 +2100,31 @@ class BaseModel(ABC):
             setattr(self, "kidB_test_" + test_name, kidB_test)
         real_tensor = (torch.clamp(torch.cat(real_list), min=-1.0, max=1.0) + 1.0) / 2.0
         fake_tensor = (torch.clamp(torch.cat(fake_list), min=-1.0, max=1.0) + 1.0) / 2.0
+        mask_tensor = torch.cat(mask_list) if use_b2b_metric_mask else None
         if self.opt.G_netG in ["unet_vid", "vit_vid"]:  # temporal
-            real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
-            ssim_test = ssim(real_tensor, fake_tensor)
-            psnr_test = psnr(real_tensor, fake_tensor)
-
-            psnr_each = psnr(real_tensor, fake_tensor, reduction="none")  # [B]
-
-            psnr_list = psnr_each[
-                psnr_each < 78
-            ]  # with this PIQ code, identical images give 80
-            if psnr_list.numel() > 0:
-                psnr_test = psnr_list.mean()
+            if use_b2b_metric_mask:
+                real_tensor, fake_tensor, mask_tensor = rearrange_5dto4d_bf(
+                    real_tensor, fake_tensor, mask_tensor
+                )
             else:
-                psnr_test = psnr_each.mean()
+                real_tensor, fake_tensor = rearrange_5dto4d_bf(real_tensor, fake_tensor)
+            ssim_test = ssim(real_tensor, fake_tensor)
+            if use_b2b_metric_mask:
+                psnr_test = self._compute_masked_psnr(
+                    real_tensor, fake_tensor, mask_tensor, filter_psnr_78=True
+                )
+            else:
+                psnr_test = psnr(real_tensor, fake_tensor)
+
+                psnr_each = psnr(real_tensor, fake_tensor, reduction="none")  # [B]
+
+                psnr_list = psnr_each[
+                    psnr_each < 78
+                ]  # with this PIQ code, identical images give 80
+                if psnr_list.numel() > 0:
+                    psnr_test = psnr_list.mean()
+                else:
+                    psnr_test = psnr_each.mean()
 
             if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
                 self.opt, "alg_cm_metric_mask", False
@@ -2091,7 +2202,12 @@ class BaseModel(ABC):
 
         else:  # image
             ssim_test = ssim(real_tensor, fake_tensor)
-            psnr_test = psnr(real_tensor, fake_tensor)
+            if use_b2b_metric_mask:
+                psnr_test = self._compute_masked_psnr(
+                    real_tensor, fake_tensor, mask_tensor
+                )
+            else:
+                psnr_test = psnr(real_tensor, fake_tensor)
 
             if getattr(self.opt, "alg_palette_metric_mask", False) or getattr(
                 self.opt, "alg_cm_metric_mask", False
@@ -2196,10 +2312,19 @@ class BaseModel(ABC):
                     continue
 
                 max_count = min(len(fake_images), len(gt_images))
+                masks = None
+                if use_b2b_metric_mask:
+                    masks = mask_list_per_step.get(step, [])
+                    if len(masks) < max_count:
+                        raise RuntimeError(
+                            "B2B per-step metric masks do not align with generated "
+                            f"samples at step {step}."
+                        )
                 psnr_val, ssim_val, lpips_val, dinov2_val = self._compute_metrics(
                     fake_images[:max_count],
                     gt_images[:max_count],
                     filter_psnr_78=filter_psnr_78,
+                    masks=masks[:max_count] if masks is not None else None,
                 )
 
                 self.psnr_step[step] = psnr_val

@@ -22,6 +22,7 @@ from data.temporal_sampling import (
     TemporalFrameStepMixin,
     build_temporal_series_index,
     select_temporal_start_from_series,
+    select_temporal_start_from_series_at_index,
 )
 from util.b2b_context import b2b_global_context_enabled_from_opt
 
@@ -40,6 +41,12 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(TemporalFrameStepMixin, BaseD
         As we have two datasets with potentially different number of images,
         we take a maximum of
         """
+        if (
+            self.phase == "test"
+            and not self._random_temporal_frame_step_enabled()
+            and hasattr(self, "cumulative_sums")
+        ):
+            return self.cumulative_sums[-1] if self.cumulative_sums else 0
         if hasattr(self, "B_img_paths"):
             return max(self.A_size, self.B_size)
         else:
@@ -88,19 +95,28 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(TemporalFrameStepMixin, BaseD
             self.A_img_paths, self.num_frames, self.frame_step
         )
 
-    def _select_temporal_index_A(self, frame_step):
+    def _select_temporal_index_A(self, frame_step, dataset_index=None):
         if not self._random_temporal_frame_step_enabled():
-            if len(self.frames_counts) == 1:  # single video mario
-                if self.range_A == 0:
-                    return 0
-                return random.randint(0, self.range_A - 1)
-
             series_index = (
                 self.vid_series_paths,
                 self.frames_counts,
                 self.cumulative_sums,
                 self.available_frame_pool,
             )
+            if self.phase == "test":
+                if dataset_index is None:
+                    raise ValueError(
+                        "test temporal sampling requires the dataset index"
+                    )
+                return select_temporal_start_from_series_at_index(
+                    self.A_img_paths, series_index, dataset_index
+                )
+
+            if len(self.frames_counts) == 1:  # single video mario
+                if self.range_A == 0:
+                    return 0
+                return random.randint(0, self.range_A - 1)
+
             return select_temporal_start_from_series(self.A_img_paths, series_index)
 
         if len(self.vid_series_paths) == 1:
@@ -122,7 +138,7 @@ class SelfSupervisedVidLabeledMaskClsOnlineDataset(TemporalFrameStepMixin, BaseD
         index=None,
     ):  # all params are unused
         effective_frame_step = self._sample_temporal_frame_step()
-        index_A = self._select_temporal_index_A(effective_frame_step)
+        index_A = self._select_temporal_index_A(effective_frame_step, index)
         if index_A is None:
             return None
 
