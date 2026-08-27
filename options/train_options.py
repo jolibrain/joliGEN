@@ -608,13 +608,33 @@ class TrainOptions(CommonOptions):
             "--dataaug_diff_aug_policy",
             type=str,
             default="",
-            help="choose the augmentation policy : color wild color+wild randaffine randperspective. If you want more than one, please write them separated by a comma with no space (e.g. color,randaffine)",
+            help="choose the augmentation policy: camera_color color detail wild color+wild randaffine randperspective. If you want more than one, write them separated by a comma with no space (e.g. camera_color,detail,wild)",
         )
         parser.add_argument(
             "--dataaug_diff_aug_proba",
             type=float,
             default=0.5,
             help="proba of using each transformation",
+        )
+        parser.add_argument(
+            "--dataaug_diff_aug_camera_color_strength",
+            type=float,
+            default=1.0,
+            help="camera_color policy strength in [0,1]; 0 is identity",
+        )
+        parser.add_argument(
+            "--dataaug_diff_aug_detail_strength",
+            type=float,
+            default=1.0,
+            help="detail policy strength in [0,1]; 0 is identity",
+        )
+        parser.add_argument(
+            "--dataaug_diff_aug_camera_color_pre_crop",
+            action="store_true",
+            help=(
+                "apply camera_color to full frames before crop/global-context "
+                "construction; supported by B2B self_supervised_vid_mask_online"
+            ),
         )
 
         # adaptive pseudo augmentation using G
@@ -690,6 +710,35 @@ class TrainOptions(CommonOptions):
 
     def _after_parse(self, opt, set_device=True):
         opt = super()._after_parse(opt=opt, set_device=set_device)
+
+        for name in (
+            "dataaug_diff_aug_camera_color_strength",
+            "dataaug_diff_aug_detail_strength",
+        ):
+            value = float(getattr(opt, name))
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"--{name} must be in [0, 1], got {value}")
+
+        if opt.dataaug_diff_aug_camera_color_pre_crop:
+            policies = {
+                name.strip()
+                for name in opt.dataaug_diff_aug_policy.split(",")
+                if name.strip()
+            }
+            if "camera_color" not in policies:
+                raise ValueError(
+                    "--dataaug_diff_aug_camera_color_pre_crop requires "
+                    "camera_color in --dataaug_diff_aug_policy"
+                )
+            if opt.model_type != "b2b":
+                raise ValueError(
+                    "--dataaug_diff_aug_camera_color_pre_crop requires --model_type b2b"
+                )
+            if opt.data_dataset_mode != "self_supervised_vid_mask_online":
+                raise ValueError(
+                    "--dataaug_diff_aug_camera_color_pre_crop requires "
+                    "--data_dataset_mode self_supervised_vid_mask_online"
+                )
 
         if opt.train_continue and opt.train_continue_from:
             raise ValueError(
