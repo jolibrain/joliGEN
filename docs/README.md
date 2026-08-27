@@ -6,6 +6,7 @@
 + [Inference](#inference)
 
 + [Models and Options](options.md)
++ [Camera and Detail Augmentation](camera_detail_augmentation.md)
 + [Project Source Overview](overview.md)
 
 ## Datasets

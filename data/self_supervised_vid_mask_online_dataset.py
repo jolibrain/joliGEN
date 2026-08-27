@@ -13,6 +13,7 @@ from data.online_creation import (
     build_instance_mask_from_crop_meta,
     crop_image,
     mask_prediction_enabled,
+    prepare_online_image,
     randomize_instance_mask,
     sample_bbox_context_crop_state,
     sample_mask_precision_state,
@@ -26,6 +27,7 @@ from data.temporal_sampling import (
     select_temporal_start_from_series,
 )
 from util.b2b_context import b2b_global_context_enabled_from_opt
+from util.diff_aug import DiffAugment
 
 
 def atoi(text):
@@ -67,6 +69,15 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
             )
 
         self.transform = get_transform_list(self.opt, grayscale=(self.input_nc == 1))
+
+        self.pre_crop_camera_augment = None
+        if getattr(opt, "dataaug_diff_aug_camera_color_pre_crop", False):
+            self.pre_crop_camera_augment = DiffAugment(
+                "camera_color",
+                opt.dataaug_diff_aug_proba,
+                camera_color_strength=opt.dataaug_diff_aug_camera_color_strength,
+                detail_strength=opt.dataaug_diff_aug_detail_strength,
+            )
 
         self._init_temporal_frame_step_sampling(opt)
 
@@ -136,6 +147,9 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
         global_context_A = []
         predict_mask = mask_prediction_enabled(self.opt)
         rotation_state_A = sample_online_pre_crop_rotation_state(self.opt)
+        camera_color_plan = None
+        if self.pre_crop_camera_augment is not None:
+            camera_color_plan = self.pre_crop_camera_augment.sample_camera_color_plan()
         ref_A_img_path = self.A_img_paths[index_A]
         ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
 
@@ -180,6 +194,19 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                     cur_A_label_path = os.path.join(self.root, cur_A_label_path)
 
             try:
+                prepared_image = None
+                if self.pre_crop_camera_augment is not None:
+                    prepared_image = prepare_online_image(
+                        cur_A_img_path,
+                        self.opt.data_online_creation_load_size_A,
+                        getattr(
+                            self.opt,
+                            "data_online_creation_load_size_keep_ratio_A",
+                            False,
+                        ),
+                        self.pre_crop_camera_augment,
+                        camera_color_plan,
+                    )
                 if self.opt.data_online_creation_mask_delta_A_ratio == [[]]:
                     mask_delta_A = self.opt.data_online_creation_mask_delta_A
                 else:
@@ -211,6 +238,7 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                     ),
                     "crop_center": True,
                     "rotation_state": rotation_state_A,
+                    "prepared_image": prepared_image,
                 }
                 return_meta = (
                     b2b_global_context_enabled_from_opt(self.opt) or predict_mask
@@ -268,6 +296,7 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                                 "data_online_creation_load_size_keep_ratio_A",
                                 False,
                             ),
+                            prepared_image=prepared_image,
                         )
                     )
                 if i == 0:
