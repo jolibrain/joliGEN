@@ -53,31 +53,43 @@ def build_temporal_series_index(paths, num_frames, frame_step):
     return vid_series_paths, frames_counts, cumulative_sums, available_frame_pool
 
 
+def select_temporal_start_from_series_at_index(paths, series_index, start_index):
+    """Map a valid-window ordinal to its first frame in ``paths``."""
+    vid_series_paths, _frames_counts, cumulative_sums, _available_frame_pool = (
+        series_index
+    )
+    if not cumulative_sums or cumulative_sums[-1] <= 0:
+        return None
+
+    total_starts = cumulative_sums[-1]
+    if start_index < 0 or start_index >= total_starts:
+        raise IndexError(
+            f"temporal start index {start_index} is outside [0, {total_starts})"
+        )
+
+    selected_index = next(
+        index
+        for index, cumulative_sum in enumerate(cumulative_sums)
+        if start_index < cumulative_sum
+    )
+    selected_vid = vid_series_paths[selected_index]
+    previous_sum = cumulative_sums[selected_index - 1] if selected_index > 0 else 0
+    frame_num = start_index - previous_sum
+
+    filtered_paths = [path for path in paths if os.path.dirname(path) == selected_vid]
+    selected_path = filtered_paths[frame_num]
+    return paths.index(selected_path)
+
+
 def select_temporal_start_from_series(paths, series_index):
-    vid_series_paths, _frames_counts, cumulative_sums, available_frame_pool = (
+    _vid_series_paths, _frames_counts, cumulative_sums, _available_frame_pool = (
         series_index
     )
     if not cumulative_sums or cumulative_sums[-1] <= 0:
         return None
 
     random_start = random.randint(0, cumulative_sums[-1] - 1)
-    selected_index = [
-        i
-        for i, frame_pool in enumerate(available_frame_pool)
-        if random_start in frame_pool
-    ]
-    if len(selected_index) != 1:
-        raise ValueError("random temporal start not found in any video series")
-    selected_index = selected_index[0]
-    selected_vid = vid_series_paths[selected_index]
-    if selected_index > 0:
-        frame_num = random_start - cumulative_sums[selected_index - 1]
-    else:
-        frame_num = random_start
-
-    filtered_paths = [path for path in paths if os.path.dirname(path) == selected_vid]
-    selected_path = filtered_paths[frame_num]
-    return paths.index(selected_path)
+    return select_temporal_start_from_series_at_index(paths, series_index, random_start)
 
 
 class TemporalFrameStepMixin:
