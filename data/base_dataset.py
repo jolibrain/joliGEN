@@ -1201,11 +1201,15 @@ def build_masked_global_context_image(
     crop_meta,
     load_size,
     load_size_keep_ratio=False,
+    prepared_image=None,
 ):
-    img = load_image(img_path).convert("RGB")
+    if prepared_image is not None:
+        img = prepared_image.image.copy().convert("RGB")
+    else:
+        img = load_image(img_path).convert("RGB")
     old_width, old_height = img.size
 
-    if load_size not in (None, []):
+    if prepared_image is None and load_size not in (None, []):
         target_width = int(load_size[0])
         target_height = int(load_size[1] if len(load_size) > 1 else load_size[0])
         if load_size_keep_ratio:

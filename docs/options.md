@@ -501,7 +501,10 @@ Here are all the available options to call with `train.py`
 | --dataaug_affine_scale_min | float | 0.8 | if random affine specified, min scale range value |
 | --dataaug_affine_shear | int | 45 | if random affine specified, shear range (0,value) |
 | --dataaug_affine_translate | float | 0.2 | if random affine specified, translation range (-value\*img_size,+value\*img_size) value |
-| --dataaug_diff_aug_policy | string |  | choose the augmentation policy : color wild color+wild randaffine randperspective. If you want more than one, please write them separated by a comma with no space (e.g. color,randaffine) |
+| --dataaug_diff_aug_camera_color_pre_crop | flag |  | apply camera_color to full frames before crop/global-context construction; supported by B2B self_supervised_vid_mask_online |
+| --dataaug_diff_aug_camera_color_strength | float | 1.0 | camera_color policy strength in [0,1]; 0 is identity |
+| --dataaug_diff_aug_detail_strength | float | 1.0 | detail policy strength in [0,1]; 0 is identity |
+| --dataaug_diff_aug_policy | string |  | choose the augmentation policy: camera_color color detail wild color+wild randaffine randperspective. If you want more than one, write them separated by a comma with no space (e.g. camera_color,detail,wild) |
 | --dataaug_diff_aug_proba | float | 0.5 | proba of using each transformation |
 | --dataaug_flip | string | horizontal | if specified, flip the images for data augmentation, possible values: none, horizontal, vertical, both<br/><br/> **Values:** none, horizontal, vertical, both |
 | --dataaug_imgaug | flag |  | whether to apply random image augmentation |
