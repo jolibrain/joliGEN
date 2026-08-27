@@ -249,7 +249,12 @@ class BaseDiffusionModel(BaseModel):
 
         if opt.dataaug_diff_aug_policy != "":
             self.diff_augment = DiffAugment(
-                opt.dataaug_diff_aug_policy, opt.dataaug_diff_aug_proba
+                opt.dataaug_diff_aug_policy,
+                opt.dataaug_diff_aug_proba,
+                camera_color_strength=getattr(
+                    opt, "dataaug_diff_aug_camera_color_strength", 1.0
+                ),
+                detail_strength=getattr(opt, "dataaug_diff_aug_detail_strength", 1.0),
             )
 
         self.objects_to_update = []

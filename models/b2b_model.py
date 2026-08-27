@@ -37,7 +37,6 @@ from util.b2b_context import (
 
 
 class B2BModel(BaseDiffusionModel):
-
     @staticmethod
     def _b2b_generation_visual_names(denoise_timesteps, mask_prediction):
         names = ["gt_image_", "y_t_"]
@@ -1383,10 +1382,18 @@ class B2BModel(BaseDiffusionModel):
             ).to(dtype=global_context.dtype)
             image_exclusion_masks.append(global_context_exclusion)
 
+        diff_augment_kwargs = {}
+        if getattr(
+            self.opt,
+            "dataaug_diff_aug_camera_color_pre_crop",
+            False,
+        ):
+            diff_augment_kwargs["excluded_policies"] = {"camera_color"}
         aug_images, aug_masks = self.diff_augment.apply_synchronized(
             image_tensors=image_tensors,
             mask_tensors=mask_tensors,
             image_exclusion_masks=image_exclusion_masks,
+            **diff_augment_kwargs,
         )
         self.gt_image = aug_images[0]
         self.y_t = aug_images[1]
@@ -1788,7 +1795,6 @@ class B2BModel(BaseDiffusionModel):
                 self.opt.alg_diffusion_cond_embed != ""
                 and self.opt.alg_diffusion_generate_per_class
             ):
-
                 for i in range(self.nb_classes_inference):
                     if "mask" in self.opt.alg_diffusion_cond_embed:
                         cur_mask = self.mask[:nb_imgs].clone().clamp(min=0, max=1) * (
