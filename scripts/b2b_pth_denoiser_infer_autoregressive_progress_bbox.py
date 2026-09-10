@@ -199,6 +199,15 @@ def parse_args():
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
     parser.add_argument(
+        "--fixed_temporal_init_noise",
+        "--fixed-temporal-init-noise",
+        action="store_true",
+        help=(
+            "Reuse one seeded two-frame noise field for every sliding window. "
+            "Use with autoregressive reinjection to test temporal stability."
+        ),
+    )
+    parser.add_argument(
         "--mask_precision_mode",
         "--mask-precision-mode",
         choices=sorted(onnx_runner.MASK_PRECISION_NAMES),
@@ -223,6 +232,15 @@ def parse_args():
         "--denoise_steps",
         type=int,
         help="Override denoise step count. Defaults to first entry from alg.b2b_denoise_timesteps",
+    )
+    parser.add_argument(
+        "--source_crop_size",
+        "--source-crop-size",
+        type=int,
+        help=(
+            "Inference-only square source crop size before resizing to the saved "
+            "model resolution. Defaults to data.online_creation.crop_size_A."
+        ),
     )
     parser.add_argument(
         "--device",
@@ -330,12 +348,14 @@ def main():
         denoise_steps=denoise_steps,
         debug_dump_dir=args.debug_dump_dir,
         autoregressive_reinject_patch=args.autoregressive_reinject_patch,
+        fixed_temporal_init_noise=args.fixed_temporal_init_noise,
         object_refs=object_refs,
         temporal_frame_step=args.temporal_frame_step,
         mask_precision_mode=args.mask_precision_mode,
         mask_precision_severity=args.mask_precision_severity,
         apply_predicted_mask=args.apply_predicted_mask,
         use_predicted_mask_during_denoising=(args.use_predicted_mask_during_denoising),
+        source_crop_size=args.source_crop_size,
     )
 
     print(f"dataset_root : {dataset_root}")
@@ -344,6 +364,10 @@ def main():
     print(f"device       : {device}")
     print(f"train_shape  : {(train_frames, train_height, train_width)}")
     print(f"denoise_steps: {denoise_steps}")
+    print(
+        "source_crop_size: "
+        f"{args.source_crop_size if args.source_crop_size is not None else 'saved crop_size_A'}"
+    )
     print(
         "temporal_frame_step: "
         f"{onnx_runner.resolve_temporal_frame_step(train_json, args.temporal_frame_step)}"
@@ -356,6 +380,7 @@ def main():
     )
     print(f"mask_precision: {(precision_mode, precision_severity)}")
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
+    print(f"fixed_temporal_init_noise: {args.fixed_temporal_init_noise}")
     print(f"apply_predicted_mask: {args.apply_predicted_mask}")
     print(
         "use_predicted_mask_during_denoising: "

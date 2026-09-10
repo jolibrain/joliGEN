@@ -1570,12 +1570,14 @@ def run_sequence(
     denoise_steps,
     debug_dump_dir,
     autoregressive_reinject_patch,
+    fixed_temporal_init_noise=False,
     object_refs=None,
     temporal_frame_step=None,
     mask_precision_mode=None,
     mask_precision_severity=None,
     apply_predicted_mask=False,
     use_predicted_mask_during_denoising=False,
+    source_crop_size=None,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = get_train_shape(train_json)
@@ -1592,6 +1594,7 @@ def run_sequence(
     last_seq_half_mask = None
     last_seq_half_mandatory_mask = None
     last_seq_half_global_context = None
+    fixed_window_noise = None
     frames_written = []
     seq_half = 1
     num_buckets = 2
@@ -1608,6 +1611,7 @@ def run_sequence(
             device=torch.device("cpu"),
             mask_precision_mode=precision_mode_id,
             mask_precision_severity=precision_severity_value,
+            crop_size_override=source_crop_size,
         )
         frame_data["index"] = sequence_count
         frame_data["img_rel"] = img_rel
@@ -1682,7 +1686,14 @@ def run_sequence(
                 autoregressive_reinject_patch and last_seq_half_y_t is not None
             ),
         )
-        init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
+        if fixed_temporal_init_noise:
+            if fixed_window_noise is None:
+                fixed_window_noise = rng.standard_normal(
+                    size=y_t_batch.shape, dtype=np.float32
+                )
+            init_noise = fixed_window_noise
+        else:
+            init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
         restoration_result = restoration_with_denoiser(
             session=session,
             y=y_t_batch.numpy().astype(np.float32),
@@ -1855,6 +1866,15 @@ def parse_args():
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
     parser.add_argument(
+        "--fixed_temporal_init_noise",
+        "--fixed-temporal-init-noise",
+        action="store_true",
+        help=(
+            "Reuse one seeded two-frame noise field for every sliding window. "
+            "Use with autoregressive reinjection to test temporal stability."
+        ),
+    )
+    parser.add_argument(
         "--mask_precision_mode",
         "--mask-precision-mode",
         choices=sorted(MASK_PRECISION_NAMES),
@@ -2013,6 +2033,7 @@ def main():
         denoise_steps=denoise_steps,
         debug_dump_dir=args.debug_dump_dir,
         autoregressive_reinject_patch=args.autoregressive_reinject_patch,
+        fixed_temporal_init_noise=args.fixed_temporal_init_noise,
         temporal_frame_step=args.temporal_frame_step,
         object_refs=object_refs,
         mask_precision_mode=args.mask_precision_mode,
@@ -2035,6 +2056,7 @@ def main():
     print(f"mask_precision: {(precision_mode, precision_severity)}")
     print(f"object_refs  : {0 if object_refs is None else int(object_refs.shape[0])}")
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
+    print(f"fixed_temporal_init_noise: {args.fixed_temporal_init_noise}")
     print(f"apply_predicted_mask: {args.apply_predicted_mask}")
     print(
         "use_predicted_mask_during_denoising: "
