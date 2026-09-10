@@ -2,6 +2,7 @@ import math
 import os
 import random
 import warnings
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -11,6 +12,58 @@ from PIL import Image
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
 from data.utils import load_image
+
+
+@dataclass(frozen=True)
+class PreparedOnlineImage:
+    image: Image.Image
+    original_size: tuple
+    ratio_x: float
+    ratio_y: float
+    resize_scale: float
+
+
+def prepare_online_image(
+    img_path,
+    load_size,
+    load_size_keep_ratio=False,
+    camera_augment=None,
+    camera_color_plan=None,
+):
+    """Load/resize a frame once and optionally apply a full-frame camera plan."""
+    img = load_image(img_path).convert("RGB")
+    original_size = img.size
+    resize_scale = 1.0
+
+    if load_size not in (None, []):
+        target_width = int(load_size[0])
+        target_height = int(load_size[1] if len(load_size) > 1 else load_size[0])
+        if target_width <= 0 or target_height <= 0:
+            raise ValueError(f"load_size must contain positive values: {load_size}")
+        if load_size_keep_ratio:
+            target_long_side = max(target_width, target_height)
+            resize_scale = target_long_side / float(max(original_size))
+            new_width = max(1, int(round(original_size[0] * resize_scale)))
+            new_height = max(1, int(round(original_size[1] * resize_scale)))
+        else:
+            new_width = target_width
+            new_height = target_height
+        img = F.resize(img, (new_height, new_width))
+
+    ratio_x = img.size[0] / original_size[0]
+    ratio_y = img.size[1] / original_size[1]
+    if camera_augment is not None and camera_color_plan is not None:
+        tensor = F.to_tensor(img) * 2.0 - 1.0
+        tensor = camera_augment.apply_camera_color_plan(tensor, camera_color_plan)
+        img = F.to_pil_image(((tensor + 1.0) / 2.0).clamp(0.0, 1.0))
+
+    return PreparedOnlineImage(
+        image=img,
+        original_size=original_size,
+        ratio_x=ratio_x,
+        ratio_y=ratio_y,
+        resize_scale=resize_scale,
+    )
 
 
 def _scale_pixel_mask_delta(mask_delta, scale):
@@ -577,6 +630,7 @@ def crop_image(
     bbox_context_state=None,
     crop_mask_aspect_ratio=0.0,
     crop_mask_aspect_ratio_orientation="fixed",
+    prepared_image=None,
 ):
     margin = context_pixels * 2
     x_padding = 0
@@ -591,15 +645,23 @@ def crop_image(
         raise ValueError("bbox_context crop mode requires context_pixels=0")
 
     try:
-        img = load_image(img_path)
-        old_size = img.size
-        resize_scale = 1.0
+        if prepared_image is None:
+            img = load_image(img_path)
+            old_size = img.size
+            resize_scale = 1.0
+        else:
+            img = prepared_image.image.copy()
+            old_size = prepared_image.original_size
+            resize_scale = prepared_image.resize_scale
         effective_crop_dim = crop_dim
         effective_crop_delta = crop_delta
         effective_fixed_mask_size = fixed_mask_size
         effective_mask_delta = mask_delta
 
-        if load_size != []:
+        if prepared_image is not None:
+            ratio_x = prepared_image.ratio_x
+            ratio_y = prepared_image.ratio_y
+        elif load_size != []:
             target_width = int(load_size[0])
             target_height = int(load_size[1] if len(load_size) > 1 else load_size[0])
             if target_width <= 0 or target_height <= 0:
