@@ -185,8 +185,24 @@
         "temporal_number_frames": 2,
         "online_creation": {
             "color_mask_A": false,
+            "crop_bbox_aspect_range_A": [
+                0.9,
+                1.1
+            ],
+            "crop_bbox_center_jitter_A": 0.05,
+            "crop_bbox_scale_range_A": [
+                0.9,
+                1.1
+            ],
+            "crop_context_fraction_range_A": [
+                0.05,
+                0.2
+            ],
             "crop_delta_A": 50,
             "crop_delta_B": 50,
+            "crop_mask_aspect_ratio_A": 0.0,
+            "crop_mask_aspect_ratio_orientation_A": "fixed",
+            "crop_mode_A": "bbox_context",
             "crop_size_A": 128,
             "crop_size_B": 512,
             "load_size_A": [],
