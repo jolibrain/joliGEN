@@ -741,14 +741,19 @@ def preprocess_with_repo_crop(
         side = crop_meta["crop_size"] + 2 * context_pixels
         bounds = [
             max(0, min(side, box[f"original_{key}"] - crop_meta[axis]))
-            for key, axis in (("xmin", "x_crop"), ("ymin", "y_crop"),
-                              ("xmax", "x_crop"), ("ymax", "y_crop"))
+            for key, axis in (
+                ("xmin", "x_crop"),
+                ("ymin", "y_crop"),
+                ("xmax", "x_crop"),
+                ("ymax", "y_crop"),
+            )
         ]
         mandatory_mask = np.zeros((side, side), dtype=np.uint8)
-        mandatory_mask[bounds[1]:bounds[3], bounds[0]:bounds[2]] = 1
+        mandatory_mask[bounds[1] : bounds[3], bounds[0] : bounds[2]] = 1
         mandatory_mask = np.asarray(
             transforms.functional.resize(
-                Image.fromarray(mandatory_mask), output_dim + 2 * context_pixels,
+                Image.fromarray(mandatory_mask),
+                output_dim + 2 * context_pixels,
                 interpolation=transforms.InterpolationMode.NEAREST,
             )
         )
