@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 import torch
+from PIL import Image
 from torchvision import transforms
 
 JG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../")
@@ -735,24 +736,21 @@ def preprocess_with_repo_crop(
 
     mandatory_mask = None
     if predict_mask:
-        _, mandatory_mask, _, _ = crop_image(
-            img_path=img_path,
-            bbox_path=bbox_path,
-            mask_delta=[[]],
-            mask_random_offset=[0.0],
-            crop_delta=0,
-            mask_square=False,
-            crop_dim=crop_dim,
-            output_dim=output_dim,
-            context_pixels=context_pixels,
-            load_size=load_size,
-            load_size_keep_ratio=load_size_keep_ratio,
-            crop_coordinates=crop_coordinates,
-            crop_center=True,
-            bbox_ref_id=bbox_index,
-            override_class=cls,
-            fixed_mask_size_model=-1,
-            fixed_mask_min_unmasked_border_model=fixed_mask_min_unmasked_border_model,
+        # processed_bboxes already uses the selected crop's padded coordinates.
+        box = crop_meta["processed_bboxes"][0]
+        side = crop_meta["crop_size"] + 2 * context_pixels
+        bounds = [
+            max(0, min(side, box[f"original_{key}"] - crop_meta[axis]))
+            for key, axis in (("xmin", "x_crop"), ("ymin", "y_crop"),
+                              ("xmax", "x_crop"), ("ymax", "y_crop"))
+        ]
+        mandatory_mask = np.zeros((side, side), dtype=np.uint8)
+        mandatory_mask[bounds[1]:bounds[3], bounds[0]:bounds[2]] = 1
+        mandatory_mask = np.asarray(
+            transforms.functional.resize(
+                Image.fromarray(mandatory_mask), output_dim + 2 * context_pixels,
+                interpolation=transforms.InterpolationMode.NEAREST,
+            )
         )
 
     bbox_select = compute_paste_bbox(crop_meta)
