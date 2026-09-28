@@ -115,7 +115,7 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_mask_prediction_dilation | int | 3 | Predicted-mask dilation radius in model pixels. |
 | --alg_b2b_mask_prediction_threshold | float | 0.5 | Probability threshold for the final predicted inpainting mask. |
 | --alg_b2b_mask_size_conditioning | flag |  | Condition JiT/JiTViD B2B denoisers on normalized mask bbox geometry (center, size, area, aspect). |
-| --alg_b2b_metric_mask | flag |  | Evaluate metrics only on dilated mask region |
+| --alg_b2b_metric_mask | flag |  | Evaluate B2B PSNR over the exact input mask instead of the full crop |
 | --alg_b2b_minsnr | flag |  | use min-SNR weighting |
 | --alg_b2b_multi_dataset_class_conditioning | flag |  | Use multi_dataset dataset_index as the ViT class-token conditioning label instead of object class labels. |
 | --alg_b2b_noise_scale | float | -1.0 | Noise scale for B2B. Use \<=0 for automatic JiT-like defaults (1.0 at \<=256px, else 2.0). |
