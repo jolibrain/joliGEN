@@ -1588,8 +1588,10 @@ def run_sequence(
     mask_precision_severity=None,
     apply_predicted_mask=False,
     use_predicted_mask_during_denoising=False,
+    fixed_temporal_init_noise=False,
 ):
     rng = np.random.default_rng(seed)
+    fixed_window_noise = None
     _, _, _, output_h, output_w = common_runner.get_train_shape(train_json)
     params = common_runner.get_b2b_params(
         train_json, common_runner.require_square_crop_size(output_h, output_w)
@@ -1722,7 +1724,14 @@ def run_sequence(
                 ),
             )
         )
-        init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
+        if fixed_temporal_init_noise:
+            if fixed_window_noise is None:
+                fixed_window_noise = rng.standard_normal(
+                    size=y_t_batch.shape, dtype=np.float32
+                )
+            init_noise = fixed_window_noise
+        else:
+            init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
         y_np = y_t_batch.numpy().astype(np.float32)
         y_cond_np = (
             None
@@ -1954,6 +1963,12 @@ def parse_args():
     )
     parser.add_argument("--label", type=int, default=None, help="Override class label")
     parser.add_argument("--seed", type=int, default=0, help="Seed for init_noise")
+    parser.add_argument(
+        "--fixed_temporal_init_noise",
+        "--fixed-temporal-init-noise",
+        action="store_true",
+        help="Reuse one seeded two-frame noise field for every sliding window.",
+    )
     parser.add_argument(
         "--mask_precision_mode",
         "--mask-precision-mode",
@@ -2198,6 +2213,7 @@ def main():
             warmup=args.warmup,
             repeat=args.repeat,
             autoregressive_reinject_patch=args.autoregressive_reinject_patch,
+            fixed_temporal_init_noise=args.fixed_temporal_init_noise,
             temporal_frame_step=args.temporal_frame_step,
             object_refs=object_refs,
             mask_precision_mode=args.mask_precision_mode,
