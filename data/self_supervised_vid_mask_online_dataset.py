@@ -13,9 +13,12 @@ from data.online_creation import (
     build_instance_mask_from_crop_meta,
     crop_image,
     mask_prediction_enabled,
+    prepare_online_image,
     randomize_instance_mask,
+    sample_bbox_context_crop_state,
     sample_mask_precision_state,
     sample_online_pre_crop_rotation_state,
+    validate_bbox_context_crop_options,
 )
 from data.online_creation import fill_mask_with_random, fill_mask_with_color
 from data.temporal_sampling import (
@@ -25,6 +28,7 @@ from data.temporal_sampling import (
     select_temporal_start_from_series_at_index,
 )
 from util.b2b_context import b2b_global_context_enabled_from_opt
+from util.diff_aug import DiffAugment
 
 
 def atoi(text):
@@ -54,6 +58,7 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
 
     def __init__(self, opt, phase, name=""):
         BaseDataset.__init__(self, opt, phase, name)
+        validate_bbox_context_crop_options(opt)
 
         self.A_img_paths, self.A_label_mask_paths = make_labeled_path_dataset(
             self.dir_A, "/paths.txt"
@@ -71,6 +76,15 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
             )
 
         self.transform = get_transform_list(self.opt, grayscale=(self.input_nc == 1))
+
+        self.pre_crop_camera_augment = None
+        if getattr(opt, "dataaug_diff_aug_camera_color_pre_crop", False):
+            self.pre_crop_camera_augment = DiffAugment(
+                "camera_color",
+                opt.dataaug_diff_aug_proba,
+                camera_color_strength=opt.dataaug_diff_aug_camera_color_strength,
+                detail_strength=opt.dataaug_diff_aug_detail_strength,
+            )
 
         self._init_temporal_frame_step_sampling(opt)
 
@@ -149,18 +163,32 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
         global_context_A = []
         predict_mask = mask_prediction_enabled(self.opt)
         rotation_state_A = sample_online_pre_crop_rotation_state(self.opt)
+        camera_color_plan = None
+        if self.pre_crop_camera_augment is not None:
+            camera_color_plan = self.pre_crop_camera_augment.sample_camera_color_plan()
         ref_A_img_path = self.A_img_paths[index_A]
         ref_name_A = ref_A_img_path.split("/")[-1][: self.num_common_char]
 
-        crop_size_min = (
-            self.opt.data_online_creation_crop_size_A
-            - self.opt.data_online_creation_crop_delta_A
-        )
-        crop_size_max = (
-            self.opt.data_online_creation_crop_size_A
-            + self.opt.data_online_creation_crop_delta_A
-        )
-        crop_size = random.randint(crop_size_min, crop_size_max)
+        crop_mode = getattr(self.opt, "data_online_creation_crop_mode_A", "absolute")
+        bbox_context_state = None
+        if crop_mode == "bbox_context":
+            crop_size = self.opt.data_online_creation_crop_size_A
+            bbox_context_state = sample_bbox_context_crop_state(
+                self.opt.data_online_creation_crop_context_fraction_range_A,
+                self.opt.data_online_creation_crop_bbox_center_jitter_A,
+                self.opt.data_online_creation_crop_bbox_scale_range_A,
+                self.opt.data_online_creation_crop_bbox_aspect_range_A,
+            )
+        else:
+            crop_size_min = (
+                self.opt.data_online_creation_crop_size_A
+                - self.opt.data_online_creation_crop_delta_A
+            )
+            crop_size_max = (
+                self.opt.data_online_creation_crop_size_A
+                + self.opt.data_online_creation_crop_delta_A
+            )
+            crop_size = random.randint(crop_size_min, crop_size_max)
 
         for i in range(self.num_frames):
             cur_index_A = index_A + i * effective_frame_step
@@ -182,70 +210,78 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                     cur_A_label_path = os.path.join(self.root, cur_A_label_path)
 
             try:
+                prepared_image = None
+                if self.pre_crop_camera_augment is not None:
+                    prepared_image = prepare_online_image(
+                        cur_A_img_path,
+                        self.opt.data_online_creation_load_size_A,
+                        getattr(
+                            self.opt,
+                            "data_online_creation_load_size_keep_ratio_A",
+                            False,
+                        ),
+                        self.pre_crop_camera_augment,
+                        camera_color_plan,
+                    )
                 if self.opt.data_online_creation_mask_delta_A_ratio == [[]]:
                     mask_delta_A = self.opt.data_online_creation_mask_delta_A
                 else:
                     mask_delta_A = self.opt.data_online_creation_mask_delta_A_ratio
 
-                crop_coordinates = crop_image(
-                    cur_A_img_path,
-                    cur_A_label_path,
-                    mask_delta=mask_delta_A,
-                    mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
-                    crop_delta=0,
-                    mask_square=self.opt.data_online_creation_mask_square_A,
-                    broaden_rect_aug=getattr(
+                crop_kwargs = {
+                    "img_path": cur_A_img_path,
+                    "bbox_path": cur_A_label_path,
+                    "mask_delta": mask_delta_A,
+                    "mask_random_offset": self.opt.data_online_creation_mask_random_offset_A,
+                    "crop_delta": 0,
+                    "mask_square": self.opt.data_online_creation_mask_square_A,
+                    "broaden_rect_aug": getattr(
                         self.opt, "data_online_creation_mask_broaden_rect_aug_A", False
                     ),
-                    crop_dim=crop_size,
-                    output_dim=self.opt.data_load_size,
-                    context_pixels=self.opt.data_online_context_pixels,
-                    load_size=self.opt.data_online_creation_load_size_A,
-                    load_size_keep_ratio=getattr(
+                    "crop_dim": crop_size,
+                    "output_dim": self.opt.data_load_size,
+                    "context_pixels": self.opt.data_online_context_pixels,
+                    "load_size": self.opt.data_online_creation_load_size_A,
+                    "load_size_keep_ratio": getattr(
                         self.opt, "data_online_creation_load_size_keep_ratio_A", False
                     ),
-                    get_crop_coordinates=True,
-                    fixed_mask_size=self.opt.data_online_fixed_mask_size,
-                    fixed_mask_size_model=getattr(
+                    "fixed_mask_size": self.opt.data_online_fixed_mask_size,
+                    "fixed_mask_size_model": getattr(
                         self.opt, "data_online_creation_mask_fixed_size_A", -1
                     ),
-                    fixed_mask_min_unmasked_border_model=getattr(
+                    "fixed_mask_min_unmasked_border_model": getattr(
                         self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
                     ),
-                    crop_center=True,
-                    rotation_state=rotation_state_A,
+                    "crop_center": True,
+                    "rotation_state": rotation_state_A,
+                    "prepared_image": prepared_image,
+                }
+                return_meta = (
+                    b2b_global_context_enabled_from_opt(self.opt) or predict_mask
                 )
-                crop_result = crop_image(
-                    cur_A_img_path,
-                    cur_A_label_path,
-                    mask_delta=mask_delta_A,
-                    mask_random_offset=self.opt.data_online_creation_mask_random_offset_A,
-                    crop_delta=0,
-                    mask_square=self.opt.data_online_creation_mask_square_A,
-                    broaden_rect_aug=getattr(
-                        self.opt, "data_online_creation_mask_broaden_rect_aug_A", False
-                    ),
-                    crop_dim=crop_size,
-                    output_dim=self.opt.data_load_size,
-                    context_pixels=self.opt.data_online_context_pixels,
-                    load_size=self.opt.data_online_creation_load_size_A,
-                    load_size_keep_ratio=getattr(
-                        self.opt, "data_online_creation_load_size_keep_ratio_A", False
-                    ),
-                    crop_coordinates=crop_coordinates,
-                    fixed_mask_size=self.opt.data_online_fixed_mask_size,
-                    fixed_mask_size_model=getattr(
-                        self.opt, "data_online_creation_mask_fixed_size_A", -1
-                    ),
-                    fixed_mask_min_unmasked_border_model=getattr(
-                        self.opt, "data_online_creation_mask_min_unmasked_border_A", 4
-                    ),
-                    crop_center=True,
-                    return_meta=(
-                        b2b_global_context_enabled_from_opt(self.opt) or predict_mask
-                    ),
-                    rotation_state=rotation_state_A,
-                )
+                if crop_mode == "bbox_context":
+                    crop_result = crop_image(
+                        **crop_kwargs,
+                        crop_mode=crop_mode,
+                        bbox_context_state=bbox_context_state,
+                        crop_mask_aspect_ratio=(
+                            self.opt.data_online_creation_crop_mask_aspect_ratio_A
+                        ),
+                        crop_mask_aspect_ratio_orientation=(
+                            self.opt.data_online_creation_crop_mask_aspect_ratio_orientation_A
+                        ),
+                        return_meta=return_meta,
+                    )
+                else:
+                    crop_coordinates = crop_image(
+                        **crop_kwargs,
+                        get_crop_coordinates=True,
+                    )
+                    crop_result = crop_image(
+                        **crop_kwargs,
+                        crop_coordinates=crop_coordinates,
+                        return_meta=return_meta,
+                    )
                 if b2b_global_context_enabled_from_opt(self.opt) or predict_mask:
                     (
                         cur_A_img,
@@ -276,13 +312,14 @@ class SelfSupervisedVidMaskOnlineDataset(TemporalFrameStepMixin, BaseDataset):
                                 "data_online_creation_load_size_keep_ratio_A",
                                 False,
                             ),
+                            prepared_image=prepared_image,
                         )
                     )
                 if i == 0:
                     A_ref_bbox = ref_A_bbox[1:]
 
             except Exception as e:
-                print(e, f"{i+1}th frame of domain A in temporal dataloading")
+                print(e, f"{i + 1}th frame of domain A in temporal dataloading")
                 return None
 
             images_A.append(cur_A_img)

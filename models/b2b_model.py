@@ -37,7 +37,6 @@ from util.b2b_context import (
 
 
 class B2BModel(BaseDiffusionModel):
-
     @staticmethod
     def _b2b_generation_visual_names(denoise_timesteps, mask_prediction):
         names = ["gt_image_", "y_t_"]
@@ -1357,25 +1356,54 @@ class B2BModel(BaseDiffusionModel):
             return
 
         image_tensors = [self.gt_image, self.y_t]
+        image_exclusion_masks = [None, None]
         mask_tensors = [self.mask] if self.mask is not None else []
+        source_image_index = None
         if self.opt.alg_b2b_mask_prediction:
+            source_image_index = len(image_tensors)
             image_tensors.append(self.source_image)
+            image_exclusion_masks.append(None)
             mask_tensors = [
                 self.projection_mask,
                 self.conditioning_mask,
                 self.instance_mask,
                 self.mandatory_mask,
             ]
+
+        global_context_index = None
+        global_context = getattr(self, "global_context", None)
+        if global_context is not None:
+            global_context_index = len(image_tensors)
+            image_tensors.append(global_context)
+            global_context_exclusion = torch.all(
+                global_context <= -1.0 + 1e-6,
+                dim=-3,
+                keepdim=True,
+            ).to(dtype=global_context.dtype)
+            image_exclusion_masks.append(global_context_exclusion)
+
+        diff_augment_kwargs = {}
+        if getattr(
+            self.opt,
+            "dataaug_diff_aug_camera_color_pre_crop",
+            False,
+        ):
+            diff_augment_kwargs["excluded_policies"] = {"camera_color"}
         aug_images, aug_masks = self.diff_augment.apply_synchronized(
             image_tensors=image_tensors,
             mask_tensors=mask_tensors,
+            image_exclusion_masks=image_exclusion_masks,
+            **diff_augment_kwargs,
         )
         self.gt_image = aug_images[0]
         self.y_t = aug_images[1]
+        if global_context_index is not None:
+            self.global_context = aug_images[global_context_index]
         if self.mask is not None and not self.opt.alg_b2b_mask_prediction:
             self.mask = aug_masks[0]
         if self.opt.alg_b2b_mask_prediction:
-            self.source_image = aug_images[2]
+            assert source_image_index is not None
+            self.source_image = aug_images[source_image_index]
             self.projection_mask = aug_masks[0]
             self.conditioning_mask = aug_masks[1]
             self.instance_mask = (aug_masks[2] > 0.5).to(self.projection_mask.dtype)
@@ -1767,7 +1795,6 @@ class B2BModel(BaseDiffusionModel):
                 self.opt.alg_diffusion_cond_embed != ""
                 and self.opt.alg_diffusion_generate_per_class
             ):
-
                 for i in range(self.nb_classes_inference):
                     if "mask" in self.opt.alg_diffusion_cond_embed:
                         cur_mask = self.mask[:nb_imgs].clone().clamp(min=0, max=1) * (

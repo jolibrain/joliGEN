@@ -84,6 +84,18 @@ The online dataloader applies the following steps:
 - Randomly pick and apply a positive or negative offset to the crop
   size according to `--data_online_creation_crop_delta_{A,B}`. This
   allows random variations around the fixed size of the crop.
+- For B2B runtime-aligned training, set
+  `--data_online_creation_crop_mode_A bbox_context`. This derives a source
+  rectangle from the selected bbox, a sampled context fraction, and
+  detector-like center/scale/aspect errors before resizing to the model input.
+  The sampled errors are shared by all frames in a temporal window.
+- `--data_online_creation_crop_mask_aspect_ratio_A` defaults to `0.0`, which
+  leaves the detector-like box shape unchanged. Set a positive value only for
+  a model whose deployment mask requires that shape, and set
+  `--data_online_creation_crop_mask_aspect_ratio_orientation_A bbox` when the
+  ratio direction should follow portrait/landscape bbox orientation. Aspect
+  ratio changes shape rather than overall size; use mask offsets or a minimum
+  mask size when a generated object needs room in both dimensions.
 - Randomly pick and apply a positive or negative offset to the mask
   according to `--data_online_creation_mask_delta_{A,B}`. This step
   allows for an object in domain A to roughly match the size of an

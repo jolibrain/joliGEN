@@ -2,6 +2,7 @@ import math
 import os
 import random
 import warnings
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -11,6 +12,58 @@ from PIL import Image
 from torchvision.transforms import InterpolationMode
 from tqdm import tqdm
 from data.utils import load_image
+
+
+@dataclass(frozen=True)
+class PreparedOnlineImage:
+    image: Image.Image
+    original_size: tuple
+    ratio_x: float
+    ratio_y: float
+    resize_scale: float
+
+
+def prepare_online_image(
+    img_path,
+    load_size,
+    load_size_keep_ratio=False,
+    camera_augment=None,
+    camera_color_plan=None,
+):
+    """Load/resize a frame once and optionally apply a full-frame camera plan."""
+    img = load_image(img_path).convert("RGB")
+    original_size = img.size
+    resize_scale = 1.0
+
+    if load_size not in (None, []):
+        target_width = int(load_size[0])
+        target_height = int(load_size[1] if len(load_size) > 1 else load_size[0])
+        if target_width <= 0 or target_height <= 0:
+            raise ValueError(f"load_size must contain positive values: {load_size}")
+        if load_size_keep_ratio:
+            target_long_side = max(target_width, target_height)
+            resize_scale = target_long_side / float(max(original_size))
+            new_width = max(1, int(round(original_size[0] * resize_scale)))
+            new_height = max(1, int(round(original_size[1] * resize_scale)))
+        else:
+            new_width = target_width
+            new_height = target_height
+        img = F.resize(img, (new_height, new_width))
+
+    ratio_x = img.size[0] / original_size[0]
+    ratio_y = img.size[1] / original_size[1]
+    if camera_augment is not None and camera_color_plan is not None:
+        tensor = F.to_tensor(img) * 2.0 - 1.0
+        tensor = camera_augment.apply_camera_color_plan(tensor, camera_color_plan)
+        img = F.to_pil_image(((tensor + 1.0) / 2.0).clamp(0.0, 1.0))
+
+    return PreparedOnlineImage(
+        image=img,
+        original_size=original_size,
+        ratio_x=ratio_x,
+        ratio_y=ratio_y,
+        resize_scale=resize_scale,
+    )
 
 
 def _scale_pixel_mask_delta(mask_delta, scale):
@@ -123,6 +176,294 @@ def _make_crop_state(processed_bboxes, idx_bbox_ref):
     return {
         "idx_bbox_ref": int(idx_bbox_ref),
         "processed_bboxes": [dict(cur_bbox) for cur_bbox in processed_bboxes],
+    }
+
+
+def _cxx_lround(value):
+    """Match C++ std::lround for the coordinate math shared with Joliring."""
+    value = float(value)
+    if value >= 0.0:
+        return int(math.floor(value + 0.5))
+    return int(math.ceil(value - 0.5))
+
+
+def _validate_float_range(name, values, *, minimum=None, maximum=None, positive=False):
+    if not isinstance(values, (list, tuple)) or len(values) != 2:
+        raise ValueError(f"{name} must contain exactly two values")
+    low, high = float(values[0]), float(values[1])
+    if not math.isfinite(low) or not math.isfinite(high) or low > high:
+        raise ValueError(f"{name} must be a finite ordered range")
+    if positive and low <= 0.0:
+        raise ValueError(f"{name} values must be positive")
+    if minimum is not None and low < minimum:
+        raise ValueError(f"{name} values must be >= {minimum}")
+    if maximum is not None and high >= maximum:
+        raise ValueError(f"{name} values must be < {maximum}")
+    return low, high
+
+
+def validate_bbox_context_crop_options(opt):
+    mode = getattr(opt, "data_online_creation_crop_mode_A", "absolute")
+    if mode not in {"absolute", "bbox_context"}:
+        raise ValueError(
+            "data_online_creation_crop_mode_A must be 'absolute' or 'bbox_context'"
+        )
+    if mode != "bbox_context":
+        return
+
+    _validate_float_range(
+        "data_online_creation_crop_context_fraction_range_A",
+        opt.data_online_creation_crop_context_fraction_range_A,
+        minimum=0.0,
+        maximum=0.49,
+    )
+    _validate_float_range(
+        "data_online_creation_crop_bbox_scale_range_A",
+        opt.data_online_creation_crop_bbox_scale_range_A,
+        positive=True,
+    )
+    _validate_float_range(
+        "data_online_creation_crop_bbox_aspect_range_A",
+        opt.data_online_creation_crop_bbox_aspect_range_A,
+        positive=True,
+    )
+    center_jitter = float(opt.data_online_creation_crop_bbox_center_jitter_A)
+    if not math.isfinite(center_jitter) or not 0.0 <= center_jitter <= 1.0:
+        raise ValueError(
+            "data_online_creation_crop_bbox_center_jitter_A must be in [0, 1]"
+        )
+    mask_aspect_ratio = float(opt.data_online_creation_crop_mask_aspect_ratio_A)
+    if not math.isfinite(mask_aspect_ratio) or mask_aspect_ratio < 0.0:
+        raise ValueError(
+            "data_online_creation_crop_mask_aspect_ratio_A must be non-negative "
+            "and finite"
+        )
+    if opt.data_online_creation_crop_mask_aspect_ratio_orientation_A not in {
+        "fixed",
+        "bbox",
+    }:
+        raise ValueError(
+            "data_online_creation_crop_mask_aspect_ratio_orientation_A must be "
+            "'fixed' or 'bbox'"
+        )
+    if int(opt.data_online_context_pixels) != 0:
+        raise ValueError(
+            "data_online_creation_crop_mode_A=bbox_context requires "
+            "data_online_context_pixels=0"
+        )
+
+
+def sample_bbox_context_crop_state(
+    context_fraction_range,
+    center_jitter,
+    scale_range,
+    aspect_range,
+    rng=random,
+):
+    context_min, context_max = _validate_float_range(
+        "context_fraction_range",
+        context_fraction_range,
+        minimum=0.0,
+        maximum=0.49,
+    )
+    scale_min, scale_max = _validate_float_range(
+        "scale_range", scale_range, positive=True
+    )
+    aspect_min, aspect_max = _validate_float_range(
+        "aspect_range", aspect_range, positive=True
+    )
+    center_jitter = float(center_jitter)
+    if not math.isfinite(center_jitter) or not 0.0 <= center_jitter <= 1.0:
+        raise ValueError("center_jitter must be in [0, 1]")
+    return {
+        "context_fraction": rng.uniform(context_min, context_max),
+        "center_x_fraction": rng.uniform(-center_jitter, center_jitter),
+        "center_y_fraction": rng.uniform(-center_jitter, center_jitter),
+        "scale": rng.uniform(scale_min, scale_max),
+        "aspect": rng.uniform(aspect_min, aspect_max),
+    }
+
+
+def _centered_box(center_x, center_y, width, height, frame_width, frame_height):
+    width = min(max(int(width), 1), int(frame_width))
+    height = min(max(int(height), 1), int(frame_height))
+    xmin = min(
+        max(_cxx_lround(float(center_x) - width / 2.0), 0),
+        frame_width - width,
+    )
+    ymin = min(
+        max(_cxx_lround(float(center_y) - height / 2.0), 0),
+        frame_height - height,
+    )
+    return xmin, ymin, xmin + width, ymin + height
+
+
+def _effective_mask_aspect_ratio(ratio, orientation, bbox_width, bbox_height):
+    ratio = float(ratio)
+    if (
+        ratio <= 0.0
+        or orientation != "bbox"
+        or bbox_width == bbox_height
+        or ratio == 1.0
+    ):
+        return ratio
+    configured_landscape = ratio > 1.0
+    bbox_landscape = bbox_width > bbox_height
+    return ratio if configured_landscape == bbox_landscape else 1.0 / ratio
+
+
+def _expand_box_to_aspect_ratio(box, ratio, frame_width, frame_height):
+    xmin, ymin, xmax, ymax = box
+    if ratio <= 0.0:
+        return box
+    width = xmax - xmin
+    height = ymax - ymin
+    current_ratio = width / float(height)
+    target_width = width
+    target_height = height
+    if current_ratio < ratio:
+        target_width = int(math.ceil(height * ratio))
+    elif current_ratio > ratio:
+        target_height = int(math.ceil(width / ratio))
+    center_x = (xmin + xmax - 1) / 2.0
+    center_y = (ymin + ymax - 1) / 2.0
+    return _centered_box(
+        center_x,
+        center_y,
+        target_width,
+        target_height,
+        frame_width,
+        frame_height,
+    )
+
+
+def compute_bbox_context_crop(
+    bbox,
+    frame_width,
+    frame_height,
+    model_width,
+    model_height,
+    state,
+    mask_aspect_ratio=0.0,
+    mask_aspect_ratio_orientation="fixed",
+):
+    """Compute Joliring-compatible detector mask and dynamic source rectangles.
+
+    Input and returned boxes use half-open coordinates. Joliring's internal
+    inclusive convention is reproduced by using ``xmax - 1``/``ymax - 1``
+    when calculating centers.
+    """
+    if frame_width <= 0 or frame_height <= 0:
+        raise ValueError("frame dimensions must be positive")
+    if model_width <= 0 or model_height <= 0:
+        raise ValueError("model dimensions must be positive")
+    xmin, ymin, xmax, ymax = (int(value) for value in bbox)
+    if xmin < 0 or ymin < 0 or xmax > frame_width or ymax > frame_height:
+        raise ValueError("bbox must be within the frame")
+    if xmax <= xmin or ymax <= ymin:
+        raise ValueError("bbox must have positive dimensions")
+
+    context_fraction = float(state["context_fraction"])
+    center_x_fraction = float(state["center_x_fraction"])
+    center_y_fraction = float(state["center_y_fraction"])
+    scale = float(state["scale"])
+    aspect = float(state["aspect"])
+    if not 0.0 <= context_fraction < 0.49:
+        raise ValueError("context_fraction must be in [0, 0.49)")
+    if not all(
+        math.isfinite(value)
+        for value in (
+            center_x_fraction,
+            center_y_fraction,
+            scale,
+            aspect,
+            mask_aspect_ratio,
+        )
+    ):
+        raise ValueError("bbox-context crop values must be finite")
+    if scale <= 0.0 or aspect <= 0.0 or mask_aspect_ratio < 0.0:
+        raise ValueError("scale and aspect must be positive; mask ratio may be zero")
+    if mask_aspect_ratio_orientation not in {"fixed", "bbox"}:
+        raise ValueError("mask aspect ratio orientation must be 'fixed' or 'bbox'")
+
+    bbox_width = xmax - xmin
+    bbox_height = ymax - ymin
+    center_x = (xmin + xmax - 1) / 2.0 + center_x_fraction * bbox_width
+    center_y = (ymin + ymax - 1) / 2.0 + center_y_fraction * bbox_height
+    aspect_sqrt = math.sqrt(aspect)
+    jittered_width = max(1, _cxx_lround(bbox_width * scale * aspect_sqrt))
+    jittered_height = max(1, _cxx_lround(bbox_height * scale / aspect_sqrt))
+    detector_box = _centered_box(
+        center_x,
+        center_y,
+        jittered_width,
+        jittered_height,
+        frame_width,
+        frame_height,
+    )
+
+    effective_ratio = _effective_mask_aspect_ratio(
+        mask_aspect_ratio,
+        mask_aspect_ratio_orientation,
+        detector_box[2] - detector_box[0],
+        detector_box[3] - detector_box[1],
+    )
+    mask_box = _expand_box_to_aspect_ratio(
+        detector_box,
+        effective_ratio,
+        frame_width,
+        frame_height,
+    )
+
+    mask_width = mask_box[2] - mask_box[0]
+    mask_height = mask_box[3] - mask_box[1]
+    available_fraction = max(0.02, 1.0 - 2.0 * context_fraction)
+    model_aspect = model_width / float(model_height)
+    target_width = mask_width / available_fraction
+    target_height = mask_height / available_fraction
+    if target_width / target_height < model_aspect:
+        target_width = target_height * model_aspect
+    else:
+        target_height = target_width / model_aspect
+    if target_width > frame_width:
+        target_width = frame_width
+        target_height = target_width / model_aspect
+    if target_height > frame_height:
+        target_height = frame_height
+        target_width = target_height * model_aspect
+
+    source_width = max(1, int(math.ceil(target_width)))
+    source_height = max(1, _cxx_lround(source_width / model_aspect))
+    if source_height > frame_height:
+        source_height = frame_height
+        source_width = max(1, _cxx_lround(source_height * model_aspect))
+    if source_width > frame_width:
+        source_width = frame_width
+        source_height = max(1, _cxx_lround(source_width / model_aspect))
+    source_width = min(max(source_width, 1), frame_width)
+    source_height = min(max(source_height, 1), frame_height)
+
+    mask_center_x = (mask_box[0] + mask_box[2] - 1) / 2.0
+    mask_center_y = (mask_box[1] + mask_box[3] - 1) / 2.0
+    source_x = min(
+        max(_cxx_lround(mask_center_x - source_width / 2.0), 0),
+        frame_width - source_width,
+    )
+    source_y = min(
+        max(_cxx_lround(mask_center_y - source_height / 2.0), 0),
+        frame_height - source_height,
+    )
+    return {
+        "state": {key: float(value) for key, value in state.items()},
+        "annotation_box": [xmin, ymin, xmax, ymax],
+        "detector_box": list(detector_box),
+        "effective_mask_aspect_ratio": float(effective_ratio),
+        "mask_box": list(mask_box),
+        "source_rect": [source_x, source_y, source_width, source_height],
+        "source_to_model_scale": [
+            model_width / float(source_width),
+            model_height / float(source_height),
+        ],
     }
 
 
@@ -285,23 +626,42 @@ def crop_image(
     return_meta=False,
     broaden_rect_aug=False,
     rotation_state=None,
+    crop_mode="absolute",
+    bbox_context_state=None,
+    crop_mask_aspect_ratio=0.0,
+    crop_mask_aspect_ratio_orientation="fixed",
+    prepared_image=None,
 ):
     margin = context_pixels * 2
     x_padding = 0
     y_padding = 0
     source_valid_mask = None
     rotation_meta = None
+    bbox_context_meta = None
+
+    if crop_mode not in {"absolute", "bbox_context"}:
+        raise ValueError(f"Unsupported crop mode: {crop_mode}")
+    if crop_mode == "bbox_context" and context_pixels != 0:
+        raise ValueError("bbox_context crop mode requires context_pixels=0")
 
     try:
-        img = load_image(img_path)
-        old_size = img.size
-        resize_scale = 1.0
+        if prepared_image is None:
+            img = load_image(img_path)
+            old_size = img.size
+            resize_scale = 1.0
+        else:
+            img = prepared_image.image.copy()
+            old_size = prepared_image.original_size
+            resize_scale = prepared_image.resize_scale
         effective_crop_dim = crop_dim
         effective_crop_delta = crop_delta
         effective_fixed_mask_size = fixed_mask_size
         effective_mask_delta = mask_delta
 
-        if load_size != []:
+        if prepared_image is not None:
+            ratio_x = prepared_image.ratio_x
+            ratio_y = prepared_image.ratio_y
+        elif load_size != []:
             target_width = int(load_size[0])
             target_height = int(load_size[1] if len(load_size) > 1 else load_size[0])
             if target_width <= 0 or target_height <= 0:
@@ -739,6 +1099,30 @@ def crop_image(
     source_img_width = None
     source_img_height = None
 
+    if crop_mode == "bbox_context":
+        if bbox_context_state is None:
+            raise ValueError("bbox_context crop mode requires bbox_context_state")
+        ref_geometry_bbox = next(
+            cur_bbox
+            for cur_bbox in processed_bboxes
+            if cur_bbox["index"] == idx_bbox_ref
+        )
+        bbox_context_meta = compute_bbox_context_crop(
+            (
+                ref_geometry_bbox["original_xmin"],
+                ref_geometry_bbox["original_ymin"],
+                ref_geometry_bbox["original_xmax"],
+                ref_geometry_bbox["original_ymax"],
+            ),
+            img.shape[1],
+            img.shape[0],
+            output_dim,
+            output_dim,
+            bbox_context_state,
+            mask_aspect_ratio=crop_mask_aspect_ratio,
+            mask_aspect_ratio_orientation=crop_mask_aspect_ratio_orientation,
+        )
+
     def validate_crop_has_valid_source(x_crop, y_crop, crop_size):
         if source_valid_mask is None:
             return
@@ -1052,7 +1436,21 @@ def crop_image(
                 y_max_ref = ymax
 
     # Let's compute crop size
-    if crop_coordinates is None:
+    if crop_coordinates is None and crop_mode == "bbox_context":
+        x_crop, y_crop, source_width, source_height = bbox_context_meta["source_rect"]
+        if source_width != source_height:
+            raise ValueError(
+                "bbox_context crop mode currently requires a square model crop"
+            )
+        crop_size = source_width
+        if get_crop_coordinates:
+            return (
+                x_crop - x_min_ref,
+                y_crop - y_min_ref,
+                crop_size,
+                _make_crop_state(crop_state_processed_bboxes, idx_bbox_ref),
+            )
+    elif crop_coordinates is None:
         # We compute the range within which crop size should be
 
         # Crop size should be > height, width bbox (to keep the bbox within the crop)
@@ -1240,9 +1638,20 @@ def crop_image(
         :,
     ]
 
-    img = Image.fromarray(img)
+    if crop_mode == "bbox_context":
+        import cv2
 
-    img = F.resize(img, output_dim + margin)
+        output_side = output_dim + margin
+        img = Image.fromarray(
+            cv2.resize(
+                img,
+                (output_side, output_side),
+                interpolation=cv2.INTER_LINEAR,
+            )
+        )
+    else:
+        img = Image.fromarray(img)
+        img = F.resize(img, output_dim + margin)
 
     mask = mask[
         y_crop : y_crop + crop_size + margin,
@@ -1339,10 +1748,22 @@ def crop_image(
             resized_mask[resized_mask == 2] = 0
         mask = Image.fromarray(resized_mask)
     else:
-        mask = Image.fromarray(mask)
-        mask = F.resize(
-            mask, output_dim + margin, interpolation=InterpolationMode.NEAREST
-        )
+        if crop_mode == "bbox_context":
+            import cv2
+
+            output_side = output_dim + margin
+            mask = Image.fromarray(
+                cv2.resize(
+                    mask,
+                    (output_side, output_side),
+                    interpolation=cv2.INTER_NEAREST,
+                )
+            )
+        else:
+            mask = Image.fromarray(mask)
+            mask = F.resize(
+                mask, output_dim + margin, interpolation=InterpolationMode.NEAREST
+            )
 
     # resize ref_bbox to output_dim + margin
     ref_bbox = [
@@ -1370,6 +1791,9 @@ def crop_image(
         }
         if rotation_meta is not None:
             crop_meta["rotation"] = dict(rotation_meta)
+        crop_meta["crop_mode"] = crop_mode
+        if bbox_context_meta is not None:
+            crop_meta["bbox_context"] = dict(bbox_context_meta)
         return img, mask, ref_bbox, idx_bbox_ref, crop_meta
 
     return img, mask, ref_bbox, idx_bbox_ref
