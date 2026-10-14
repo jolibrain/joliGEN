@@ -310,6 +310,11 @@ def main():
         args.model_in_file, args.train_config, device, args.use_ema
     )
     train_json, _ = onnx_runner.load_train_config(args.model_in_file, train_config_path)
+    crop_mode = (
+        train_json.get("data", {})
+        .get("online_creation", {})
+        .get("crop_mode_A", "absolute")
+    )
 
     train_frames, train_height, train_width, _, _ = onnx_runner.get_train_shape(
         train_json
@@ -356,6 +361,7 @@ def main():
         apply_predicted_mask=args.apply_predicted_mask,
         use_predicted_mask_during_denoising=(args.use_predicted_mask_during_denoising),
         source_crop_size=args.source_crop_size,
+        use_bbox_context_crop=(crop_mode == "bbox_context"),
     )
 
     print(f"dataset_root : {dataset_root}")
@@ -364,6 +370,7 @@ def main():
     print(f"device       : {device}")
     print(f"train_shape  : {(train_frames, train_height, train_width)}")
     print(f"denoise_steps: {denoise_steps}")
+    print(f"crop_mode_A  : {crop_mode}")
     print(
         "source_crop_size: "
         f"{args.source_crop_size if args.source_crop_size is not None else 'saved crop_size_A'}"

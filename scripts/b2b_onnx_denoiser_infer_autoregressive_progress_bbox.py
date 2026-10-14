@@ -635,6 +635,7 @@ def preprocess_with_repo_crop(
     crop_size_override=None,
     mask_precision_mode=None,
     mask_precision_severity=None,
+    bbox_context_state=None,
 ):
     img_path = os.path.realpath(img_path)
     bbox_path = os.path.realpath(bbox_path)
@@ -693,25 +694,42 @@ def preprocess_with_repo_crop(
     context_pixels = data.get("online_context_pixels", 0)
     min_crop_bbox_ratio = online.get("min_crop_bbox_ratio_A", 0)
 
-    crop_coordinates = crop_image(
-        img_path=img_path,
-        bbox_path=bbox_path,
-        mask_delta=mask_delta,
-        mask_random_offset=mask_random_offset,
-        crop_delta=0,
-        mask_square=mask_square,
-        crop_dim=crop_dim,
-        output_dim=output_dim,
-        context_pixels=context_pixels,
-        load_size=load_size,
-        load_size_keep_ratio=load_size_keep_ratio,
-        get_crop_coordinates=True,
-        crop_center=True,
-        bbox_ref_id=bbox_index,
-        min_crop_bbox_ratio=min_crop_bbox_ratio,
-        fixed_mask_size_model=fixed_mask_size_model,
-        fixed_mask_min_unmasked_border_model=fixed_mask_min_unmasked_border_model,
-    )
+    if bbox_context_state is None:
+        crop_coordinates = crop_image(
+            img_path=img_path,
+            bbox_path=bbox_path,
+            mask_delta=mask_delta,
+            mask_random_offset=mask_random_offset,
+            crop_delta=0,
+            mask_square=mask_square,
+            crop_dim=crop_dim,
+            output_dim=output_dim,
+            context_pixels=context_pixels,
+            load_size=load_size,
+            load_size_keep_ratio=load_size_keep_ratio,
+            get_crop_coordinates=True,
+            crop_center=True,
+            bbox_ref_id=bbox_index,
+            min_crop_bbox_ratio=min_crop_bbox_ratio,
+            fixed_mask_size_model=fixed_mask_size_model,
+            fixed_mask_min_unmasked_border_model=fixed_mask_min_unmasked_border_model,
+        )
+
+    else:
+        crop_coordinates = None
+
+    crop_options = {}
+    if bbox_context_state is not None:
+        crop_options = {
+            "crop_mode": "bbox_context",
+            "bbox_context_state": bbox_context_state,
+            "crop_mask_aspect_ratio": float(
+                online.get("crop_mask_aspect_ratio_A", 0.0)
+            ),
+            "crop_mask_aspect_ratio_orientation": online.get(
+                "crop_mask_aspect_ratio_orientation_A", "fixed"
+            ),
+        }
 
     img, mask, _, _, crop_meta = crop_image(
         img_path=img_path,
@@ -732,10 +750,11 @@ def preprocess_with_repo_crop(
         return_meta=True,
         fixed_mask_size_model=fixed_mask_size_model,
         fixed_mask_min_unmasked_border_model=fixed_mask_min_unmasked_border_model,
+        **crop_options,
     )
 
     mandatory_mask = None
-    if predict_mask:
+    if predict_mask and bbox_context_state is None:
         # processed_bboxes already uses the selected crop's padded coordinates.
         box = crop_meta["processed_bboxes"][0]
         side = crop_meta["crop_size"] + 2 * context_pixels
@@ -1581,6 +1600,7 @@ def run_sequence(
     apply_predicted_mask=False,
     use_predicted_mask_during_denoising=False,
     source_crop_size=None,
+    use_bbox_context_crop=False,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = get_train_shape(train_json)
@@ -1602,6 +1622,31 @@ def run_sequence(
     seq_half = 1
     num_buckets = 2
     max_sigma = 0.71
+    bbox_context_state = None
+    if use_bbox_context_crop:
+        online = train_json.get("data", {}).get("online_creation", {})
+        if online.get("crop_mode_A") != "bbox_context":
+            raise ValueError(
+                "bbox_context inference requires a bbox_context checkpoint"
+            )
+        context_range = online["crop_context_fraction_range_A"]
+        scale_range = online["crop_bbox_scale_range_A"]
+        aspect_range = online["crop_bbox_aspect_range_A"]
+        if not (
+            scale_range[0] <= 1.0 <= scale_range[1]
+            and aspect_range[0] <= 1.0 <= aspect_range[1]
+        ):
+            raise ValueError(
+                "Neutral bbox_context geometry is outside the training ranges"
+            )
+        bbox_context_state = {
+            "context_fraction": (float(context_range[0]) + float(context_range[1]))
+            / 2.0,
+            "center_x_fraction": 0.0,
+            "center_y_fraction": 0.0,
+            "scale": 1.0,
+            "aspect": 1.0,
+        }
 
     for sequence_count, (img_rel, bbox_rel) in enumerate(pairs):
         img_path = os.path.join(dataset_root, img_rel)
@@ -1615,6 +1660,7 @@ def run_sequence(
             mask_precision_mode=precision_mode_id,
             mask_precision_severity=precision_severity_value,
             crop_size_override=source_crop_size,
+            bbox_context_state=bbox_context_state,
         )
         frame_data["index"] = sequence_count
         frame_data["img_rel"] = img_rel
