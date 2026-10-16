@@ -1,0 +1,75 @@
+name: New Issue
+description: Report an issue
+title: "Issue Title"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this issue!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe your issue.
+      placeholder: Tell us what you see!
+      value: "Explain the issue here"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+      placeholder: What's the expected behavior?
+      value: "Describe the expected behavior here"
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What OS are you running?
+      options:
+        - Linux (Default)
+        - MacOS
+        - Windows
+    validations:
+      required: true
+  - type: textarea
+    id: os-version
+    attributes:
+      label: OS Version
+      description: What is the version of your os?
+    validations:
+      required: true
+  - type: dropdown
+    id: python-version
+    attributes:
+      label: Python version
+      multiple: true
+      options:
+        - 3.6
+        - 3.7
+        - 3.8 (default)
+        - 3.9
+        - 3.10
+        - 3.11
+  - type: textarea
+    id: other
+    attributes:
+      label: Any other information?
+      description: Please let us know any other information that can be useful for us to know
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/jolibrain/joliGEN/blob/master/CODE_OF_CONDUCT.md)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
