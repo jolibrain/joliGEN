@@ -43,15 +43,30 @@ class PaletteDenoiseFn(nn.Module):
         self.conditioning = conditioning
         self.cond_embed_dim = cond_embed_dim
         self.ref_embed_net = ref_embed_net
+        self.cond_embed_gammas = cond_embed_dim
 
         # Label embedding
         if "class" in conditioning:
-            cond_embed_class = cond_embed_dim // 2
-            self.netl_embedder_class = LabelEmbedder(
-                nclasses,
-                cond_embed_class,  # * image_size * image_size
-            )
-            nn.init.normal_(self.netl_embedder_class.embedding_table.weight, std=0.02)
+            if type(nclasses) == list:
+                # TODO this is arbitrary, half for class & half for detector
+                cond_embed_class = cond_embed_dim // (len(nclasses) + 1)
+                self.netl_embedders_class = nn.ModuleList(
+                    [LabelEmbedder(nc, cond_embed_class) for nc in nclasses]
+                )
+                for embed in self.netl_embedders_class:
+                    self.cond_embed_gammas -= cond_embed_class
+                    nn.init.normal_(embed.embedding_table.weight, std=0.02)
+            else:
+                # TODO this can be included in the general case
+                cond_embed_class = cond_embed_dim // 2
+                self.netl_embedder_class = LabelEmbedder(
+                    nclasses,
+                    cond_embed_class,  # * image_size * image_size
+                )
+                self.cond_embed_gammas -= cond_embed_class
+                nn.init.normal_(
+                    self.netl_embedder_class.embedding_table.weight, std=0.02
+                )
 
         if "mask" in conditioning:
             cond_embed_mask = cond_embed_dim
@@ -59,6 +74,7 @@ class PaletteDenoiseFn(nn.Module):
                 nclasses,
                 cond_embed_mask,  # * image_size * image_size
             )
+            self.cond_embed_gammas -= cond_embed_class
             nn.init.normal_(self.netl_embedder_mask.embedding_table.weight, std=0.02)
 
         # Instantiate model
@@ -91,6 +107,7 @@ class PaletteDenoiseFn(nn.Module):
             self.emb_layers = nn.Sequential(
                 torch.nn.SiLU(), nn.Linear(ref_embed_dim, cond_embed_class)
             )
+            self.cond_embed_gammas -= cond_embed_class
 
     def forward(self, input, embed_noise_level, cls, mask, ref):
         cls_embed, mask_embed, ref_embed = self.compute_cond(input, cls, mask, ref)
@@ -116,7 +133,14 @@ class PaletteDenoiseFn(nn.Module):
 
     def compute_cond(self, input, cls, mask, ref):
         if "class" in self.conditioning and cls is not None:
-            cls_embed = self.netl_embedder_class(cls)
+            if hasattr(self, "netl_embedders_class"):
+                cls_embed = []
+                for i in range(len(self.netl_embedders_class)):
+                    cls_embed.append(self.netl_embedders_class[i](cls[:, i]))
+                cls_embed = torch.cat(cls_embed, dim=1)
+            else:
+                # TODO general case
+                cls_embed = self.netl_embedder_class(cls)
         else:
             cls_embed = None
 
