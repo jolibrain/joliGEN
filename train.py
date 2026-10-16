@@ -18,8 +18,6 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
-import bitsandbytes as bnb
-
 from data import (
     create_dataloader,
     create_dataset,
@@ -33,6 +31,74 @@ from util.visualizer import Visualizer
 from util.lion_pytorch import Lion
 from util.script import get_override_options_names
 import datetime
+
+
+class MuonWithAdamW(torch.optim.Optimizer):
+    def __init__(self, params, lr, betas, weight_decay, eps):
+        params = list(params)
+        defaults = {"lr": lr, "weight_decay": weight_decay}
+        super().__init__(params, defaults)
+
+        muon_params = [p for p in params if p.requires_grad and p.ndim == 2]
+        adamw_params = [p for p in params if p.requires_grad and p.ndim != 2]
+
+        self.optimizers = []
+        if muon_params:
+            self.optimizers.append(
+                torch.optim.Muon(
+                    muon_params,
+                    lr=lr,
+                    weight_decay=weight_decay,
+                    momentum=betas[0],
+                    eps=eps,
+                    adjust_lr_fn="match_rms_adamw",
+                )
+            )
+        if adamw_params:
+            self.optimizers.append(
+                torch.optim.AdamW(
+                    adamw_params,
+                    lr=lr,
+                    betas=betas,
+                    weight_decay=weight_decay,
+                    eps=eps,
+                )
+            )
+
+        self.param_groups = [
+            group for optimizer in self.optimizers for group in optimizer.param_groups
+        ]
+        print(
+            "Muon params:",
+            sum(p.numel() for p in muon_params),
+            "/ AdamW fallback params:",
+            sum(p.numel() for p in adamw_params),
+        )
+
+    def zero_grad(self, set_to_none=True):
+        for optimizer in self.optimizers:
+            optimizer.zero_grad(set_to_none=set_to_none)
+
+    def step(self, closure=None):
+        loss = None
+        for i, optimizer in enumerate(self.optimizers):
+            if i == 0 and closure is not None:
+                loss = optimizer.step(closure)
+            else:
+                optimizer.step()
+        return loss
+
+    def state_dict(self):
+        return {"optimizers": [optimizer.state_dict() for optimizer in self.optimizers]}
+
+    def load_state_dict(self, state_dict):
+        for optimizer, optimizer_state in zip(
+            self.optimizers, state_dict["optimizers"]
+        ):
+            optimizer.load_state_dict(optimizer_state)
+        self.param_groups = [
+            group for optimizer in self.optimizers for group in optimizer.param_groups
+        ]
 
 
 def setup(rank, world_size, port):
@@ -59,7 +125,18 @@ def optim(opt, params, lr, betas, weight_decay, eps):
     elif opt.train_optim == "lion":
         return Lion(params, lr, betas, weight_decay)
     elif opt.train_optim == "adam8bit":
+        import bitsandbytes as bnb
+
         return bnb.optim.Adam8bit(params, lr, betas, weight_decay=weight_decay, eps=eps)
+    elif opt.train_optim == "muon":
+        if not hasattr(torch.optim, "Muon"):
+            raise RuntimeError(
+                "torch.optim.Muon is not available in this Python environment. "
+                f"Current torch version is {torch.__version__}. "
+                "Run training with a PyTorch build that provides torch.optim.Muon "
+                "or switch --train_optim back to adamw."
+            )
+        return MuonWithAdamW(params, lr, betas, weight_decay, eps)
 
 
 def get_current_b2b_validation_loss(model, test_names):
