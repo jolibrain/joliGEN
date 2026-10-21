@@ -299,7 +299,26 @@ def parse_args():
             "the following interval. Disabled by default."
         ),
     )
+    parser.add_argument(
+        "--no_mandatory_bbox",
+        action="store_true",
+        help="Do not force the input bbox into the predicted mask.",
+    )
     return parser.parse_args()
+
+
+def install_no_mandatory_bbox():
+    """Keep the PTH runner's normal preprocessing except for bbox enforcement."""
+    original_preprocess = onnx_runner.preprocess_with_repo_crop
+
+    def preprocess_without_mandatory_bbox(*preprocess_args, **preprocess_kwargs):
+        if preprocess_kwargs.get("bbox_context_state") is not None:
+            raise ValueError("--no_mandatory_bbox requires absolute crop mode")
+        frame = original_preprocess(*preprocess_args, **preprocess_kwargs)
+        frame["mandatory_mask"] = frame["mandatory_mask"].clone().zero_()
+        return frame
+
+    onnx_runner.preprocess_with_repo_crop = preprocess_without_mandatory_bbox
 
 
 def main():
@@ -315,6 +334,10 @@ def main():
         .get("online_creation", {})
         .get("crop_mode_A", "absolute")
     )
+    if args.no_mandatory_bbox:
+        if crop_mode != "absolute":
+            raise ValueError("--no_mandatory_bbox requires absolute crop mode")
+        install_no_mandatory_bbox()
 
     train_frames, train_height, train_width, _, _ = onnx_runner.get_train_shape(
         train_json
