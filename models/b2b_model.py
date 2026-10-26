@@ -18,6 +18,11 @@ from util.mask_generation import random_edge_mask
 
 from . import diffusion_networks
 from .base_diffusion_model import BaseDiffusionModel
+from .b2b_refiner_training import (
+    B2BRefinerTrainingMixin,
+    add_refiner_options,
+    validate_refiner_options,
+)
 from .modules.loss import MultiScaleDiffusionLoss
 from piq import DISTS, LPIPS
 from torchvision.ops import masks_to_boxes
@@ -36,7 +41,7 @@ from util.b2b_context import (
 )
 
 
-class B2BModel(BaseDiffusionModel):
+class B2BModel(B2BRefinerTrainingMixin, BaseDiffusionModel):
     @staticmethod
     def _b2b_generation_visual_names(denoise_timesteps, mask_prediction):
         names = ["gt_image_", "y_t_"]
@@ -87,6 +92,7 @@ class B2BModel(BaseDiffusionModel):
         parser = BaseDiffusionModel.modify_commandline_options(
             parser, is_train=is_train
         )
+        parser = add_refiner_options(parser)
 
         # -------------------------
         # B2B diffusion parameters
@@ -439,6 +445,7 @@ class B2BModel(BaseDiffusionModel):
 
     @staticmethod
     def after_parse(opt):
+        validate_refiner_options(opt)
         steps = getattr(opt, "alg_b2b_denoise_timesteps", [50])
         if isinstance(steps, int):
             steps = [steps]
@@ -807,9 +814,6 @@ class B2BModel(BaseDiffusionModel):
         self.loss_names_G += losses_G
         self.loss_names = self.loss_names_G.copy()
 
-        # Itercalculator
-        self.iter_calculator_init()
-
         # perceptual losses
         if "LPIPS" in self.opt.alg_b2b_perceptual_loss:
             self.criterionLPIPS = LPIPS().to(self.device)
@@ -817,6 +821,8 @@ class B2BModel(BaseDiffusionModel):
             self.criterionDISTS = DISTS(
                 mean=self.opt.alg_b2b_dists_mean, std=self.opt.alg_b2b_dists_std
             ).to(self.device)
+        self._init_refiner_training()
+        self.iter_calculator_init()
 
     def _should_apply_b2b_lora(self):
         return bool(getattr(self.opt, "alg_b2b_lora", False)) and bool(
