@@ -52,7 +52,7 @@ class PthDenoiserSession:
         global_context_conditioning=False,
         object_ref_conditioning=False,
     ):
-        self.model = model.b2b_model
+        self.model = model if hasattr(model, "predict_clean") else model.b2b_model
         self.device = device
         self.mask_size_conditioning = mask_size_conditioning
         self.mask_prediction = mask_prediction
@@ -125,7 +125,12 @@ class PthDenoiserSession:
                 self.device,
                 dtype=torch.float32,
             )
-        output = self.model(model_input, timesteps.flatten(), labels, **model_kwargs)
+        predict = (
+            self.model.predict_clean
+            if hasattr(self.model, "predict_clean")
+            else self.model
+        )
+        output = predict(model_input, timesteps.flatten(), labels, **model_kwargs)
         if self.mask_prediction:
             if not isinstance(output, tuple) or len(output) != 2:
                 raise RuntimeError(

@@ -734,10 +734,13 @@ class TrainOptions(CommonOptions):
                 raise ValueError(
                     "--dataaug_diff_aug_camera_color_pre_crop requires --model_type b2b"
                 )
-            if opt.data_dataset_mode != "self_supervised_vid_mask_online":
+            if opt.data_dataset_mode not in {
+                "self_supervised_vid_mask_online",
+                "multi_dataset",
+            }:
                 raise ValueError(
                     "--dataaug_diff_aug_camera_color_pre_crop requires "
-                    "--data_dataset_mode self_supervised_vid_mask_online"
+                    "self_supervised_vid_mask_online (directly or as multi_dataset children)"
                 )
 
         if opt.train_continue and opt.train_continue_from:

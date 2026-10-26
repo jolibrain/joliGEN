@@ -12,6 +12,7 @@ sys.path.append(JG_DIR)
 from models import diffusion_networks
 from options.train_options import TrainOptions
 from models.modules import b2b_generator as b2b_generator_module
+from models.modules.convrefiner import load_refiner_generator_state
 from models.modules.vit import vit_vid as vit_vid_module
 from util.b2b_context import b2b_global_context_enabled_from_opt
 
@@ -50,9 +51,11 @@ def patch_b2b_tracing_compatibility():
 
         mask_size_cond = self._mask_size_condition(mask, model_input)
         if mask_size_cond is None:
-            x_cond = self.b2b_model(model_input, t.flatten(), labels)
+            x_cond = self.predict_clean(model_input, t.flatten(), labels)
         else:
-            x_cond = self.b2b_model(model_input, t.flatten(), labels, mask_size_cond)
+            x_cond = self.predict_clean(
+                model_input, t.flatten(), labels, mask_size_cond=mask_size_cond
+            )
         x_cond = self._match_prediction_channels(x_cond, x_in)
         x_cond = self._project_known_pixels(x_cond, y_known, mask)
 
@@ -72,10 +75,10 @@ def patch_b2b_tracing_compatibility():
         num_classes = int(self.b2b_model.num_classes)
         uncond_labels = torch.full_like(labels, num_classes)
         if mask_size_cond is None:
-            x_uncond = self.b2b_model(model_input, t.flatten(), uncond_labels)
+            x_uncond = self.predict_clean(model_input, t.flatten(), uncond_labels)
         else:
-            x_uncond = self.b2b_model(
-                model_input, t.flatten(), uncond_labels, mask_size_cond
+            x_uncond = self.predict_clean(
+                model_input, t.flatten(), uncond_labels, mask_size_cond=mask_size_cond
             )
         x_uncond = self._match_prediction_channels(x_uncond, x_in)
         x_uncond = self._project_known_pixels(x_uncond, y_known, mask)
@@ -162,7 +165,15 @@ def build_model(opt, weights_path, device):
 
     model = diffusion_networks.define_G(opt=opt, **vars(opt))
     weights = torch.load(weights_path, map_location=device)
-    missing, unexpected = model.load_state_dict(weights, strict=False)
+    if model.convrefiner is not None:
+        load_refiner_generator_state(model, weights)
+        missing, unexpected = [], []
+    else:
+        if any(key.startswith("convrefiner.") for key in weights):
+            raise RuntimeError(
+                "Checkpoint contains a ConvRefiner but the configuration disables it"
+            )
+        missing, unexpected = model.load_state_dict(weights, strict=False)
     if missing:
         print(f"warning: missing keys while loading checkpoint: {len(missing)}")
     if unexpected:
@@ -235,7 +246,7 @@ class B2BDenoiserWrapper(torch.nn.Module):
         object_ref_conditioning=False,
     ):
         super().__init__()
-        self.model = model.b2b_model
+        self.model = model if hasattr(model, "predict_clean") else model.b2b_model
         self.mask_size_conditioning = mask_size_conditioning
         self.mask_prediction = mask_prediction
         self.temporal_frame_step_conditioning = temporal_frame_step_conditioning
@@ -261,7 +272,12 @@ class B2BDenoiserWrapper(torch.nn.Module):
             input_index += 1
         if self.object_ref_conditioning:
             model_kwargs["object_refs"] = conditioning_inputs[input_index]
-        return self.model(model_input, timesteps, labels, **model_kwargs)
+        predict = (
+            self.model.predict_clean
+            if hasattr(self.model, "predict_clean")
+            else self.model
+        )
+        return predict(model_input, timesteps, labels, **model_kwargs)
 
 
 def build_export_wrapper(model, opt, export_mode, denoise_steps):

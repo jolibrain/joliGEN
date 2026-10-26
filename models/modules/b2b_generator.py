@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as Fnn
 import math
+from contextlib import nullcontext
+
+from .convrefiner import ConvRefiner
 
 from util.b2b_context import (
     b2b_global_context_enabled,
@@ -24,6 +27,23 @@ class B2BGenerator(nn.Module):
     ):
         super().__init__()
         self.b2b_model = b2b_model
+        refiner_mode = getattr(opt, "alg_b2b_convrefiner", "none")
+        self.convrefiner = (
+            ConvRefiner(
+                channels=getattr(opt, "model_output_nc", 3),
+                width=getattr(opt, "alg_b2b_convrefiner_width", 64),
+                temporal=refiner_mode == "temporal",
+            )
+            if refiner_mode != "none"
+            else None
+        )
+        self.refiner_finetune = bool(
+            getattr(opt, "alg_b2b_convrefiner_finetune", False)
+        )
+        self.refiner_enabled = True
+        if self.refiner_finetune:
+            self.b2b_model.requires_grad_(False)
+            self.b2b_model.eval()
         self.sampling_method = sampling_method
         self.image_size = image_size
         self.opt = opt
@@ -113,6 +133,35 @@ class B2BGenerator(nn.Module):
             float(getattr(opt, "alg_diffusion_dropout_prob", 0.0)) if opt else 0.0
         )
         self.label_drop_prob = min(max(self.label_drop_prob, 0.0), 1.0)
+
+    def load_state_dict(self, state_dict, strict=True, assign=False):
+        refiner_keys = {key for key in state_dict if key.startswith("convrefiner.")}
+        if self.convrefiner is None and refiner_keys:
+            raise RuntimeError(
+                "Checkpoint contains a ConvRefiner but the configuration disables it"
+            )
+        if self.convrefiner is not None and not getattr(
+            self, "_allow_fresh_refiner_load", False
+        ):
+            expected = {"convrefiner." + key for key in self.convrefiner.state_dict()}
+            if expected != refiner_keys:
+                raise RuntimeError("Incomplete or incompatible ConvRefiner checkpoint")
+        return super().load_state_dict(state_dict, strict=strict, assign=assign)
+
+    def train(self, mode=True):
+        super().train(mode)
+        if self.refiner_finetune:
+            self.b2b_model.eval()
+        return self
+
+    def predict_clean(self, model_input, timesteps, labels, **kwargs):
+        """Single RGB prediction path shared by training, sampling and export."""
+        with torch.no_grad() if self.refiner_finetune else nullcontext():
+            output = self.b2b_model(model_input, timesteps, labels, **kwargs)
+        prediction, mask_logits = self._split_model_output(output)
+        if self.convrefiner is not None and self.refiner_enabled:
+            prediction = self.convrefiner(prediction, timesteps)
+        return (prediction, mask_logits) if isinstance(output, tuple) else prediction
 
     def _mask_size_condition(self, mask, reference):
         if not self.mask_size_conditioning:
@@ -298,6 +347,7 @@ class B2BGenerator(nn.Module):
         object_refs=None,
         mask_precision_mode=None,
         mask_precision_severity=None,
+        timestep_range=None,
     ):
         labels_dropped = (
             self.drop_labels(label) if self.training and label is not None else label
@@ -308,12 +358,20 @@ class B2BGenerator(nn.Module):
         is_video = x.ndim == 5
 
         if not is_video:
-            t_cont = self.sample_t(B, device=x.device)  # (B,)
+            t_cont = (
+                self.sample_t(B, device=x.device)
+                if timestep_range is None
+                else torch.empty(B, device=x.device).uniform_(*timestep_range)
+            )
             t = t_cont.view(B, *([1] * (x.ndim - 1)))  # (B,1,1,1)
             t_flat = t_cont
         else:
             F = x.size(1)
-            t_base = self.sample_t(B, device=x.device)  # (B,)
+            t_base = (
+                self.sample_t(B, device=x.device)
+                if timestep_range is None
+                else torch.empty(B, device=x.device).uniform_(*timestep_range)
+            )
             t_cont = t_base[:, None].repeat(1, F)  # (B,F)
 
             if use_gt is not None and ref_idx is not None and use_gt.any():
@@ -349,7 +407,7 @@ class B2BGenerator(nn.Module):
 
         # 6) predict image
         mask_size_cond = self._mask_size_condition(mask, z_model)
-        model_output = self.b2b_model(
+        model_output = self.predict_clean(
             z_model,
             t_flat,
             labels_dropped,
@@ -382,6 +440,8 @@ class B2BGenerator(nn.Module):
         mask_precision_severity=None,
         return_x_pred=False,
         return_raw_x_pred=False,
+        timestep_range=None,
+        return_training_details=False,
     ):
         x_pred, z, v, t, x_target, mask_logits = self.b2b_forward(
             x,
@@ -395,11 +455,14 @@ class B2BGenerator(nn.Module):
             object_refs,
             mask_precision_mode,
             mask_precision_severity,
+            timestep_range,
         )
         raw_x_pred = x_pred
         if mask is not None:
             x_pred = x_pred * mask + (1 - mask) * x_target
         v_pred = (x_pred - z) / (1 - t).clamp_min(self.t_eps)
+        if return_training_details:
+            return {"v_pred": v_pred, "v": v, "x_pred": x_pred, "t": t}
         if return_raw_x_pred:
             output = (v_pred, v, x_pred, raw_x_pred)
             return output + (mask_logits,) if self.mask_prediction else output
@@ -706,7 +769,7 @@ class B2BGenerator(nn.Module):
 
         # --- conditional ---
         x_cond, mask_logits_cond = self._split_model_output(
-            self.b2b_model(model_input, model_t, labels, **model_kwargs)
+            self.predict_clean(model_input, model_t, labels, **model_kwargs)
         )
         x_cond = self._match_prediction_channels(x_cond, x_in)
         x_cond = self._project_known_pixels(x_cond, y_known, projection_mask)
@@ -729,7 +792,7 @@ class B2BGenerator(nn.Module):
         num_classes = int(self.b2b_model.num_classes)
         uncond_labels = torch.full_like(labels, num_classes)
         x_uncond, mask_logits_uncond = self._split_model_output(
-            self.b2b_model(model_input, model_t, uncond_labels, **model_kwargs)
+            self.predict_clean(model_input, model_t, uncond_labels, **model_kwargs)
         )
         x_uncond = self._match_prediction_channels(x_uncond, x_in)
         x_uncond = self._project_known_pixels(x_uncond, y_known, projection_mask)
