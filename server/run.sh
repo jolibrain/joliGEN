@@ -1,3 +1,3 @@
 #!/bin/bash
-
-uvicorn server.joligen_api:app --reload $*
+set -euo pipefail
+exec uvicorn server.joligen_api:app "$@"

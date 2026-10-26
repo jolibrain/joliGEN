@@ -1,27 +1,14 @@
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 AS joligen_build
-
+FROM nvidia/cuda:12.6.2-devel-ubuntu22.04 AS joligen_build
 LABEL description="Generative AI Toolset with GANs and Diffusion for Real-World Applications"
 LABEL maintainer="contact@jolibrain.com"
-
-# add missing apt dependencies
-RUN export DEBIAN_FRONTEND=noninteractive && \
-    apt-get update -y && apt-get install -y \
-    python3-pip \
-    python3-opencv \
-    python3-pytest \
-    sudo \
-    wget \
-    unzip \
-    git
-
-RUN mkdir /app
-
 WORKDIR /app
-ADD requirements.txt .
-RUN python3 -m pip install --upgrade pip
-RUN pip3 install -r requirements.txt --upgrade
-RUN pip3 install uvicorn[standard] fastapi flash-attn
-RUN mkdir .cache && mkdir .cache/torch 
-RUN export TORCH_HOME=/app/.cache/torch
-
-ADD . /app
+COPY requirements.txt .
+COPY docker/install-dependencies.sh docker/install-dependencies.sh
+RUN bash docker/install-dependencies.sh
+ENV TORCH_HOME=/app/.cache/torch
+COPY . /app
+ARG JOLIGEN_VERSION=development
+ARG JOLIGEN_COMMIT=unknown
+ENV JOLIGEN_VERSION=$JOLIGEN_VERSION JOLIGEN_COMMIT=$JOLIGEN_COMMIT
+LABEL org.opencontainers.image.version=$JOLIGEN_VERSION
+LABEL org.opencontainers.image.revision=$JOLIGEN_COMMIT
