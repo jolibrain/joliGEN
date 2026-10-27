@@ -219,6 +219,13 @@ class MultiDatasetDataset(BaseDataset):
 
         child_name = entry.get("name", f"dataset_{dataset_index}")
         child_mode = entry.get("dataset_mode", "self_supervised_vid_mask_online")
+        if (
+            getattr(self.opt, "dataaug_diff_aug_camera_color_pre_crop", False)
+            and child_mode != "self_supervised_vid_mask_online"
+        ):
+            raise ValueError(
+                "Pre-crop camera color augmentation requires self_supervised_vid_mask_online children"
+            )
         if child_mode not in ALLOWED_CHILD_DATASET_MODES:
             raise ValueError(
                 f"unsupported child dataset_mode '{child_mode}' for '{child_name}'"

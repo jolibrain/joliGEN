@@ -112,6 +112,12 @@ def save_finetune_source_metadata(opt, command_line, model_names):
         ],
         "command_line": command_line,
     }
+    if getattr(opt, "alg_b2b_convrefiner_finetune", False):
+        suffix = "_ema" if opt.alg_b2b_convrefiner_source_ema else ""
+        metadata["checkpoint_files"] = [
+            os.path.join(source_dir, f"{load_suffix}_net_G_A{suffix}.pth")
+        ]
+        metadata["convrefiner"] = opt.alg_b2b_convrefiner
     save_dir = os.path.join(opt.checkpoints_dir, opt.name)
     os.makedirs(save_dir, exist_ok=True)
     metadata_path = os.path.join(save_dir, "finetune_source.json")
@@ -145,7 +151,10 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
     trainset_size = len(trainset)  # get the number of images in the trainset.
 
     if rank == 0:
-        if opt.train_compute_metrics_test:
+        if (
+            opt.train_compute_metrics_test
+            or getattr(opt, "alg_b2b_convrefiner_eval_batches", 0) > 0
+        ):
             temp_opt = copy.deepcopy(opt)
             temp_opt.gpu_ids = temp_opt.gpu_ids[:1]
 
@@ -199,6 +208,7 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         model.data_dependent_initialize(data)
 
     model.setup(opt)  # regular setup: load and print networks; create schedulers
+    refiner_training = bool(getattr(opt, "alg_b2b_convrefiner_finetune", False))
 
     model.use_temporal = use_temporal
 
@@ -268,6 +278,11 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
         for i, data_list in enumerate(
             dataloaders
         ):  # inner loop (minibatch) within one epoch
+            if refiner_training and i < model.refiner_resume_batch:
+                continue
+            if refiner_training:
+                model.restore_refiner_rng()
+                model.refiner_resume_batch = 0
             data = data_list[0]
 
             iter_start_time = time.time()  # timer for computation per iteration
@@ -284,6 +299,11 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
             batch_size = model.get_current_batch_size() * len(opt.gpu_ids)
             opt.total_iters += batch_size
             epoch_iter += batch_size
+            if (
+                refiner_training
+                and opt.total_iters % opt.train_save_latest_freq < batch_size
+            ):
+                model.prepare_refiner_checkpoint(epoch, i + 1)
 
             if (
                 opt.total_iters % opt.output_print_freq < batch_size
@@ -446,6 +466,24 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
 
                 iter_data_time = time.time()
 
+        if refiner_training:
+            model.finish_refiner_epoch()
+            model.update_learning_rate()
+            if rank_0 and opt.alg_b2b_convrefiner_eval_batches > 0:
+                from util.convrefiner_metrics import evaluate_refiner
+
+                for dataloader_test in all_dataloaders_test:
+                    report = evaluate_refiner(
+                        model, dataloader_test, opt.alg_b2b_convrefiner_eval_batches
+                    )
+                    report_path = os.path.join(
+                        model.save_dir,
+                        f"{epoch}_refiner_eval_{dataloader_test.dataset.name or 'test'}.json",
+                    )
+                    with open(report_path, "w") as report_file:
+                        json.dump(report, report_file, indent=2)
+            model.prepare_refiner_checkpoint(epoch, 0, end_epoch=True)
+
         if (
             epoch % opt.train_save_epoch_freq == 0
         ):  # cache our model every <save_epoch_freq> epochs
@@ -469,7 +507,8 @@ def train_gpu(rank, world_size, opt, trainset, trainset_temporal):
                     time.time() - epoch_start_time,
                 )
             )
-        model.update_learning_rate()  # update learning rates at the end of every epoch.
+        if not refiner_training:
+            model.update_learning_rate()  # update learning rates at the end of every epoch.
 
     ###Let's compute final FID
     if rank_0 and opt.train_compute_metrics_test:
