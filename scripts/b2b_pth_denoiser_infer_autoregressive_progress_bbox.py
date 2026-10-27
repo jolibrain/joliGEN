@@ -1,7 +1,10 @@
 import argparse
+import copy
 import os
+import random
 import sys
 
+import numpy as np
 import torch
 
 JG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../")
@@ -304,6 +307,15 @@ def parse_args():
         action="store_true",
         help="Do not force the input bbox into the predicted mask.",
     )
+    parser.add_argument(
+        "--two_stage_hybrid",
+        "--two-stage-hybrid",
+        action="store_true",
+        help=(
+            "For one two-frame SmartBrush clip, save a bbox pass and a predicted-mask "
+            "refinement pass under output_dir. Uses absolute crops and no mandatory bbox."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -321,6 +333,59 @@ def install_no_mandatory_bbox():
     onnx_runner.preprocess_with_repo_crop = preprocess_without_mandatory_bbox
 
 
+def run_two_stage_hybrid(run_kwargs, output_dir, debug_dump_dir):
+    if os.path.exists(output_dir):
+        raise FileExistsError(f"Hybrid output directory already exists: {output_dir}")
+
+    def reset_seed():
+        random.seed(run_kwargs["seed"])
+        np.random.seed(run_kwargs["seed"] % (2**32))
+        torch.manual_seed(run_kwargs["seed"])
+        torch.cuda.manual_seed_all(run_kwargs["seed"])
+
+    bbox_results = []
+    reset_seed()
+    bbox_frames = onnx_runner.run_sequence(
+        **run_kwargs,
+        output_dir=os.path.join(output_dir, "bbox"),
+        debug_dump_dir=(
+            os.path.join(debug_dump_dir, "bbox") if debug_dump_dir else None
+        ),
+        apply_predicted_mask=False,
+        use_predicted_mask_during_denoising=False,
+        result_callback=lambda result: bbox_results.append(
+            result.coarse_applied.copy()
+        ),
+    )
+    if bbox_frames != [0, 1] or len(bbox_results) != 1:
+        raise RuntimeError("Hybrid bbox pass must produce exactly one two-frame result")
+
+    def verify_refinement(result):
+        outside = 1.0 - result.generated_mask
+        if not np.array_equal(
+            result.generated_applied * outside, bbox_results[0] * outside
+        ):
+            raise RuntimeError(
+                "Hybrid refinement changed pixels outside the predicted mask"
+            )
+
+    reset_seed()
+    hybrid_frames = onnx_runner.run_sequence(
+        **run_kwargs,
+        output_dir=os.path.join(output_dir, "hybrid"),
+        debug_dump_dir=(
+            os.path.join(debug_dump_dir, "hybrid") if debug_dump_dir else None
+        ),
+        apply_predicted_mask=True,
+        use_predicted_mask_during_denoising=True,
+        known_image_override=bbox_results[0],
+        result_callback=verify_refinement,
+    )
+    if hybrid_frames != bbox_frames:
+        raise RuntimeError("Hybrid refinement did not write the same two frames")
+    return hybrid_frames
+
+
 def main():
     args = parse_args()
     device = parse_device(args.device)
@@ -329,12 +394,19 @@ def main():
         args.model_in_file, args.train_config, device, args.use_ema
     )
     train_json, _ = onnx_runner.load_train_config(args.model_in_file, train_config_path)
+    if args.two_stage_hybrid:
+        if not session.mask_prediction:
+            raise ValueError("--two_stage_hybrid requires a mask-predicting checkpoint")
+        train_json = copy.deepcopy(train_json)
+        train_json.setdefault("data", {}).setdefault("online_creation", {})[
+            "crop_mode_A"
+        ] = "absolute"
     crop_mode = (
         train_json.get("data", {})
         .get("online_creation", {})
         .get("crop_mode_A", "absolute")
     )
-    if args.no_mandatory_bbox:
+    if args.no_mandatory_bbox and not args.two_stage_hybrid:
         if crop_mode != "absolute":
             raise ValueError("--no_mandatory_bbox requires absolute crop mode")
         install_no_mandatory_bbox()
@@ -359,33 +431,46 @@ def main():
         pairs = pairs[args.start_index : args.start_index + 2]
     else:
         pairs = pairs[args.start_index :]
+    if args.two_stage_hybrid and len(pairs) != 2:
+        raise ValueError("--two_stage_hybrid requires exactly two selected frames")
 
     denoise_steps = onnx_runner.resolve_denoise_steps(train_json, args.denoise_steps)
     object_refs = onnx_runner.load_object_refs_for_inference(
         train_json, args.alg_b2b_object_ref_paths
     )
-    frames_written = onnx_runner.run_sequence(
+    run_kwargs = dict(
         session=session,
         pairs=pairs,
         dataset_root=dataset_root,
-        output_dir=args.output_dir,
         bbox_index=args.bbox_index,
         label=args.label,
         seed=args.seed,
         train_json=train_json,
         denoise_steps=denoise_steps,
-        debug_dump_dir=args.debug_dump_dir,
         autoregressive_reinject_patch=args.autoregressive_reinject_patch,
         fixed_temporal_init_noise=args.fixed_temporal_init_noise,
         object_refs=object_refs,
         temporal_frame_step=args.temporal_frame_step,
         mask_precision_mode=args.mask_precision_mode,
         mask_precision_severity=args.mask_precision_severity,
-        apply_predicted_mask=args.apply_predicted_mask,
-        use_predicted_mask_during_denoising=(args.use_predicted_mask_during_denoising),
         source_crop_size=args.source_crop_size,
         use_bbox_context_crop=(crop_mode == "bbox_context"),
+        no_mandatory_bbox=args.two_stage_hybrid,
     )
+    if args.two_stage_hybrid:
+        frames_written = run_two_stage_hybrid(
+            run_kwargs, args.output_dir, args.debug_dump_dir
+        )
+    else:
+        frames_written = onnx_runner.run_sequence(
+            **run_kwargs,
+            output_dir=args.output_dir,
+            debug_dump_dir=args.debug_dump_dir,
+            apply_predicted_mask=args.apply_predicted_mask,
+            use_predicted_mask_during_denoising=(
+                args.use_predicted_mask_during_denoising
+            ),
+        )
 
     print(f"dataset_root : {dataset_root}")
     print(f"checkpoint   : {weights_path}")
@@ -412,6 +497,7 @@ def main():
     print(f"autoregressive_reinject_patch: {args.autoregressive_reinject_patch}")
     print(f"fixed_temporal_init_noise: {args.fixed_temporal_init_noise}")
     print(f"apply_predicted_mask: {args.apply_predicted_mask}")
+    print(f"two_stage_hybrid: {args.two_stage_hybrid}")
     print(
         "use_predicted_mask_during_denoising: "
         f"{args.use_predicted_mask_during_denoising}"

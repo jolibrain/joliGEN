@@ -636,6 +636,7 @@ def preprocess_with_repo_crop(
     mask_precision_mode=None,
     mask_precision_severity=None,
     bbox_context_state=None,
+    no_mandatory_bbox=False,
 ):
     img_path = os.path.realpath(img_path)
     bbox_path = os.path.realpath(bbox_path)
@@ -754,7 +755,7 @@ def preprocess_with_repo_crop(
     )
 
     mandatory_mask = None
-    if predict_mask and bbox_context_state is None:
+    if predict_mask and bbox_context_state is None and not no_mandatory_bbox:
         # processed_bboxes already uses the selected crop's padded coordinates.
         box = crop_meta["processed_bboxes"][0]
         side = crop_meta["crop_size"] + 2 * context_pixels
@@ -1601,7 +1602,12 @@ def run_sequence(
     use_predicted_mask_during_denoising=False,
     source_crop_size=None,
     use_bbox_context_crop=False,
+    no_mandatory_bbox=False,
+    known_image_override=None,
+    result_callback=None,
 ):
+    if known_image_override is not None and len(pairs) != 2:
+        raise ValueError("known_image_override requires exactly two input frames")
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = get_train_shape(train_json)
     params = get_b2b_params(train_json, require_square_crop_size(output_h, output_w))
@@ -1661,6 +1667,7 @@ def run_sequence(
             mask_precision_severity=precision_severity_value,
             crop_size_override=source_crop_size,
             bbox_context_state=bbox_context_state,
+            no_mandatory_bbox=no_mandatory_bbox,
         )
         frame_data["index"] = sequence_count
         frame_data["img_rel"] = img_rel
@@ -1743,6 +1750,16 @@ def run_sequence(
             init_noise = fixed_window_noise
         else:
             init_noise = rng.standard_normal(size=y_t_batch.shape, dtype=np.float32)
+        source_image = y0_tensor_batch.numpy().astype(np.float32)
+        if known_image_override is not None:
+            source_image = np.asarray(known_image_override, dtype=np.float32)
+            if (
+                source_image.shape != tuple(y0_tensor_batch.shape)
+                or not np.isfinite(source_image).all()
+            ):
+                raise ValueError(
+                    "known_image_override must match the two-frame source tensor"
+                )
         restoration_result = restoration_with_denoiser(
             session=session,
             y=y_t_batch.numpy().astype(np.float32),
@@ -1756,7 +1773,7 @@ def run_sequence(
             labels=labels,
             params=params,
             init_noise=init_noise,
-            source_image=y0_tensor_batch.numpy().astype(np.float32),
+            source_image=source_image,
             mandatory_mask=mandatory_mask_batch.numpy().astype(np.float32),
             mask_precision_mode=precision_mode_input,
             mask_precision_severity=precision_severity_input,
@@ -1775,6 +1792,8 @@ def run_sequence(
             apply_predicted_mask=apply_predicted_mask,
             use_predicted_mask_during_denoising=(use_predicted_mask_during_denoising),
         )
+        if result_callback is not None:
+            result_callback(restoration_result)
 
         selected_applied = (
             restoration_result.generated_applied
