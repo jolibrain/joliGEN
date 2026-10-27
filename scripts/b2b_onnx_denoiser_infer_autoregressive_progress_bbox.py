@@ -1541,11 +1541,12 @@ def write_frame(
         os.path.join(output_dir, name_out + "_mask.png"),
         mask_to_uint8(frame_data["mask"]),
     )
-    if raw_img_for_paste is not None and generated_mask_for_paste is not None:
+    if raw_img_for_paste is not None:
         cv2.imwrite(
             os.path.join(output_dir, name_out + "_generated_pixels_crop.png"),
             raw_img_for_paste,
         )
+    if raw_img_for_paste is not None and generated_mask_for_paste is not None:
         cv2.imwrite(
             os.path.join(output_dir, name_out + "_generated_mask_crop.png"),
             generated_class_mask_for_paste,
@@ -1601,6 +1602,8 @@ def run_sequence(
     use_predicted_mask_during_denoising=False,
     source_crop_size=None,
     use_bbox_context_crop=False,
+    final_window_only=False,
+    feedback_probe=None,
 ):
     rng = np.random.default_rng(seed)
     _, _, _, output_h, output_w = get_train_shape(train_json)
@@ -1618,6 +1621,7 @@ def run_sequence(
     last_seq_half_mandatory_mask = None
     last_seq_half_global_context = None
     fixed_window_noise = None
+    previous_generated_for_probe = None
     frames_written = []
     seq_half = 1
     num_buckets = 2
@@ -1709,6 +1713,14 @@ def run_sequence(
             y0_tensor_batch = prepare_tensors(
                 last_seq_half_y0_tensor + [frame_data["y0_tensor"]]
             )
+            if feedback_probe is not None and autoregressive_reinject_patch:
+                if previous_generated_for_probe is None or not torch.equal(
+                    y0_tensor_batch[:, 0], previous_generated_for_probe
+                ):
+                    raise RuntimeError(
+                        "AR feedback differs from previous generated output"
+                    )
+                feedback_probe(sequence_count)
             mask_batch = prepare_tensors(last_seq_half_mask + [frame_data["mask"]])
             mandatory_mask_batch = prepare_tensors(
                 last_seq_half_mandatory_mask + [frame_data["mandatory_mask"]]
@@ -1809,6 +1821,8 @@ def run_sequence(
         selected_applied_list = [
             out_tensor_torch[i : i + 1] for i in range(out_tensor_torch.shape[0])
         ]
+        if feedback_probe is not None and autoregressive_reinject_patch:
+            previous_generated_for_probe = selected_applied_list[-1].clone()
 
         y_t_temp_list = separate_tensors(y_t_batch)
         y0_tensor_temp_list = separate_tensors(y0_tensor_batch)
@@ -1853,14 +1867,16 @@ def run_sequence(
         else:
             last_seq_half_cond_image = selected_applied_list[-seq_half:]
 
+        if final_window_only and sequence_count != len(pairs) - 1:
+            prev_frame = frame_data
+            continue
+
         write_frame(
             prev_frame["index"],
             out_img_tensor_list_batch[0],
             prev_frame,
             output_dir,
-            generated_pixels=(
-                generated_pixels_list[0] if params["mask_prediction"] else None
-            ),
+            generated_pixels=generated_pixels_list[0],
             generated_mask=(
                 generated_mask_list[0] if params["mask_prediction"] else None
             ),
@@ -1873,9 +1889,7 @@ def run_sequence(
             out_img_tensor_list_batch[-1],
             frame_data,
             output_dir,
-            generated_pixels=(
-                generated_pixels_list[-1] if params["mask_prediction"] else None
-            ),
+            generated_pixels=generated_pixels_list[-1],
             generated_mask=(
                 generated_mask_list[-1] if params["mask_prediction"] else None
             ),
