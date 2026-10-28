@@ -65,11 +65,7 @@ class DiffusionGenerator(nn.Module):
             self.cond_embed_gammas_in = inner_channel
         else:
             self.cond_embed_dim = cond_embed_dim
-
-            if any(cond in self.denoise_fn.conditioning for cond in ["class", "ref"]):
-                self.cond_embed_gammas = self.cond_embed_dim // 2
-            else:
-                self.cond_embed_gammas = self.cond_embed_dim
+            self.cond_embed_gammas = self.denoise_fn.cond_embed_gammas
 
             self.cond_embed = nn.Sequential(
                 nn.Linear(self.cond_embed_gammas, self.cond_embed_gammas),
