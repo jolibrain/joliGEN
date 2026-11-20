@@ -198,7 +198,7 @@ class TrainOptions(CommonOptions):
         parser.add_argument(
             "--train_optim",
             default="adam",
-            choices=["adam", "radam", "adamw", "lion", "adam8bit"],
+            choices=["adam", "radam", "adamw", "lion", "adam8bit", "muon"],
             help="optimizer (adam, radam, adamw, ...)",
         )
         parser.add_argument(
