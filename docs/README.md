@@ -7,6 +7,7 @@
 
 + [Models and Options](options.md)
 + [Camera and Detail Augmentation](camera_detail_augmentation.md)
++ [B2B ConvRefiner Finetuning](convrefiner.md)
 + [Project Source Overview](overview.md)
 
 ## Datasets

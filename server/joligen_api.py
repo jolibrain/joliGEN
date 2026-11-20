@@ -37,11 +37,21 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../scripts"))
 from gen_single_image import inference as gan_inference
 from gen_single_image_diffusion import inference as diffusion_inference
 
-git_hash = (
-    subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=os.path.dirname(__file__))
-    .decode("ascii")
-    .strip()
-)
+git_hash = os.environ.get("JOLIGEN_COMMIT")
+if not git_hash:
+    try:
+        git_hash = (
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                cwd=os.path.dirname(__file__),
+                stderr=subprocess.DEVNULL,
+            )
+            .decode("ascii")
+            .strip()
+        )
+    except (OSError, subprocess.CalledProcessError):
+        git_hash = "unknown"
+
 print("Launching JoliGEN Server\ncommit=%s" % git_hash, flush=True)
 
 version_str = "*commit:* [%s](https://github.com/jolibrain/joliGEN/commit/%s)\n\n" % (
@@ -53,7 +63,11 @@ description = (
     + """This is the JoliGEN server API documentation.
 """
 )
-app = FastAPI(title="JoliGEN server", description=description)
+app = FastAPI(
+    title="JoliGEN server",
+    description=description,
+    version=os.environ.get("JOLIGEN_VERSION", "development"),
+)
 
 
 # Additional schema

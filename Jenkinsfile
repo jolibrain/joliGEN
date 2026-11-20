@@ -8,6 +8,11 @@ pipeline {
 
   }
   stages {
+    stage('Release tooling') {
+      steps {
+        sh 'python3 -m unittest discover -s tests -p test_release_workflow.py'
+      }
+    }
     stage('Tests') {
       when {
        expression {!env.CHANGE_ID || pullRequest.labels.findAll { it == "ci:skip-tests" }.size() == 0 }
