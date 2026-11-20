@@ -90,6 +90,16 @@ Here are all the available options to call with `train.py`
 | --alg_b2b_autoregressive | flag |  | Autoregressive training: each batch is with one GT and the other is noisy image  |
 | --alg_b2b_cfg_scale | float | 1.0 | Classifier-free guidance scale used at B2B inference time. |
 | --alg_b2b_clip_denoised | flag |  | Clip B2B denoised states to [-1, 1] during sampling (disabled by default to match JiT). |
+| --alg_b2b_convrefiner | string | none | <br/><br/> **Values:** none, spatial, temporal |
+| --alg_b2b_convrefiner_eval_batches | int | 0 | Fixed-seed baseline/refiner evaluation batches per test set each epoch; 0 disables |
+| --alg_b2b_convrefiner_finetune | flag |  |  |
+| --alg_b2b_convrefiner_gan_near_clean_prob | float | 0.2 | Near-clean batch probability in sampler_aligned mode |
+| --alg_b2b_convrefiner_gan_schedule | string | near_clean | Adversarial-batch timestep distribution; inference is unchanged<br/><br/> **Values:** near_clean, sampler_aligned |
+| --alg_b2b_convrefiner_gan_timestep_radius | float | 0.05 | Uniform jitter around each sampler's last evaluation time |
+| --alg_b2b_convrefiner_gan_weight | float | 0.02 |  |
+| --alg_b2b_convrefiner_resume_from | string |  | Resume full refiner training state from another run without changing save directory |
+| --alg_b2b_convrefiner_source_ema | flag |  |  |
+| --alg_b2b_convrefiner_width | int | 64 |  |
 | --alg_b2b_denoise_timesteps | array | [50] | One or more denoising step counts to evaluate at inference (positive integers) |
 | --alg_b2b_disable_inference_clipping | flag |  | Disable inference-time denominator clipping in v=(x_pred-x)/(1-t), i.e. use raw (1-t) at sampling. |
 | --alg_b2b_dists_mean | array | [0.485, 0.456, 0.406] | Mean normalization for DISTS |
