@@ -1221,6 +1221,7 @@ def restoration_with_denoiser(
     return_details=False,
     apply_predicted_mask=False,
     use_predicted_mask_during_denoising=False,
+    initial_predicted_mask=None,
 ):
     if int(denoise_steps) < 1:
         raise ValueError("denoise_steps must be >= 1")
@@ -1254,13 +1255,24 @@ def restoration_with_denoiser(
     if params["mask_prediction"] and mask is None:
         raise RuntimeError("B2B mask prediction requires a coarse mask")
 
+    active_mask = mask
+    if initial_predicted_mask is not None:
+        active_mask = initial_predicted_mask
+        y_background = y_known * (1.0 - active_mask)
+
     x = y_background + init_noise * params["noise_scale"]
     if mask is not None:
-        x = project_known_pixels(x, y_known, mask)
-    active_mask = mask
+        x = project_known_pixels(x, y_known, active_mask)
     active_y_cond = y_cond
     active_precision_mode = mask_precision_mode
     active_precision_severity = mask_precision_severity
+    if initial_predicted_mask is not None:
+        if y_cond is not None:
+            active_y_cond = y_cond * active_mask.astype(y_cond.dtype, copy=False)
+        if mask_precision_mode is not None:
+            active_precision_mode = np.zeros_like(mask_precision_mode)
+        if mask_precision_severity is not None:
+            active_precision_severity = np.zeros_like(mask_precision_severity)
     mask_logits = None
 
     timesteps = np.linspace(0.0, 1.0, int(denoise_steps) + 1, dtype=np.float32)
@@ -1605,6 +1617,7 @@ def run_sequence(
     no_mandatory_bbox=False,
     known_image_override=None,
     result_callback=None,
+    initial_predicted_mask_override=None,
 ):
     if known_image_override is not None and len(pairs) != 2:
         raise ValueError("known_image_override requires exactly two input frames")
@@ -1791,6 +1804,7 @@ def run_sequence(
             return_details=True,
             apply_predicted_mask=apply_predicted_mask,
             use_predicted_mask_during_denoising=(use_predicted_mask_during_denoising),
+            initial_predicted_mask=initial_predicted_mask_override,
         )
         if result_callback is not None:
             result_callback(restoration_result)

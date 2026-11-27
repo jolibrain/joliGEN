@@ -37,6 +37,7 @@ def test_runner_uses_full_precision_bbox_background(monkeypatch, tmp_path):
 
     def restore(**kwargs):
         np.testing.assert_array_equal(kwargs["source_image"], bbox)
+        np.testing.assert_array_equal(kwargs["initial_predicted_mask"], predicted_mask)
         result = runner.RestorationResult(
             generated_pixels=bbox,
             generated_mask=np.ones((1, 2, 1, 2, 2), dtype=np.float32),
@@ -49,6 +50,7 @@ def test_runner_uses_full_precision_bbox_background(monkeypatch, tmp_path):
     monkeypatch.setattr(runner, "restoration_with_denoiser", restore)
     monkeypatch.setattr(runner, "write_frame", lambda *_, **__: None)
     callbacks = []
+    predicted_mask = np.ones((1, 2, 1, 2, 2), dtype=np.float32)
     written = runner.run_sequence(
         session=object(),
         pairs=[("0.jpg", "0.txt"), ("1.jpg", "1.txt")],
@@ -63,6 +65,7 @@ def test_runner_uses_full_precision_bbox_background(monkeypatch, tmp_path):
         autoregressive_reinject_patch=False,
         no_mandatory_bbox=True,
         known_image_override=bbox,
+        initial_predicted_mask_override=predicted_mask,
         result_callback=callbacks.append,
     )
     assert written == [0, 1]
@@ -70,7 +73,8 @@ def test_runner_uses_full_precision_bbox_background(monkeypatch, tmp_path):
     assert callbacks == captured
 
 
-def test_two_stage_passes_bbox_result_to_refinement(monkeypatch, tmp_path):
+@pytest.mark.parametrize("total_steps", [2, 3, 4])
+def test_two_stage_passes_bbox_result_to_refinement(monkeypatch, tmp_path, total_steps):
     bbox = np.full((1, 2, 3, 2, 2), 0.25, dtype=np.float32)
     predicted_mask = np.zeros((1, 2, 1, 2, 2), dtype=np.float32)
     predicted_mask[..., 0, 0] = 1.0
@@ -79,9 +83,14 @@ def test_two_stage_passes_bbox_result_to_refinement(monkeypatch, tmp_path):
     def run_sequence(**kwargs):
         calls.append(kwargs)
         if len(calls) == 1:
-            kwargs["result_callback"](SimpleNamespace(coarse_applied=bbox))
+            kwargs["result_callback"](
+                SimpleNamespace(coarse_applied=bbox, generated_mask=predicted_mask)
+            )
         else:
             np.testing.assert_array_equal(kwargs["known_image_override"], bbox)
+            np.testing.assert_array_equal(
+                kwargs["initial_predicted_mask_override"], predicted_mask
+            )
             refined = bbox.copy()
             refined[..., 0, 0] = 0.75
             kwargs["result_callback"](
@@ -92,11 +101,15 @@ def test_two_stage_passes_bbox_result_to_refinement(monkeypatch, tmp_path):
         return [0, 1]
 
     monkeypatch.setattr(pth.onnx_runner, "run_sequence", run_sequence)
-    assert pth.run_two_stage_hybrid({"seed": 7}, str(tmp_path / "output"), None) == [
+    assert pth.run_two_stage_hybrid(
+        {"seed": 7, "denoise_steps": total_steps}, str(tmp_path / "output"), None
+    ) == [
         0,
         1,
     ]
     assert calls[0]["apply_predicted_mask"] is False
+    assert calls[0]["denoise_steps"] == 1
+    assert calls[1]["denoise_steps"] == total_steps - 1
     assert calls[1]["apply_predicted_mask"] is True
     assert calls[1]["use_predicted_mask_during_denoising"] is True
     assert calls[0]["output_dir"].endswith("/bbox")
@@ -111,7 +124,12 @@ def test_two_stage_rejects_changed_background(monkeypatch, tmp_path):
         nonlocal calls
         calls += 1
         if calls == 1:
-            kwargs["result_callback"](SimpleNamespace(coarse_applied=bbox))
+            kwargs["result_callback"](
+                SimpleNamespace(
+                    coarse_applied=bbox,
+                    generated_mask=np.ones((1, 2, 1, 2, 2), dtype=np.float32),
+                )
+            )
         else:
             kwargs["result_callback"](
                 SimpleNamespace(
@@ -123,4 +141,14 @@ def test_two_stage_rejects_changed_background(monkeypatch, tmp_path):
 
     monkeypatch.setattr(pth.onnx_runner, "run_sequence", run_sequence)
     with pytest.raises(RuntimeError, match="outside the predicted mask"):
-        pth.run_two_stage_hybrid({"seed": 7}, str(tmp_path / "output"), None)
+        pth.run_two_stage_hybrid(
+            {"seed": 7, "denoise_steps": 2}, str(tmp_path / "output"), None
+        )
+
+
+def test_hybrid_requires_a_refinement_step(tmp_path):
+    with pytest.raises(ValueError, match="denoise_steps >= 2"):
+        pth.run_two_stage_hybrid(
+            {"seed": 7, "denoise_steps": 1}, str(tmp_path / "output"), None
+        )
+    assert not (tmp_path / "output").exists()
