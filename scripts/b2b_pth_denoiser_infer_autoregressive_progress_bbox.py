@@ -317,8 +317,10 @@ def parse_args():
         "--two-stage-hybrid",
         action="store_true",
         help=(
-            "For one two-frame SmartBrush clip, save a bbox pass and a predicted-mask "
-            "refinement pass under output_dir. Uses absolute crops and no mandatory bbox."
+            "For one two-frame SmartBrush clip, spend one denoise step on bbox "
+            "generation and the remaining steps on predicted-mask refinement "
+            "(at least two total). Saves bbox/ and hybrid/ under output_dir. "
+            "Uses absolute crops and no mandatory bbox."
         ),
     )
     return parser.parse_args()
@@ -339,6 +341,10 @@ def install_no_mandatory_bbox():
 
 
 def run_two_stage_hybrid(run_kwargs, output_dir, debug_dump_dir):
+    run_kwargs = run_kwargs.copy()
+    total_steps = int(run_kwargs.pop("denoise_steps"))
+    if total_steps < 2:
+        raise ValueError("Hybrid inference requires denoise_steps >= 2 total")
     if os.path.exists(output_dir):
         raise FileExistsError(f"Hybrid output directory already exists: {output_dir}")
 
@@ -352,6 +358,7 @@ def run_two_stage_hybrid(run_kwargs, output_dir, debug_dump_dir):
     reset_seed()
     bbox_frames = onnx_runner.run_sequence(
         **run_kwargs,
+        denoise_steps=1,
         output_dir=os.path.join(output_dir, "bbox"),
         debug_dump_dir=(
             os.path.join(debug_dump_dir, "bbox") if debug_dump_dir else None
@@ -359,17 +366,16 @@ def run_two_stage_hybrid(run_kwargs, output_dir, debug_dump_dir):
         apply_predicted_mask=False,
         use_predicted_mask_during_denoising=False,
         result_callback=lambda result: bbox_results.append(
-            result.coarse_applied.copy()
+            (result.coarse_applied.copy(), result.generated_mask.copy())
         ),
     )
     if bbox_frames != [0, 1] or len(bbox_results) != 1:
         raise RuntimeError("Hybrid bbox pass must produce exactly one two-frame result")
+    bbox_image, bbox_mask = bbox_results[0]
 
     def verify_refinement(result):
         outside = 1.0 - result.generated_mask
-        if not np.array_equal(
-            result.generated_applied * outside, bbox_results[0] * outside
-        ):
+        if not np.array_equal(result.generated_applied * outside, bbox_image * outside):
             raise RuntimeError(
                 "Hybrid refinement changed pixels outside the predicted mask"
             )
@@ -377,13 +383,15 @@ def run_two_stage_hybrid(run_kwargs, output_dir, debug_dump_dir):
     reset_seed()
     hybrid_frames = onnx_runner.run_sequence(
         **run_kwargs,
+        denoise_steps=total_steps - 1,
         output_dir=os.path.join(output_dir, "hybrid"),
         debug_dump_dir=(
             os.path.join(debug_dump_dir, "hybrid") if debug_dump_dir else None
         ),
         apply_predicted_mask=True,
         use_predicted_mask_during_denoising=True,
-        known_image_override=bbox_results[0],
+        known_image_override=bbox_image,
+        initial_predicted_mask_override=bbox_mask,
         result_callback=verify_refinement,
     )
     if hybrid_frames != bbox_frames:
